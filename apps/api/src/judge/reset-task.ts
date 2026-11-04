@@ -26,6 +26,7 @@ export const MAX_CANCELS_PER_PASS = 5;
 /** A Reset cancels at most this many items itself ("about 10 s, at most 2 calls"). */
 export const MAX_CANCELS_PER_RESET = 2;
 const CRON_LOCK = "fs:judge-reset";
+const PURGE_BUDGET_MS = 2 * 60_000;
 
 export interface JudgeResetReport {
   trigger: "cron" | "button";
@@ -135,7 +136,18 @@ export async function runJudgeReset(
       { parkedBefore: new Date(now.getTime() - PARKED_AFTER_MS) },
       MAX_CANCELS_PER_PASS,
     );
-    const purge = await purgeExpiredJudgeWorkspaces(deps.db);
+    const purgeDeadline = performance.now() + PURGE_BUDGET_MS;
+    const purged = new Set<string>();
+    const deferred = new Set<string>();
+    for (;;) {
+      const page = await purgeExpiredJudgeWorkspaces(deps.db);
+      for (const id of page.deferred) deferred.add(id);
+      for (const id of page.purged) {
+        purged.add(id);
+        deferred.delete(id);
+      }
+      if (page.purged.length === 0 || performance.now() >= purgeDeadline) break;
+    }
     const poolRetired = await retireStalePool(deps.db);
     const poolCreated = await refillPool(deps.db, POOL_TARGET);
     const postsResumed = await resumeStalledPosts(deps);
@@ -143,8 +155,8 @@ export async function runJudgeReset(
     const r: JudgeResetReport = {
       trigger: "cron",
       cancelsEnqueued,
-      purged: purge.purged.length,
-      deferred: purge.deferred.length,
+      purged: purged.size,
+      deferred: deferred.size,
       poolCreated,
       poolRetired,
       postsResumed,

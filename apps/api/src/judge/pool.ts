@@ -185,6 +185,7 @@ export async function purgeExpiredJudgeWorkspaces(
   limit = 20,
   only?: readonly string[],
 ): Promise<PurgeOutcome> {
+  if (limit <= 0) return { purged: [], deferred: [] };
   const quietSec = Math.ceil(PURGE_PAYPAL_QUIET_MS / 1000);
   const narrow =
     only && only.length > 0
@@ -214,20 +215,22 @@ export async function purgeExpiredJudgeWorkspaces(
     blocked: boolean;
     now: Date | string;
   }[];
-  const ordered: { id: string; deferred: boolean }[] = [];
+  const removable: string[] = [];
+  const deferred: string[] = [];
   for (const candidate of candidates) {
-    ordered.push({
-      id: candidate.id,
-      deferred: candidate.blocked || (await batchesStillCounted(db, candidate.id, new Date(candidate.now))),
-    });
-  }
-  ordered.sort((a, b) => Number(a.deferred) - Number(b.deferred));
-  const out: PurgeOutcome = { purged: [], deferred: [] };
-  for (const { id, deferred } of ordered.slice(0, limit)) {
-    if (deferred) {
-      out.deferred.push(id);
-      continue;
+    if (candidate.blocked || (await batchesStillCounted(db, candidate.id, new Date(candidate.now)))) {
+      deferred.push(candidate.id);
+    } else {
+      removable.push(candidate.id);
+      // No window checks for candidates this pass cannot purge. Deferred entries never consume a removable slot.
+      if (removable.length >= limit) break;
     }
+  }
+  const out: PurgeOutcome = {
+    purged: [],
+    deferred: deferred.slice(0, Math.max(0, limit - removable.length)),
+  };
+  for (const id of removable) {
     const [busy] = (await db.execute(sql`
       select exists (select 1 from paypal_calls pc
                       where pc.workspace_id = ${id}
