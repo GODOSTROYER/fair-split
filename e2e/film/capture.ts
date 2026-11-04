@@ -1,5 +1,5 @@
 import type { Locator, Page } from "@playwright/test";
-import { type PhaseLanding, waitUntilBeat } from "./timeline.js";
+import { type PhaseLanding, type TakeMark, waitUntilBeat } from "./timeline.js";
 
 export interface CursorPoint {
   readonly atMs: number;
@@ -150,7 +150,12 @@ export async function filmClick(page: Page, target: Locator): Promise<void> {
 }
 
 /** Only editorial pacing is labelled here. Product waits and simulator time are never accelerated. */
-export async function paceFilmBeat(page: Page, id: string, startedAt: number, now: () => number = Date.now) {
+export async function paceFilmBeat(
+  page: Page,
+  id: TakeMark,
+  startedAt: number,
+  now: () => number = Date.now,
+) {
   const badge = (show: boolean) =>
     page.evaluate(
       ({ show, label }) => {

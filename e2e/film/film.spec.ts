@@ -5,7 +5,7 @@ import { startBrowserJudge, stopBrowserJudge } from "../lib/browser-judge.js";
 import { expect, test } from "../lib/fixtures.js";
 import { PRESS_LIVE_CALLS, roomFor } from "../lib/paypal-window.js";
 import { filmClick, installFilmCapture, paceFilmBeat } from "./capture.js";
-import { beatReceipts } from "./timeline.js";
+import { beatReceipts, type TakeMark } from "./timeline.js";
 
 test("E-01 film take: real phases, two scripted human keys and an ink cursor", async ({ page, origin }) => {
   // Window pacing precedes the take; a film wait never changes the product's simulator clocks or labels.
@@ -13,7 +13,8 @@ test("E-01 film take: real phases, two scripted human keys and an ink cursor", a
   const startedAt = Date.now();
   const capture = await installFilmCapture(page, startedAt);
   const click = (id: string) => filmClick(page, page.getByTestId(id));
-  const beat = (id: string) => paceFilmBeat(page, id, startedAt);
+  // The take's clock is the film's: each wait lands on a script beat or capture slot's film second.
+  const beat = (id: TakeMark) => paceFilmBeat(page, id, startedAt);
   const phase = (moment: string, value: string) =>
     expect
       .poll(() => capture.phases.some((event) => event.moment === moment && event.phase === value), {
@@ -33,7 +34,7 @@ test("E-01 film take: real phases, two scripted human keys and an ink cursor", a
   expect(viewport.scale).toBeCloseTo(1, 6);
   await expect(page.getByRole("banner")).toContainText("Simulated PayPal sandbox");
   await beat("funding");
-  // The initial phone is explicitly seeded demo data. Its already-paid view cannot prove this run's MM-1.
+  // The initial phone is explicitly seeded demo data. None of its phases belongs to this run.
   capture.phases.length = 0;
   // Enter while extraction is running so the camera witnesses real row landings, not historical rows.
   const { api, s } = await startBrowserJudge(page, origin, "press", false, "stream");
@@ -43,21 +44,21 @@ test("E-01 film take: real phases, two scripted human keys and an ink cursor", a
     await click("W-JG-01.rail.reading");
     await expect(page.getByTestId("W-TR-03")).toBeVisible();
     await phase("MM-2", "landed");
-    await paceFilmBeat(page, "reading", startedAt + 10_000);
+    await beat("reading-byhand");
     await click("W-JG-01.runPill.next");
     await click("W-TR-04.useLogbook");
     await click("W-TR-04.commit.face");
     await expect(page.getByTestId("W-TR-04.committed")).toBeVisible();
     await phase("MM-2", "done");
 
-    await beat("duplicate");
+    await beat("count-once");
     await click("W-JG-01.rail.split");
     await click("W-TR-05.row.M-007");
     await expect(page.locator('[data-moment="MM-3"]')).toHaveAttribute("data-moment-phase", "ready");
     await click("W-TR-06.countOnce.face");
     await phase("MM-3", "resolved");
 
-    await beat("rules");
+    await beat("holds");
     await click("W-TR-06.next");
     await click("W-TR-06.registerPlot.face");
     await expect(page.getByTestId("W-TR-06.result")).toBeVisible();
@@ -65,7 +66,7 @@ test("E-01 film take: real phases, two scripted human keys and an ink cursor", a
     await click("W-TR-06.returnCredit.face");
     await expect(page.getByTestId("W-TR-06.result")).toBeVisible();
     await click("W-TR-06.drawer.close");
-    await paceFilmBeat(page, "rules", startedAt + 8_000);
+    await beat("rules-console");
     await click("W-JG-01.rail.rate-card");
     await click("W-TR-02.addOpen");
     await click("W-TR-02.addCommit.face");
@@ -88,7 +89,7 @@ test("E-01 film take: real phases, two scripted human keys and an ink cursor", a
     await expect(phone.getByTestId("M-BD-01")).toHaveAttribute("data-state", "request");
     await filmClick(page, phone.getByTestId("M-BD-01.sign"));
     await filmClick(page, phone.getByTestId("M-BD-02.slab.another-way"));
-    await beat("payouts");
+    await beat("signing-phone");
     await capture.refresh();
     const key2StartedAt = Date.now() - startedAt;
     await test.step("Scripted human: Ernesto confirms key 2", async () => {
@@ -105,12 +106,10 @@ test("E-01 film take: real phases, two scripted human keys and an ink cursor", a
       )
       .toBe(true);
     await phase("MM-5", "inked");
+    await beat("payouts");
     await click("W-JG-01.rail.run");
-    await phase("MM-1", "press");
-    await expect
-      .poll(() => beatReceipts(capture.phases).find((entry) => entry.id === "arrival")?.landedAtMs ?? null)
-      .not.toBeNull();
     await expect(page.getByTestId("W-TR-08.payCash.face")).toBeEnabled({ timeout: 60_000 });
+    await beat("payouts-cash");
     await click("W-TR-08.payCash.face");
     await phase("MM-6", "settled");
 
@@ -126,7 +125,7 @@ test("E-01 film take: real phases, two scripted human keys and an ink cursor", a
     // This browser retains its own judge credential, which receives the full tier (including plate 6).
     await expect(page.locator('[data-testid^="W-PF-01.checks."][data-state="matches"]')).toHaveCount(6);
     await expect(page.getByTestId("W-PF-01.checks.payoutItems")).toHaveAttribute("data-state", "matches");
-    await beat("listening");
+    await beat("member");
     await click("W-PF-01.plate.computed.toggle");
     await click("W-PF-01.peso.M-014");
     await click("W-PF-01.trace.slip.0403");

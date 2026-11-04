@@ -107,14 +107,14 @@ test("paced film waits show the honest real-time multiplier and always clear it"
     evaluate: async (_fn: unknown, badge: { show: boolean; label: string }) => badges.push(badge),
     waitForTimeout: async (ms: number) => delays.push(ms),
   } as unknown as Page;
-  await paceFilmBeat(page, "funding", 1_000, () => 15_000);
+  await paceFilmBeat(page, "funding", 1_000, () => 60_000);
   assert.deepEqual(delays, [6_000]);
   assert.deepEqual(badges, [
     { show: true, label: "×1 real time" },
     { show: false, label: "×1 real time" },
   ]);
   badges.length = 0;
-  await paceFilmBeat(page, "funding", 1_000, () => 25_000);
+  await paceFilmBeat(page, "funding", 1_000, () => 70_000);
   assert.deepEqual(badges, []);
 });
 
