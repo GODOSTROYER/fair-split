@@ -21,6 +21,10 @@ const WIDTH = 2400,
 const DISPLAY_WIDTH = 1200,
   DISPLAY_HEIGHT = 1600;
 const SLOTS = ["TL", "TR", "BL", "BR"] as const;
+/** desk-photo-v2 (ADR-0016): a cool laminate #C8D0DB with ink captions #0B1220. v1 was walnut #705339. */
+const DESK = [200, 208, 219] as const;
+const CAPTION_INK = "#0B1220";
+export const RENDERER = "desk-photo-v2" as const;
 const HERO: Record<string, string> = {
   "0436": "spike-0436",
   "0449": "spike-0449",
@@ -84,14 +88,16 @@ function desk(photo: number): Buffer {
   const pixels = Buffer.alloc(WIDTH * HEIGHT * 3);
   for (let y = 0; y < HEIGHT; y++)
     for (let x = 0; x < WIDTH; x++) {
-      // Continuous wood grain, board seams and stable sensor noise. All procedural, no remote assets.
+      // A cool light laminate desk (ADR-0016: no brown on any surface): faint grain at half the v1
+      // amplitude, board seams and stable sensor noise. All procedural, no remote assets.
       const grain =
-        Math.sin(x * 0.19 + 3 * Math.sin(y * 0.002 + photo)) * 2.3 + Math.sin(x * 0.037 + y * 0.0009) * 4;
+        (Math.sin(x * 0.19 + 3 * Math.sin(y * 0.002 + photo)) * 2.3 + Math.sin(x * 0.037 + y * 0.0009) * 4) *
+        0.5;
       const seam = x % 602 < 3 ? -18 : 0;
       const noise = (((x * 73 + y * 151 + photo * 31) % 101) / 101 - 0.5) * 2;
       const light = 1.06 - (0.13 * (x / WIDTH + y / HEIGHT)) / 2;
       const i = (y * WIDTH + x) * 3;
-      for (let c = 0; c < 3; c++) pixels[i + c] = ([112, 83, 57][c] as number) * light + grain + seam + noise;
+      for (let c = 0; c < 3; c++) pixels[i + c] = (DESK[c] as number) * light + grain + seam + noise;
     }
   return pixels;
 }
@@ -151,7 +157,7 @@ export function captionSvg(id: string, placements: readonly Pick<Placement, "slo
       y = i < 2 ? 1590 : 3060;
     return `<text x="${x}" y="${y}" font-size="27">${xml(`${p.slot} · ${p.serial} · ${p.label}`)}</text>`;
   });
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${WIDTH}" height="${HEIGHT}"><g font-family="Arial, sans-serif" fill="#fcf2dd"><text x="130" y="85" font-size="34">${id} / Code-composed · synthetic</text>${captions.join("")}<text x="130" y="3150" font-size="23">Fictional demo evidence · hero-flat text retained; seeded readings are a separate stand-in</text></g></svg>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${WIDTH}" height="${HEIGHT}"><g font-family="Arial, sans-serif" fill="${CAPTION_INK}"><text x="130" y="85" font-size="34">${id} / Code-composed · synthetic</text>${captions.join("")}<text x="130" y="3150" font-size="23">Fictional demo evidence · hero-flat text retained; seeded readings are a separate stand-in</text></g></svg>`;
 }
 
 export async function composePhoto(id: string, root: string, options: { bootstrap?: boolean } = {}) {
@@ -285,7 +291,7 @@ export async function composePhoto(id: string, root: string, options: { bootstra
     id,
     synthetic: true,
     label: "Code-composed · synthetic",
-    renderer: "desk-photo-v1",
+    renderer: RENDERER,
     caption,
     contentSha256: sha256(jsonBytes(rows)),
     template: {

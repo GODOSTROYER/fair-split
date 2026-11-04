@@ -85,6 +85,27 @@ describe("code-composed replay photos", () => {
     expect(result.entry).toEqual(manifest.compositions.E);
   });
 
+  it("lays the slips on a cool light laminate, not the v1 walnut desk (desk-photo-v2, ADR-0016)", async () => {
+    const manifest = Manifest.parse(json("manifest.json"));
+    for (const [id, composition] of Object.entries(manifest.compositions)) {
+      expect(composition.renderer, id).toBe("desk-photo-v2");
+      // The desk shows at the top right corner of every photo, outside the paper and its caption.
+      const { data } = await sharp(readFileSync(join(MEDIA_ROOT, composition.image.file)))
+        .extract({ left: 1100, top: 8, width: 60, height: 40 })
+        .removeAlpha()
+        .raw()
+        .toBuffer({ resolveWithObject: true });
+      const mean = [0, 1, 2].map((c) => {
+        let sum = 0;
+        for (let i = c; i < data.length; i += 3) sum += data[i] as number;
+        return sum / (data.length / 3);
+      });
+      const [r = 0, g = 0, b = 0] = mean;
+      expect(Math.min(r, g, b), `${id} is light`).toBeGreaterThan(170);
+      expect(b, `${id} is cool (blue over red)`).toBeGreaterThan(r);
+    }
+  });
+
   it("inv.i8.composition-labels: rejects a model label on a code-drawn source", () => {
     const manifest = Manifest.parse(json("manifest.json"));
     const drawn = manifest.compositions.A?.placements[0];
