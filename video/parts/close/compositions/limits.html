@@ -2,12 +2,12 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <!-- Script v4 beat "limits", film 154-167 s (close time 11-24 s). Daylight, one camera: the pull-out glide
-         from the handwritten weigh-slip carries the camera to the first limit, and each limit is a day keyword
-         beside the object it qualifies, with its one tag: simulated. on the payout (Paid US$64.45), synthetic. on
-         the co-op's 64 dots, generated. on the slip images, replayed. on the reading that lifts out of them,
-         synthesized. on the statement's voice. The full disclosures are in the narration, the closed captions and
-         the upload's description. -->
+    <!-- Script v4 beat "limits", film 154-164 s (close time 11-21 s), timed to the recorded voice. Daylight, one
+         camera: the pull-out glide from the handwritten weigh-slip carries the camera to the first limit, and each
+         limit is a day keyword beside the object it qualifies, with its one tag: simulated. on the payout (Paid
+         US$64.45), synthetic. on the co-op's 64 dots beside the slip images (people and slips on one station, review
+         v4 item 3), replayed. on the reading that lifts out of the slips, synthesized. on the statement's voice. The
+         full disclosures are in the narration, the closed captions and the upload's description. -->
   </head>
   <body>
     <template>
@@ -437,7 +437,7 @@
           height: 168px;
         }
       </style>
-      <div id="root" data-composition-id="close-limits" data-width="1920" data-height="1080" data-duration="13">
+      <div id="root" data-composition-id="close-limits" data-width="1920" data-height="1080" data-duration="10">
         <div id="cl-field" class="cf-field">
           <div id="cl-lightA" class="cf-light cf-lightA" data-layout-allow-overflow></div>
           <div id="cl-lightC" class="cf-light cf-lightC" data-layout-allow-overflow></div>
@@ -498,12 +498,9 @@
           <span data-layout-allow-occlusion>synthetic.</span>
         </div>
         <div id="cl-kw3" class="cf-kw" data-layout-allow-overlap data-layout-allow-occlusion data-layout-allow-overflow>
-          <span data-layout-allow-occlusion>generated.</span>
-        </div>
-        <div id="cl-kw4" class="cf-kw" data-layout-allow-overlap data-layout-allow-occlusion data-layout-allow-overflow>
           <span data-layout-allow-occlusion>replayed.</span>
         </div>
-        <div id="cl-kw5" class="cf-kw" data-layout-allow-overlap data-layout-allow-occlusion data-layout-allow-overflow>
+        <div id="cl-kw4" class="cf-kw" data-layout-allow-overlap data-layout-allow-occlusion data-layout-allow-overflow>
           <span data-layout-allow-occlusion>synthesized.</span>
         </div>
         <div id="cl-tag1" class="cf-tag" data-layout-allow-occlusion>
@@ -520,10 +517,9 @@
           </svg>
           Simulated PayPal sandbox
         </div>
-        <div id="cl-tag2" class="cf-tag cf-tag--nodot" data-layout-allow-occlusion>Synthetic co-op</div>
-        <div id="cl-tag3" class="cf-tag cf-tag--nodot" data-layout-allow-occlusion>Generated slip images</div>
-        <div id="cl-tag4" class="cf-tag cf-tag--nodot" data-layout-allow-occlusion>Seed stand-in reading</div>
-        <div id="cl-tag5" class="cf-tag cf-tag--nodot" data-layout-allow-occlusion>Gemini TTS · machine-translated</div>
+        <div id="cl-tag2" class="cf-tag cf-tag--nodot" data-layout-allow-occlusion>Synthetic people and slips</div>
+        <div id="cl-tag3" class="cf-tag cf-tag--nodot" data-layout-allow-occlusion>Seed stand-in reading</div>
+        <div id="cl-tag4" class="cf-tag cf-tag--nodot" data-layout-allow-occlusion>Synthetic voices · Gemini TTS</div>
         <canvas id="cl-grain" class="cf-grain" width="960" height="540" data-layout-allow-overflow></canvas>
         <svg class="cf-defs" aria-hidden="true">
           <filter id="cl-mblur" x="-10%" y="-10%" width="120%" height="120%" color-interpolation-filters="sRGB">
@@ -537,7 +533,7 @@
           // The close's one camera over one day field (video/proto/STYLE.md §1, §4, §5, §10), shared by the three
           // compositions. `node build.mjs` copies this file into each composition between the rig markers; edit it here.
           // Close time `tc` runs 0-32 s (film 143-175); every pixel is computed from it alone (seeded noise only), so any
-          // frame renders on its own and the three compositions meet without a seam at 11 s and 24 s.
+          // frame renders on its own and the three compositions meet without a seam at 11 s and 21 s.
           const CloseRig = (() => {
             const gsap = window.gsap;
             const PE = (name) => gsap.parseEase(name);
@@ -585,16 +581,18 @@
               { t: 7.95, x: 4003, y: 0, s: 1.006 }, // "handwritten." lands beside the whole slip
               { t: 9.6, x: 4343, y: 42.8, s: 2.5, log: true }, // push in about 2.5x on the Net row: 38.45 and its box
               { t: 10.45, x: 4344.5, y: 43.2, s: 2.54, log: true }, // hold on the hand's box
+              // the limits follow the recorded voice (ADR-0018): four objects in ten seconds, "generated." merged into
+              // "synthetic." (review v4 item 3), the people and the slip images side by side on one station
               { t: 12.45, x: 5444, y: -10, s: 1, log: true, sf: 0.6, dip: 0.15 }, // pull out (scale first), glide: simulated.
-              { t: 13.8, x: 5449, y: -10, s: 1.01 },
-              { t: 15.1, x: 6693, y: -10, s: 1, dip: 0.3 }, // synthetic.: the 64 dots
-              { t: 16.55, x: 6699, y: -10, s: 1.012 },
-              { t: 17.85, x: 7943, y: -10, s: 1, dip: 0.3 }, // generated.: the slips; replayed.: the reading lifts out
-              { t: 21.35, x: 7953, y: 40, s: 1.03 },
-              { t: 22.65, x: 9193, y: -10, s: 1, dip: 0.3 }, // synthesized.: the statement's voice
-              { t: 24.0, x: 9199, y: -10, s: 1.012 },
-              { t: 26.05, x: 11093, y: 0, s: 1, dip: 0.3 }, // glide into the overview: the trace, the end line, the name
-              { t: 32.0, x: 11101, y: 0, s: 1.025 },
+              { t: 15.0, x: 5450, y: -10, s: 1.012 }, // "...simulated sandbox; no real farmer was paid."
+              { t: 16.3, x: 6693, y: -10, s: 1, dip: 0.3 }, // synthetic.: the 64 dots and the slip images
+              { t: 17.7, x: 6697, y: -10, s: 1.008 },
+              { t: 18.5, x: 6993, y: 40, s: 1.03 }, // replayed.: a short push to the slips as the reading lifts out of them
+              { t: 19.0, x: 6996, y: 40, s: 1.032 },
+              { t: 20.3, x: 8237, y: -10, s: 1, dip: 0.3 }, // synthesized.: the statement's voice
+              { t: 21.0, x: 8241, y: -10, s: 1.006 },
+              { t: 23.05, x: 10137, y: 0, s: 1, dip: 0.3 }, // glide into the overview: the trace, the end line, the name
+              { t: 32.0, x: 10145, y: 0, s: 1.025 },
             ];
             function camAt(tc) {
               if (tc <= CAM[0].t) return CAM[0];
@@ -661,14 +659,14 @@
                 rx: 2,
                 rot: 0.6,
                 ph: 1.7,
-                vis: [11.0, 11.35, 14.7, 15.05],
+                vis: [11.0, 11.35, 15.1, 15.45],
                 focus: { blur: 7, fade: 0.35, sat: 1, sharp: [502, 62, 112, 56, 62] },
               },
-              // synthetic.: the co-op's 64 members, the opening's dots gathered once more into a ring
-              dots: { x: 6913, y: 90, w: 560, h: 560, sc: 1, ph: 2.9, vis: [13.8, 13.8, 17.45, 17.85] },
-              // generated.: three slip images; replayed.: the reading lifts out of the front one
+              // synthetic.: the co-op's 64 members, the opening's dots gathered once more into a ring, beside the slip images
+              dots: { x: 6373, y: 90, w: 560, h: 560, sc: 1, ph: 2.9, vis: [15.0, 15.0, 17.8, 18.3] },
+              // synthetic.: three slip images, made in code; replayed.: the reading lifts out of the front one
               fan: {
-                x: 8163,
+                x: 7033,
                 y: 100,
                 w: 820,
                 h: 640,
@@ -678,10 +676,10 @@
                 rx: 1.5,
                 rot: 0,
                 ph: 2.3,
-                vis: [16.55, 16.55, 22.25, 22.65],
+                vis: [15.0, 15.0, 19.9, 20.3],
               },
               read: {
-                x: 8123,
+                x: 6993,
                 y: 250,
                 w: 960,
                 h: 200,
@@ -691,14 +689,14 @@
                 rx: 1.5,
                 rot: -0.5,
                 ph: 0.9,
-                vis: [18.9, 18.9, 22.25, 22.65],
+                vis: [17.6, 17.6, 19.9, 20.3],
               },
               // synthesized.: the member's statement, said aloud; the glide into the overview carries it off the frame
-              wave: { x: 9363, y: 110, w: 1000, h: 280, sc: 1, vis: [21.35, 21.75] },
+              wave: { x: 8407, y: 110, w: 1000, h: 280, sc: 1, vis: [19.0, 19.4] },
               // the overview: slip -> phone on one gentle line, in the order the data flows (STYLE §4); the slip is blurred
               // out of reading and only her US$64.45 stays sharp on the phone
               oslip: {
-                x: 10793,
+                x: 9837,
                 y: 20,
                 w: 600,
                 h: 732,
@@ -711,7 +709,7 @@
                 focus: { blur: 4, fade: 0.08, sat: 0.5 },
               },
               phone: {
-                x: 11413,
+                x: 10457,
                 y: -5,
                 w: 355,
                 h: 822.5,
@@ -726,10 +724,10 @@
             };
 
             // The statement's voice: an ink wave out of a play disc, grown from a flat line as the keyword lands, travelling
-            // outwards (≤ 1.2 Hz at any point). Shared so the limits and the end draw the same pixels at 24 s.
+            // outwards (≤ 1.2 Hz at any point). Shared so the limits and the end draw the same pixels at 21 s.
             function wavePaths(tc) {
               const T = FILM0 + tc;
-              const grow = E.p2o(prog(tc, 22.15, 23.0));
+              const grow = E.p2o(prog(tc, 19.4, 20.25));
               const main = [];
               const echo = [];
               for (let i = 0; i <= 180; i++) {
@@ -943,9 +941,9 @@
           });
           function drawDots(tc) {
             const T = FILM0 + tc;
-            const turn = 0.035 * (tc - 15);
+            const turn = 0.035 * (tc - 16.3);
             for (const d of DOTS) {
-              const u = E.p3o(prog(tc, 14.2 + d.delay, 15.0 + d.delay));
+              const u = E.p3o(prog(tc, 15.5 + d.delay, 16.3 + d.delay));
               const to = { x: 280 + 240 * Math.cos(d.ang + turn), y: 280 + 240 * Math.sin(d.ang + turn) };
               const x = lerp(d.from.x, to.x, u);
               const y = lerp(d.from.y, to.y, u);
@@ -953,20 +951,20 @@
               d.el.setAttribute("cx", x.toFixed(1));
               d.el.setAttribute("cy", y.toFixed(1));
               d.el.setAttribute("r", rr.toFixed(2));
-              d.el.setAttribute("opacity", (0.86 * prog(tc, 14.15 + d.delay, 14.45 + d.delay)).toFixed(3));
+              d.el.setAttribute("opacity", (0.86 * prog(tc, 15.45 + d.delay, 15.75 + d.delay)).toFixed(3));
             }
           }
-          // synthesized.: the statement's voice (shared with the end, so the joint at 24 s matches)
+          // synthesized.: the statement's voice (shared with the end, so the joint at 21 s matches)
           const waveMain = document.getElementById("cl-waveMain");
           const waveEcho = document.getElementById("cl-waveEcho");
           function drawWave(tc) {
-            if (tc < 21.3) return;
+            if (tc < 19.0) return;
             const p = CloseRig.wavePaths(tc);
             waveMain.setAttribute("d", p.main);
             waveEcho.setAttribute("d", p.echo);
           }
 
-          // the world (rig.js WORLD): the slip's close-up leaving, then the five limits' objects
+          // the world (rig.js WORLD): the slip's close-up leaving, then the four limits' objects
           const rig = CloseRig.create({
             id: "cl",
             t0: T0,
@@ -978,17 +976,17 @@
           });
           const tl = gsap.timeline({ paused: true });
           const clock = { t: 0 };
-          tl.to(clock, { t: 13, duration: 13, ease: "none", onUpdate: () => rig.draw(clock.t) }, 0);
+          tl.to(clock, { t: 10, duration: 10, ease: "none", onUpdate: () => rig.draw(clock.t) }, 0);
           const at = (tc) => tc - T0; // close time -> local
 
           // one limit at a time, while it is said, each beside its object: a keyword (wipe in 0.75 s, out 0.32 s)
           // and its one tag. The sandbox tag holds from the frame the payout appears until it has gone.
+          // (close time; the voice says "simulated" at 13.0, "Synthetic" 16.42, "replayed" 18.18, "Gemini" 19.56)
           const LIMITS = [
-            { kw: [12.2, 13.85], tag: [11.0, 14.85] }, // PayPal runs on a simulated sandbox: the payout
-            { kw: [14.85, 16.55], tag: [15.05, 16.6] }, // People and data are synthetic: the 64 members
-            { kw: [17.6, 18.95], tag: [17.6, 18.95] }, // the slip images are generated
-            { kw: [19.3, 21.35], tag: [19.3, 21.35] }, // Your demo replays a labelled reading stand-in
-            { kw: [22.25, 22.25 + 1.34], tag: [22.3, 23.72] }, // Voices are Gemini TTS (wipe done 2 frames before the cut)
+            { kw: [12.55, 14.4], tag: [11.0, 15.1] }, // PayPal is a simulated sandbox; no real farmer was paid
+            { kw: [16.2, 17.6], tag: [16.25, 17.65] }, // Synthetic people and slips: the 64 members and the slip images
+            { kw: [17.95, 19.12], tag: [17.95, 19.15] }, // a replayed stand-in
+            { kw: [19.45, 20.6], tag: [19.5, 20.75] }, // Gemini TTS voices (wipe done 2 frames before the cut)
           ];
           LIMITS.forEach(({ kw, tag }, i) => {
             const n = i + 1;
@@ -1012,15 +1010,15 @@
             "#cl-dotsFig",
             { opacity: 0, scale: 0.94, filter: "blur(12px)" },
             { opacity: 1, scale: 1, filter: "blur(0px)", duration: 0.7, ease: "expo.out" },
-            at(14.95),
+            at(16.25),
           );
-          // generated.: each slip image resolves out of a blur, as an image model makes it, as the camera arrives
+          // synthetic.: each slip image resolves out of a blur as the camera arrives (made in code, not photographed)
           ["#cl-fan .cl-fs1 .cl-fsImg", "#cl-fan .cl-fs2 .cl-fsImg", "#cl-fan .cl-fs3 .cl-fsImg"].forEach((sel, i) => {
             tl.fromTo(
               sel,
               { opacity: 0, filter: "blur(18px) saturate(0) brightness(1.25)" },
               { opacity: 1, filter: "blur(1.1px) saturate(0.5) brightness(1)", duration: 0.95, ease: "power2.out" },
-              at(17.25 + 0.2 * i),
+              at(15.9 + 0.2 * i),
             );
           });
           // replayed.: the reading lifts out of the slips (STYLE §4 lift), and the slips go to the deep plane
@@ -1028,13 +1026,13 @@
             "#cl-readIn",
             { opacity: 0, scale: 0.55, y: 70, filter: "blur(14px)" },
             { opacity: 1, scale: 1, y: 0, filter: "blur(0px)", duration: 0.75, ease: "expo.out" },
-            at(19.0),
+            at(17.75),
           );
           tl.fromTo(
             "#cl-fanIn",
             { opacity: 1, scale: 1, filter: "blur(0px) grayscale(0)" },
             { opacity: 0.5, scale: 0.85, filter: "blur(9px) grayscale(1)", duration: 0.8, ease: "power2.inOut" },
-            at(19.0),
+            at(17.75),
           );
 
           rig.draw(0);

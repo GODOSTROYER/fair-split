@@ -198,13 +198,11 @@ never on the name (see the README's outline).
 - **Narration is optional per beat**: the picture must explain the product without it. When used (Gemini TTS),
   the `problem` line sits over 1.4–14.4 s; the `solution` line opens with "Fair Split:" on the swell (14.45–15.8,
   the one word allowed over the turn: the narrator names the product as the day opens, now that the opening has
-  no name card) and ends before the end line (27.2 s). Ducked music under the voice (about -10 dB), never over an
-  end line or a bumper's words, and the closed captions follow it word for word. Script v4's lines need about
-  148 and 169 wpm to fit; `AUDIO-CUES.md` ("Fit to the picture") lists every line's window and pace, and F4
-  records to it or F1 shortens the line (the solution line by about six words fits at 141 wpm; `AUDIO-CUES.md`
-  proposes an exact 29-word line at 136 wpm, under the check's 140, for F1 and E-19 to decide). Until
-  `script.ts` moves the solution's speech window to 14.45–27.2, its first caption cue starts at 14.0, before the
-  turn.
+  no name card) and ends before the end line (27.2 s). Ducked music under the voice (18–22 dB, and out under the member's own sentence), never over
+  a bumper's words, and the closed captions follow it word for word. Rough cut v5 (ADR-0018) records each line in Gemini TTS
+  (Charon), aligns its words offline and places the clip (`script.ts` `NARRATION_AT`); `plan.mjs` `NARRATION_FIT`
+  says where each line must sit in the picture ("Fair Split:" on the turn, the solution line ending before the end
+  line, "Try to break it" on the reel's night cut), and the build refuses a miss.
 - Sound design follows the metaphors: the slip's wave, the member's statement playing (23.8 s), the pulse.
 
 ## 10. Grain and delivery

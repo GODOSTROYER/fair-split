@@ -24,12 +24,16 @@ const FILM0 = beat.start; // the day field drifts on the film's clock, as in eve
 const [say0, say1] = (beat.speech ?? [beat.start, beat.end]).map((s) => s - beat.start);
 const spoken = beat.say.split(/\s+/).filter((w) => /[\p{L}\p{N}]/u.test(w));
 const bare = (w) => w.toLowerCase().replace(/^\W+/, "");
-/** Local second at which `phrase` is said (word-proportional across the speech window, unrounded). */
+/**
+ * Local second at which `phrase` is said: the recorded voice's word start (script.ts `words`, F4), else
+ * word-proportional across the speech window (unrounded).
+ */
 function said(phrase) {
   const want = phrase.toLowerCase().split(/\s+/);
   const i = spoken.findIndex((_, k) => want.every((w, j) => bare(spoken[k + j] ?? "").startsWith(w)));
   if (i < 0) throw new Error(`architecture: "${phrase}" is not spoken`);
-  return say0 + ((say1 - say0) * i) / spoken.length;
+  const word = beat.words?.[i];
+  return word ? word.start - beat.start : say0 + ((say1 - say0) * i) / spoken.length;
 }
 const W = {
   slips: said("slips"),

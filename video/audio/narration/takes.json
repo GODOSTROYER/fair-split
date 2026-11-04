@@ -1,0 +1,95 @@
+{
+  "voice": "Charon",
+  "model": "gemini-3.8-flash-tts",
+  "style": "calm, warm and credible documentary narrator for a short product film; clear, quietly confident, never rushed; <the beat's pace>",
+  "note": "One Gemini TTS request per narrated beat (5 Nov 2026, free tier, the repo's KeyPool and synthesize(), counted on the shared ledger). Takes 2 and 3 retook lines read over 140 wpm or misheard; `pauses` edit a sentence pause at [seconds into the raw take, seconds]: a positive value inserts that much silence (a beat stays at or under 140 wpm without retiming the voice), a negative one cuts it out of the pause (highlights: the list's pauses are tightened so each reel clip keeps about 1.8 s and the phone clip 2.3 s, and the pause before 'Try to break it' grows so it lands on the reel's night cut at 55 s).",
+  "target": { "lufs": -16, "truePeak": -1.5, "rate": 48000 },
+  "beats": {
+    "problem": {
+      "take": 1,
+      "requests": 1,
+      "pace": "steady pace, about 125 words a minute; a short pause at each full stop",
+      "pauses": []
+    },
+    "solution": {
+      "take": 1,
+      "requests": 1,
+      "pace": "brisk but clear, about 140 words a minute; very short pauses at full stops; say 'Fair Split' as a name",
+      "pauses": []
+    },
+    "architecture": {
+      "take": 1,
+      "requests": 2,
+      "pace": "even and brisk, about 135 words a minute; short pauses at full stops",
+      "pauses": [[3.515, 0.16], [6.24, 0.17]]
+    },
+    "highlights": {
+      "take": 2,
+      "requests": 2,
+      "pace": "steady, about 125 words a minute; a short pause at each semicolon",
+      "pauses": [[3.645, -0.36], [5.72, -0.27], [7.71, -0.19], [9.535, -0.04], [11.365, 0.36]]
+    },
+    "paper": {
+      "take": 2,
+      "requests": 2,
+      "pace": "steady and unhurried, about 120 words a minute; a short pause at the full stop",
+      "pauses": [[2.97, 0.35]]
+    },
+    "funding": {
+      "take": 2,
+      "requests": 2,
+      "pace": "steady and unhurried, about 120 words a minute",
+      "pauses": []
+    },
+    "reading": {
+      "take": 2,
+      "requests": 2,
+      "pace": "steady, about 125 words a minute; short pauses at full stops",
+      "pauses": [[2.9, 0.18]]
+    },
+    "count-once": { "take": 2, "requests": 2, "pace": "steady, about 125 words a minute", "pauses": [] },
+    "holds": {
+      "take": 3,
+      "requests": 3,
+      "pace": "steady and unhurried, about 120 words a minute; a short beat after 'Refused'",
+      "pauses": []
+    },
+    "signing": {
+      "take": 3,
+      "requests": 3,
+      "pace": "steady and unhurried, about 120 words a minute; a short pause at the colon and at the semicolon",
+      "pauses": []
+    },
+    "payouts": { "take": 1, "requests": 1, "pace": "even, about 125 words a minute", "pauses": [] },
+    "proof": {
+      "take": 2,
+      "requests": 2,
+      "pace": "steady and unhurried, about 120 words a minute",
+      "pauses": [[4.03, 0.12]]
+    },
+    "member": {
+      "take": 2,
+      "requests": 2,
+      "pace": "gentle and steady, about 125 words a minute; a short pause at the full stop",
+      "pauses": [[2.795, 0.1]]
+    },
+    "impressive": {
+      "take": 1,
+      "requests": 1,
+      "pace": "steady, about 125 words a minute; a short pause after 'switches'",
+      "pauses": []
+    },
+    "limits": {
+      "take": 1,
+      "requests": 1,
+      "pace": "plain and matter-of-fact, brisk, about 140 words a minute, like reading a short list of facts",
+      "pauses": []
+    },
+    "end": {
+      "take": 1,
+      "requests": 1,
+      "pace": "slower and warm, about 115 words a minute; let the last sentence land",
+      "pauses": []
+    }
+  }
+}

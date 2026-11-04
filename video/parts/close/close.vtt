@@ -3,35 +3,30 @@ WEBVTT
 NOTE Closed captions for the film close (script v4 beats impressive, limits, end): video/captions.vtt from 143 s, shifted by -143 s and generated with it by video/build.mjs. Muxed into out/close.mp4 as a soft subtitle track; never burned in.
 
 1
-00:00:00.000 --> 00:00:05.238
+00:00:00.200 --> 00:00:06.028
 Underneath: over five thousand
 automated tests and three kill switches.
 
 2
-00:00:05.238 --> 00:00:11.000
+00:00:06.028 --> 00:00:10.480
 Others we found share parts;
 none starts from a handwritten weigh-slip.
 
 3
-00:00:11.000 --> 00:00:14.586
-The limits:
-PayPal runs on a simulated sandbox.
-
-4
-00:00:14.586 --> 00:00:19.069
-People and data are synthetic;
+00:00:11.200 --> 00:00:16.420
+The limits: PayPal is a simulated sandbox;
 no real farmer was paid.
 
-5
-00:00:19.069 --> 00:00:24.000
-Your demo replays a labelled reading
-stand-in. Voices are Gemini TTS.
+4
+00:00:16.420 --> 00:00:20.860
+Synthetic people and slips,
+a replayed stand-in, Gemini TTS voices.
 
-6
-00:00:24.000 --> 00:00:26.353
+5
+00:00:21.350 --> 00:00:24.050
 Members check their own pay;
 
-7
-00:00:26.353 --> 00:00:32.000
+6
+00:00:24.050 --> 00:00:29.730
 the buyer traces its premium.
 Every peso, traced to the pencil mark.

@@ -1,11 +1,12 @@
-# Fair Split film · script v4, rough cut v4
+# Fair Split film · script v4, rough cut v5 (with sound)
 
 1920 × 1080, 30 fps, 175 seconds (2:55), in the motion language of [`proto/STYLE.md`](proto/STYLE.md): almost no
 text, one accent per frame, a visual metaphor per idea, night then day, calm floating product windows, a smooth
 camera. Words, time and capture slots come from `script.ts` (17 beats in 3 parts, ADR-0017); `plan.mjs` places them
 (which composition covers which beats, one keyword and one honesty tag per slot, the captions, the audio cues).
-This is a **silent** rough cut: every product recording is a labelled capture slot, and the narration voice and the
-music are not chosen yet (their cue points are in [`AUDIO-CUES.md`](AUDIO-CUES.md)).
+Every product recording is still a labelled capture slot. Rough cut v5 adds the sound (ADR-0018): Gemini TTS
+narration in voice Charon, timed word by word from the recording, Scott Buckley's "Machina" into "Aurora" (CC BY
+4.0, credited) and sparse CC0 sound effects; [`AUDIO-CUES.md`](AUDIO-CUES.md) is the sound sheet.
 
 ## The film, beat by beat
 
@@ -26,8 +27,8 @@ music are not chosen yet (their cue points are in [`AUDIO-CUES.md`](AUDIO-CUES.m
 | 129–134   | member       | `compositions/member.html`                            | traced. (member-phone, a phone window): her four slips trace into her net pay, one jade pulse at 131.2.                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 | 134–143   | listening    | `compositions/listening.html`                         | heard. (listening-phone, a phone window); her sentence plays alone. The phone holds while it plays, then the camera glides off it under a daylight veil (141.9–143.0, 92% by 142.85) and rests on the field.                                                                                                                                                                                                                                                                                                                                    |
 | 143–154   | impressive   | `parts/close/compositions/impressive.html`            | Day, on the reel's field: the close lifts the run's veil (143.0–143.7); "5,000+" over "automated tests", a glide to "3" over "kill switches", a glide to the handwritten weigh-slip, "handwritten." (150.6), then a push of about 2.5× on its Net row (150.95–152.6) while the rest blurs and greys, so the hand's indigo box round 38.45 (about 45 px tall) is the only readable text. No PayPal value, no tag.                                                                                                                                |
-| 154–167   | limits       | `parts/close/compositions/limits.html`                | Day. A pull-out glide (153.45–155.45) carries the camera from the slip straight to the first limit; then one limit at a time while it is said, each keyword beside the object it qualifies, with its one tag: simulated. (155.2, the peso card's "Paid US$64.45") · synthetic. (157.85, the 64 dots gather into a ring) · generated. (160.6, three slip images sharpen) · replayed. (162.3, the reading card lifts out of the slips) · synthesized. (165.25, an ink wave from a play disc), which stays on into the glide to the overview.      |
-| 167–175   | end          | `parts/close/compositions/end.html`                   | The slip and her phone on one line (sandbox tag on), both blurred out of reading but for her US$64.45, the trace from the handwritten 38.45 to her pay and one jade pulse (169.85), a veil, "Every peso, traced." (170.6), then the film's one name card (171.95) with the voices' tag to the last frame.                                                                                                                                                                                                                                       |
+| 154–164   | limits       | `parts/close/compositions/limits.html`                | Day. A pull-out glide (153.45–155.45) carries the camera from the slip straight to the first limit; then one limit at a time while it is said, each keyword beside the object it qualifies, with its one tag: simulated. (155.2, the peso card's "Paid US$64.45") · synthetic. (157.85, the 64 dots gather into a ring) · generated. (160.6, three slip images sharpen) · replayed. (162.3, the reading card lifts out of the slips) · synthesized. (165.25, an ink wave from a play disc), which stays on into the glide to the overview.      |
+| 164–175   | end          | `parts/close/compositions/end.html`                   | The slip and her phone on one line (sandbox tag on), both blurred out of reading but for her US$64.45, the trace from the handwritten 38.45 to her pay and one jade pulse (169.85), a veil, "Every peso, traced." (170.6), then the film's one name card (171.95) with the voices' tag to the last frame.                                                                                                                                                                                                                                       |
 
 Script v4's boundaries are unchanged: each part's real length matches its beats (the opening 30 s, the
 architecture 14 s, the close 32 s), and the build refuses a part whose own `data-duration` drifts from its beats.
@@ -58,7 +59,7 @@ architecture 14 s, the close 32 s), and the build refuses a part whose own `data
 - No captions are burned in. **`captions.vtt`** is the closed-caption track (STYLE §8): word for word with every
   spoken line in `script.ts`, at most two lines of 42 characters, each cue 1–6 s, with one bracketed sound cue for
   the member's sentence. Timing is word-proportional within each beat (as every card, architecture step and reel
-  cut is timed) until F4 aligns the recorded voice. `captions.json` is the same track as data.
+  cut is timed) to the recorded voice. `captions.json` is the same track as data.
 
 ## Honesty in this style
 
@@ -66,7 +67,7 @@ STYLE §7 replaces v1's disclosure rails and lower thirds with one dashed tag at
 with the first people count (1.95 s) and "Simulated PayPal sandbox" with the first PayPal value (13.1 s), then stays
 on through every product run; the reading's real-reading and stand-in labels take the tag's place over their own
 clips; the architecture carries "Seed stand-in reading" while Claude is the subject, then the sandbox tag from the
-PayPal node, which runs on into the reel; the close shows one limit at a time while it is said (154–167), each with
+PayPal node, which runs on into the reel; the close shows one limit at a time while it is said (154–164), each with
 its one tag, and the end card's tag ("Synthetic voices · Gemini TTS") holds to the last frame. v1's opening rail
 (`FILM.firstCaption`, 0–14 s) is no longer on screen: its four disclosures are in the tags, the limits, the end
 card's tag and the upload's description (`FILM.descriptionDisclosure`). Review that change before delivery.
@@ -99,7 +100,7 @@ a cut (the sandbox tag at 44 s) does not change size.
 3. Optionally set `mediaStart` and `playbackRate` (1 or 12) in `captures.json`; regeneration keeps both. A 12×
    capture gets a "×12 real time" chip in its window. Never accelerate human signing (the check refuses it).
 4. The reel (44–57) cuts each clip on the words that name its feature (held to 0.3 s by the check). The member's
-   IC-11 PREMIUM sentence (8.44 s) plays alone in the listening beat (134–143); F4 aligns the narration without
+   IC-11 PREMIUM sentence (8.44 s) plays alone in the listening beat (134–143); the narration is aligned without
    moving beat boundaries, and regenerates `captions.vtt` from its alignment.
 
 ## Build, check, render
@@ -112,15 +113,20 @@ node video/check.mjs
 . video/proto/tools/env.sh           # offline HyperFrames 0.8.157, cached Chromium, WinGet ffmpeg
 $HF lint video && $HF check video
 $HF snapshot video --describe false --no-end --at 2.4,15,20.9,35,45.5,57.5,69,75,107,131,145,160,172
-$HF render video --quality draft --fps 30 --workers 1 --output video/out/rough-cut-v4-picture.mp4
-ffmpeg -i video/out/rough-cut-v4-picture.mp4 -f lavfi -t 175 -i anullsrc=r=48000:cl=stereo -i video/captions.vtt \
-  -map 0:v -map 1:a -map 2:s -c:v copy -c:a aac -b:a 96k -c:s mov_text -metadata:s:s:0 language=eng \
-  video/out/rough-cut-v4.mp4
-cp video/captions.vtt video/out/rough-cut-v4.en.vtt
+$HF render video --quality draft --fps 30 --workers 1 --output video/out/rough-cut-v5-picture.mp4
+# the sound (ADR-0018): the music is fetched to a cache outside the repo, never committed
+node video/tools/fetch-music.mjs ../media-cache/music            # sha256-pinned, Scott Buckley, CC BY 4.0
+node video/tools/build-music-bed.mjs ../media-cache/music        # out/music-bed.wav: cuts and fades only
+node video/tools/mix.mjs                                         # out/stems/*.wav, out/mix-v5.json
+node video/tools/mix.mjs mux video/out/rough-cut-v5-picture.mp4 video/out/rough-cut-v5.mp4
+cp video/captions.vtt video/out/rough-cut-v5.en.vtt
 ```
 
-The MP4 carries a silent stereo track (so editors and players see an audio stream) and the soft English caption
-track; the `.en.vtt` sidecar is for the YouTube upload. Render once at draft quality on a busy machine; the
+The narration is already in `audio/narration/` (`tools/narration.mjs encode` made it from the Gemini takes,
+`align` timed its words from a local Whisper transcript); `tools/sfx-assets.mjs` copied the CC0 effects from the
+kit and rendered the product's own sounds into `assets/sfx/`. `mix.mjs mux` masters to -14 LUFS with the true
+peak at or under -1.5 dBTP, measured on the MP4 itself, and keeps the soft English caption track; the `.en.vtt`
+sidecar is for the YouTube upload, and `CREDITS.txt` holds the description's credit lines. Render once at draft quality on a busy machine; the
 delivery render is `--quality delivery --crf 14` (STYLE §10). `check.mjs` verifies the plan: segments tile the
 film on their beats, each part is as long as its beats, the opening matches the prototype byte for byte, every
 slot has its window, keyword and tag, R1's caption appears only as the exhibit clip's tag, windows stay out of the

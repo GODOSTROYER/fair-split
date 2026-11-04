@@ -1,0 +1,24 @@
+Fair Split: co-op payroll (film credits, ready for the YouTube and Devpost descriptions)
+
+Music
+'Machina' by Scott Buckley - released under CC-BY 4.0. www.scottbuckley.com.au
+'Aurora' by Scott Buckley - released under CC-BY 4.0. www.scottbuckley.com.au
+(Both cut and faded for this film. Licence: https://creativecommons.org/licenses/by/4.0/)
+
+Sound effects (CC0 1.0, credit given voluntarily; via the Barty-Bart motion-graphics sound-effects kit)
+"Whoosh" by qubodup: https://freesound.org/people/qubodup/sounds/60013/
+"Broomstick whoosh 3 - Quiet - OKM1" by Sadiquecat: https://freesound.org/people/Sadiquecat/sounds/816262/
+"quick woosh" by florianreichelt: https://freesound.org/people/florianreichelt/sounds/683101/
+"Classic Click" by adh.dreaming: https://freesound.org/people/adh.dreaming/sounds/671105/
+"Cinematic Riser #3 subtle" by BeaconStudio: https://freesound.org/people/BeaconStudio/sounds/859482/
+"soft_impact3" by peoplearehappy: https://freesound.org/people/peoplearehappy/sounds/841274/
+"Soft-Notifications - Bell - Ding-Dong" by LegitCheese: https://freesound.org/people/LegitCheese/sounds/571513/
+Impact Sounds by Kenney: https://kenney.nl/assets/impact-sounds
+Sound-pass approach: Vox (@Voxyz_ai). The product's own sounds are Fair Split's.
+
+Voices
+Synthetic voices · Gemini TTS: the narration (voice Charon) and the member's statement (Cebuano, machine-translated,
+pending native review).
+
+Simulated PayPal sandbox; untested against PayPal's own sandbox. Synthetic people and data; no money moves.
+Demo runs use a seed stand-in, not a Claude recording.

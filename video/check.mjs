@@ -1,13 +1,16 @@
 // Verifies the built film against script.ts and the plan (plan.mjs): timing, the parts in place, one window, one
 // keyword and the right honesty tag per capture slot, and the closed captions word for word with the script.
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
   BRACKETS,
   CAPTION,
   CLOSE_START,
+  eventTime,
   KEYWORDS,
+  MEMBER_CLIP,
   openingFromPrototype,
   REAL_READING_TAG,
   SEAMS,
@@ -33,7 +36,10 @@ const read = (name) => readFileSync(new URL(name, import.meta.url), "utf8");
 const round = (value) => Number(value.toFixed(6));
 const near = (a, b, tolerance = 1e-6) => Math.abs(a - b) < tolerance;
 const spoken = (say) => say.split(/\s+/).filter((word) => /[\p{L}\p{N}]/u.test(word));
-/** When `phrase` is said in `beat`: word-proportional across its speech window, as the captions are timed. */
+/**
+ * When `phrase` is said in `beat`: the recorded voice's word start (F4), else word-proportional across its speech
+ * window; the captions are timed the same way.
+ */
 function said(beat, phrase) {
   const words = spoken(beat.say);
   const want = phrase.toLowerCase().split(/\s+/);
@@ -41,6 +47,7 @@ function said(beat, phrase) {
     want.every((w, k) => (words[i + k] ?? "").toLowerCase().replace(/^\W+/, "").startsWith(w)),
   );
   assert(index >= 0, `${beat.id}: "${phrase}" is not spoken`);
+  if (beat.words) return beat.words[index].start;
   const [from, to] = beat.speech ?? [beat.start, beat.end];
   return from + ((to - from) * index) / words.length;
 }
@@ -285,12 +292,12 @@ for (const words of ["5,000+", "kill switches", "handwritten."])
 assert(!impressive.includes(SIM), "impressive: no PayPal value shows, so no sandbox tag");
 const limitsBeat = beats.find((beat) => beat.id === "limits");
 const limits = visible(read("parts/close/compositions/limits.html"));
+// four limits (review v4 item 3: "generated." merged into "synthetic."), one voice wording everywhere
 const LIMIT_TAGS = [
   ["simulated.", SIM],
-  ["synthetic.", "Synthetic co-op"],
-  ["generated.", "Generated slip images"],
+  ["synthetic.", "Synthetic people and slips"],
   ["replayed.", "Seed stand-in reading"],
-  ["synthesized.", "Gemini TTS · machine-translated"],
+  ["synthesized.", FILM.voiceDisclosure],
 ];
 // every card item is said while its limit is on screen (the voices' two items share the last one)
 assert.equal(
@@ -517,12 +524,60 @@ assert.deepEqual(
     .map((cue) => [round(cue.start - CLOSE_START), round(cue.end - CLOSE_START), cue.lines]),
   "parts/close/close.vtt differs from the film's captions",
 );
-// The audio cue sheet marks every narration window, the member's sentence and the dark-to-bright swell.
+// The sound sheet marks every narration window, the member's sentence, the dark-to-bright swell and the credited bed.
 const audio = read("AUDIO-CUES.md");
-for (const text of ["dark to bright", "Member audio alone", "silent"])
+for (const text of ["dark to bright", "Member audio alone", "Machina", "Aurora", "Gemini TTS"])
   assert(audio.includes(text), `AUDIO-CUES.md lacks "${text}"`);
+assert(!audio.includes("**misses**"), "AUDIO-CUES.md: a narration line misses its place in the picture");
 for (const beat of beats.filter((item) => item.id !== "listening"))
   assert(new RegExp(`\\|\\s*${beat.id}\\s*\\|`).test(audio), `AUDIO-CUES.md lacks the ${beat.id} narration`);
+// The recorded voice (F4): one clip per narrated beat, as the manifest says, reading its line word for word, every
+// word timed inside the beat; the clips are at -16 LUFS with a true peak at or under -1.5 dBTP.
+const voice = JSON.parse(read("audio/narration/manifest.json"));
+for (const beat of beats.filter((item) => item.id !== "listening")) {
+  const clip = voice.beats.find((item) => item.beat === beat.id);
+  assert(clip, `${beat.id}: no narration clip`);
+  assert.equal(clip.text, beat.say, `${beat.id}: the clip reads another line`);
+  const file = new URL(`audio/narration/${clip.file}`, import.meta.url);
+  assert(existsSync(file), `${beat.id}: ${clip.file} missing`);
+  assert.equal(
+    createHash("sha256").update(readFileSync(file)).digest("hex"),
+    clip.sha256,
+    `${clip.file}: sha256`,
+  );
+  assert(
+    Math.abs(clip.loudness.lufs + 16) <= 0.5 && clip.loudness.truePeak <= -1.5,
+    `${clip.file}: loudness`,
+  );
+  assert.equal(beat.words?.length, spoken(beat.say).length, `${beat.id}: word times`);
+  for (const w of beat.words)
+    assert(w.start >= beat.start && w.end <= beat.end, `${beat.id}: "${w.w}" outside the beat`);
+}
+// The sound effects: every cue resolves to a picture event, none plays on the member's own sentence, and each file
+// is CC0 from the kit or one of Fair Split's own product sounds (never a Mixkit file).
+const sfx = JSON.parse(read("sfx-cues.json"));
+const her = [MEMBER_CLIP.start, MEMBER_CLIP.start + MEMBER_CLIP.seconds];
+for (const cue of sfx.cues) {
+  const t = eventTime(cue.event) + cue.offset;
+  assert(t >= 0 && t < FILM.duration, `${cue.id}: outside the film`);
+  assert(t + 1 < her[0] || t > her[1], `${cue.id}: on the member's sentence`);
+  for (const name of Array.isArray(cue.sound) ? cue.sound : [cue.sound]) {
+    const sound = sfx.sounds[name];
+    assert(sound && existsSync(new URL(sound.file, import.meta.url)), `${cue.id}: ${name} missing`);
+    assert(
+      ["CC0 1.0", "MIT (this repo)"].includes(sound.licence) && !/mixkit/i.test(JSON.stringify(sound)),
+      `${name}: licence`,
+    );
+  }
+}
+// The music's credit (CC BY 4.0) is on the end card and in the credits for the upload's description.
+assert(endCard.includes(FILM.musicCredit), "end: the music's credit is missing");
+assert(FILM.endCard.includes(FILM.musicCredit), "FILM.endCard lacks the music's credit");
+for (const line of [
+  "'Machina' by Scott Buckley - released under CC-BY 4.0. www.scottbuckley.com.au",
+  "'Aurora' by Scott Buckley - released under CC-BY 4.0. www.scottbuckley.com.au",
+])
+  assert(read("CREDITS.txt").includes(line) && read("LICENSES.md").includes(line), `credits lack ${line}`);
 
 console.log(
   `Film check passed: ${beats.length} beats in ${PARTS.length} parts, ${SEGMENTS.length} compositions, ${cues.length} caption cues (closed captions), ${slots.length} capture slots, ${FILM.duration}s`,

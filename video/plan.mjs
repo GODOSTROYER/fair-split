@@ -3,7 +3,16 @@
 // points. Shared by build.mjs (which writes the film) and check.mjs (which verifies what was written). Words and time
 // belong to script.ts; this file only places them.
 import { readFileSync } from "node:fs";
-import { BUMPER_SECONDS, beats, CAPTURES, FILM, PARTS, REAL_READING_CAPTION } from "./script.ts";
+import {
+  ARCHITECTURE,
+  BUMPER_SECONDS,
+  beats,
+  CAPTURES,
+  FILM,
+  MEMBER_AUDIO,
+  PARTS,
+  REAL_READING_CAPTION,
+} from "./script.ts";
 
 export const SIM = "Simulated PayPal sandbox";
 export const NAVY = "#090D18";
@@ -636,13 +645,19 @@ export function wrap(text, lines = CAPTION.lines) {
 }
 const ms = (value) => Math.round(value * 1000) / 1000;
 /**
- * One beat's cues. Timing is word-proportional across the beat's speech window (as every card, architecture step and
- * reel cut is timed) until F4 aligns the recorded voice; the cheapest split prefers breaks at punctuation.
+ * One beat's cues, timed to the recorded voice (F4): a cue starts as its first word is said and runs until the next
+ * cue starts (the last one to the end of the speech). A beat without a voice is timed word-proportionally across its
+ * speech window. The cheapest split prefers breaks at punctuation.
  */
 export function captionCues(beat) {
   const words = beat.say.split(" ");
   const [from, to] = beat.speech ?? [beat.start, beat.end];
   const per = (to - from) / words.length;
+  // the time word k starts (k = words.length: the end of the speech); `beat.words` counts spoken words only, which
+  // here are all of them (no say has a bare punctuation token)
+  if (beat.words && beat.words.length !== words.length)
+    throw new Error(`${beat.id}: word times do not fit its line`);
+  const t = (k) => (k >= words.length ? to : k === 0 ? from : (beat.words?.[k].start ?? from + k * per));
   const bracket = BRACKETS[beat.id] ?? null;
   const best = Array(words.length + 1).fill(null);
   best[0] = { cost: 0, from: -1, lines: null };
@@ -651,7 +666,7 @@ export function captionCues(beat) {
       if (!best[j]) continue;
       const text = words.slice(j, i).join(" ");
       const lines = wrap(text, j === 0 && bracket ? 1 : CAPTION.lines);
-      const seconds = (i - j) * per;
+      const seconds = t(i) - t(j);
       if (!lines || seconds < CAPTION.min - 1e-9 || seconds > CAPTION.max + 1e-9) continue;
       const cost =
         best[j].cost + 100 + breakCost(words[i - 1], i === words.length) + Math.max(0, 28 - text.length) ** 2;
@@ -664,8 +679,8 @@ export function captionCues(beat) {
     const j = best[i].from;
     cues.unshift({
       beat: beat.id,
-      start: ms(from + j * per),
-      end: i === words.length ? ms(to) : ms(from + i * per),
+      start: ms(t(j)),
+      end: ms(t(i)),
       lines: j === 0 && bracket ? [bracket, ...best[i].lines] : best[i].lines,
     });
   }
@@ -688,7 +703,7 @@ export function vtt(cues, note, shift = 0) {
   return `WEBVTT\n\nNOTE ${note}\n\n${body}`;
 }
 export const VTT_NOTE =
-  "Fair Split film, script v4: closed captions, word for word with every spoken line and never burned in (video/proto/STYLE.md §8). Generated from video/script.ts by video/build.mjs. Timing is word-proportional within each beat until F4 aligns the recorded voice.";
+  "Fair Split film, script v4: closed captions, word for word with every spoken line and never burned in (video/proto/STYLE.md §8). Generated from video/script.ts by video/build.mjs. Timed to the recorded voice (Gemini TTS narration, aligned offline) and the member's own sentence.";
 export const CLOSE_START = 143;
 export const CLOSE_NOTE =
   "Closed captions for the film close (script v4 beats impressive, limits, end): video/captions.vtt from 143 s, shifted by -143 s and generated with it by video/build.mjs. Muxed into out/close.mp4 as a soft subtitle track; never burned in.";
@@ -714,32 +729,6 @@ export const OPENING = {
   glide: [29, 30],
 };
 /**
- * Where each narration line must sit in the picture (STYLE §9, AUDIO-CUES "Fit to the picture"). Lines not listed fit
- * their placeholder windows. `picture` is in film seconds.
- */
-export const NARRATION_FIT = [
-  {
-    beat: "problem",
-    picture: [1.4, 14.4],
-    why: 'Under the night\'s words, from "64 farmers." to the turn; the hairline stays near silent.',
-  },
-  {
-    beat: "solution",
-    picture: [14.45, 27.2],
-    why: '"Fair Split:" rides the swell at the turn (STYLE §9) and the line ends before "Every peso, traced." (27.2): its 36 words need 169 wpm there. Six words shorter fits about 141 wpm; seven shorter keeps it under the check\'s 140 wpm. Proposed line, 29 words, 136 wpm (for F1 and E-19 to decide; script.ts is not changed here): "Fair Split: Claude reads the paper. Code computes every amount and holds what it can\'t justify. Two officers sign large batches. A simulated PayPal pays. The buyer re-checks everything." With it, SPEECH.solution becomes 14.45–27.2 and caption cue 4 starts on the turn (it starts at 14.0 today because captions follow script.ts\'s speech window).',
-  },
-  {
-    beat: "paper",
-    picture: [58.2, 65],
-    why: 'After the bumper\'s words ("The deep dive.", 57.25–58.1), which are an end line.',
-  },
-  {
-    beat: "member",
-    picture: [129, 133.8],
-    why: "Ends before her own sentence starts (134.15) with a breath between.",
-  },
-];
-/**
  * The close's own events (video/parts/close, film time), all in daylight on the reel's field: the figures, the hand's
  * box on the handwritten weigh-slip, one limit at a time (each with its tag), the trace's jade pulse, the end line
  * and the film's one name card.
@@ -747,15 +736,151 @@ export const NARRATION_FIT = [
 export const CLOSE = {
   figures: [143.3, 147.4],
   hand: 152.6,
-  // each limit's keyword lands beside its object (limits.html LIMITS kw[0] + 143)
-  limits: [155.2, 157.85, 160.6, 162.3, 165.25],
-  jadePulse: 169.85,
-  endLine: 170.6,
-  name: 171.95,
+  // each limit's keyword lands beside its object as the voice names it (limits.html LIMITS kw[0] + 143)
+  limits: [155.55, 159.2, 160.95, 162.45],
+  // the close camera's glides (rig.js CAM + 143): to the 3, to the slip, the pull-out to the limits, between the
+  // limits (the last a short push), and into the overview
+  glides: [
+    [145.35, 147.4],
+    [148.45, 150.5],
+    [153.45, 155.45],
+    [158.0, 159.3],
+    [160.7, 161.5],
+    [162.0, 163.3],
+    [164.0, 166.05],
+  ],
+  // end.html, from 164 s: the trace lands on "traces" and pulses jade, the end line holds 2.5 s, then the name
+  jadePulse: 167.45,
+  endLine: 169.6,
+  name: 172.25,
 };
 /**
  * The IC-11 PREMIUM sentence, placed inside the listening beat: the phone holds while it plays and the camera glides
- * off it in its last second (141.9–143.0, under the veil from 142.45).
+ * off it in its last second (141.9–143.0, under the veil from 142.45). Its speech is 0.21–8.18 s of the clip.
  */
-export const MEMBER_CLIP = { start: 134.15, seconds: 8.44 };
+export const MEMBER_CLIP = {
+  start: MEMBER_AUDIO.start,
+  seconds: MEMBER_AUDIO.duration,
+  speech: [
+    MEMBER_AUDIO.start + MEMBER_AUDIO.phrases[0].from,
+    MEMBER_AUDIO.start + MEMBER_AUDIO.phrases.at(-1).to,
+  ],
+};
 export const FILM_SECONDS = FILM.duration;
+
+/**
+ * A picture or sound event by id, in film seconds, so a sound cue keyed to it follows any retiming:
+ * `opening.<key>[.<i>]`, `close.<key>[.<i>]` (`close.glides.<i>.mid`), `step.<i>` (an architecture reveal),
+ * `slot.<slot>.<start|end|kwIn|kwOut|accent|landed|glideStart|glideEnd|glideMid>` (the capture run),
+ * `word.<beat>.<prefix>` (when the voice says the first word starting with it), `member.<start|end>` (her speech).
+ */
+export function eventTime(id) {
+  const [kind, ...rest] = id.split(".");
+  const pick = (value, path) => {
+    let v = value;
+    for (const key of path) {
+      if (v === undefined) break;
+      if (key === "mid" && Array.isArray(v)) v = (v[0] + v[1]) / 2;
+      else v = v[key];
+    }
+    if (typeof v !== "number") throw new Error(`event ${id}: not a time`);
+    return v;
+  };
+  if (kind === "opening") return pick(OPENING, rest);
+  if (kind === "close") return pick(CLOSE, rest);
+  if (kind === "step") return pick(ARCHITECTURE.reveal, [rest[0], "at"]);
+  if (kind === "member") return MEMBER_CLIP.speech[rest[0] === "end" ? 1 : 0];
+  if (kind === "slot") {
+    const [slotId, field] = rest;
+    const s = CAPTURE_RUN.slots.find((item) => item.id === slotId);
+    if (!s) throw new Error(`event ${id}: no slot ${slotId}`);
+    const fields = {
+      start: s.start,
+      end: s.end,
+      kwIn: s.kwIn,
+      kwOut: s.kwOut,
+      accent: s.accent?.at,
+      landed: s.accent?.landed,
+      glideStart: s.glideIn[0],
+      glideEnd: s.glideIn[1],
+      glideMid: (s.glideIn[0] + s.glideIn[1]) / 2,
+    };
+    return pick(fields, [field]);
+  }
+  if (kind === "word") {
+    const [beatId, prefix] = rest;
+    const beat = beats.find((item) => item.id === beatId);
+    const word = beat?.words?.find((w) => w.w.toLowerCase().replace(/^\W+/, "").startsWith(prefix));
+    if (!word) throw new Error(`event ${id}: "${prefix}" is not said in ${beatId}`);
+    return word.start;
+  }
+  throw new Error(`event ${id}: unknown kind`);
+}
+
+/**
+ * Where the recorded voice must sit in the picture (STYLE §9): `word` is the first word starting with it ("^" the
+ * line's first sound, "$" its last), `within` the film seconds it must fall in. build.mjs refuses a miss and
+ * AUDIO-CUES.md lists each one as measured.
+ */
+export const NARRATION_FIT = [
+  {
+    beat: "problem",
+    word: "sixty",
+    within: [OPENING.farmers, OPENING.farmers + 1.6],
+    what: '"sixty-four" just after "64 farmers." lands',
+  },
+  {
+    beat: "solution",
+    word: "fair",
+    within: [OPENING.turn[0], OPENING.turn[0] + 0.15],
+    what: '"Fair Split:" on the turn, riding the swell',
+  },
+  {
+    beat: "solution",
+    word: "$",
+    within: [OPENING.turn[0], OPENING.endLine],
+    what: 'ends before "Every peso, traced." (an end line)',
+  },
+  {
+    beat: "architecture",
+    word: "$",
+    within: [30, 41],
+    what: "ends 3 s before the beat, so the finished diagram holds",
+  },
+  {
+    beat: "highlights",
+    word: "try",
+    within: [eventTime("slot.hl-break.start") - 0.3, eventTime("slot.hl-break.start") + 0.3],
+    what: '"Try to break it" on the reel\'s night cut',
+  },
+  {
+    beat: "paper",
+    word: "^",
+    within: [58.1, 59],
+    what: 'after the bumper\'s words ("The deep dive.", 57.25–58.1)',
+  },
+  {
+    beat: "member",
+    word: "$",
+    within: [129, MEMBER_CLIP.speech[0] - 0.5],
+    what: "ends with a breath before her own sentence",
+  },
+  {
+    beat: "impressive",
+    word: "three",
+    within: [CLOSE.figures[1] - 0.6, CLOSE.figures[1] + 0.3],
+    what: '"three kill switches" as the 3 arrives',
+  },
+  {
+    beat: "impressive",
+    word: "handwritten",
+    within: [CLOSE.hand - 0.6, CLOSE.hand + 0.6],
+    what: '"handwritten" as the hand\'s box closes round 38.45',
+  },
+  {
+    beat: "end",
+    word: "every",
+    within: [CLOSE.endLine - 0.1, CLOSE.endLine + 0.4],
+    what: '"Every peso" under the end line',
+  },
+];

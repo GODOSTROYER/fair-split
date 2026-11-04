@@ -132,7 +132,7 @@ export const READING_VARIANTS: Readonly<Record<ReadingVariant, Reading>> = {
   "real-reading": {
     picture:
       "Cut from the run to one tile of C5d's hero-slip exhibit; then slip 0462 by hand, whose own text reads 'Seed stand-in, not a Claude recording'.",
-    say: "Here is Claude's real reading of one slip. The run itself replays a labelled stand-in; treasurer Analyn types a stained digit by hand.",
+    say: "Claude's real reading of one slip. The run itself replays a labelled stand-in; Analyn types a stained digit by hand.",
     cut: "the run",
     requires:
       "R1's readings in packages/eval/recordings, dated 1 Nov 2026, and C5d's hero-slip exhibit in the reading room (HeroExhibits.tsx); both are on main at 2af75e6. Never use the seed run's date.",
@@ -157,22 +157,25 @@ export const FILM = {
   duration: 175,
   title: "Fair Split: co-op payroll",
   firstCaption:
-    "Simulated PayPal sandbox · Synthetic people and data · Demo runs: seed reading stand-in · Narration: Gemini TTS (synthetic voice)",
+    "Simulated PayPal sandbox · Synthetic people and data · Demo runs: seed reading stand-in · Synthetic voices · Gemini TTS",
   endCard: [
     "Fair Split: co-op payroll",
     "Every peso, traced to the pencil mark.",
     "Simulated PayPal sandbox; untested against PayPal's own sandbox",
     "Synthetic people and data; no money moves",
     "Demo runs use a seed stand-in, not a Claude recording",
-    "Narration and member audio: Gemini TTS (synthetic voices)",
+    "Music: “Machina” and “Aurora” by Scott Buckley · CC BY 4.0",
+    "Synthetic voices · Gemini TTS",
   ],
-  /** The end card's last line, held to the final frame. */
-  voiceDisclosure: "Narration and member audio: Gemini TTS (synthetic voices)",
+  /** The end card's last line, held to the final frame: one wording for the voices everywhere (review v4 item 3). */
+  voiceDisclosure: "Synthetic voices · Gemini TTS",
+  /** The music's credit (CC BY 4.0): on the end card, and in full in CREDITS.txt for the upload's description. */
+  musicCredit: "Music: “Machina” and “Aurora” by Scott Buckley · CC BY 4.0",
   descriptionDisclosure:
-    "Narration and member audio: Gemini TTS. Synthetic people and data. Slip images are synthetic: Codex-made hero flats (OpenAI's image model) and code-drawn slips, composed in code into photos A–L. Simulated PayPal sandbox; untested against PayPal's own sandbox. Demo runs use a seed stand-in for the slip reading; Claude's only real readings are the hero-slip exhibit of 1 Nov 2026. The invoice is a seed-written placeholder, statements are hand-written templates, and the audit agent is paused.",
+    "Synthetic voices · Gemini TTS: the narration (voice Charon) and the member's statement. Synthetic people and data. Slip images are synthetic: Codex-made hero flats (OpenAI's image model) and code-drawn slips, composed in code into photos A–L. Simulated PayPal sandbox; untested against PayPal's own sandbox. Demo runs use a seed stand-in for the slip reading; Claude's only real readings are the hero-slip exhibit of 1 Nov 2026. The invoice is a seed-written placeholder, statements are hand-written templates, and the audit agent is paused.",
   capture: [
     "Local captures only; captions throughout, word for word with every spoken line.",
-    "No music; mute product sound under narration. Member audio plays alone in its beat.",
+    "Sound (owner, 5 Nov; ADR-0018): Gemini TTS narration, voice Charon; Scott Buckley's “Machina” into “Aurora” (CC BY 4.0, credited) 18–22 dB under the voice; sparse CC0 sound effects. Record captures muted: the film adds its own cues. Member audio plays alone in its beat, with no music under it.",
     "Label accelerated waits ×12 real time. Never accelerate a person signing. Use the reduced-motion capture for any unasserted moment.",
     "Keep Simulated PayPal sandbox beside every PayPal-derived value, including phone, console and Proof crops.",
     "Seed-written invoice placeholder; statements are hand-written templates; audit agent paused.",
@@ -199,49 +202,137 @@ export const CHAPTERS = [
   { start: 154, title: "Limits and impact" },
 ] as const;
 
-// Every timed reveal (card lines, architecture steps, reel cuts) lands on the narration words it belongs to, at
-// the same word-proportional time the provisional captions use, so both move together when F4 aligns the narration.
+// Every timed reveal (card lines, architecture steps, reel cuts) lands on the narration words it belongs to, at the
+// time the recorded voice says them (F4, ADR-0018), the same times the captions use.
 const SAY = {
   problem:
-    "Picture a co-op paying sixty-four cacao farmers from handwritten weigh-slips. A duplicate, or a fine no rule allows, goes unseen. Members can't check their pay; the buyer can't prove its premium arrived.",
+    "Picture a co-op paying sixty-four cacao farmers from handwritten weigh-slips. A duplicate, or a fine no rule allows, goes unseen. Members can't check it. Nor can the buyer.",
   solution:
-    "Fair Split: Claude reads the paper. Code computes every amount and holds what it can't justify. Two officers sign large batches. A simulated PayPal pays; cash members get the same statement. The buyer re-checks it all.",
+    "Fair Split: Claude reads the paper. Code computes every amount and holds what it can't justify. Two officers sign large batches. A simulated PayPal pays. The buyer re-checks everything.",
   architecture:
     "Slips go to Claude, then a deterministic engine. Two keys sign one batch hash. An outbox makes each simulated PayPal call safe to retry.",
   highlights:
-    "What's special: a split matrix that rebalances; a frozen rate card; two keys, one hash; proof in your browser; pay you can hear; and Try to break it.",
+    "Highlights: a split matrix that rebalances; a frozen rate card; two keys, one hash; proof in your browser; pay you can hear; Try to break it.",
   holds:
-    "Two more holds, each decided by a person. Analyn tries adding a deduction. Refused: the rate card was locked before the first slip.",
+    "Two more holds go to a person. Analyn tries a deduction. Refused: the rate card was locked before the first slip.",
   impressive:
     "Underneath: over five thousand automated tests and three kill switches. Others we found share parts; none starts from a handwritten weigh-slip.",
   limits:
-    "The limits: PayPal runs on a simulated sandbox. People and data are synthetic; no real farmer was paid. Your demo replays a labelled reading stand-in. Voices are Gemini TTS.",
+    "The limits: PayPal is a simulated sandbox; no real farmer was paid. Synthetic people and slips, a replayed stand-in, Gemini TTS voices.",
 } as const;
 type Timed = keyof typeof SAY;
+
+// ------------------------------------------------------------------------------------- F4: the recorded voice
 /**
- * When each timed beat's narration is said. The architecture's narration ends early so the finished diagram holds
- * on screen; every other window is its whole beat.
+ * The narration (ADR-0018): one Gemini TTS clip per beat, voice Charon, in `audio/narration/` (`manifest.json`,
+ * written by `tools/narration.mjs`). `NARRATION_AT` is the edit: the film second each clip starts. The speech window
+ * and every word's time come from the clip's measured speech and its offline alignment, so the captions, the card
+ * lines, the architecture's steps and the reel's cuts land on the words as the voice says them.
  */
-const SPEECH: Readonly<Record<Timed, readonly [number, number]>> = {
+export const NARRATION_AT: Readonly<Record<string, number>> = {
+  problem: 0.8, // "sixty-four" just after "64 farmers." lands (1.4 s); "the buyer" as the invoice lands (13.1 s)
+  solution: 14.35, // "Fair Split:" on the turn (14.45 s); the line ends before "Every peso, traced." (27.2 s)
+  architecture: 30.15,
+  highlights: 43.9, // "Try to break it" on the reel's night cut (55.1 s)
+  paper: 58.1, // after the bumper's words (57.25-58.1 s)
+  funding: 65,
+  reading: 73,
+  "count-once": 83,
+  holds: 92,
+  signing: 102,
+  payouts: 111,
+  proof: 121,
+  member: 129.1, // ends before her own sentence (134.36 s)
+  impressive: 143.1, // "three kill switches" as the 3 arrives; "handwritten weigh-slip" as the hand's box closes
+  limits: 154.1,
+  end: 164.25, // "Every peso, traced to the pencil mark." under the end line, which then holds (169.6-172.4 s)
+};
+/** One spoken word and when it is said, in film seconds. */
+export interface SpokenWord {
+  readonly w: string;
+  readonly start: number;
+  readonly end: number;
+}
+interface Clip {
+  readonly beat: string;
+  readonly speech: readonly [number, number];
+  readonly text: string;
+  readonly alignment: { readonly words: readonly SpokenWord[] } | null;
+}
+const narration: { readonly beats: readonly Clip[] } = JSON.parse(
+  readFileSync(new URL("audio/narration/manifest.json", import.meta.url), "utf8"),
+);
+const r3 = (value: number) => Math.round(value * 1000) / 1000;
+/** A beat's recorded speech window and word times, when its clip reads exactly this line; else null. */
+function voiced(
+  id: string,
+  say: string,
+): { speech: readonly [number, number]; words: readonly SpokenWord[] } | null {
+  const clip = narration.beats.find((item) => item.beat === id);
+  const from = NARRATION_AT[id];
+  if (!clip?.alignment || from === undefined || clip.text !== say) return null;
+  return {
+    speech: [r3(from + clip.speech[0]), r3(from + clip.speech[1])],
+    words: clip.alignment.words.map((w) => ({ w: w.w, start: r3(from + w.start), end: r3(from + w.end) })),
+  };
+}
+/**
+ * The member's own sentence (IC-11 PREMIUM.default for M-014 in Cebuano, Gemini TTS, 8.44 s): it plays alone in the
+ * listening beat. Its speech runs 0.21-8.18 s in three phrases (silencedetect at -45 dB, 5 Nov); the captions time
+ * each phrase's words by their letters, since no English transcriber reads Cebuano.
+ */
+export const MEMBER_AUDIO = {
+  file: "media/audio/M-014/ceb/s03-PREMIUM-97d6108ac9e8.m4a",
+  start: 134.15,
+  duration: 8.44,
+  phrases: [
+    { words: 7, from: 0.21, to: 3.28 },
+    { words: 5, from: 4.15, to: 6.89 },
+    { words: 2, from: 7.23, to: 8.18 },
+  ],
+} as const;
+function memberWords(say: string): readonly SpokenWord[] {
+  const all = spoken(say);
+  const out: SpokenWord[] = [];
+  for (const phrase of MEMBER_AUDIO.phrases) {
+    const words = all.slice(out.length, out.length + phrase.words);
+    const letters = words.reduce((sum, w) => sum + w.length, 0);
+    let t = MEMBER_AUDIO.start + phrase.from;
+    const per = (phrase.to - phrase.from) / letters;
+    for (const w of words) {
+      out.push({ w, start: r3(t), end: r3(t + w.length * per) });
+      t += w.length * per;
+    }
+  }
+  if (out.length !== all.length) throw new Error("listening: the member's phrases do not cover her sentence");
+  return out;
+}
+/** Placeholder windows for a line that has no recorded clip yet (word-proportional timing). */
+const PLACEHOLDER: Readonly<Record<Timed, readonly [number, number]>> = {
   problem: [0, 14],
   solution: [14, 30],
   architecture: [30, 41],
   highlights: [44, 57],
   holds: [92, 102],
   impressive: [143, 154],
-  limits: [154, 167],
+  limits: [154, 164],
 };
 const spoken = (say: string) => say.split(/\s+/).filter((word) => /[\p{L}\p{N}]/u.test(word));
 const bare = (word: string) => word.toLowerCase().replace(/^\W+/, "");
-/** The film second at which `phrase` (the first run of spoken words starting with its words) is said. */
-function timeOf(label: string, say: string, [start, end]: readonly [number, number], phrase: string): number {
+/**
+ * The film second at which `phrase` (the first run of spoken words starting with its words) is said: the recorded
+ * word's start when the beat has a voice, else word-proportional across the window.
+ */
+function timeOf(label: string, say: string, window: readonly [number, number], phrase: string): number {
   const words = spoken(say);
   const want = phrase.toLowerCase().split(/\s+/);
   const index = words.findIndex((_, i) => want.every((w, k) => bare(words[i + k] ?? "").startsWith(w)));
   if (index < 0) throw new Error(`${label}: "${phrase}" is not spoken`);
-  return Math.round((start + ((end - start) * index) / words.length) * 10) / 10;
+  const voice = voiced(label, say);
+  const [start, end] = window;
+  return Math.round((voice?.words[index]?.start ?? start + ((end - start) * index) / words.length) * 10) / 10;
 }
-const at = (beat: Timed, phrase: string) => timeOf(beat, SAY[beat], SPEECH[beat], phrase);
+const at = (beat: Timed, phrase: string) => timeOf(beat, SAY[beat], PLACEHOLDER[beat], phrase);
 const tenths = (value: number) => Math.round(value * 10) / 10;
 
 // F2 draws this SVG itself; text and connecting arrows, no third-party artwork or logos. It matches the code:
@@ -334,8 +425,10 @@ export interface FilmBeat {
   readonly part: PartId;
   readonly start: number;
   readonly end: number;
-  /** When the narration is said, if not across the whole beat; captions and word times use it. */
+  /** When the narration is said (the recorded voice's first word to its last); captions and word times use it. */
   readonly speech?: readonly [number, number];
+  /** Every spoken word of `say` and when the recorded voice says it (F4); absent until a beat has a voice. */
+  readonly words?: readonly SpokenWord[];
   readonly picture: string;
   /** All audible words, including the member clip, count against the film's limits. */
   readonly say: string;
@@ -356,14 +449,23 @@ const REEL = [
   { id: "hl-member", word: "pay you" },
   { id: "hl-break", word: "try to" },
 ] as const;
-const reelStart = (i: number) => (i === 0 ? SPEECH.highlights[0] : at("highlights", REEL[i]?.word ?? ""));
+const reelStart = (i: number) => (i === 0 ? 44 : at("highlights", REEL[i]?.word ?? ""));
+/** Each beat with its recorded speech window and word times (the member's own sentence in the listening beat). */
+function withVoice(beat: FilmBeat): FilmBeat {
+  if (beat.id === "listening") {
+    const words = memberWords(beat.say);
+    return { ...beat, speech: [words[0]?.start ?? beat.start, words.at(-1)?.end ?? beat.end], words };
+  }
+  const voice = voiced(beat.id, beat.say);
+  return voice ? { ...beat, speech: voice.speech, words: voice.words } : beat;
+}
 const readingCut = (variant: ReadingVariant) =>
   timeOf("reading", READING_VARIANTS[variant].say, [73, 83], READING_VARIANTS[variant].cut);
 const holdsCut = at("holds", "analyn");
 
 export function beatsForReading(variant: ReadingVariant): readonly FilmBeat[] {
   const reading = READING_VARIANTS[variant];
-  return [
+  const timeline: readonly FilmBeat[] = [
     // ------------------------------------------------------------------ Part 1: overview, 0:00-0:57
     {
       id: "problem",
@@ -422,7 +524,8 @@ export function beatsForReading(variant: ReadingVariant): readonly FilmBeat[] {
             detail: `${figures.endPaidMembers} of ${figures.members} members have PayPal · ${SIM}`,
           },
           {
-            at: at("solution", "cash"),
+            // the 29-word line (AUDIO-CUES, ADR-0018) leaves cash to the card: it lands with "pays"
+            at: at("solution", "pays"),
             text: "Cash members get the same statement",
             detail: `${figures.endCashMembers} in cash`,
           },
@@ -439,7 +542,7 @@ export function beatsForReading(variant: ReadingVariant): readonly FilmBeat[] {
       part: "overview",
       start: 30,
       end: 44,
-      speech: SPEECH.architecture,
+      speech: PLACEHOLDER.architecture,
       picture:
         "Animate ARCHITECTURE as our own SVG: each reveal step adds its boxes and arrows when the narration names them; the finished diagram then holds in silence.",
       say: SAY.architecture,
@@ -480,7 +583,7 @@ export function beatsForReading(variant: ReadingVariant): readonly FilmBeat[] {
       end: 65,
       picture:
         "The problem in depth: the run's code-composed photos, then the white original beside its pink carbon copy.",
-      say: "Each delivery gets a handwritten slip and a pink carbon copy. Photograph both, and it counts twice.",
+      say: "Each slip has a pink carbon copy. Photograph both, and it counts twice.",
       show: [],
       cues: [
         { at: 61, picture: "H1 opens: the white original beside the pink duplicate, four of four fields." },
@@ -555,7 +658,7 @@ export function beatsForReading(variant: ReadingVariant): readonly FilmBeat[] {
       end: 111,
       picture:
         "MM-5: Analyn holds to sign in the console; a real person co-signs as the Chair on a physical phone; both screens show the same batch hash.",
-      say: "Above three hundred dollars, two keys: Analyn holds to sign; the Chair co-signs the same batch hash on his phone.",
+      say: "Above three hundred dollars, two keys: Analyn signs; the Chair co-signs the same batch hash on his phone.",
       show: [
         SIM,
         `Co-sign above ${cosign}`,
@@ -591,7 +694,7 @@ export function beatsForReading(variant: ReadingVariant): readonly FilmBeat[] {
       end: 129,
       picture:
         "Dana opens Proof and presses Verify in your browser; six of six checks match and the verdict reads Sample.",
-      say: "Lantern Bay opens Proof and re-checks the rate card, both signatures and every line, in its own browser.",
+      say: "Lantern Bay opens Proof and re-checks the rate card, both signatures and every line.",
       show: [
         SIM,
         "Verify in your browser · Six checks",
@@ -606,7 +709,7 @@ export function beatsForReading(variant: ReadingVariant): readonly FilmBeat[] {
       start: 129,
       end: 134,
       picture: "MM-7: Nang Celing taps her net peso; it traces to the sum and her four slips.",
-      say: "Her pay traces to four slips. She hears it in Cebuano.",
+      say: "Her pay traces to four slips. It plays in Cebuano.",
       show: [SIM, `${usd(hero.netCents)} net · M-014`, "Slips 0403, 0419, 0436 and 0467"],
       cues: [],
     },
@@ -662,11 +765,13 @@ export function beatsForReading(variant: ReadingVariant): readonly FilmBeat[] {
       },
     },
     // ------------------------------------------------------------------ Part 3: limits, impact, end, 2:34-2:55
+    // The limits run 10 s (review v4 item 3: four objects, "generated." merged into "synthetic."); the 3 s they gave
+    // up go to the end, so its line holds for 2.8 s (item 6).
     {
       id: "limits",
       part: "close",
       start: 154,
-      end: 167,
+      end: 164,
       picture: "Original limits card; every disclosure on screen while it is said. No fabricated metrics.",
       say: SAY.limits,
       show: [SIM],
@@ -679,27 +784,28 @@ export function beatsForReading(variant: ReadingVariant): readonly FilmBeat[] {
             at: at("limits", "paypal"),
             text: "Simulated PayPal sandbox; untested against PayPal's own sandbox",
           },
-          { at: at("limits", "people"), text: "Synthetic people and data; no money moves" },
+          // "generated." is merged into "synthetic." (review v4 item 3): people and slip images on one object pair
+          { at: at("limits", "synthetic"), text: "Synthetic people and data; no money moves" },
           {
             at: at("limits", "synthetic"),
             text: "Slip images: Codex-made hero flats (OpenAI's image model); photos A–L composed in code",
           },
           {
-            at: at("limits", "your"),
+            at: at("limits", "replayed"),
             text: "Your demo replays a labelled stand-in; Claude's real readings: ten hero slips, 1 Nov 2026",
           },
           {
-            at: at("limits", "voices"),
+            at: at("limits", "gemini"),
             text: "Cebuano and Filipino machine-translated, pending native review",
           },
-          { at: at("limits", "voices"), text: FILM.voiceDisclosure },
+          { at: at("limits", "gemini"), text: FILM.voiceDisclosure },
         ],
       },
     },
     {
       id: "end",
       part: "close",
-      start: 167,
+      start: 164,
       end: 175,
       picture: "End card: title, tagline and every disclosure; hold the voice disclosure to the final frame.",
       say: "Members check their own pay; the buyer traces its premium. Every peso, traced to the pencil mark.",
@@ -708,6 +814,7 @@ export function beatsForReading(variant: ReadingVariant): readonly FilmBeat[] {
       card: { kind: "end", heading: FILM.title, kicker: FILM.endCard[1], items: [] },
     },
   ];
+  return timeline.map(withVoice);
 }
 
 /** Every capture slot the beats need. Card beats need none; every other beat is covered end to end. */

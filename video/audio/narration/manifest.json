@@ -1,0 +1,2033 @@
+{
+  "v": 1,
+  "synthetic": true,
+  "notice": "Synthetic narration: Gemini TTS (voice Charon) reading video/script.ts word for word. Disclosed in the film as 'Synthetic voices · Gemini TTS'.",
+  "voice": "Charon",
+  "model": "gemini-3.8-flash-tts",
+  "style": "calm, warm and credible documentary narrator for a short product film; clear, quietly confident, never rushed; <the beat's pace>",
+  "target": {
+    "lufs": -16,
+    "truePeak": -1.5,
+    "rate": 48000
+  },
+  "requests": 28,
+  "beats": [
+    {
+      "beat": "problem",
+      "file": "problem.m4a",
+      "duration": 12.4,
+      "speech": [0.1, 12.15],
+      "words": 28,
+      "wpm": 139.4,
+      "sha256": "8f2e8cf8d878b20e614055212297f46afce3513bc12b7611072e032eeca2bf7e",
+      "voice": "Charon",
+      "model": "gemini-3.8-flash-tts",
+      "take": 1,
+      "requests": 1,
+      "pace": "steady pace, about 125 words a minute; a short pause at each full stop",
+      "pauses": [],
+      "loudness": {
+        "lufs": -16.2,
+        "truePeak": -4.3
+      },
+      "text": "Picture a co-op paying sixty-four cacao farmers from handwritten weigh-slips. A duplicate, or a fine no rule allows, goes unseen. Members can't check it. Nor can the buyer.",
+      "alignment": {
+        "source": "local transcript (openai-whisper small, word timestamps), offline",
+        "characterErrorRate": 0.03,
+        "heard": "Picture a co -op paying 64 cacao farmers from handwritten waste slips. A duplicate, or a fine no rule allows, goes unseen. Members can't check it, nor can the buyer.",
+        "words": [
+          {
+            "w": "Picture",
+            "start": 0.1,
+            "end": 0.34
+          },
+          {
+            "w": "a",
+            "start": 0.34,
+            "end": 0.6
+          },
+          {
+            "w": "co-op",
+            "start": 0.6,
+            "end": 1.1
+          },
+          {
+            "w": "paying",
+            "start": 1.1,
+            "end": 1.48
+          },
+          {
+            "w": "sixty-four",
+            "start": 1.48,
+            "end": 2.24
+          },
+          {
+            "w": "cacao",
+            "start": 2.24,
+            "end": 2.68
+          },
+          {
+            "w": "farmers",
+            "start": 2.68,
+            "end": 3.2
+          },
+          {
+            "w": "from",
+            "start": 3.2,
+            "end": 3.5
+          },
+          {
+            "w": "handwritten",
+            "start": 3.5,
+            "end": 4.14
+          },
+          {
+            "w": "weigh-slips.",
+            "start": 4.14,
+            "end": 4.76
+          },
+          {
+            "w": "A",
+            "start": 5.482,
+            "end": 5.58
+          },
+          {
+            "w": "duplicate,",
+            "start": 5.58,
+            "end": 5.92
+          },
+          {
+            "w": "or",
+            "start": 6.392,
+            "end": 6.66
+          },
+          {
+            "w": "a",
+            "start": 6.66,
+            "end": 6.92
+          },
+          {
+            "w": "fine",
+            "start": 6.92,
+            "end": 7.24
+          },
+          {
+            "w": "no",
+            "start": 7.24,
+            "end": 7.48
+          },
+          {
+            "w": "rule",
+            "start": 7.48,
+            "end": 7.72
+          },
+          {
+            "w": "allows,",
+            "start": 7.72,
+            "end": 8.14
+          },
+          {
+            "w": "goes",
+            "start": 8.58,
+            "end": 8.7
+          },
+          {
+            "w": "unseen.",
+            "start": 8.7,
+            "end": 9.2
+          },
+          {
+            "w": "Members",
+            "start": 9.852,
+            "end": 10.1
+          },
+          {
+            "w": "can't",
+            "start": 10.1,
+            "end": 10.52
+          },
+          {
+            "w": "check",
+            "start": 10.52,
+            "end": 10.66
+          },
+          {
+            "w": "it.",
+            "start": 10.66,
+            "end": 10.86
+          },
+          {
+            "w": "Nor",
+            "start": 11.249,
+            "end": 11.4
+          },
+          {
+            "w": "can",
+            "start": 11.4,
+            "end": 11.66
+          },
+          {
+            "w": "the",
+            "start": 11.66,
+            "end": 11.76
+          },
+          {
+            "w": "buyer.",
+            "start": 11.76,
+            "end": 12.15
+          }
+        ]
+      }
+    },
+    {
+      "beat": "solution",
+      "file": "solution.m4a",
+      "duration": 12.94,
+      "speech": [0.1, 12.69],
+      "words": 29,
+      "wpm": 138.2,
+      "sha256": "7ba371082e7040a5f4e0f223f65872261c601d009623cef31225552484e0767f",
+      "voice": "Charon",
+      "model": "gemini-3.8-flash-tts",
+      "take": 1,
+      "requests": 1,
+      "pace": "brisk but clear, about 140 words a minute; very short pauses at full stops; say 'Fair Split' as a name",
+      "pauses": [],
+      "loudness": {
+        "lufs": -16.2,
+        "truePeak": -2.3
+      },
+      "text": "Fair Split: Claude reads the paper. Code computes every amount and holds what it can't justify. Two officers sign large batches. A simulated PayPal pays. The buyer re-checks everything.",
+      "alignment": {
+        "source": "local transcript (openai-whisper small, word timestamps), offline",
+        "characterErrorRate": 0,
+        "heard": "Fair Split. Claude reads the paper, code computes every amount, and holds what it can't justify. Two officers sign large batches, a simulated PayPal pays, the buyer rechecks everything.",
+        "words": [
+          {
+            "w": "Fair",
+            "start": 0.1,
+            "end": 0.32
+          },
+          {
+            "w": "Split:",
+            "start": 0.32,
+            "end": 0.58
+          },
+          {
+            "w": "Claude",
+            "start": 1.212,
+            "end": 1.64
+          },
+          {
+            "w": "reads",
+            "start": 1.64,
+            "end": 1.82
+          },
+          {
+            "w": "the",
+            "start": 1.82,
+            "end": 2
+          },
+          {
+            "w": "paper.",
+            "start": 2,
+            "end": 2.26
+          },
+          {
+            "w": "Code",
+            "start": 2.74,
+            "end": 3.04
+          },
+          {
+            "w": "computes",
+            "start": 3.04,
+            "end": 3.54
+          },
+          {
+            "w": "every",
+            "start": 3.54,
+            "end": 3.9
+          },
+          {
+            "w": "amount",
+            "start": 3.9,
+            "end": 4.24
+          },
+          {
+            "w": "and",
+            "start": 4.5,
+            "end": 4.58
+          },
+          {
+            "w": "holds",
+            "start": 4.58,
+            "end": 4.94
+          },
+          {
+            "w": "what",
+            "start": 4.94,
+            "end": 5.16
+          },
+          {
+            "w": "it",
+            "start": 5.16,
+            "end": 5.26
+          },
+          {
+            "w": "can't",
+            "start": 5.26,
+            "end": 5.56
+          },
+          {
+            "w": "justify.",
+            "start": 5.56,
+            "end": 5.94
+          },
+          {
+            "w": "Two",
+            "start": 6.66,
+            "end": 6.9
+          },
+          {
+            "w": "officers",
+            "start": 6.9,
+            "end": 7.26
+          },
+          {
+            "w": "sign",
+            "start": 7.26,
+            "end": 7.62
+          },
+          {
+            "w": "large",
+            "start": 7.62,
+            "end": 7.92
+          },
+          {
+            "w": "batches.",
+            "start": 7.92,
+            "end": 8.42
+          },
+          {
+            "w": "A",
+            "start": 8.956,
+            "end": 9.08
+          },
+          {
+            "w": "simulated",
+            "start": 9.08,
+            "end": 9.48
+          },
+          {
+            "w": "PayPal",
+            "start": 9.48,
+            "end": 10.02
+          },
+          {
+            "w": "pays.",
+            "start": 10.02,
+            "end": 10.42
+          },
+          {
+            "w": "The",
+            "start": 11.264,
+            "end": 11.34
+          },
+          {
+            "w": "buyer",
+            "start": 11.34,
+            "end": 11.64
+          },
+          {
+            "w": "re-checks",
+            "start": 11.64,
+            "end": 12.3
+          },
+          {
+            "w": "everything.",
+            "start": 12.3,
+            "end": 12.69
+          }
+        ]
+      }
+    },
+    {
+      "beat": "architecture",
+      "file": "architecture.m4a",
+      "duration": 10.74,
+      "speech": [0.1, 10.49],
+      "words": 24,
+      "wpm": 138.6,
+      "sha256": "8954c69d5b9f13b024e9bf709f302ad8520923e00d64ca1fc2d608a142211192",
+      "voice": "Charon",
+      "model": "gemini-3.8-flash-tts",
+      "take": 1,
+      "requests": 2,
+      "pace": "even and brisk, about 135 words a minute; short pauses at full stops",
+      "pauses": [[3.515, 0.16], [6.24, 0.17]],
+      "loudness": {
+        "lufs": -16.2,
+        "truePeak": -2.3
+      },
+      "text": "Slips go to Claude, then a deterministic engine. Two keys sign one batch hash. An outbox makes each simulated PayPal call safe to retry.",
+      "alignment": {
+        "source": "local transcript (openai-whisper small, word timestamps), offline",
+        "characterErrorRate": 0,
+        "heard": "Slips go to Claude, then a deterministic engine. Two keys sign one batch hash. An outbox makes each simulated PayPal call safe to retry.",
+        "words": [
+          {
+            "w": "Slips",
+            "start": 0.1,
+            "end": 0.48
+          },
+          {
+            "w": "go",
+            "start": 0.48,
+            "end": 0.7
+          },
+          {
+            "w": "to",
+            "start": 0.7,
+            "end": 0.82
+          },
+          {
+            "w": "Claude,",
+            "start": 0.82,
+            "end": 1.28
+          },
+          {
+            "w": "then",
+            "start": 1.564,
+            "end": 1.74
+          },
+          {
+            "w": "a",
+            "start": 1.74,
+            "end": 1.96
+          },
+          {
+            "w": "deterministic",
+            "start": 1.96,
+            "end": 2.56
+          },
+          {
+            "w": "engine.",
+            "start": 2.56,
+            "end": 2.88
+          },
+          {
+            "w": "Two",
+            "start": 3.762,
+            "end": 3.88
+          },
+          {
+            "w": "keys",
+            "start": 3.88,
+            "end": 4.18
+          },
+          {
+            "w": "sign",
+            "start": 4.18,
+            "end": 4.7
+          },
+          {
+            "w": "one",
+            "start": 4.7,
+            "end": 5.02
+          },
+          {
+            "w": "batch",
+            "start": 5.02,
+            "end": 5.38
+          },
+          {
+            "w": "hash.",
+            "start": 5.38,
+            "end": 5.8
+          },
+          {
+            "w": "An",
+            "start": 6.664,
+            "end": 6.78
+          },
+          {
+            "w": "outbox",
+            "start": 6.78,
+            "end": 7.22
+          },
+          {
+            "w": "makes",
+            "start": 7.22,
+            "end": 7.58
+          },
+          {
+            "w": "each",
+            "start": 7.58,
+            "end": 7.88
+          },
+          {
+            "w": "simulated",
+            "start": 7.88,
+            "end": 8.42
+          },
+          {
+            "w": "PayPal",
+            "start": 8.42,
+            "end": 8.86
+          },
+          {
+            "w": "call",
+            "start": 8.86,
+            "end": 9.3
+          },
+          {
+            "w": "safe",
+            "start": 9.3,
+            "end": 9.72
+          },
+          {
+            "w": "to",
+            "start": 9.72,
+            "end": 10
+          },
+          {
+            "w": "retry.",
+            "start": 10,
+            "end": 10.49
+          }
+        ]
+      }
+    },
+    {
+      "beat": "highlights",
+      "file": "highlights.m4a",
+      "duration": 12.09,
+      "speech": [0.1, 11.84],
+      "words": 26,
+      "wpm": 132.9,
+      "sha256": "cb39d5f0c18e53502621a926cf42a598088f05e68aa3c51837ea44b7d71eafee",
+      "voice": "Charon",
+      "model": "gemini-3.8-flash-tts",
+      "take": 2,
+      "requests": 2,
+      "pace": "steady, about 125 words a minute; a short pause at each semicolon",
+      "pauses": [[3.645, -0.36], [5.72, -0.27], [7.71, -0.19], [9.535, -0.04], [11.365, 0.36]],
+      "loudness": {
+        "lufs": -16.2,
+        "truePeak": -2.3
+      },
+      "text": "Highlights: a split matrix that rebalances; a frozen rate card; two keys, one hash; proof in your browser; pay you can hear; Try to break it.",
+      "alignment": {
+        "source": "local transcript (openai-whisper small, word timestamps), offline",
+        "characterErrorRate": 0,
+        "heard": "Highlights a split matrix that rebalances a frozen rate card two keys one hash proof in your browser Pay you can hear Try to break it",
+        "words": [
+          {
+            "w": "Highlights:",
+            "start": 0.1,
+            "end": 0.58
+          },
+          {
+            "w": "a",
+            "start": 1.092,
+            "end": 1.16
+          },
+          {
+            "w": "split",
+            "start": 1.16,
+            "end": 1.5
+          },
+          {
+            "w": "matrix",
+            "start": 1.5,
+            "end": 1.98
+          },
+          {
+            "w": "that",
+            "start": 1.98,
+            "end": 2.3
+          },
+          {
+            "w": "rebalances;",
+            "start": 2.3,
+            "end": 2.98
+          },
+          {
+            "w": "a",
+            "start": 3.401,
+            "end": 3.46
+          },
+          {
+            "w": "frozen",
+            "start": 3.46,
+            "end": 3.94
+          },
+          {
+            "w": "rate",
+            "start": 3.94,
+            "end": 4.4
+          },
+          {
+            "w": "card;",
+            "start": 4.4,
+            "end": 4.72
+          },
+          {
+            "w": "two",
+            "start": 5.199,
+            "end": 5.32
+          },
+          {
+            "w": "keys,",
+            "start": 5.32,
+            "end": 5.7
+          },
+          {
+            "w": "one",
+            "start": 5.7,
+            "end": 6.18
+          },
+          {
+            "w": "hash;",
+            "start": 6.18,
+            "end": 6.6
+          },
+          {
+            "w": "proof",
+            "start": 7.096,
+            "end": 7.32
+          },
+          {
+            "w": "in",
+            "start": 7.32,
+            "end": 7.66
+          },
+          {
+            "w": "your",
+            "start": 7.66,
+            "end": 7.76
+          },
+          {
+            "w": "browser;",
+            "start": 7.76,
+            "end": 8.12
+          },
+          {
+            "w": "pay",
+            "start": 8.796,
+            "end": 8.98
+          },
+          {
+            "w": "you",
+            "start": 8.98,
+            "end": 9.28
+          },
+          {
+            "w": "can",
+            "start": 9.28,
+            "end": 9.44
+          },
+          {
+            "w": "hear;",
+            "start": 9.44,
+            "end": 9.86
+          },
+          {
+            "w": "Try",
+            "start": 11.104,
+            "end": 11.26
+          },
+          {
+            "w": "to",
+            "start": 11.26,
+            "end": 11.4
+          },
+          {
+            "w": "break",
+            "start": 11.4,
+            "end": 11.64
+          },
+          {
+            "w": "it.",
+            "start": 11.64,
+            "end": 11.84
+          }
+        ]
+      }
+    },
+    {
+      "beat": "paper",
+      "file": "paper.m4a",
+      "duration": 5.92,
+      "speech": [0.1, 5.71],
+      "words": 13,
+      "wpm": 139,
+      "sha256": "6974f179202d3163e33ee020225cc8d1adfe9e2953032dc5c5bfaf5ee335c333",
+      "voice": "Charon",
+      "model": "gemini-3.8-flash-tts",
+      "take": 2,
+      "requests": 2,
+      "pace": "steady and unhurried, about 120 words a minute; a short pause at the full stop",
+      "pauses": [[2.97, 0.35]],
+      "loudness": {
+        "lufs": -16.2,
+        "truePeak": -2.2
+      },
+      "text": "Each slip has a pink carbon copy. Photograph both, and it counts twice.",
+      "alignment": {
+        "source": "local transcript (openai-whisper small, word timestamps), offline",
+        "characterErrorRate": 0,
+        "heard": "Each slip has a pink carbon copy. Photograph both, and it counts twice.",
+        "words": [
+          {
+            "w": "Each",
+            "start": 0.1,
+            "end": 0.3
+          },
+          {
+            "w": "slip",
+            "start": 0.3,
+            "end": 0.6
+          },
+          {
+            "w": "has",
+            "start": 0.6,
+            "end": 1.08
+          },
+          {
+            "w": "a",
+            "start": 1.08,
+            "end": 1.32
+          },
+          {
+            "w": "pink",
+            "start": 1.32,
+            "end": 1.58
+          },
+          {
+            "w": "carbon",
+            "start": 1.58,
+            "end": 2.06
+          },
+          {
+            "w": "copy.",
+            "start": 2.06,
+            "end": 2.54
+          },
+          {
+            "w": "Photograph",
+            "start": 3.48,
+            "end": 3.9
+          },
+          {
+            "w": "both,",
+            "start": 3.9,
+            "end": 4.24
+          },
+          {
+            "w": "and",
+            "start": 4.669,
+            "end": 4.8
+          },
+          {
+            "w": "it",
+            "start": 4.8,
+            "end": 4.9
+          },
+          {
+            "w": "counts",
+            "start": 4.9,
+            "end": 5.14
+          },
+          {
+            "w": "twice.",
+            "start": 5.14,
+            "end": 5.71
+          }
+        ]
+      }
+    },
+    {
+      "beat": "funding",
+      "file": "funding.m4a",
+      "duration": 7.41,
+      "speech": [0.1, 7.16],
+      "words": 16,
+      "wpm": 136,
+      "sha256": "04cfcc109d13237b1a48e44bb3b8ef8b27700f142b9ec894a7669fd89dd0c6c9",
+      "voice": "Charon",
+      "model": "gemini-3.8-flash-tts",
+      "take": 2,
+      "requests": 2,
+      "pace": "steady and unhurried, about 120 words a minute",
+      "pauses": [],
+      "loudness": {
+        "lufs": -16.2,
+        "truePeak": -2.4
+      },
+      "text": "Lantern Bay, the chocolate buyer, pays one invoice through PayPal's Agent Toolkit, on a simulated sandbox.",
+      "alignment": {
+        "source": "local transcript (openai-whisper small, word timestamps), offline",
+        "characterErrorRate": 0.023,
+        "heard": "Lantern Bay, the chocolate buyer, pays one invoice through PayPal's Agent Toolkit and a simulated sandbox.",
+        "words": [
+          {
+            "w": "Lantern",
+            "start": 0.1,
+            "end": 0.46
+          },
+          {
+            "w": "Bay,",
+            "start": 0.46,
+            "end": 0.76
+          },
+          {
+            "w": "the",
+            "start": 1.256,
+            "end": 1.32
+          },
+          {
+            "w": "chocolate",
+            "start": 1.32,
+            "end": 1.62
+          },
+          {
+            "w": "buyer,",
+            "start": 1.62,
+            "end": 1.94
+          },
+          {
+            "w": "pays",
+            "start": 2.36,
+            "end": 2.72
+          },
+          {
+            "w": "one",
+            "start": 2.72,
+            "end": 3.02
+          },
+          {
+            "w": "invoice",
+            "start": 3.02,
+            "end": 3.44
+          },
+          {
+            "w": "through",
+            "start": 3.44,
+            "end": 3.82
+          },
+          {
+            "w": "PayPal's",
+            "start": 3.82,
+            "end": 4.46
+          },
+          {
+            "w": "Agent",
+            "start": 4.46,
+            "end": 4.8
+          },
+          {
+            "w": "Toolkit,",
+            "start": 4.8,
+            "end": 5.38
+          },
+          {
+            "w": "on",
+            "start": 5.837,
+            "end": 5.94
+          },
+          {
+            "w": "a",
+            "start": 5.94,
+            "end": 6.04
+          },
+          {
+            "w": "simulated",
+            "start": 6.04,
+            "end": 6.38
+          },
+          {
+            "w": "sandbox.",
+            "start": 6.38,
+            "end": 7.16
+          }
+        ]
+      }
+    },
+    {
+      "beat": "reading",
+      "file": "reading.m4a",
+      "duration": 9,
+      "speech": [0.1, 8.75],
+      "words": 20,
+      "wpm": 138.7,
+      "sha256": "3cc3a24d35d202cb8da8cc37c5bd134c57287bc977df3759ebe8f01c9d1e9e41",
+      "voice": "Charon",
+      "model": "gemini-3.8-flash-tts",
+      "take": 2,
+      "requests": 2,
+      "pace": "steady, about 125 words a minute; short pauses at full stops",
+      "pauses": [[2.9, 0.18]],
+      "loudness": {
+        "lufs": -16.2,
+        "truePeak": -2.2
+      },
+      "text": "Claude's real reading of one slip. The run itself replays a labelled stand-in; Analyn types a stained digit by hand.",
+      "alignment": {
+        "source": "local transcript (openai-whisper small, word timestamps), offline",
+        "characterErrorRate": 0.043,
+        "heard": "Claude's real reading of one slip. The run itself replays a labeled stand -in. Enlin types a stained digit by hand.",
+        "words": [
+          {
+            "w": "Claude's",
+            "start": 0.1,
+            "end": 0.6
+          },
+          {
+            "w": "real",
+            "start": 0.6,
+            "end": 0.98
+          },
+          {
+            "w": "reading",
+            "start": 0.98,
+            "end": 1.42
+          },
+          {
+            "w": "of",
+            "start": 1.42,
+            "end": 1.66
+          },
+          {
+            "w": "one",
+            "start": 1.66,
+            "end": 1.96
+          },
+          {
+            "w": "slip.",
+            "start": 1.96,
+            "end": 2.34
+          },
+          {
+            "w": "The",
+            "start": 3.174,
+            "end": 3.24
+          },
+          {
+            "w": "run",
+            "start": 3.24,
+            "end": 3.44
+          },
+          {
+            "w": "itself",
+            "start": 3.44,
+            "end": 3.82
+          },
+          {
+            "w": "replays",
+            "start": 3.82,
+            "end": 4.68
+          },
+          {
+            "w": "a",
+            "start": 4.68,
+            "end": 4.78
+          },
+          {
+            "w": "labelled",
+            "start": 4.78,
+            "end": 5.12
+          },
+          {
+            "w": "stand-in;",
+            "start": 5.12,
+            "end": 5.78
+          },
+          {
+            "w": "Analyn",
+            "start": 6.53,
+            "end": 6.82
+          },
+          {
+            "w": "types",
+            "start": 6.82,
+            "end": 7.12
+          },
+          {
+            "w": "a",
+            "start": 7.12,
+            "end": 7.34
+          },
+          {
+            "w": "stained",
+            "start": 7.34,
+            "end": 7.7
+          },
+          {
+            "w": "digit",
+            "start": 7.7,
+            "end": 8.04
+          },
+          {
+            "w": "by",
+            "start": 8.04,
+            "end": 8.32
+          },
+          {
+            "w": "hand.",
+            "start": 8.32,
+            "end": 8.75
+          }
+        ]
+      }
+    },
+    {
+      "beat": "count-once",
+      "file": "count-once.m4a",
+      "duration": 8.22,
+      "speech": [0.1, 7.97],
+      "words": 18,
+      "wpm": 137.2,
+      "sha256": "73f534318738415bac92efbb1a1b1bbd741e62d38dca6b5fb30e64faec8bf53c",
+      "voice": "Charon",
+      "model": "gemini-3.8-flash-tts",
+      "take": 2,
+      "requests": 2,
+      "pace": "steady, about 125 words a minute",
+      "pauses": [],
+      "loudness": {
+        "lufs": -16.2,
+        "truePeak": -2.3
+      },
+      "text": "Counted once, the duplicate's money returns to the other sixty-three members, and the dial drops inside the limit.",
+      "alignment": {
+        "source": "local transcript (openai-whisper small, word timestamps), offline",
+        "characterErrorRate": 0,
+        "heard": "Counted once the duplicate's money returns to the other 63 members and the dial drops inside the limit",
+        "words": [
+          {
+            "w": "Counted",
+            "start": 0.1,
+            "end": 0.5
+          },
+          {
+            "w": "once,",
+            "start": 0.5,
+            "end": 0.82
+          },
+          {
+            "w": "the",
+            "start": 1.347,
+            "end": 1.46
+          },
+          {
+            "w": "duplicate's",
+            "start": 1.46,
+            "end": 2.06
+          },
+          {
+            "w": "money",
+            "start": 2.06,
+            "end": 2.32
+          },
+          {
+            "w": "returns",
+            "start": 2.32,
+            "end": 2.92
+          },
+          {
+            "w": "to",
+            "start": 2.92,
+            "end": 3.32
+          },
+          {
+            "w": "the",
+            "start": 3.32,
+            "end": 3.44
+          },
+          {
+            "w": "other",
+            "start": 3.44,
+            "end": 3.68
+          },
+          {
+            "w": "sixty-three",
+            "start": 3.68,
+            "end": 4.26
+          },
+          {
+            "w": "members,",
+            "start": 4.26,
+            "end": 4.74
+          },
+          {
+            "w": "and",
+            "start": 5.518,
+            "end": 5.6
+          },
+          {
+            "w": "the",
+            "start": 5.6,
+            "end": 5.7
+          },
+          {
+            "w": "dial",
+            "start": 5.7,
+            "end": 6.08
+          },
+          {
+            "w": "drops",
+            "start": 6.08,
+            "end": 6.66
+          },
+          {
+            "w": "inside",
+            "start": 6.66,
+            "end": 7.3
+          },
+          {
+            "w": "the",
+            "start": 7.3,
+            "end": 7.62
+          },
+          {
+            "w": "limit.",
+            "start": 7.62,
+            "end": 7.97
+          }
+        ]
+      }
+    },
+    {
+      "beat": "holds",
+      "file": "holds.m4a",
+      "duration": 9.41,
+      "speech": [0.1, 9.2],
+      "words": 21,
+      "wpm": 138.5,
+      "sha256": "8ea73cf7274617c193132dd67b4d65ed69d767bfff0d5f54f8558afe7305a35b",
+      "voice": "Charon",
+      "model": "gemini-3.8-flash-tts",
+      "take": 3,
+      "requests": 3,
+      "pace": "steady and unhurried, about 120 words a minute; a short beat after 'Refused'",
+      "pauses": [],
+      "loudness": {
+        "lufs": -16.2,
+        "truePeak": -2.1
+      },
+      "text": "Two more holds go to a person. Analyn tries a deduction. Refused: the rate card was locked before the first slip.",
+      "alignment": {
+        "source": "local transcript (openai-whisper small, word timestamps), offline",
+        "characterErrorRate": 0.022,
+        "heard": "Two more holds go to a person. Anilin tries a deduction. Refused. The rate card was locked before the first slip.",
+        "words": [
+          {
+            "w": "Two",
+            "start": 0.1,
+            "end": 0.3
+          },
+          {
+            "w": "more",
+            "start": 0.3,
+            "end": 0.58
+          },
+          {
+            "w": "holds",
+            "start": 0.58,
+            "end": 1.06
+          },
+          {
+            "w": "go",
+            "start": 1.06,
+            "end": 1.46
+          },
+          {
+            "w": "to",
+            "start": 1.46,
+            "end": 1.58
+          },
+          {
+            "w": "a",
+            "start": 1.58,
+            "end": 1.72
+          },
+          {
+            "w": "person.",
+            "start": 1.72,
+            "end": 2.08
+          },
+          {
+            "w": "Analyn",
+            "start": 2.916,
+            "end": 3.42
+          },
+          {
+            "w": "tries",
+            "start": 3.42,
+            "end": 3.72
+          },
+          {
+            "w": "a",
+            "start": 3.72,
+            "end": 3.92
+          },
+          {
+            "w": "deduction.",
+            "start": 3.92,
+            "end": 4.3
+          },
+          {
+            "w": "Refused:",
+            "start": 5.254,
+            "end": 5.68
+          },
+          {
+            "w": "the",
+            "start": 6.42,
+            "end": 6.46
+          },
+          {
+            "w": "rate",
+            "start": 6.46,
+            "end": 6.68
+          },
+          {
+            "w": "card",
+            "start": 6.68,
+            "end": 6.96
+          },
+          {
+            "w": "was",
+            "start": 6.96,
+            "end": 7.18
+          },
+          {
+            "w": "locked",
+            "start": 7.18,
+            "end": 7.58
+          },
+          {
+            "w": "before",
+            "start": 7.58,
+            "end": 8.08
+          },
+          {
+            "w": "the",
+            "start": 8.08,
+            "end": 8.38
+          },
+          {
+            "w": "first",
+            "start": 8.38,
+            "end": 8.68
+          },
+          {
+            "w": "slip.",
+            "start": 8.68,
+            "end": 9.2
+          }
+        ]
+      }
+    },
+    {
+      "beat": "signing",
+      "file": "signing.m4a",
+      "duration": 8.12,
+      "speech": [0.1, 7.87],
+      "words": 18,
+      "wpm": 139,
+      "sha256": "2df4ae9d918a743bc2d3e8003224d8a3390f1e62f0fc55e21b6824fee7658952",
+      "voice": "Charon",
+      "model": "gemini-3.8-flash-tts",
+      "take": 3,
+      "requests": 3,
+      "pace": "steady and unhurried, about 120 words a minute; a short pause at the colon and at the semicolon",
+      "pauses": [],
+      "loudness": {
+        "lufs": -16.2,
+        "truePeak": -2.4
+      },
+      "text": "Above three hundred dollars, two keys: Analyn signs; the Chair co-signs the same batch hash on his phone.",
+      "alignment": {
+        "source": "local transcript (openai-whisper small, word timestamps), offline",
+        "characterErrorRate": 0.036,
+        "heard": "Above $300, two keys. Aniline signs, the chair cosigns the same batch hash on his phone.",
+        "words": [
+          {
+            "w": "Above",
+            "start": 0.1,
+            "end": 0.46
+          },
+          {
+            "w": "three",
+            "start": 0.46,
+            "end": 0.623
+          },
+          {
+            "w": "hundred",
+            "start": 0.623,
+            "end": 0.852
+          },
+          {
+            "w": "dollars,",
+            "start": 0.852,
+            "end": 1.08
+          },
+          {
+            "w": "two",
+            "start": 1.97,
+            "end": 2.12
+          },
+          {
+            "w": "keys:",
+            "start": 2.12,
+            "end": 2.48
+          },
+          {
+            "w": "Analyn",
+            "start": 3.32,
+            "end": 3.74
+          },
+          {
+            "w": "signs;",
+            "start": 3.74,
+            "end": 4.04
+          },
+          {
+            "w": "the",
+            "start": 4.776,
+            "end": 4.84
+          },
+          {
+            "w": "Chair",
+            "start": 4.84,
+            "end": 5.18
+          },
+          {
+            "w": "co-signs",
+            "start": 5.18,
+            "end": 5.94
+          },
+          {
+            "w": "the",
+            "start": 5.94,
+            "end": 6.18
+          },
+          {
+            "w": "same",
+            "start": 6.18,
+            "end": 6.5
+          },
+          {
+            "w": "batch",
+            "start": 6.5,
+            "end": 6.8
+          },
+          {
+            "w": "hash",
+            "start": 6.8,
+            "end": 7.16
+          },
+          {
+            "w": "on",
+            "start": 7.16,
+            "end": 7.46
+          },
+          {
+            "w": "his",
+            "start": 7.46,
+            "end": 7.6
+          },
+          {
+            "w": "phone.",
+            "start": 7.6,
+            "end": 7.87
+          }
+        ]
+      }
+    },
+    {
+      "beat": "payouts",
+      "file": "payouts.m4a",
+      "duration": 9.25,
+      "speech": [0.1, 9.02],
+      "words": 20,
+      "wpm": 134.5,
+      "sha256": "4fe2cbc2403ea902aee25298eda6aad902c97adca482ba69e6523e052a0d7446",
+      "voice": "Charon",
+      "model": "gemini-3.8-flash-tts",
+      "take": 1,
+      "requests": 1,
+      "pace": "even, about 125 words a minute",
+      "pauses": [],
+      "loudness": {
+        "lufs": -16.1,
+        "truePeak": -2.2
+      },
+      "text": "The simulated PayPal accepts the batch: sent, not yet paid. Seven items confirm; a member without PayPal moves to cash.",
+      "alignment": {
+        "source": "local transcript (openai-whisper small, word timestamps), offline",
+        "characterErrorRate": 0,
+        "heard": "The simulated PayPal accepts the batch. Sent, not yet paid. Seven items confirm. A member without PayPal moves to cash.",
+        "words": [
+          {
+            "w": "The",
+            "start": 0.1,
+            "end": 0.18
+          },
+          {
+            "w": "simulated",
+            "start": 0.18,
+            "end": 0.72
+          },
+          {
+            "w": "PayPal",
+            "start": 0.72,
+            "end": 1.18
+          },
+          {
+            "w": "accepts",
+            "start": 1.18,
+            "end": 1.78
+          },
+          {
+            "w": "the",
+            "start": 1.78,
+            "end": 2.06
+          },
+          {
+            "w": "batch:",
+            "start": 2.06,
+            "end": 2.38
+          },
+          {
+            "w": "sent,",
+            "start": 2.815,
+            "end": 3.1
+          },
+          {
+            "w": "not",
+            "start": 3.531,
+            "end": 3.72
+          },
+          {
+            "w": "yet",
+            "start": 3.72,
+            "end": 3.92
+          },
+          {
+            "w": "paid.",
+            "start": 3.92,
+            "end": 4.22
+          },
+          {
+            "w": "Seven",
+            "start": 5.009,
+            "end": 5.34
+          },
+          {
+            "w": "items",
+            "start": 5.34,
+            "end": 5.72
+          },
+          {
+            "w": "confirm;",
+            "start": 5.72,
+            "end": 6.14
+          },
+          {
+            "w": "a",
+            "start": 6.853,
+            "end": 6.96
+          },
+          {
+            "w": "member",
+            "start": 6.96,
+            "end": 7.18
+          },
+          {
+            "w": "without",
+            "start": 7.18,
+            "end": 7.5
+          },
+          {
+            "w": "PayPal",
+            "start": 7.5,
+            "end": 7.98
+          },
+          {
+            "w": "moves",
+            "start": 7.98,
+            "end": 8.42
+          },
+          {
+            "w": "to",
+            "start": 8.42,
+            "end": 8.62
+          },
+          {
+            "w": "cash.",
+            "start": 8.62,
+            "end": 9.02
+          }
+        ]
+      }
+    },
+    {
+      "beat": "proof",
+      "file": "proof.m4a",
+      "duration": 6.47,
+      "speech": [0.1, 6.22],
+      "words": 14,
+      "wpm": 137.3,
+      "sha256": "ce4de7feff1ac6f3abecde2a5eaf09ad49a0a04f2589738689d01499bc533213",
+      "voice": "Charon",
+      "model": "gemini-3.8-flash-tts",
+      "take": 2,
+      "requests": 2,
+      "pace": "steady and unhurried, about 120 words a minute",
+      "pauses": [[4.03, 0.12]],
+      "loudness": {
+        "lufs": -16.1,
+        "truePeak": -2.3
+      },
+      "text": "Lantern Bay opens Proof and re-checks the rate card, both signatures and every line.",
+      "alignment": {
+        "source": "local transcript (openai-whisper small, word timestamps), offline",
+        "characterErrorRate": 0,
+        "heard": "Lantern Bay opens proof and rechecks the rate card both signatures and every line",
+        "words": [
+          {
+            "w": "Lantern",
+            "start": 0.1,
+            "end": 0.46
+          },
+          {
+            "w": "Bay",
+            "start": 0.46,
+            "end": 0.76
+          },
+          {
+            "w": "opens",
+            "start": 0.76,
+            "end": 1.2
+          },
+          {
+            "w": "Proof",
+            "start": 1.2,
+            "end": 1.6
+          },
+          {
+            "w": "and",
+            "start": 1.6,
+            "end": 2.2
+          },
+          {
+            "w": "re-checks",
+            "start": 2.2,
+            "end": 2.78
+          },
+          {
+            "w": "the",
+            "start": 2.78,
+            "end": 2.9
+          },
+          {
+            "w": "rate",
+            "start": 2.9,
+            "end": 3.08
+          },
+          {
+            "w": "card,",
+            "start": 3.08,
+            "end": 3.44
+          },
+          {
+            "w": "both",
+            "start": 4.151,
+            "end": 4.26
+          },
+          {
+            "w": "signatures",
+            "start": 4.26,
+            "end": 4.78
+          },
+          {
+            "w": "and",
+            "start": 4.78,
+            "end": 5.52
+          },
+          {
+            "w": "every",
+            "start": 5.652,
+            "end": 5.86
+          },
+          {
+            "w": "line.",
+            "start": 5.86,
+            "end": 6.22
+          }
+        ]
+      }
+    },
+    {
+      "beat": "member",
+      "file": "member.m4a",
+      "duration": 4.69,
+      "speech": [0.1, 4.44],
+      "words": 10,
+      "wpm": 138.2,
+      "sha256": "33b0d62f06878a1d7af5a8ce44cc17770a5a8dce1167927832f2bb8c9d384eb0",
+      "voice": "Charon",
+      "model": "gemini-3.8-flash-tts",
+      "take": 2,
+      "requests": 2,
+      "pace": "gentle and steady, about 125 words a minute; a short pause at the full stop",
+      "pauses": [[2.795, 0.1]],
+      "loudness": {
+        "lufs": -16,
+        "truePeak": -2.5
+      },
+      "text": "Her pay traces to four slips. It plays in Cebuano.",
+      "alignment": {
+        "source": "local transcript (openai-whisper small, word timestamps), offline",
+        "characterErrorRate": 0,
+        "heard": "Her pay traces to four slips. It plays in Cebuano.",
+        "words": [
+          {
+            "w": "Her",
+            "start": 0.1,
+            "end": 0.22
+          },
+          {
+            "w": "pay",
+            "start": 0.22,
+            "end": 0.46
+          },
+          {
+            "w": "traces",
+            "start": 0.46,
+            "end": 0.9
+          },
+          {
+            "w": "to",
+            "start": 0.9,
+            "end": 1.24
+          },
+          {
+            "w": "four",
+            "start": 1.24,
+            "end": 1.68
+          },
+          {
+            "w": "slips.",
+            "start": 1.68,
+            "end": 2.18
+          },
+          {
+            "w": "It",
+            "start": 2.996,
+            "end": 3.1
+          },
+          {
+            "w": "plays",
+            "start": 3.1,
+            "end": 3.42
+          },
+          {
+            "w": "in",
+            "start": 3.42,
+            "end": 3.66
+          },
+          {
+            "w": "Cebuano.",
+            "start": 3.66,
+            "end": 4.44
+          }
+        ]
+      }
+    },
+    {
+      "beat": "impressive",
+      "file": "impressive.m4a",
+      "duration": 10.63,
+      "speech": [0.1, 10.38],
+      "words": 21,
+      "wpm": 122.6,
+      "sha256": "d0897002bb656007c99550a910a9a50323fe3c7b4c7a37e3ec3143eed92f5afc",
+      "voice": "Charon",
+      "model": "gemini-3.8-flash-tts",
+      "take": 1,
+      "requests": 1,
+      "pace": "steady, about 125 words a minute; a short pause after 'switches'",
+      "pauses": [],
+      "loudness": {
+        "lufs": -16,
+        "truePeak": -2.3
+      },
+      "text": "Underneath: over five thousand automated tests and three kill switches. Others we found share parts; none starts from a handwritten weigh-slip.",
+      "alignment": {
+        "source": "local transcript (openai-whisper small, word timestamps), offline",
+        "characterErrorRate": 0.102,
+        "heard": "Underneath, over 5 ,000 automated tests and three kill switches. Others we found share parts. None starts from a handwritten wayslip.",
+        "words": [
+          {
+            "w": "Underneath:",
+            "start": 0.1,
+            "end": 0.66
+          },
+          {
+            "w": "over",
+            "start": 1.053,
+            "end": 1.22
+          },
+          {
+            "w": "five",
+            "start": 1.22,
+            "end": 1.76
+          },
+          {
+            "w": "thousand",
+            "start": 1.76,
+            "end": 2.3
+          },
+          {
+            "w": "automated",
+            "start": 2.3,
+            "end": 2.84
+          },
+          {
+            "w": "tests",
+            "start": 2.84,
+            "end": 3.36
+          },
+          {
+            "w": "and",
+            "start": 3.36,
+            "end": 3.92
+          },
+          {
+            "w": "three",
+            "start": 3.92,
+            "end": 4.24
+          },
+          {
+            "w": "kill",
+            "start": 4.24,
+            "end": 4.52
+          },
+          {
+            "w": "switches.",
+            "start": 4.52,
+            "end": 4.9
+          },
+          {
+            "w": "Others",
+            "start": 5.928,
+            "end": 6.14
+          },
+          {
+            "w": "we",
+            "start": 6.14,
+            "end": 6.34
+          },
+          {
+            "w": "found",
+            "start": 6.34,
+            "end": 6.7
+          },
+          {
+            "w": "share",
+            "start": 6.7,
+            "end": 7.06
+          },
+          {
+            "w": "parts;",
+            "start": 7.06,
+            "end": 7.48
+          },
+          {
+            "w": "none",
+            "start": 8.18,
+            "end": 8.36
+          },
+          {
+            "w": "starts",
+            "start": 8.36,
+            "end": 8.76
+          },
+          {
+            "w": "from",
+            "start": 8.76,
+            "end": 9.14
+          },
+          {
+            "w": "a",
+            "start": 9.14,
+            "end": 9.28
+          },
+          {
+            "w": "handwritten",
+            "start": 9.28,
+            "end": 9.74
+          },
+          {
+            "w": "weigh-slip.",
+            "start": 9.74,
+            "end": 10.38
+          }
+        ]
+      }
+    },
+    {
+      "beat": "limits",
+      "file": "limits.m4a",
+      "duration": 10.01,
+      "speech": [0.1, 9.76],
+      "words": 22,
+      "wpm": 136.6,
+      "sha256": "54109e3ac1476035c52c2e05acd847d92516f49774bd5dae48845b92af54a3a9",
+      "voice": "Charon",
+      "model": "gemini-3.8-flash-tts",
+      "take": 1,
+      "requests": 1,
+      "pace": "plain and matter-of-fact, brisk, about 140 words a minute, like reading a short list of facts",
+      "pauses": [],
+      "loudness": {
+        "lufs": -16.2,
+        "truePeak": -2.3
+      },
+      "text": "The limits: PayPal is a simulated sandbox; no real farmer was paid. Synthetic people and slips, a replayed stand-in, Gemini TTS voices.",
+      "alignment": {
+        "source": "local transcript (openai-whisper small, word timestamps), offline",
+        "characterErrorRate": 0.037,
+        "heard": "The limits. Paypal is a simulated sandbox. No real farmer was paid. Synthetic people in slips or replayed stand -in, Gemini TTS voices.",
+        "words": [
+          {
+            "w": "The",
+            "start": 0.1,
+            "end": 0.18
+          },
+          {
+            "w": "limits:",
+            "start": 0.18,
+            "end": 0.44
+          },
+          {
+            "w": "PayPal",
+            "start": 1.207,
+            "end": 1.54
+          },
+          {
+            "w": "is",
+            "start": 1.54,
+            "end": 1.76
+          },
+          {
+            "w": "a",
+            "start": 1.76,
+            "end": 1.9
+          },
+          {
+            "w": "simulated",
+            "start": 1.9,
+            "end": 2.24
+          },
+          {
+            "w": "sandbox;",
+            "start": 2.24,
+            "end": 2.78
+          },
+          {
+            "w": "no",
+            "start": 3.44,
+            "end": 3.56
+          },
+          {
+            "w": "real",
+            "start": 3.56,
+            "end": 3.92
+          },
+          {
+            "w": "farmer",
+            "start": 3.92,
+            "end": 4.24
+          },
+          {
+            "w": "was",
+            "start": 4.24,
+            "end": 4.42
+          },
+          {
+            "w": "paid.",
+            "start": 4.42,
+            "end": 4.66
+          },
+          {
+            "w": "Synthetic",
+            "start": 5.32,
+            "end": 5.74
+          },
+          {
+            "w": "people",
+            "start": 5.74,
+            "end": 6
+          },
+          {
+            "w": "and",
+            "start": 6,
+            "end": 6.22
+          },
+          {
+            "w": "slips,",
+            "start": 6.22,
+            "end": 6.46
+          },
+          {
+            "w": "a",
+            "start": 6.46,
+            "end": 7.08
+          },
+          {
+            "w": "replayed",
+            "start": 7.08,
+            "end": 7.52
+          },
+          {
+            "w": "stand-in,",
+            "start": 7.52,
+            "end": 7.94
+          },
+          {
+            "w": "Gemini",
+            "start": 8.46,
+            "end": 8.82
+          },
+          {
+            "w": "TTS",
+            "start": 8.82,
+            "end": 9.24
+          },
+          {
+            "w": "voices.",
+            "start": 9.24,
+            "end": 9.76
+          }
+        ]
+      }
+    },
+    {
+      "beat": "end",
+      "file": "end.m4a",
+      "duration": 8.73,
+      "speech": [0.1, 8.48],
+      "words": 17,
+      "wpm": 121.7,
+      "sha256": "320b207fbeeabc904c0e8a06244dcfec519ee2db4761c1ca8f1f227d405e6d80",
+      "voice": "Charon",
+      "model": "gemini-3.8-flash-tts",
+      "take": 1,
+      "requests": 1,
+      "pace": "slower and warm, about 115 words a minute; let the last sentence land",
+      "pauses": [],
+      "loudness": {
+        "lufs": -16.2,
+        "truePeak": -4.2
+      },
+      "text": "Members check their own pay; the buyer traces its premium. Every peso, traced to the pencil mark.",
+      "alignment": {
+        "source": "local transcript (openai-whisper small, word timestamps), offline",
+        "characterErrorRate": 0.026,
+        "heard": "Members check their own pay. The buyer traces its premium. Every pay so traced to the pencil mark.",
+        "words": [
+          {
+            "w": "Members",
+            "start": 0.1,
+            "end": 0.46
+          },
+          {
+            "w": "check",
+            "start": 0.46,
+            "end": 0.88
+          },
+          {
+            "w": "their",
+            "start": 0.88,
+            "end": 1.08
+          },
+          {
+            "w": "own",
+            "start": 1.08,
+            "end": 1.38
+          },
+          {
+            "w": "pay;",
+            "start": 1.38,
+            "end": 1.76
+          },
+          {
+            "w": "the",
+            "start": 2.8,
+            "end": 2.84
+          },
+          {
+            "w": "buyer",
+            "start": 2.84,
+            "end": 3.2
+          },
+          {
+            "w": "traces",
+            "start": 3.2,
+            "end": 3.8
+          },
+          {
+            "w": "its",
+            "start": 3.8,
+            "end": 4.08
+          },
+          {
+            "w": "premium.",
+            "start": 4.08,
+            "end": 4.42
+          },
+          {
+            "w": "Every",
+            "start": 5.4,
+            "end": 5.9
+          },
+          {
+            "w": "peso,",
+            "start": 5.9,
+            "end": 6.48
+          },
+          {
+            "w": "traced",
+            "start": 6.841,
+            "end": 7.08
+          },
+          {
+            "w": "to",
+            "start": 7.08,
+            "end": 7.62
+          },
+          {
+            "w": "the",
+            "start": 7.62,
+            "end": 7.74
+          },
+          {
+            "w": "pencil",
+            "start": 7.74,
+            "end": 8.04
+          },
+          {
+            "w": "mark.",
+            "start": 8.04,
+            "end": 8.48
+          }
+        ]
+      }
+    }
+  ]
+}
