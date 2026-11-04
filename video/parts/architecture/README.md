@@ -56,9 +56,8 @@ so every SVG property (thread draws, dots, pulses, the gap) is a registered cust
 wrapper `#arch-svgwrap` and read by the SVG through `var()`. The part renders the same at film second 30 as on its
 own (checked by snapshot at 32, 35 and 40.2 s).
 
-## To drop into the film
+## In the film
 
-Copy `compositions/architecture.html` over `video/compositions/architecture.html` (same composition id,
-`architecture`, 14 s). `video/build.mjs` regenerates that file and `video/check.mjs` (lines 127–134) still expects
-the old per-step SVG layers, so both need the media owner's change in the same commit. `film.css` already declares
-FS Sans for the film.
+The film mounts `compositions/architecture.html` in place at 30–44 s (composition id `architecture`, 14 s; see
+`video/plan.mjs` SEGMENTS). `video/build.mjs` runs this part's build first, so the steps follow `script.ts`, and the
+film dims the finished diagram to navy over its last 0.4 s before the highlight reel opens out of the night.

@@ -12,8 +12,9 @@ Gabii night film card, from `research/theme-1104/decision.md`.
 | end        | `compositions/end.html`        | 167–175   | 0–8   | The brightest frame. A pencil thread runs slip → members ✓ → buyer ✓, steps back, then "Every peso, **traced**." with a hand-drawn underline, then "Fair Split" / "Audited co-op payroll on PayPal". A code-drawn cacao branch draws itself; the ledger (with the Gemini TTS voice disclosure) holds to the last frame.                                                                     |
 
 The "Simulated PayPal sandbox" tag is on screen in every frame (top left, the ledger's first chip).
-Captions are a closed-caption track only: `close.vtt` (cues 33–39 of `video/captions.vtt`, shifted by −143 s),
-muxed into `out/close.mp4` as a soft `mov_text` stream.
+Captions are a closed-caption track only: `close.vtt` (the cues of `video/captions.vtt` from 143 s, shifted by
+−143 s; written by `video/build.mjs`), muxed into `out/close.mp4` as a soft `mov_text` stream. The film mounts
+these three compositions in place at 143, 154 and 167 s.
 
 ## Run
 

@@ -3,234 +3,240 @@
     "beat": "problem",
     "start": 0,
     "end": 4.375,
-    "text": "Picture a co-op paying sixty-four cacao farmers from handwritten weigh-slips."
+    "lines": ["Picture a co-op paying sixty-four cacao", "farmers from handwritten weigh-slips."]
   },
   {
     "beat": "problem",
     "start": 4.375,
     "end": 8.75,
-    "text": "A duplicate, or a fine no rule allows, goes unseen."
+    "lines": ["A duplicate,", "or a fine no rule allows, goes unseen."]
   },
   {
     "beat": "problem",
     "start": 8.75,
     "end": 14,
-    "text": "Members can't check their pay; the buyer can't prove its premium arrived."
+    "lines": ["Members can't check their pay;", "the buyer can't prove its premium arrived."]
   },
   {
     "beat": "solution",
     "start": 14,
-    "end": 16.666667,
-    "text": "Fair Split: Claude reads the paper."
+    "end": 16.667,
+    "lines": ["Fair Split: Claude reads the paper."]
   },
   {
     "beat": "solution",
-    "start": 16.666667,
-    "end": 21.111111,
-    "text": "Code computes every amount and holds what it can't justify."
+    "start": 16.667,
+    "end": 21.111,
+    "lines": ["Code computes every amount", "and holds what it can't justify."]
   },
   {
     "beat": "solution",
-    "start": 21.111111,
-    "end": 25.111111,
-    "text": "Two officers sign large batches. A simulated PayPal pays;"
+    "start": 21.111,
+    "end": 25.111,
+    "lines": ["Two officers sign large batches.", "A simulated PayPal pays;"]
   },
   {
     "beat": "solution",
-    "start": 25.111111,
+    "start": 25.111,
     "end": 30,
-    "text": "cash members get the same statement. The buyer re-checks it all."
+    "lines": ["cash members get the same statement.", "The buyer re-checks it all."]
   },
   {
     "beat": "architecture",
     "start": 30,
-    "end": 36.416667,
-    "text": "Slips go to Claude, then a deterministic engine. Two keys sign one batch hash."
+    "end": 33.667,
+    "lines": ["Slips go to Claude,", "then a deterministic engine."]
   },
   {
     "beat": "architecture",
-    "start": 36.416667,
+    "start": 33.667,
+    "end": 36.417,
+    "lines": ["Two keys sign one batch hash."]
+  },
+  {
+    "beat": "architecture",
+    "start": 36.417,
     "end": 41,
-    "text": "An outbox makes each simulated PayPal call safe to retry."
+    "lines": ["An outbox makes each simulated", "PayPal call safe to retry."]
   },
   {
     "beat": "highlights",
     "start": 44,
     "end": 47.25,
-    "text": "What's special: a split matrix that rebalances;"
+    "lines": ["What's special:", "a split matrix that rebalances;"]
   },
   {
     "beat": "highlights",
     "start": 47.25,
-    "end": 50.964286,
-    "text": "a frozen rate card; two keys, one hash;"
+    "end": 52.821,
+    "lines": ["a frozen rate card; two keys,", "one hash; proof in your browser;"]
   },
   {
     "beat": "highlights",
-    "start": 50.964286,
+    "start": 52.821,
     "end": 57,
-    "text": "proof in your browser; pay you can hear; and Try to break it."
+    "lines": ["pay you can hear; and Try to break it."]
   },
   {
     "beat": "paper",
     "start": 57,
-    "end": 62.176471,
-    "text": "Each delivery gets a handwritten slip and a pink carbon copy."
+    "end": 62.176,
+    "lines": ["Each delivery gets a handwritten", "slip and a pink carbon copy."]
   },
   {
     "beat": "paper",
-    "start": 62.176471,
+    "start": 62.176,
     "end": 65,
-    "text": "Photograph both, and it counts twice."
+    "lines": ["Photograph both, and it counts twice."]
   },
   {
     "beat": "funding",
     "start": 65,
     "end": 67.5,
-    "text": "Lantern Bay, the chocolate buyer,"
+    "lines": ["Lantern Bay, the chocolate buyer,"]
   },
   {
     "beat": "funding",
     "start": 67.5,
     "end": 73,
-    "text": "pays one invoice through PayPal's Agent Toolkit, on a simulated sandbox."
+    "lines": ["pays one invoice through PayPal's", "Agent Toolkit, on a simulated sandbox."]
   },
   {
     "beat": "reading",
     "start": 73,
-    "end": 76.478261,
-    "text": "Here is Claude's real reading of one slip."
+    "end": 76.478,
+    "lines": ["Here is Claude's real reading of one slip."]
   },
   {
     "beat": "reading",
-    "start": 76.478261,
-    "end": 79.521739,
-    "text": "The run itself replays a labelled stand-in;"
+    "start": 76.478,
+    "end": 79.522,
+    "lines": ["The run itself replays", "a labelled stand-in;"]
   },
   {
     "beat": "reading",
-    "start": 79.521739,
+    "start": 79.522,
     "end": 83,
-    "text": "treasurer Analyn types a stained digit by hand."
+    "lines": ["treasurer Analyn types", "a stained digit by hand."]
   },
   {
     "beat": "count-once",
     "start": 83,
     "end": 88.5,
-    "text": "Counted once, the duplicate's money returns to the other sixty-three members,"
+    "lines": ["Counted once, the duplicate's money", "returns to the other sixty-three members,"]
   },
   {
     "beat": "count-once",
     "start": 88.5,
     "end": 92,
-    "text": "and the dial drops inside the limit."
+    "lines": ["and the dial drops inside the limit."]
   },
   {
     "beat": "holds",
     "start": 92,
-    "end": 97.652174,
-    "text": "Two more holds, each decided by a person. Analyn tries adding a deduction."
+    "end": 97.652,
+    "lines": ["Two more holds, each decided by a person.", "Analyn tries adding a deduction."]
   },
   {
     "beat": "holds",
-    "start": 97.652174,
+    "start": 97.652,
     "end": 102,
-    "text": "Refused: the rate card was locked before the first slip."
+    "lines": ["Refused: the rate card was", "locked before the first slip."]
   },
   {
     "beat": "signing",
     "start": 102,
     "end": 106.5,
-    "text": "Above three hundred dollars, two keys: Analyn holds to sign;"
+    "lines": ["Above three hundred dollars,", "two keys: Analyn holds to sign;"]
   },
   {
     "beat": "signing",
     "start": 106.5,
     "end": 111,
-    "text": "the Chair co-signs the same batch hash on his phone."
+    "lines": ["the Chair co-signs the same", "batch hash on his phone."]
   },
   {
     "beat": "payouts",
     "start": 111,
     "end": 116,
-    "text": "The simulated PayPal accepts the batch: sent, not yet paid."
+    "lines": ["The simulated PayPal accepts the batch:", "sent, not yet paid."]
   },
   {
     "beat": "payouts",
     "start": 116,
     "end": 121,
-    "text": "Seven items confirm; a member without PayPal moves to cash."
+    "lines": ["Seven items confirm;", "a member without PayPal moves to cash."]
   },
   {
     "beat": "proof",
     "start": 121,
     "end": 125,
-    "text": "Lantern Bay opens Proof and re-checks the rate card,"
+    "lines": ["Lantern Bay opens Proof", "and re-checks the rate card,"]
   },
   {
     "beat": "proof",
     "start": 125,
     "end": 129,
-    "text": "both signatures and every line, in its own browser."
+    "lines": ["both signatures and every line,", "in its own browser."]
   },
   {
     "beat": "member",
     "start": 129,
     "end": 134,
-    "text": "Her pay traces to four slips. She hears it in Cebuano."
+    "lines": ["Her pay traces to four slips.", "She hears it in Cebuano."]
   },
   {
     "beat": "listening",
     "start": 134,
-    "end": 138.5,
-    "text": "Premium gikan sa Lantern Bay Chocolate Co.:"
+    "end": 137.214,
+    "lines": ["[Her statement plays in Cebuano]", "Premium gikan sa Lantern Bay"]
   },
   {
     "beat": "listening",
-    "start": 138.5,
+    "start": 137.214,
     "end": 143,
-    "text": "forty-three dollars and sixty-nine cents, walay kaltas."
+    "lines": ["Chocolate Co.: forty-three dollars", "and sixty-nine cents, walay kaltas."]
   },
   {
     "beat": "impressive",
     "start": 143,
-    "end": 148.238095,
-    "text": "Underneath: over five thousand automated tests and three kill switches."
+    "end": 148.238,
+    "lines": ["Underneath: over five thousand", "automated tests and three kill switches."]
   },
   {
     "beat": "impressive",
-    "start": 148.238095,
+    "start": 148.238,
     "end": 154,
-    "text": "Others we found share parts; none starts from a handwritten weigh-slip."
+    "lines": ["Others we found share parts;", "none starts from a handwritten weigh-slip."]
   },
   {
     "beat": "limits",
     "start": 154,
-    "end": 157.586207,
-    "text": "The limits: PayPal runs on a simulated sandbox."
+    "end": 157.586,
+    "lines": ["The limits:", "PayPal runs on a simulated sandbox."]
   },
   {
     "beat": "limits",
-    "start": 157.586207,
-    "end": 162.068966,
-    "text": "People and data are synthetic; no real farmer was paid."
+    "start": 157.586,
+    "end": 162.069,
+    "lines": ["People and data are synthetic;", "no real farmer was paid."]
   },
   {
     "beat": "limits",
-    "start": 162.068966,
+    "start": 162.069,
     "end": 167,
-    "text": "Your demo replays a labelled reading stand-in. Voices are Gemini TTS."
+    "lines": ["Your demo replays a labelled reading", "stand-in. Voices are Gemini TTS."]
   },
   {
     "beat": "end",
     "start": 167,
-    "end": 171.705882,
-    "text": "Members check their own pay; the buyer traces its premium."
+    "end": 169.353,
+    "lines": ["Members check their own pay;"]
   },
   {
     "beat": "end",
-    "start": 171.705882,
+    "start": 169.353,
     "end": 175,
-    "text": "Every peso, traced to the pencil mark."
+    "lines": ["the buyer traces its premium.", "Every peso, traced to the pencil mark."]
   }
 ]

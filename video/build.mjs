@@ -1,5 +1,7 @@
-// Offline, deterministic assembly. F1 owns words, time and capture slots (script.ts); F3 supplies captures;
-// F4 supplies audio. Cards and the architecture are original typography and SVG; nothing imitates a screen.
+// Offline, deterministic assembly of the film in the motion language of video/proto/STYLE.md (rough cut v2).
+// F1 owns words, time and capture slots (script.ts); F3 supplies captures; F4 supplies voice and music. The opening is
+// generated from the prototype, the architecture and the close are mounted from their parts, and every capture-slot
+// beat is a calm placeholder that a recording drops into without layout work. Captions are a closed-caption track.
 import { spawnSync } from "node:child_process";
 import {
   copyFileSync,
@@ -11,6 +13,27 @@ import {
   writeFileSync,
 } from "node:fs";
 import { fileURLToPath } from "node:url";
+import {
+  CLOSE,
+  CLOSE_NOTE,
+  CLOSE_START,
+  captions,
+  KEYWORDS,
+  MEMBER_CLIP,
+  NAVY,
+  OPENING,
+  openingFromPrototype,
+  SEAMS,
+  SEGMENTS,
+  SIM,
+  simSpan,
+  slotTag,
+  stamp,
+  VTT_NOTE,
+  vtt,
+  WINDOWS,
+  windowKind,
+} from "./plan.mjs";
 import {
   ARCHITECTURE,
   BUMPER_SECONDS,
@@ -46,6 +69,7 @@ for (const name of ["MonaSans", "AtkinsonHyperlegibleNext", "BigShouldersStencil
   );
 }
 
+// ------------------------------------------------------------------------------------------- capture slots
 // Slots come from the script, in absolute film seconds. F3 never changes filenames; it may set mediaStart and
 // playbackRate in captures.json, and regeneration keeps those two values.
 const previous = existsSync(new URL("captures.json", root))
@@ -57,6 +81,10 @@ const slots = CAPTURES.map((capture) => {
   const kept = previous.find((slot) => slot.id === capture.id);
   const moment = /^MM-[\dS]+\b/.exec(capture.state)?.[0];
   if (capture.phase && !moment) throw new Error(`${capture.id}: a phase needs a moment in its state`);
+  const keyword = KEYWORDS[capture.id];
+  if (!keyword) throw new Error(`${capture.id}: no keyword`);
+  const kind = windowKind(capture);
+  const tag = slotTag(capture);
   return {
     id: capture.id,
     beat: capture.beat,
@@ -64,7 +92,10 @@ const slots = CAPTURES.map((capture) => {
     duration: capture.duration,
     source: capture.source,
     file: `captures/${capture.id}.mp4`,
-    placeholder: `Capture pending: ${capture.state}`,
+    placeholder: `capture pending: ${capture.id}`,
+    window: `${kind} ${WINDOWS[kind].w}×${WINDOWS[kind].h}`,
+    keyword,
+    tag: tag?.text ?? null,
     state: capture.state,
     shows: capture.shows,
     phase: capture.phase,
@@ -73,6 +104,15 @@ const slots = CAPTURES.map((capture) => {
     label: capture.label,
     word: capture.word,
     overlay: capture.overlay,
+    // The film no longer lays sentences over a clip (STYLE §2): these lines must be legible in the capture itself,
+    // beside the value they describe, or are carried by the slot's tag.
+    evidence: [
+      ...beat.show.filter(
+        (text) => text !== SIM && text !== FILM.firstCaption && !FILM.endCard.includes(text),
+      ),
+      ...capture.overlay,
+      ...(capture.persona ? [capture.persona] : []),
+    ],
     reference: capture.reference ? `research/design-1104/${capture.reference}` : null,
     // Only F3 may mark a recorded wait accelerated. No implied acceleration on placeholders.
     playbackRate: kept?.playbackRate ?? 1,
@@ -87,77 +127,20 @@ const slots = CAPTURES.map((capture) => {
 });
 write("captures.json", `${JSON.stringify(slots, null, 2)}\n`);
 
-// Phrase times are provisional until F4 alignment. Splitting only at spaces preserves every word.
-/** Two caption lines at the caption's size. */
-const MAX_CAPTION = 78;
-/** A break after a full stop, semicolon or colon reads best, then a comma; mid-clause breaks cost most. */
-const breakCost = (word, last) => (last || /[.;:!?]$/.test(word) ? 0 : /,$/.test(word) ? 150 : 600);
-/** A phrase shorter than this flashes by (a lone word left over from the line before). */
-const SHORT_CAPTION = 30;
-/** What one more phrase costs, so a split only grows when that buys a cleaner break. */
-const PHRASE_COST = 100;
-/**
- * Phrases of at most MAX_CAPTION characters that break at punctuation where they can, avoid fragments and are
- * otherwise near equal in length: the cheapest of the fewest phrases that fit and up to two more.
- */
-function phrases(say) {
-  const fewest = Math.max(1, Math.ceil(say.length / MAX_CAPTION));
-  const options = [fewest, fewest + 1, fewest + 2].map((n) => split(say, n)).filter(Boolean);
-  if (!options.length) throw new Error(`No caption split for: ${say}`);
-  return options.reduce((a, b) => (b.cost < a.cost ? b : a)).phrases;
-}
-function split(say, n) {
-  const words = say.split(" ");
-  if (n > words.length) return null;
-  const length = (a, b) => words.slice(a, b).join(" ").length;
-  const target = say.length / n;
-  // best[k][i]: the cheapest way to cut words[0, i) into k phrases, and where its last phrase starts.
-  const best = Array.from({ length: n + 1 }, () => Array(words.length + 1).fill(null));
-  best[0][0] = { cost: 0, from: -1 };
-  for (let k = 1; k <= n; k++)
-    for (let i = 1; i <= words.length; i++)
-      for (let j = k - 1; j < i; j++) {
-        const prior = best[k - 1][j];
-        const size = length(j, i);
-        if (!prior || size > MAX_CAPTION) continue;
-        const cost =
-          prior.cost +
-          breakCost(words[i - 1], i === words.length) +
-          Math.max(0, SHORT_CAPTION - size) ** 2 +
-          (size - target) ** 2 / 10;
-        if (!best[k][i] || cost < best[k][i].cost) best[k][i] = { cost, from: j };
-      }
-  if (!best[n][words.length]) return null;
-  const out = [];
-  for (let k = n, i = words.length; k > 0; i = best[k][i].from, k--)
-    out.unshift(words.slice(best[k][i].from, i).join(" "));
-  return { phrases: out, cost: best[n][words.length].cost + PHRASE_COST * n };
-}
-const captions = beats.flatMap((beat) => {
-  if (!beat.say) return [];
-  const chunks = phrases(beat.say);
-  // A beat may speak in only part of its time (the architecture holds its finished diagram in silence).
-  const [from, to] = beat.speech ?? [beat.start, beat.end];
-  const total = chunks.reduce((sum, text) => sum + text.split(" ").length, 0);
-  let consumed = 0;
-  return chunks.map((text, index) => {
-    const start = from + ((to - from) * consumed) / total;
-    consumed += text.split(" ").length;
-    const end = index === chunks.length - 1 ? to : from + ((to - from) * consumed) / total;
-    return { beat: beat.id, start: seconds(start), end: seconds(end), text };
-  });
-});
+// ------------------------------------------------------------------------------------------------ captions
+// A closed-caption track (STYLE §8), never burned in. close.vtt is the close part's slice, for its own render.
 write("captions.json", `${JSON.stringify(captions, null, 2)}\n`);
-const stamp = (value) => {
-  const ms = Math.round(value * 1000);
-  return `${String(Math.floor(ms / 3600000)).padStart(2, "0")}:${String(Math.floor(ms / 60000) % 60).padStart(2, "0")}:${String(Math.floor(ms / 1000) % 60).padStart(2, "0")}.${String(ms % 1000).padStart(3, "0")}`;
-};
+write("captions.vtt", vtt(captions, VTT_NOTE));
 write(
-  "captions.vtt",
-  `WEBVTT\n\n${captions.map((cue, i) => `${i + 1}\n${stamp(cue.start)} --> ${stamp(cue.end)}\n${cue.text}\n`).join("\n")}`,
+  "parts/close/close.vtt",
+  vtt(
+    captions.filter((cue) => cue.start >= CLOSE_START),
+    CLOSE_NOTE,
+    CLOSE_START,
+  ),
 );
 
-// Original diagram: exact F1 box strings and edges, built up in the script's reveal order. No logos or artwork.
+// Original diagram kept as a still: exact F1 box strings and edges. No logos or artwork.
 const positions = {
   paper: [40, 30, 380, 110],
   read: [460, 30, 400, 110],
@@ -170,7 +153,6 @@ const positions = {
   surfaces: [40, 440, 820, 110],
   cash: [900, 440, 400, 110],
 };
-const VIEW = { width: 1810, height: 580 };
 const routes = {
   "keys:outbox": "M 1555 140 L 1555 230",
   "keys:cash": "M 1770 85 L 1795 85 L 1795 495 L 1300 495",
@@ -188,7 +170,7 @@ function edge(from, to) {
   if (ty !== y || tx <= x) throw new Error(`No route for ${from} -> ${to}`);
   return `M ${x + w} ${y + h / 2} L ${tx} ${ty + th / 2}`;
 }
-function wrap(text, max) {
+function wrapWords(text, max) {
   const lines = [];
   let line = "";
   for (const word of text.split(" ")) {
@@ -201,151 +183,269 @@ function wrap(text, max) {
   if (line) lines.push(line);
   return lines;
 }
-const key = ([from, to]) => `${from}:${to}`;
-/** The diagram with only `shown` items; items in `fresh` are drawn heavier (the step that just arrived). */
-function diagram(shown = null, fresh = new Set()) {
-  const boxes = ARCHITECTURE.boxes.filter((box) => !shown || shown.has(box.id));
-  const arrows = ARCHITECTURE.arrows.filter((arrow) => !shown || shown.has(key(arrow)));
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${VIEW.width} ${VIEW.height}" role="img" aria-label="${esc(boxes.map((box) => box.label).join("; "))}"><defs><marker id="architecture-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#BDB1A4"/></marker></defs>${arrows.map((arrow) => `<path data-edge="${key(arrow)}" d="${edge(...arrow)}" stroke="#BDB1A4" stroke-width="${fresh.has(key(arrow)) ? 4 : 2}" fill="none" marker-end="url(#architecture-arrow)"/>`).join("")}${boxes
+write(
+  "assets/architecture.svg",
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1810 580" role="img" aria-label="${esc(ARCHITECTURE.boxes.map((box) => box.label).join("; "))}"><defs><marker id="architecture-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#BDB1A4"/></marker></defs>${ARCHITECTURE.arrows.map(([from, to]) => `<path data-edge="${from}:${to}" d="${edge(from, to)}" stroke="#BDB1A4" stroke-width="2" fill="none" marker-end="url(#architecture-arrow)"/>`).join("")}${ARCHITECTURE.boxes
     .map((box) => {
       const [x, y, w, h] = positions[box.id];
-      const lines = wrap(box.label, Math.floor((w - 40) / 14));
-      return `<g data-box="${box.id}"${fresh.has(box.id) ? ' data-fresh="true"' : ""}><rect x="${x}" y="${y}" width="${w}" height="${h}" fill="#2A1F18" stroke="#BDB1A4" stroke-width="${fresh.has(box.id) ? 5 : 2}"/><text x="${x + 20}" y="${y + (h - lines.length * 30) / 2 + 24}" fill="#F4EDE4" font-family="FS Sans, sans-serif" font-size="26">${lines.map((line, i) => `<tspan x="${x + 20}" dy="${i ? 30 : 0}">${esc(line)}</tspan>`).join("")}</text></g>`;
+      const lines = wrapWords(box.label, Math.floor((w - 40) / 14));
+      return `<g data-box="${box.id}"><rect x="${x}" y="${y}" width="${w}" height="${h}" fill="#2A1F18" stroke="#BDB1A4" stroke-width="2"/><text x="${x + 20}" y="${y + (h - lines.length * 30) / 2 + 24}" fill="#F4EDE4" font-family="FS Sans, sans-serif" font-size="26">${lines.map((line, i) => `<tspan x="${x + 20}" dy="${i ? 30 : 0}">${esc(line)}</tspan>`).join("")}</text></g>`;
     })
-    .join("")}</svg>`;
-}
-write("assets/architecture.svg", diagram());
+    .join("")}</svg>`,
+);
 
-// film.css is authored, not regenerated. Font paths are local.
-const labels = (beat) =>
-  `<div class="evidence">${beat.show
-    .filter(
-      (text) =>
-        text !== FILM.firstCaption && text !== "Simulated PayPal sandbox" && !FILM.endCard.includes(text),
-    )
-    .map((text) => {
-      const statement = beat.id === "listening" && text.startsWith("Premium from");
-      const content = statement
-        ? esc(text).replace(/US\$[\d,.]+/g, '<span class="figure">$&</span>')
-        : esc(text);
-      return `<p${statement ? ` class="statement" data-statement-text="${esc(text)}"` : ""}>${content}</p>`;
-    })
-    .join("")}</div>`;
-/** Evidence lines that belong to one clip appear and leave with it, never over a neighbouring clip. */
-function slotEvidence(captures, beat) {
-  const timed = captures.filter((slot) => slot.overlay.length);
-  if (!timed.length) return "";
-  return `<div class="evidence evidence-timed">${timed
-    .map(
-      (slot) =>
-        `<div id="${slot.id}-evidence" class="clip slot-evidence" data-start="${seconds(slot.start - beat.start)}" data-duration="${slot.duration}" data-track-index="6">${slot.overlay.map((text) => `<p>${esc(text)}</p>`).join("")}</div>`,
-    )
-    .join("")}</div>`;
+// ------------------------------------------------------------------------------------------------- parts
+// The architecture part builds itself from script.ts (and copies its font); the film mounts it in place.
+const arch = spawnSync(process.execPath, [fileURLToPath(new URL("parts/architecture/build.mjs", root))], {
+  encoding: "utf8",
+});
+if (arch.status !== 0) throw new Error(`The architecture part did not build: ${arch.stderr}`);
+
+// ------------------------------------------------------------------------------------------ capture slots
+const FLASK =
+  '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3.5h6M10 3.5v5.2L4.8 17.6A2 2 0 0 0 6.5 20.5h11a2 2 0 0 0 1.7-2.9L14 8.7V3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/><path d="M7.4 14.5h9.2" stroke="currentColor" stroke-width="2"/></svg>';
+/** Keyword size: STYLE's 176 px, smaller only when the word would run into its window. */
+function keywordSize(word, kind) {
+  const room = kind === "phone" ? WINDOWS.phone.a.x - WINDOWS.phone.w / 2 - 140 - 60 : 1640;
+  return Math.min(176, Math.floor(room / (word.length * 0.56)));
 }
-/** A part's bumper over the first frames of its first beat: tells the judge a new part has begun. */
-function bumper(beat) {
-  const part = PARTS.find((item) => item.id === beat.part);
-  if (!part?.bumper || part.start !== beat.start) return "";
-  return `<div id="${beat.id}-bumper" class="clip part-bumper" data-start="0" data-duration="${BUMPER_SECONDS}" data-track-index="7">${esc(part.bumper)}</div>`;
+function slotIdSize(id, kind) {
+  const room = (kind === "phone" ? WINDOWS.phone.w : WINDOWS.landscape.w) - 90;
+  return Math.min(64, Math.floor(room / (id.length * 0.66)));
 }
-function slotMarkup(slot, localStart) {
+function windowMarkup(slot, local) {
+  const kind = windowKind(slot);
   const available = existsSync(new URL(slot.file, root));
-  const body = available
-    ? `<video id="${slot.id}-video" class="clip footage" src="${slot.file}" muted playsinline data-has-audio="false" data-start="${localStart}" data-duration="${slot.duration}" data-media-start="${slot.mediaStart}" data-playback-rate="${slot.playbackRate}" data-track-index="1"></video>`
-    : `<div id="${slot.id}-pending" class="clip pending" data-slot="${slot.id}" data-start="${localStart}" data-duration="${slot.duration}" data-track-index="1"><h2>${esc(slot.placeholder)}</h2><p>${esc(slot.source)} · ${esc(slot.file)} · ${slot.duration}s</p><p class="brief">${esc(slot.shows)}</p><p>${esc(slot.requirements.join(" "))}</p><p>F3 capture slot · ${esc(slot.phase ? `data-moment-phase=${slot.phase}` : "human evidence state")} · ${esc(slot.reference ?? "no reference screenshot")} · No screen recording supplied</p></div>`;
-  const label = slot.label
-    ? `<div id="${slot.id}-label" class="clip reel-label" data-start="${localStart}" data-duration="${slot.duration}" data-track-index="4">${esc(slot.label)}</div>`
-    : "";
-  const persona = slot.persona
-    ? `<div id="${slot.id}-persona" class="clip persona" data-start="${localStart}" data-duration="${slot.duration}" data-track-index="3">${esc(slot.persona)}</div>`
-    : "";
-  const speed =
-    slot.playbackRate === 12 && available
-      ? `<div id="${slot.id}-speed" class="clip speed" data-start="${localStart}" data-duration="${slot.duration}" data-track-index="5">×12 real time</div>`
-      : "";
-  return `${body}${label}${persona}${speed}`;
+  const inner = available
+    ? `<video id="${slot.id}-video" class="clip pf-video" src="${slot.file}" muted playsinline data-has-audio="false" data-start="${local}" data-duration="${slot.duration}" data-media-start="${slot.mediaStart}" data-playback-rate="${slot.playbackRate}" data-track-index="1"></video>${slot.playbackRate === 12 ? '<span class="pf-speed">×12 real time</span>' : ""}`
+    : `<div class="pf-pending"><i class="pf-crop pf-crop--tl"></i><i class="pf-crop pf-crop--tr"></i><i class="pf-crop pf-crop--bl"></i><i class="pf-crop pf-crop--br"></i><span class="pf-rec"></span><p class="pf-p1">capture pending:</p><p class="pf-p2" style="font-size:${slotIdSize(slot.id, kind)}px;line-height:1.15">${esc(slot.id)}</p><p class="pf-p3">${esc(slot.source)} · ${slot.duration} s</p></div>`;
+  return `<div id="${slot.id}-window" class="pf-win pf-win--${kind}" data-slot="${slot.id}" data-slot-start="${local}" data-slot-duration="${slot.duration}" data-layout-allow-overflow><div class="pf-in">${inner}</div></div>`;
 }
-/** A card line appears at its word and stays to the end of the beat; each line has its own track. */
-function cardItems(beat, className) {
-  return beat.card.items
-    .map((item, i) => {
-      const start = seconds(item.at - beat.start);
-      return `<li id="${beat.id}-item-${i}" class="clip card-item" data-start="${start}" data-duration="${seconds(beat.end - item.at)}" data-track-index="${10 + i}"><span class="${className}">${esc(item.text)}</span>${item.detail ? `<span class="detail">${esc(item.detail)}</span>` : ""}</li>`;
-    })
-    .join("");
-}
-function architectureMarkup(beat) {
-  const shown = new Set();
-  return ARCHITECTURE.reveal
-    .map((step, i) => {
-      const fresh = new Set([...step.boxes, ...step.arrows.map(key)]);
-      for (const item of fresh) shown.add(item);
-      const next = ARCHITECTURE.reveal[i + 1]?.at ?? beat.end;
-      return `<div id="architecture-step-${i}" class="clip architecture-layer" data-step="${i}" data-start="${seconds(step.at - beat.start)}" data-duration="${seconds(next - step.at)}" data-track-index="2">${diagram(new Set(shown), fresh)}</div>`;
-    })
-    .join("");
-}
-function cardMarkup(beat) {
-  const { card } = beat;
-  const kicker = card.kicker ? `<p class="kicker">${esc(card.kicker)}</p>` : "";
-  if (card.kind === "architecture")
-    return `<div class="card card-architecture"><h1 class="card-heading">${esc(card.heading)}</h1>${kicker}<div class="architecture">${architectureMarkup(beat)}</div></div>`;
-  if (card.kind === "end")
-    return `<div class="card card-end"><h1 class="headline">${esc(card.heading)}</h1>${kicker}<div class="limits-list">${FILM.endCard
-      .slice(2)
-      .map((text) => `<p>${esc(text)}</p>`)
-      .join("")}</div></div>`;
-  const list = card.kind === "solution" ? "ol" : "ul";
-  return `<div class="card card-${card.kind}"><h1 class="card-heading">${esc(card.heading)}</h1>${kicker}<${list} class="card-items">${cardItems(beat, "line")}</${list}></div>`;
-}
-const partTitle = { overview: "Overview", "deep-dive": "Deep dive", close: "Limits and impact" };
-const written = new Set();
-for (const [index, beat] of beats.entries()) {
+function slotComposition(segment) {
+  const [beat] = segment.beats.map((id) => beats.find((item) => item.id === id));
+  const id = segment.id;
   const duration = beat.end - beat.start;
-  const chapter = [...CHAPTERS].reverse().find((item) => item.start <= beat.start)?.title ?? FILM.title;
-  const captures = slots.filter((slot) => slot.beat === beat.id);
-  const body = beat.card
-    ? cardMarkup(beat)
-    : captures.map((slot) => slotMarkup(slot, seconds(slot.start - beat.start))).join("");
-  const disclosure =
-    index === 0
-      ? FILM.firstCaption
-      : index === beats.length - 1
-        ? FILM.voiceDisclosure
-        : beat.id === "listening"
-          ? "Gemini TTS · Machine-translated, pending native review"
-          : "";
-  write(
-    `compositions/${beat.id}.html`,
-    `<!doctype html>\n<html lang="en"><head><meta charset="UTF-8"></head><body><template><style>#root{position:absolute;inset:0;width:100%;height:100%}</style><div id="root" data-no-timeline data-composition-id="${beat.id}" data-width="1920" data-height="1080" data-duration="${duration}"><section class="scene" data-part="${beat.part}"><header class="header"><span>${esc(partTitle[beat.part])} · ${esc(chapter)}</span><span class="season">2026-A</span></header><div class="content">${body}</div>${beat.card ? "" : `${labels(beat)}${slotEvidence(captures, beat)}`}${bumper(beat)}</section><div class="simulation">Simulated PayPal sandbox</div>${disclosure ? `<div class="disclosure">${esc(disclosure)}</div>` : ""}</div></template></body></html>\n`,
-  );
-  written.add(`${beat.id}.html`);
+  const own = slots.filter((slot) => slot.beat === beat.id).sort((a, b) => a.start - b.start);
+  const part = PARTS.find((item) => item.id === beat.part);
+  const bumper = part?.bumper && part.start === beat.start ? part.bumper : null;
+  const iris = beat.id === "highlights";
+  const span = simSpan(segment);
+  const local = (value) => seconds(value - beat.start);
+  const config = {
+    id,
+    filmStart: beat.start,
+    duration,
+    // the first window lifts in after the bumper, or as the iris opens
+    hold: bumper ? 1.3 : iris ? 0.45 : 0,
+    intro: iris ? "iris" : null,
+    bumper: bumper ? BUMPER_SECONDS : null,
+    windows: WINDOWS,
+    sim: span
+      ? {
+          from: local(span.from),
+          to: local(span.to),
+          continuesIn: span.continuesIn,
+          continuesOut: span.continuesOut,
+        }
+      : null,
+    slots: own.map((slot) => ({
+      id: slot.id,
+      start: local(slot.start),
+      duration: slot.duration,
+      kind: windowKind(slot),
+      tag: slotTag(slot)?.kind === "honesty",
+    })),
+  };
+  const keywords = own
+    .map((slot) => {
+      const kind = windowKind(slot);
+      const size = keywordSize(slot.keyword, kind);
+      return `<div id="${slot.id}-kw" class="pf-kw pf-kw--${kind}" data-layout-allow-overlap data-layout-allow-occlusion data-layout-allow-overflow><span data-layout-allow-occlusion style="font-size:${size}px;line-height:${size}px">${esc(slot.keyword)}</span></div>`;
+    })
+    .join("");
+  const tags = [
+    ...(span
+      ? [`<div id="${id}-tag-sim" class="pf-tag" data-layout-allow-occlusion>${FLASK}${esc(SIM)}</div>`]
+      : []),
+    ...own
+      .filter((slot) => slotTag(slot)?.kind === "honesty")
+      .map(
+        (slot) =>
+          `<div id="${slot.id}-tag" class="pf-tag pf-tag--nodot" data-layout-allow-occlusion>${esc(slotTag(slot).text)}</div>`,
+      ),
+  ].join("");
+  // The bumper reads as an end line: the words before the colon (STYLE §2, at most four words).
+  const bumperWords = bumper ? `${bumper.split(":")[0]}.`.split(" ") : [];
+  const bumperMarkup = bumper
+    ? `<div id="${id}-veil" class="pf-veil"></div><div id="${id}-bumper" class="pf-endline" data-bumper="${esc(bumper)}" data-layout-allow-overlap>${bumperWords.map((word) => `<span class="w">${esc(word)}</span>`).join("")}</div>`
+    : "";
+  const day = `<div id="${id}-day" class="pf-day"><div id="${id}-field" class="pf-field" data-layout-allow-overflow><div id="${id}-lightA" class="pf-light pf-lightA" data-layout-allow-overflow></div><div id="${id}-lightC" class="pf-light pf-lightC" data-layout-allow-overflow></div><div id="${id}-lightB" class="pf-light pf-lightB" data-layout-allow-overflow></div><div class="pf-wash"></div><div id="${id}-dapple" class="pf-dapple" data-layout-allow-overflow></div></div><div id="${id}-world" class="pf-world">${own.map((slot) => windowMarkup(slot, local(slot.start))).join("")}</div>${keywords}${tags}${bumperMarkup}</div>`;
+  return `<!doctype html>
+<!-- Generated by video/build.mjs (plan.mjs, film-slots.js): script v4 beat "${beat.id}", film ${beat.start}-${beat.end} s.
+     One floating window per captures.json slot; drop the recording at captures/<slot-id>.mp4 and rebuild. -->
+<html lang="en"><head><meta charset="UTF-8"></head><body><template>
+<style>#root{position:absolute;inset:0;overflow:hidden;background:${iris ? NAVY : "#F3F5F8"}}</style>
+<div id="root" data-composition-id="${id}" data-width="1920" data-height="1080" data-duration="${duration}" data-film-start="${beat.start}">${iris ? '<div class="pf-night"></div>' : ""}${day}<canvas id="${id}-grain" class="pf-grain" width="960" height="540" data-layout-allow-overflow></canvas></div>
+<script>
+(() => {
+  const tl = gsap.timeline({ paused: true });
+  window.FairSplitSlots.build(tl, ${JSON.stringify(config)});
+  window.__timelines["${id}"] = tl;
+})();
+</script>
+</template></body></html>
+`;
 }
-// A beat the script dropped must not linger as a stale scene.
+
+const written = new Set();
+for (const segment of SEGMENTS) {
+  if (!segment.src.startsWith("compositions/")) continue;
+  // The opening is generated from the prototype, the reference implementation of STYLE.md, so they cannot drift.
+  const html = segment.from ? openingFromPrototype().html : slotComposition(segment);
+  write(segment.src, html);
+  written.add(segment.src.slice("compositions/".length));
+}
+// A beat the plan no longer generates must not linger as a stale scene.
 for (const name of readdirSync(new URL("compositions/", root)))
   if (name.endsWith(".html") && !written.has(name)) rmSync(new URL(`compositions/${name}`, root));
-// Static, duration-driven hard cuts use the native HyperFrames clip runtime; no animation dependency or CDN.
+
+// --------------------------------------------------------------------------------------------- the film
+const rootDuration = (src) =>
+  Number(/<div id="root"[^>]*data-duration="([\d.]+)"/.exec(readFileSync(new URL(src, root), "utf8"))?.[1]);
+for (const segment of SEGMENTS) {
+  const own = rootDuration(segment.src);
+  if (Math.abs(own - (segment.end - segment.start)) > 1e-6)
+    throw new Error(`${segment.id} runs ${own} s but its beats take ${segment.end - segment.start} s`);
+}
+const host = (segment) =>
+  `<div id="segment-${segment.id}" class="clip" data-composition-id="${segment.id}" data-composition-src="${segment.src}" data-start="${segment.start}" data-duration="${seconds(segment.end - segment.start)}" data-track-index="0" data-width="1920" data-height="1080" data-beats="${segment.beats.join(" ")}"></div>`;
+const seam = (item) =>
+  `<div id="${item.id}" class="clip seam" data-start="${seconds(item.end - item.duration)}" data-duration="${item.duration}" data-track-index="2"></div>`;
 write(
   "index.html",
-  `<!doctype html>\n<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=1920, height=1080"><title>${esc(FILM.title)} · Script v${FILM.version} assembly</title><link rel="stylesheet" href="film.css"></head><body><div id="root" data-no-timeline data-composition-id="main" data-fps="30" data-width="1920" data-height="1080" data-duration="${FILM.duration}">${beats.map((beat) => `<div id="scene-${beat.id}" class="clip" data-no-timeline data-composition-id="${beat.id}" data-start="${beat.start}" data-duration="${beat.end - beat.start}" data-composition-src="compositions/${beat.id}.html" data-track-index="0" data-width="1920" data-height="1080"></div>`).join("\n")}${captions.map((cue, i) => `<p id="caption-${i}" class="clip caption" data-track-kind="captions" data-caption-layer="fg" data-start="${cue.start}" data-duration="${seconds(cue.end - cue.start)}" data-track-index="8">${esc(cue.text)}</p>`).join("\n")}</div></body></html>\n`,
+  `<!doctype html>
+<!-- Generated by video/build.mjs. Fair Split film, script v4, rough cut v2 in the motion language of video/proto/STYLE.md.
+     Captions are the closed-caption track captions.vtt (muxed into the MP4), never burned in. -->
+<html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=1920, height=1080"><title>${esc(FILM.title)} · film v${FILM.version}, rough cut v2</title>
+<link rel="stylesheet" href="film.css">
+<script src="parts/close/assets/vendor/gsap.min.js"></script>
+<script src="film-slots.js"></script>
+</head><body>
+<div id="root" data-composition-id="main" data-fps="30" data-width="1920" data-height="1080" data-duration="${FILM.duration}">
+${SEGMENTS.map(host).join("\n")}
+${SEAMS.map(seam).join("\n")}
+</div>
+<script>
+(() => {
+  const tl = gsap.timeline({ paused: true });
+${SEAMS.map((item) => `  tl.fromTo("#${item.id}", { opacity: 0 }, { opacity: 1, duration: ${item.duration}, ease: "power1.in" }, ${seconds(item.end - item.duration)});`).join("\n")}
+  window.__timelines.main = tl;
+})();
+</script>
+</body></html>
+`,
 );
 write(
   "chapters.txt",
   `${CHAPTERS.map((chapter) => `${stamp(chapter.start).slice(3, 8)} ${chapter.title}`).join("\n")}\n`,
 );
-// Format generated JSON with the already installed repo tool, without another dependency.
-const format = spawnSync(
-  process.execPath,
+
+// ------------------------------------------------------------------------------------------- audio cues
+const architectureSpeechEnd = (beats.find((beat) => beat.id === "architecture").speech ?? [0, 44])[1];
+const mmss = (t) => {
+  const tenths = Math.round(t * 10);
+  return `${Math.floor(tenths / 600)}:${String(Math.floor(tenths / 10) % 60).padStart(2, "0")}.${tenths % 10}`;
+};
+const span = (a, b) => `${mmss(a)}–${mmss(b)}`;
+const wordsIn = (say) => say.split(/\s+/).filter((word) => /[\p{L}\p{N}]/u.test(word)).length;
+const reel = slots.filter((slot) => slot.beat === "highlights");
+const narration = beats
+  .filter((beat) => beat.id !== "listening")
+  .map((beat) => {
+    const [from, to] = beat.speech ?? [beat.start, beat.end];
+    const cues = captions.filter((cue) => cue.beat === beat.id);
+    return `| ${span(from, to)} | ${beat.id} | ${Math.round((wordsIn(beat.say) / (to - from)) * 60)} | ${cues.map((cue) => `${mmss(cue.start)} ${cue.lines.join(" ")}`).join("<br>")} |`;
+  });
+const music = [
+  [0, "Bed starts: near silence, a low pad under the hairline and the first words (night)."],
+  [OPENING.wave, "A pulse starts with the slip's sound wave."],
+  [OPENING.doubled[0], `Tension under the doubled pink thread, to ${mmss(OPENING.doubled[1])}.`],
+  [OPENING.once, 'Release on "count it once."'],
+  [OPENING.ring, "The ring draws; a soft hit as the invoice lands."],
   [
-    fileURLToPath(new URL("../node_modules/@biomejs/biome/bin/biome", root)),
-    "format",
-    "--write",
-    "captions.json",
-    "captures.json",
+    OPENING.turn[0],
+    `**The swell: dark to bright.** The ring becomes a portal and the frame opens into daylight (${span(...OPENING.turn)}); the drop lands as it opens. Narration says "Fair Split:" across the turn, so let the swell carry it and duck the bed under the rest of the line.`,
   ],
-  { cwd: fileURLToPath(root), encoding: "utf8" },
+  [
+    OPENING.keywords[0],
+    `Calm, wide bed; soft hits on the keywords at ${OPENING.keywords.map(mmss).join(", ")}.`,
+  ],
+  [OPENING.statement, "Her statement plays on the phone (a short sound-design cue, under the narration)."],
+  [OPENING.jadePulse, "A hit on the trace's jade pulse."],
+  [OPENING.name, "Resolve on the name."],
+  [30 - SEAMS[0].duration, "Dip to night for the architecture: the bed drops back to the low pad."],
+  ...ARCHITECTURE.reveal.map((step, i) => [step.at, `Architecture step ${i + 1}: a soft pulse as it lands.`]),
+  [44 - SEAMS[1].duration, "The diagram dims; a smaller lift as the reel opens out of the night by an iris."],
+  ...reel.map((slot) => [slot.start, `Reel cut: ${slot.id} ("${slot.keyword}"), a soft hit.`]),
+  [57, "Deep dive bumper: the bed settles calm and stays ducked about -10 dB under the narration."],
+  [MEMBER_CLIP.start - 0.4, "Bed fades out completely."],
+  [
+    MEMBER_CLIP.start,
+    `Member audio alone: the IC-11 PREMIUM sentence (${MEMBER_CLIP.seconds} s), no narration, no music, to ${mmss(MEMBER_CLIP.start + MEMBER_CLIP.seconds)}.`,
+  ],
+  [143 - SEAMS[2].duration, "Dip to night for why it holds up; the bed returns low."],
+  [
+    CLOSE.bloom[0],
+    `The second dark-to-bright turn: the weigh-slip line blooms into daylight (${span(...CLOSE.bloom)}); a smaller swell into the limits.`,
+  ],
+  [CLOSE.endLine, "End card: the bed resolves under the last line and rings out to 2:55."],
+];
+write(
+  "AUDIO-CUES.md",
+  `# Fair Split film: audio cue points (rough cut v2)
+
+Generated by \`video/build.mjs\` from \`script.ts\` and \`plan.mjs\`; do not edit by hand. The rough cut is **silent**:
+\`out/rough-cut-v2.mp4\` carries a silent stereo track and the soft English caption track (\`captions.vtt\`).
+Narration voice and music are not chosen yet; this sheet marks where they sit. Times are film time (m:ss.t).
+Narration timing is word-proportional within each beat until F4 aligns the recorded voice, and F4 keeps the
+beat boundaries. The picture explains the product without the voice (STYLE §9); captions follow the voice word
+for word (STYLE §8).
+
+## Narration lines
+
+| Window | Beat | wpm | Caption cues (start, words) |
+| ------ | ---- | --- | --------------------------- |
+${narration.join("\n")}
+
+The architecture's last step lands at ${mmss(ARCHITECTURE.reveal.at(-1).at)} and its narration ends at ${mmss(architectureSpeechEnd)}, so the finished diagram holds in silence to 0:44.
+The listening beat (${span(134, 143)}) carries no narration: only the member's own sentence.
+
+## Music and sound cue points
+
+| Time | Cue |
+| ---- | --- |
+${music
+  .sort((a, b) => a[0] - b[0])
+  .map(([t, text]) => `| ${mmss(t)} | ${text} |`)
+  .join("\n")}
+
+Mix: the bed runs from 0:00, ducked about -10 dB under the voice; no music under the member's sentence; the
+product's own sound stays muted under narration (script v4 FILM.capture).
+`,
 );
-if (format.status !== 0) throw new Error(`Generated JSON formatting failed: ${format.stderr}`);
+
+// Format generated JSON and Markdown with the repo's Biome when it is installed (FS_BIOME names its JS entry
+// otherwise, e.g. another checkout's node_modules/@biomejs/biome/bin/biome).
+const biome =
+  process.env.FS_BIOME ?? fileURLToPath(new URL("../node_modules/@biomejs/biome/bin/biome", root));
+if (existsSync(biome)) {
+  const format = spawnSync(
+    process.execPath,
+    [biome, "format", "--write", "captions.json", "captures.json", "AUDIO-CUES.md"],
+    { cwd: fileURLToPath(root), encoding: "utf8" },
+  );
+  if (format.status !== 0) throw new Error(`Generated file formatting failed: ${format.stderr}`);
+} else console.warn(`Biome not found at ${biome}; generated JSON and Markdown left unformatted.`);
 console.log(
-  `Built ${beats.length} scenes (${PARTS.map((part) => `${part.id} ${part.start}-${part.end}s`).join(", ")}), ${captions.length} captions, ${slots.length} capture slots; ${FILM.duration}s; reading=${READING_VARIANT}. Project: ${fileURLToPath(root)}`,
+  `Built ${SEGMENTS.length} compositions for ${beats.length} beats (${PARTS.map((part) => `${part.id} ${part.start}-${part.end}s`).join(", ")}), ${captions.length} caption cues, ${slots.length} capture slots; ${FILM.duration}s; reading=${READING_VARIANT}. Project: ${fileURLToPath(root)}`,
 );

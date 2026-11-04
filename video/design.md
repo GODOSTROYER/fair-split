@@ -1,17 +1,13 @@
 # Film design truth
 
-Evidence on cacao lacquer: real product captures carry the action; typography and
-plain ruled placeholder panels carry the rough cut without impersonating screens.
-Source: `docs/spec/01-design-direction.md`; F1 v3 overrides stale claims in old specs.
+The film's motion language is [`proto/STYLE.md`](proto/STYLE.md), from the owner's reference
+(`research/refs-1104/video-reference.md`): almost no text, one accent per frame, a visual metaphor per idea, night
+(the problem) then day (Fair Split), calm floating product windows, a smooth camera, closed captions instead of
+burned-in ones. The opening prototype (`proto/index.html`) is its reference implementation.
 
-Ground #201712; plate #2A1F18; rule #4A392D; ink #F4EDE4; secondary ink #BDB1A4.
-No ornamental semantic colours, gradients, glows, glass, PayPal blues or logos.
-Mona Sans (repo FS Sans) for captions, figures and UI; Atkinson Hyperlegible Next
-for statement prose only; Big Shoulders Stencil for the 2026-A season mark only.
-Tabular figures enabled; ss08 disabled. Square corners, flat machine output.
-
-1920 × 1080 safe layout: 96px side margin, 54px header inset; captures occupy the
-central panel; persona label above the 98px caption rail. Simulation label is always
-visible above the panel. Opening and ending disclosures have their own rail.
-Captions: 44px, at most two lines, one phrase at a time. Architecture: original SVG,
-exact script boxes and arrows, no third-party art. Hard cuts preserve evidence.
+Hayag day: ground #F3F5F8, plate #FFFFFF, ink #0B1220, greys #3A4456 / #5A6476, steel #7E8898. Gabii night: ground
+#090D18, ink #F4F6FA. Accents, one per frame, one job each: indigo #4A2FD6 / #9C8CFF (a person's hand or Claude's
+reading), pink #F7B6CA (the carbon copy, night only), jade #14CC90 / #3DE6AE (money that arrived). FS Sans (Mona
+Sans) wide 112.5 % for words, condensed 75 % for amounts, proportional lining figures. One dashed-steel honesty tag
+at a time, bottom right by day. No logos; "PayPal" appears only as text. Tokens live in `film.css` and in
+`research/theme-1104/final/tokens.json`.
