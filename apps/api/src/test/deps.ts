@@ -95,6 +95,7 @@ export function createTestDeps(o: TestDepsOptions): TestDeps {
     sse: createSseHub({
       bus: o.data ? o.data.bus : (bus as MemoryBus),
       logger,
+      clock: o.clock,
       ...(o.sse?.pingMs !== undefined ? { pingMs: o.sse.pingMs } : {}),
     }),
     paypal,

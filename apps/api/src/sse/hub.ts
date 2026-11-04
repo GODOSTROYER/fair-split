@@ -3,7 +3,8 @@
 // `Last-Event-ID` (scoped, at most 500 events), then streams live, with a `: ping` comment every 15 s.
 //
 // Caps (S3.7): 2 streams per credential, 8 per judge session (the stage opens five), 3 public streams per
-// hashed IP, 300 per instance. Over a cap → 429 RATE_LIMITED before the stream opens.
+// hashed network, 40 credentialed streams per network, 100 public and 300 total per instance.
+// Every stream ends after 30 minutes so clients resume with Last-Event-ID. Over a cap → 429 before opening.
 // A slow client never blocks the bus: its queue is bounded, and on overflow the stream ends so the client
 // reconnects and replays from its Last-Event-ID (no gap, no duplicate). A credentialed stream re-checks its
 // credential at every ping (`revalidate`): once it is revoked, expired or its workspace has ended, the stream
@@ -11,6 +12,7 @@
 import type { BusScope, StoredRunEvent, SubscribeOptions, Unsubscribe } from "@fairsplit/db";
 import { streamSSE } from "hono/streaming";
 import type { Logger } from "pino";
+import { type Clock, systemClock } from "../lib/clock.js";
 import type { AppContext } from "../lib/context.js";
 import { problem } from "../lib/problem.js";
 import { toRunEventEnvelope } from "./envelope.js";
@@ -24,6 +26,8 @@ export interface SseLimits {
   perCredential: number;
   perJudgeSession: number;
   publicPerIp: number;
+  perNetwork: number;
+  publicPerInstance: number;
   perInstance: number;
 }
 
@@ -31,10 +35,13 @@ export const SSE_LIMITS: Readonly<SseLimits> = {
   perCredential: 2,
   perJudgeSession: 8,
   publicPerIp: 3,
+  perNetwork: 40,
+  publicPerInstance: 100,
   perInstance: 300,
 };
 
 export const SSE_PING_MS = 15_000;
+export const SSE_MAX_AGE_MS = 30 * 60_000;
 /** Client reconnect hint sent once per stream (the api-client backs off 0.5–8 s on its own). */
 export const SSE_RETRY_MS = 1_000;
 const MAX_QUEUE = 2_000;
@@ -86,6 +93,7 @@ export interface SseHubOptions {
   logger: Logger;
   limits?: Partial<SseLimits>;
   pingMs?: number;
+  clock?: Clock;
 }
 
 export function defaultProjection(e: StoredRunEvent): SseOut {
@@ -95,6 +103,7 @@ export function defaultProjection(e: StoredRunEvent): SseOut {
 export function createSseHub(o: SseHubOptions): SseHub {
   const limits: SseLimits = { ...SSE_LIMITS, ...(o.limits ?? {}) };
   const pingMs = o.pingMs ?? SSE_PING_MS;
+  const clock = o.clock ?? systemClock;
   const counts = new Map<string, number>();
   const labels = new Map<string, number>();
   const closers = new Set<() => void>();
@@ -119,6 +128,7 @@ export function createSseHub(o: SseHubOptions): SseHub {
         }
       }
       open++;
+      const openedAt = clock.nowMs();
       bump(labels, req.label, 1);
       for (const cap of req.caps) bump(counts, cap.key, 1);
       let released = false;
@@ -190,6 +200,11 @@ export function createSseHub(o: SseHubOptions): SseHub {
           let checking = false;
           ping = setInterval(() => {
             if (stream.aborted || stream.closed) return;
+            if (clock.nowMs() - openedAt >= SSE_MAX_AGE_MS) {
+              // Clean EOF is intentional: api-client reconnects and resumes its Last-Event-ID.
+              void stream.write(`retry: ${SSE_RETRY_MS}\n\n`).then(end, end);
+              return;
+            }
             if (req.revalidate && !checking) {
               checking = true;
               req
