@@ -13,6 +13,7 @@
     "@fairsplit/contracts": "workspace:*",
     "@fairsplit/db": "workspace:*",
     "@fairsplit/domain": "workspace:*",
+    "@fairsplit/motion": "workspace:*",
     "@fairsplit/seed": "workspace:*",
     "@playwright/test": "catalog:",
     "@types/node": "catalog:",
