@@ -150,8 +150,9 @@ export async function startJudgeSession(c: AppContext, deps: AppDeps): Promise<S
   ];
   if (cookie.status === "ok") startSlots.push([RATE_RULES.judgeSessionPerCookie, sessionId]);
   // Reserve synchronously before the first await: concurrent starts cannot all pass a peek.
-  // A refused rule consumes nothing; a failed start below returns every reservation.
-  const admission = deps.rateLimits.takeAll(startSlots);
+  // A refused rule consumes nothing. Failed work refunds personal/success slots, while the coarse
+  // attempt bucket remains spent so a full database/clone gate cannot invite unlimited expensive retries.
+  const admission = deps.rateLimits.takeAll([...startSlots, [RATE_RULES.judgeSessionAttempts, "all"]]);
   if (!admission.ok)
     throw problem.rateLimited(
       admission.retryAfterMs,
@@ -289,6 +290,9 @@ export async function startJudgeSession(c: AppContext, deps: AppDeps): Promise<S
         throw error;
       });
 
+    // The first successful start counts toward this browser's three starts too. Record it only after
+    // commit, so refused cookieless requests never leave random UUID keys behind (HD6-2).
+    if (cookie.status !== "ok") deps.rateLimits.take(RATE_RULES.judgeSessionPerCookie, sessionId);
     setJudgeCookie(c, deps, {
       sessionId,
       workspaceId: started.workspaceId,

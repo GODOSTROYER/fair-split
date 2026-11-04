@@ -41,6 +41,8 @@ export const RATE_RULES = {
   /** Hashed IP: 30 session starts an hour (a loose outer bound). */
   judgeSessionPerIp: { name: "judgeSessionPerIp", limit: 30, windowMs: 3_600_000 },
   judgeSessionGlobal: { name: "judgeSessionGlobal", limit: 60, windowMs: 60_000 },
+  /** Failed expensive admissions still count; personal/success budgets are refundable. Above the e2e crowd. */
+  judgeSessionAttempts: { name: "judgeSessionAttempts", limit: 120, windowMs: 60_000 },
   judgeSessionPerNetworkDay: { name: "judgeSessionPerNetworkDay", limit: 60, windowMs: 86_400_000 },
 } as const satisfies Record<string, RateRule>;
 

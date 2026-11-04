@@ -100,9 +100,12 @@ it("HD6-13: pending starts reserve browser slots atomically before any asynchron
     await gate;
     return original(...args);
   });
-  const pending = [start(app, cookie), start(app, cookie), start(app, cookie)];
+  const browserBudget = before[1];
+  if (!browserBudget?.ok) throw new Error("expected available browser slots");
+  const available = browserBudget.remaining;
+  const pending = Array.from({ length: available }, () => start(app, cookie));
   try {
-    await expect.poll(() => entered).toBe(3);
+    await expect.poll(() => entered).toBe(available);
     expect((await start(app, cookie)).status).toBe(429);
   } finally {
     release();
