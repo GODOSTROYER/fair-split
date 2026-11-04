@@ -5,12 +5,14 @@
  * - Otherwise: an embedded Postgres 17 cluster from the `embedded-postgres` platform binaries, kept in
  *   `<package>/.cache/pg/` (gitignored). initdb runs once; later runs start the cluster in about half a second.
  *   It binds 127.0.0.1 on a free port with trust auth, fsync off. Everything it writes stays in the worktree:
- *   TEMP/TMP point into .cache while initdb runs.
+ *   TEMP/TMP point into .cache while initdb runs. initdb runs in a scratch directory beside the cluster's and is
+ *   renamed into place only once it exits 0, so a run killed during initdb never leaves a half-made cluster that
+ *   later runs would reuse.
  * - As root (uid 0: Docker, many CI images) the embedded cluster cannot run, since initdb and postgres refuse
  *   it; the harness says so before it creates anything, and names the two ways out.
  */
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync } from "node:fs";
 import { createServer } from "node:net";
 import path from "node:path";
 
@@ -24,7 +26,7 @@ export interface TestCluster {
   stopSync(): void;
 }
 
-interface Binaries {
+export interface Binaries {
   initdb: string;
   pg_ctl: string;
 }
@@ -99,8 +101,22 @@ export function rootRefusal(uid: number | undefined): string | null {
   );
 }
 
+/** Windows can refuse a rename while a scanner still holds a file just written; retry for a few seconds. */
+async function renameWithRetry(from: string, to: string): Promise<void> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      renameSync(from, to);
+      return;
+    } catch (e) {
+      const code = (e as NodeJS.ErrnoException).code;
+      if (attempt >= 50 || (code !== "EPERM" && code !== "EACCES" && code !== "EBUSY")) throw e;
+      await new Promise((r) => setTimeout(r, 100));
+    }
+  }
+}
+
 export async function startTestCluster(
-  opts: { cacheDir?: string; uid?: number | undefined } = {},
+  opts: { cacheDir?: string; uid?: number | undefined; binaries?: Binaries } = {},
 ): Promise<TestCluster> {
   const external = process.env.FS_TEST_DATABASE_URL;
   if (external) return { adminUrl: external, source: "external", stop: async () => {}, stopSync: () => {} };
@@ -112,14 +128,21 @@ export async function startTestCluster(
   const tmpDir = path.join(cacheDir, "tmp");
   mkdirSync(tmpDir, { recursive: true });
   const env = { ...process.env, TEMP: tmpDir, TMP: tmpDir, TMPDIR: tmpDir, LC_MESSAGES: "C" };
-  const bin = await binaries();
+  const bin = opts.binaries ?? (await binaries());
 
   if (!existsSync(path.join(dataDir, "PG_VERSION"))) {
-    mkdirSync(path.dirname(dataDir), { recursive: true });
+    const pgDir = path.dirname(dataDir);
+    mkdirSync(pgDir, { recursive: true });
+    // scratch directories of earlier initdb runs that were killed, and a data directory with no PG_VERSION
+    for (const name of readdirSync(pgDir))
+      if (name.startsWith(`${path.basename(dataDir)}.initdb-`))
+        rmSync(path.join(pgDir, name), { recursive: true, force: true });
+    rmSync(dataDir, { recursive: true, force: true });
+    const scratch = `${dataDir}.initdb-${process.pid}`;
     await run(
       bin.initdb,
       [
-        `--pgdata=${dataDir}`,
+        `--pgdata=${scratch}`,
         "--username=postgres",
         "--auth=trust",
         "--encoding=UTF8",
@@ -127,7 +150,11 @@ export async function startTestCluster(
         "--no-sync",
       ],
       env,
-    );
+    ).catch((e: unknown) => {
+      rmSync(scratch, { recursive: true, force: true });
+      throw e;
+    });
+    await renameWithRetry(scratch, dataDir);
   }
 
   const logFile = path.join(cacheDir, "pg", "pg17.log");
