@@ -31,4 +31,34 @@ describe("HD6-8 lane retries preserve a head reservation", () => {
   it("a full 50-deep lane needs fewer than the attempt-row ceiling at 30 second re-asks", () => {
     expect(1 + Math.ceil((50 * 40_000) / 30_000)).toBeLessThan(MAX_ATTEMPT_ROWS);
   });
+  it.each(["kill_switch", "simulator_not_running", "lane_full"])(
+    "a written post waiting for %s keeps exponential backoff",
+    async (waitingFor) => {
+      mocks.rail.mockResolvedValue({ kind: "queued", position: null, waitingFor, retryAfterMs: 60_000 });
+      const task = runTasks({ db: {} } as AppDeps).postPayoutBatch;
+      if (!task) throw new Error("post task");
+      await task({ runId: "11111111-1111-4111-8111-111111111111", senderBatchId: "fs-test-batch" }, {
+        outboxId: "attempt7",
+        workspaceId: "22222222-2222-4222-8222-222222222222",
+        name: "postPayoutBatch",
+      } as TaskContext);
+      expect(mocks.defer.mock.calls.at(-1)?.[3]).toBe(900_000);
+    },
+  );
+  it("a written post's hourly-cap wait never exceeds MAX_DEFER_MS", async () => {
+    mocks.rail.mockResolvedValue({
+      kind: "queued",
+      position: null,
+      waitingFor: "hourly_cap",
+      retryAfterMs: 61 * 60_000,
+    });
+    const task = runTasks({ db: {} } as AppDeps).postPayoutBatch;
+    if (!task) throw new Error("post task");
+    await task({ runId: "11111111-1111-4111-8111-111111111111", senderBatchId: "fs-test-batch" }, {
+      outboxId: "attempt7",
+      workspaceId: "22222222-2222-4222-8222-222222222222",
+      name: "postPayoutBatch",
+    } as TaskContext);
+    expect(mocks.defer.mock.calls.at(-1)?.[3]).toBe(900_000);
+  });
 });

@@ -500,6 +500,8 @@ export async function railForItem(
  * it re-queues itself for that turn.
  */
 export class LaneQueued extends PayPalStepError {
+  readonly waitingFor: ReplayReason | undefined;
+
   constructor(rail: { retryAfterMs: number; position: number | null; waitingFor?: ReplayReason }) {
     super(
       "QUEUED",
@@ -510,6 +512,7 @@ export class LaneQueued extends PayPalStepError {
           : `This step is number ${rail.position + 1} in the live PayPal lane.`,
       { transient: true, retryAfterMs: rail.retryAfterMs },
     );
+    this.waitingFor = rail.waitingFor;
   }
 }
 
