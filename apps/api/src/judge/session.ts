@@ -158,7 +158,7 @@ export async function startJudgeSession(c: AppContext, deps: AppDeps): Promise<S
   if (cookie.status === "ok") startSlots.push([RATE_RULES.judgeSessionPerCookie, sessionId]);
   // Reserve synchronously before the first await: concurrent starts cannot all pass a peek.
   // A refused rule consumes nothing. Failed work refunds personal/success slots, while the coarse
-  // attempt bucket remains spent so a full database/clone gate cannot invite unlimited expensive retries.
+  // attempt bucket remains spent for expensive failures; a contended try-lock refunds it too.
   const admission = deps.rateLimits.takeAll([...startSlots, [RATE_RULES.judgeSessionAttempts, "all"]]);
   if (!admission.ok)
     throw problem.rateLimited(
@@ -166,6 +166,7 @@ export async function startJudgeSession(c: AppContext, deps: AppDeps): Promise<S
       "Judge sessions are busy. Try again shortly or view the public showcase Proof.",
     );
 
+  let admissionContended = false;
   try {
     // 3. Live or replay, from fresh flags and counts (over quota is a labelled replay, never a refusal).
     let rail = await judgeRail(deps, { workspaceId: NO_WORKSPACE, sessionId, step: "session" });
@@ -183,6 +184,7 @@ export async function startJudgeSession(c: AppContext, deps: AppDeps): Promise<S
           sql`select pg_try_advisory_xact_lock(hashtextextended('fs:judge-admission',0)) as acquired`,
         )) as unknown as { acquired: boolean }[];
         if (!admissionLock?.acquired) {
+          admissionContended = true;
           throw new ApiProblem("QUEUED", "Preparing a fresh workspace. You're next; try again in a moment.", {
             retryAfterMs: 3_000,
             details: { reason: "PREPARING_WORKSPACE" },
@@ -335,6 +337,9 @@ export async function startJudgeSession(c: AppContext, deps: AppDeps): Promise<S
     };
   } catch (error) {
     for (const [rule, key] of startSlots) deps.rateLimits.refund(rule, key, admission.takenAtMs);
+    if (admissionContended) {
+      deps.rateLimits.refund(RATE_RULES.judgeSessionAttempts, "all", admission.takenAtMs);
+    }
     throw error;
   }
 }

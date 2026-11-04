@@ -18,11 +18,11 @@ afterEach(async () => {
 });
 
 const IP = "198.18.13.1";
-function start(app: TestApp, cookie?: string) {
+function start(app: TestApp, cookie?: string, ip = IP) {
   return app.json("/v1/judge/sessions", {
     method: "POST",
     body: {},
-    headers: { "cf-connecting-ip": IP, ...(cookie ? { cookie: `fs_js=${cookie}` } : {}) },
+    headers: { "cf-connecting-ip": ip, ...(cookie ? { cookie: `fs_js=${cookie}` } : {}) },
   });
 }
 
@@ -77,6 +77,10 @@ it("HD6-13: three QUEUED starts after Reset spend no browser or network slots an
     expect(r.body).toMatchObject({ code: "QUEUED" });
   }
   expect(budget(t, session.sessionId)).toEqual(before);
+  expect(t.deps.rateLimits.peek(RATE_RULES.judgeSessionAttempts, "all")).toEqual({
+    ok: true,
+    remaining: RATE_RULES.judgeSessionAttempts.limit - 4,
+  });
   clones.mockRestore();
   expect((await start(t, cookie)).status).toBe(201);
 }, 120_000);
@@ -88,6 +92,10 @@ it("HD6-13: a failed rail decision refunds every reserved start rule", async () 
   vi.spyOn(quota, "judgeRail").mockRejectedValueOnce(new Error("synthetic rail failure"));
   expect((await start(t)).status).toBe(500);
   expect(budget(t, "unused-session")).toEqual(before);
+  expect(t.deps.rateLimits.peek(RATE_RULES.judgeSessionAttempts, "all")).toEqual({
+    ok: true,
+    remaining: RATE_RULES.judgeSessionAttempts.limit - 1,
+  });
 }, 120_000);
 
 it("HD6-5: an admission burst queues without pinning the database pool and refunds start slots", async () => {
@@ -149,8 +157,29 @@ it("HD6-5: an admission burst queues without pinning the database pool and refun
   expect(budget(app, "unused-session")).toEqual(before);
   expect(app.deps.rateLimits.peek(RATE_RULES.judgeSessionAttempts, "all")).toEqual({
     ok: true,
-    remaining: RATE_RULES.judgeSessionAttempts.limit - pending.length,
+    remaining: RATE_RULES.judgeSessionAttempts.limit,
   });
+}, 120_000);
+
+it("HD6 R2: 150 lock refusals cannot exhaust another network's attempts", async () => {
+  t = await createTestApp({ db: "postgres", clock: new Date() });
+  const app = t;
+  if (!app.pg) throw new Error("Postgres required");
+  vi.spyOn(judgeRuntime(app.deps), "refillSoon").mockImplementation(() => {});
+  const rail = vi.spyOn(quota, "judgeRail");
+  const lock = await app.pg.owner.sql.reserve();
+  try {
+    await lock`begin`;
+    await lock`select pg_advisory_xact_lock(hashtextextended('fs:judge-admission',0))`;
+    for (let i = 0; i < 150; i++) {
+      expect((await start(app)).body).toMatchObject({ code: "QUEUED" });
+    }
+  } finally {
+    await lock`commit`;
+    lock.release();
+  }
+  expect(rail).toHaveBeenCalledTimes(150);
+  expect((await start(app, undefined, "198.18.14.1")).status).toBe(201);
 }, 120_000);
 
 it("HD6-13: pending starts reserve browser slots atomically before any asynchronous work", async () => {
