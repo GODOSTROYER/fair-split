@@ -19,7 +19,6 @@ const NON_PAYPAL = new Set<MemberLineState>([
   "EXCLUDED",
   "OFF_RAIL_DUE",
   "OFF_RAIL_PAID",
-  "RETURNED",
   "REROUTED",
 ]);
 

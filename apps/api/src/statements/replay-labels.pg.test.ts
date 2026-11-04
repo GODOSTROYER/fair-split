@@ -1,6 +1,6 @@
 import { ProofResponse } from "@fairsplit/contracts";
 import { schema } from "@fairsplit/db";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { BrandView } from "../proof/brand.js";
 import { loadShowcase, type ShowcaseWorld } from "../proof/testing/world.js";
@@ -146,6 +146,64 @@ describe("a simulator run whose payout replays", () => {
       await t.deps.db.update(schema.payoutItems).set({ provenance: "replay" }).where(where);
     }
   });
+
+  it.each(["replay", "simulated_rail"] as const)(
+    "inv.i8.returned-outcome: %s stays distinct from the later cash decision on JSON, print and brand",
+    async (provenance) => {
+      const returnedApp = await createTestApp({ db: "postgres", taskHandlers: {} });
+      try {
+        const returnedWorld = await loadShowcase(returnedApp.deps.db, {
+          lineStates: { "M-031": "RETURNED" },
+        });
+        const t = returnedApp;
+        const w = returnedWorld;
+        const returnedLineId = w.lineIds.get("M-031");
+        if (!returnedLineId) throw new Error("missing returned line");
+        const lineWhere = eq(schema.memberLines.id, returnedLineId);
+        const itemWhere = and(
+          eq(schema.payoutItems.workspaceId, w.workspaceId),
+          eq(schema.payoutItems.lineId, returnedLineId),
+        );
+        // The cancel's RETURNED commits before the task's separate OFF_RAIL_DUE transaction.
+        await t.deps.db.update(schema.payoutItems).set({ provenance }).where(itemWhere);
+        const officer = await t.credentials.frameToken({ workspaceId: w.workspaceId, role: "treasurer" });
+        const as = t.credentials.bearer(officer);
+        for (const lang of ["en", "ceb", "fil"] as const) {
+          const response = await t.json<StatementView>(`/v1/statements/${returnedLineId}?lang=${lang}`, {
+            as,
+          });
+          expect(response.status).toBe(200);
+          expect(response.body.mobile.item).toMatchObject({ status: "RETURNED", provenance });
+          expect(response.body.statusWords).toMatch(
+            provenance === "replay" ? /^Replayed \(labelled\)/ : /simulated PayPal sandbox/,
+          );
+          expect(response.body.sms.text).toMatch(
+            provenance === "replay" ? /Replayed \(labelled\)/ : /simulated PayPal sandbox/,
+          );
+          expect(response.body.sms.text).not.toMatch(/ready in cash|sent to your PayPal/i);
+          const printed = await t.json<PrintSlip>(`/v1/print/${w.runSlug}/members/M-031?lang=${lang}`, {
+            as,
+          });
+          expect(printed.status).toBe(200);
+          expect(printed.body.line.statusWords).toBe(response.body.statusWords);
+        }
+        const brand = await t.json<BrandView>(`/v1/brand/${w.runSlug}`, { as });
+        expect(brand.body.members.find((member) => member.memberNo === "M-031")?.stateWords).toMatch(
+          provenance === "replay" ? /^Replayed \(labelled\)/ : /simulated PayPal sandbox/,
+        );
+        await t.deps.db
+          .update(schema.memberLines)
+          .set({ state: "OFF_RAIL_DUE", version: sql`${schema.memberLines.version} + 1` })
+          .where(lineWhere);
+        await t.deps.db.update(schema.payoutItems).set({ provenance: "replay" }).where(itemWhere);
+        const cash = await t.json<StatementView>(`/v1/statements/${returnedLineId}?lang=en`, { as });
+        expect(cash.body.statusWords).toBe("Ready at the bodega");
+        expect(cash.body.sms.text).not.toMatch(/replay|PayPal/i);
+      } finally {
+        await returnedApp.close();
+      }
+    },
+  );
 
   it.each(["simulated_rail", "seeded"] as const)(
     "inv.i8.proof-export: %s envelope with replay payouts exports as replay",

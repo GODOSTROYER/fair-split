@@ -338,6 +338,16 @@ export function renderSms(plan: StatementPlan, templates: TemplateSet = TEMPLATE
         plan.lang,
       );
     }
+  } else if (plan.payout?.state === "RETURNED" && presentation) {
+    text = fillTemplate(
+      `{{COOP}}: {{HONORIFIC_NAME}}, {{NET_USD}}. ${presentation.statusWord}.`,
+      plan.sms.facts,
+      "sms",
+      plan.lang,
+    );
+    if ((gsm7Length(text) ?? Number.POSITIVE_INFINITY) > SMS_MAX_SEPTETS) {
+      text = fillTemplate(`{{NET_USD}}. ${presentation.statusWord}.`, plan.sms.facts, "sms", plan.lang);
+    }
   } else if (/^(paid|sent)(_|$)/.test(plan.sms.variant)) {
     text += " Simulated PayPal sandbox.";
   }

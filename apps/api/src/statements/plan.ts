@@ -176,7 +176,7 @@ export function statementPlan(f: StatementLineFacts, templates: TemplateSet = TE
     sentences,
     sms: smsPlan(f, kind),
     readingProvenance: reading,
-    ...(kind === "paypal"
+    ...(kind === "paypal" || f.state === "RETURNED"
       ? { payout: { state: f.state, itemStatus: f.itemStatus, itemProvenance: f.itemProvenance ?? null } }
       : {}),
   };
@@ -209,6 +209,13 @@ function smsPlan(f: StatementLineFacts, kind: PayKind): StatementPlan["sms"] {
     };
   }
   const paid = f.itemStatus === "SUCCESS" || f.state === "PAID";
+  if (f.state === "RETURNED") {
+    // A returned payout is not yet a cash receipt or a fresh send. The renderer states its own outcome.
+    return {
+      variant: "sent_usd",
+      facts: { ...base, NET_USD: { k: "usd", cents: f.netCents } } as StatementPlan["sms"]["facts"],
+    };
+  }
   if (!f.fx) {
     const v: SmsVariant = kind === "cash" ? "cash_usd" : paid ? "paid_usd" : "sent_usd";
     return {
