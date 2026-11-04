@@ -5,7 +5,6 @@
 import {
   INVOICE_STATUS_LABELS,
   KgDTO,
-  MEMBER_LINE_LABELS,
   type MemberLineState,
   MoneyDTO,
   type PayoutItemStatus,
@@ -20,6 +19,7 @@ import { format, invoiceReference, minorToDecimal } from "@fairsplit/domain";
 import { and, asc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import type { Credential } from "../credentials/verify/index.js";
+import { payoutStatusPresentation } from "../lib/payout-status.js";
 import { problem } from "../lib/problem.js";
 import {
   findRunBySlug,
@@ -135,6 +135,7 @@ interface MemberRow {
     senderItemId: string;
     payoutItemId: string | null;
     status: PayoutItemStatus;
+    provenance: Provenance;
     receiver: string;
     eventId: string | null;
   } | null;
@@ -179,6 +180,7 @@ async function brandRows(
       senderItemId: schema.payoutItems.senderItemId,
       payoutItemId: schema.payoutItems.payoutItemId,
       status: schema.payoutItems.status,
+      provenance: schema.payoutItems.provenance,
       receiver: schema.payoutItems.receiver,
     })
     .from(schema.payoutItems)
@@ -240,6 +242,7 @@ async function brandRows(
             senderItemId: it.senderItemId,
             payoutItemId: it.payoutItemId,
             status: it.status as PayoutItemStatus,
+            provenance: it.provenance as Provenance,
             receiver: it.receiver,
             eventId: fold && fold.status === it.status ? fold.lastEventId : null,
           }
@@ -329,7 +332,14 @@ async function readBrandView(db: DbOrTx, lookedUp: ProofRun): Promise<BrandView>
       verified: format.kgDTO(r.verifiedG),
       net: format.moneyDTO(r.netCents),
       state: r.state,
-      stateWords: MEMBER_LINE_LABELS[r.state as MemberLineState]?.console ?? r.state,
+      stateWords: payoutStatusPresentation(
+        {
+          state: r.state as MemberLineState,
+          itemStatus: r.item?.status,
+          itemProvenance: r.item?.provenance,
+        },
+        "console",
+      ).statusWord,
       receiverMasked: r.item ? format.maskEmail(r.item.receiver) : null,
       senderItemId: r.item?.senderItemId ?? null,
       payoutItemId: r.item?.payoutItemId ?? null,

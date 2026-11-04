@@ -292,7 +292,7 @@ export async function loadMobileStatement(
     lineId: f.lineId,
     runId: ctx.runId,
     runSlug: ctx.runSlug,
-    provenance: item?.provenance === "replay" ? "replay" : ctx.provenance,
+    provenance: (item?.provenance as Provenance | undefined) ?? ctx.provenance,
     coop: { name: coop?.name ?? f.coop, place: coop?.region ?? "" },
     season: { id: run.seasonId, code: run.seasonCode },
     payer: { short: f.payer },

@@ -6,6 +6,7 @@ import type { BrandView } from "../proof/brand.js";
 import { loadShowcase, type ShowcaseWorld } from "../proof/testing/world.js";
 import { createTestApp, type TestApp } from "../test/index.js";
 import { loadStatementContext } from "./facts.js";
+import type { PrintSlip } from "./print.js";
 import { type StatementView, statementView } from "./view.js";
 
 describe("a simulator run whose payout replays", () => {
@@ -53,6 +54,18 @@ describe("a simulator run whose payout replays", () => {
       });
       expect(response.body.mobile.lineState).toBe("PAID");
       expect(response.body.mobile.history.some((event) => event.kind === "paid")).toBe(true);
+      expect(response.body.statusWords).toBe("Replayed (labelled): earlier simulated PayPal sandbox run");
+      expect(response.body.sms.text).toContain("Replayed (labelled)");
+      expect(response.body.sms.text).toContain("earlier simulated PayPal sandbox run");
+      expect(response.body.sms.text).not.toMatch(/\bpaid\b|bayad na/i);
+      expect(response.body.sms.fits).toBe(true);
+      expect(response.body.plan).not.toHaveProperty("payout");
+      const officer = await t.credentials.frameToken({ workspaceId: w.workspaceId, role: "treasurer" });
+      const printed = await t.json<PrintSlip>(`/v1/print/${w.runSlug}/members/M-014?lang=${lang}`, {
+        as: t.credentials.bearer(officer),
+      });
+      expect(printed.status).toBe(200);
+      expect(printed.body.line.statusWords).toBe(response.body.statusWords);
       expect(response.body.reviewChip).toBe(
         lang === "en" ? null : "Machine-translated, pending native review",
       );
@@ -93,6 +106,45 @@ describe("a simulator run whose payout replays", () => {
     expect(view.mobile.item).toMatchObject({ status: "SUCCESS", provenance: "replay" });
     expect(view.mobile.provenance).toBe("replay");
     expect(view.provenance).toBe("replay");
+    expect(view.statusWords).toMatch(/^Replayed \(labelled\)/);
+    expect(view.sms.text).toContain("earlier simulated PayPal sandbox run");
+  });
+
+  it("inv.i8.reverse-envelope: this line's simulated item overrides a replay-started run", async () => {
+    const where = and(
+      eq(schema.payoutItems.workspaceId, w.workspaceId),
+      eq(schema.payoutItems.lineId, lineId),
+    );
+    const stale = await loadStatementContext(t.deps.db, w.workspaceId, lineId, "en");
+    if (!stale) throw new Error("missing stale context");
+    expect(stale.provenance).toBe("replay");
+    await t.deps.db
+      .update(schema.payRuns)
+      .set({ provenance: "replay" })
+      .where(eq(schema.payRuns.id, w.runId));
+    await t.deps.db.update(schema.payoutItems).set({ provenance: "simulated_rail" }).where(where);
+    try {
+      const raced = await statementView(t.deps.db, stale);
+      expect(raced.provenance).toBe("simulated_rail");
+      expect(raced.mobile.provenance).toBe("simulated_rail");
+      expect(raced.statusWords).not.toMatch(/replay/i);
+      expect(raced.sms.text).not.toMatch(/replay/i);
+      const context = await loadStatementContext(t.deps.db, w.workspaceId, lineId, "en");
+      expect(context?.provenance).toBe("simulated_rail");
+      if (!context) throw new Error("missing context");
+      const view = await statementView(t.deps.db, context);
+      expect(view.provenance).toBe("simulated_rail");
+      expect(view.mobile.provenance).toBe("simulated_rail");
+      expect(view.statusWords).not.toMatch(/replay/i);
+      expect(view.statusWords).toContain("simulated PayPal sandbox");
+      expect(view.sms.text).not.toMatch(/replay/i);
+    } finally {
+      await t.deps.db
+        .update(schema.payRuns)
+        .set({ provenance: "simulated_rail" })
+        .where(eq(schema.payRuns.id, w.runId));
+      await t.deps.db.update(schema.payoutItems).set({ provenance: "replay" }).where(where);
+    }
   });
 
   it.each(["simulated_rail", "seeded"] as const)(
@@ -108,6 +160,12 @@ describe("a simulator run whose payout replays", () => {
       const view = await t.json<BrandView>(`/v1/brand/${w.runSlug}`, { as });
       expect(view.status).toBe(200);
       expect(view.body.provenance).toBe("replay");
+      expect(view.body.members.find((member) => member.memberNo === "M-014")?.stateWords).toBe(
+        "Replayed (labelled): earlier simulated PayPal sandbox run",
+      );
+      expect(view.body.members.find((member) => member.memberNo === "M-053")?.stateWords).not.toMatch(
+        /replay|PayPal/i,
+      );
       const csv = await t.request(`/v1/brand/${w.runSlug}/export.csv`, { as });
       expect(csv.status).toBe(200);
       const rows = (await csv.text()).trim().split(/\r?\n/).slice(1);

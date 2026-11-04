@@ -15,13 +15,7 @@
 // day's next generation is printed instead: one live printed link per line and day, and at most
 // PRINT_LINK_GENERATIONS a day in all.
 import { createHmac } from "node:crypto";
-import {
-  LABEL_REVIEW_STATUS,
-  MEMBER_LINE_LABELS,
-  MemberLineState,
-  MoneyDTO,
-  Provenance,
-} from "@fairsplit/contracts";
+import { LABEL_REVIEW_STATUS, MemberLineState, MoneyDTO, Provenance } from "@fairsplit/contracts";
 import { type DbOrTx, schema, type WorkspaceScope } from "@fairsplit/db";
 import { format, jcs } from "@fairsplit/domain";
 import { and, eq, inArray, sql } from "drizzle-orm";
@@ -29,6 +23,7 @@ import { z } from "zod";
 import { recordPrintedLink } from "../credentials/issue/index.js";
 import { type CredentialKeys, LINK_TTL_MS, signLink } from "../credentials/verify/index.js";
 import type { AppDeps } from "../lib/context.js";
+import { payoutStatusPresentation } from "../lib/payout-status.js";
 import { problem } from "../lib/problem.js";
 import type { StatementContext } from "./facts.js";
 import { payKindOf, statementPlan } from "./plan.js";
@@ -323,7 +318,7 @@ export async function printSlip(
       lang,
     },
     reviewChip: lang === "en" ? null : LABEL_REVIEW_STATUS,
-    line: { state: f.state, statusWords: MEMBER_LINE_LABELS[f.state][lang], pay },
+    line: { state: f.state, statusWords: payoutStatusPresentation(f, lang).statusWord, pay },
     amount,
     receipt,
     slips: [...f.slipSerials],

@@ -7,6 +7,7 @@
 // an integer fact (cents, centavos, grams, basis points) that code formats at render time.
 import { Provenance } from "@fairsplit/contracts";
 import { z } from "zod";
+import type { PayoutStatusEvidence } from "../lib/payout-status.js";
 
 export const STATEMENT_SLOTS = [
   "GREETING",
@@ -117,7 +118,8 @@ export const StatementPlan = z.strictObject({
    */
   readingProvenance: Provenance.nullable().optional(),
 });
-export type StatementPlan = z.infer<typeof StatementPlan>;
+/** Renderer-only evidence. It is deliberately absent from the frozen public plan schema and JSON. */
+export type StatementPlan = z.infer<typeof StatementPlan> & { payout?: PayoutStatusEvidence };
 
 export type RenderMode = "display" | "spoken" | "sms";
 

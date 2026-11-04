@@ -48,6 +48,8 @@ export interface StatementLineFacts {
   cashDay: string | null;
   /** The PayPal item's status, for "paid" against "sent". */
   itemStatus: PayoutItemStatus | null;
+  /** The latest payout item's own evidence, independently of the run's initial rail. */
+  itemProvenance?: Provenance | null;
   /**
    * Where the line's slip readings came from (`readingProvenanceOf`, facts.ts). Only `live`, a real Claude
    * reading, keeps the product AI_NOTE; seeded, replayed, null or absent take the demo note (T1).
@@ -174,6 +176,9 @@ export function statementPlan(f: StatementLineFacts, templates: TemplateSet = TE
     sentences,
     sms: smsPlan(f, kind),
     readingProvenance: reading,
+    ...(kind === "paypal"
+      ? { payout: { state: f.state, itemStatus: f.itemStatus, itemProvenance: f.itemProvenance ?? null } }
+      : {}),
   };
   // The SMS must fit one GSM-7 message: fall back to the short form (no slips, no name) when it does not.
   if (
