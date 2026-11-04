@@ -15,7 +15,7 @@ import { STAGE } from "../chrome/copy.js";
 import type { FramePersona } from "../data/adapter.js";
 import type { RunView } from "../data/run-view.js";
 import { env } from "../lib/env.js";
-import { useFocusOnLeave } from "../lib/focus.js";
+import { screenControl, useFocusOnLeave } from "../lib/focus.js";
 import { FRAME_PERSONAS, frameSrc } from "./bridge.js";
 import { FramePoster } from "./FramePoster.js";
 import type { PhoneLayout, PhoneSize } from "./layout.js";
@@ -115,6 +115,39 @@ function PhoneScrim({
   );
 }
 
+/** A frame of the phone holds focus: the page's own focus sits on its <iframe>. */
+function frameHoldsFocus(): boolean {
+  const active = document.activeElement;
+  return active instanceof HTMLIFrameElement && active.closest("#fsc-phone-panel") !== null;
+}
+
+/** Hands focus that a frame took to the screen's main control (WCAG 2.4.3), without scrolling the stage. */
+function handFocusBack(): void {
+  if (frameHoldsFocus()) screenControl()?.focus({ preventScroll: true });
+}
+
+/**
+ * The app in a frame focuses its own control once it loads (the Member app's M-MB-01 amount), and the browser
+ * lets it while the phone is lowered (inert, hidden) or dimmed: focus, and the next Tab, would stay in a phone
+ * nobody sees. Then it goes to the screen's main control: on the frame's focus event, and on the page's blur
+ * (Chromium fires no focus on the <iframe> when its document takes focus), a task later.
+ */
+function useFocusOutOfLoweredPhone(lowered: boolean): void {
+  useEffect(() => {
+    if (!lowered) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const onBlur = () => {
+      clearTimeout(timer);
+      timer = setTimeout(handFocusBack, 0);
+    };
+    window.addEventListener("blur", onBlur);
+    return () => {
+      window.removeEventListener("blur", onBlur);
+      clearTimeout(timer);
+    };
+  }, [lowered]);
+}
+
 /** The phone lane's words: "Nang Celing: Gisusi pa" (member status words are Cebuano, register §7). */
 export function phoneLaneWords(
   persona: FramePersona,
@@ -147,6 +180,8 @@ export function PhoneDock({
   const info = personaInfo(shown, snapshot);
   const hiddenPanel = layout === "tab" && !raised;
   const dimmed = layout === "dock" && !raised;
+  const lowered = hiddenPanel || dimmed;
+  useFocusOutOfLoweredPhone(lowered);
 
   return (
     <aside
@@ -233,6 +268,7 @@ export function PhoneDock({
                           title={`${personaInfo(p, snapshot).name}'s phone: the app's web build`}
                           referrerPolicy="no-referrer"
                           tabIndex={frameStatus === "app" ? undefined : -1}
+                          onFocus={lowered ? handFocusBack : undefined}
                           data-testid={`W-JG-01.frame.${p}`}
                         />
                       )}
