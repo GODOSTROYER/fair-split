@@ -41,6 +41,21 @@ const REPLAY_CHIP: Record<Lang, string> = {
   en: "Replayed · Simulated PayPal sandbox",
 };
 
+const PLANNED_REPLAY: Record<Lang, { chip: string; copy: string }> = {
+  ceb: {
+    chip: "Giplano nga replay (labelled) · Simulated PayPal sandbox",
+    copy: "Giplano ang labelled replay sa simulated PayPal sandbox. Wala pay payout item; ang kahimtang sa linya iya niini nga run.",
+  },
+  fil: {
+    chip: "Planadong replay (labelled) · Simulated PayPal sandbox",
+    copy: "Planado ang labelled replay sa simulated PayPal sandbox. Wala pang payout item; ang status ng linya ay para sa run na ito.",
+  },
+  en: {
+    chip: "Planned replay (labelled) · Simulated PayPal sandbox",
+    copy: "This run plans a labelled replay of the simulated PayPal sandbox payout step. No payout item exists yet; the line status belongs to this run.",
+  },
+};
+
 export function railLabel(rail: string | null | undefined, provenance: string, lang: Lang) {
   const kind =
     provenance === "replay"
@@ -116,6 +131,9 @@ export function memberEvent(event: RunEvent): RunEvent<"item.updated", ItemUpdat
 }
 
 export function statementRail(dto: StatementDTO, lang: Lang, track?: Pick<ItemTrack, "provenance">) {
+  if (dto.provenance === "replay" && !dto.item && track?.provenance !== "replay") {
+    return { kind: "replay-planned", ...PLANNED_REPLAY[lang], review: pendingReview(lang) };
+  }
   return railLabel(dto.paypalRail, track?.provenance === "replay" ? "replay" : dto.provenance, lang);
 }
 

@@ -6,7 +6,7 @@ import { capsuleFor, EMPTY_TRACK } from "../../lib/item-status";
 import { mergeTrack } from "../../lib/statement";
 import { buildDemoStatement, DEMO_STAGES } from "../../services/demo-fixtures";
 import { lineView } from "./line-view";
-import { applyStatementItemEvent, payoutStatus } from "./live";
+import { applyStatementItemEvent, payoutStatus, statementRail } from "./live";
 import { t } from "./messages";
 import { previewLine } from "./preview";
 
@@ -29,6 +29,15 @@ describe("inv.i8.mobile replay status sweep", () => {
         );
         expect(v.word).not.toMatch(/replay/i);
         expect(v.detail?.key).not.toBe("M-MB-01.replayed");
+        const rail = statementRail(dto, lang, EMPTY_TRACK);
+        expect(rail.kind).toBe("replay-planned");
+        expect(rail.chip).toMatch(/planned|giplano|planado/i);
+        expect(rail.copy).toMatch(/simulated PayPal sandbox/i);
+        expect(rail.copy).not.toMatch(/^Replayed payment|^Gi-replay nga bayad|^Ni-replay na bayad/i);
+        expect(statementRail(dto, lang, { provenance: "replay" }).kind).toBe("replay");
+        expect(statementRail({ ...dto, provenance: "simulated_rail" }, lang, EMPTY_TRACK).kind).toBe(
+          "simulated",
+        );
       }
     },
   );
