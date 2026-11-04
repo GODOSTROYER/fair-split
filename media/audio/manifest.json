@@ -40,6 +40,40 @@
     {
       "member_no": "M-002",
       "lang": "ceb",
+      "slot": "BONUS",
+      "variant": "default",
+      "file": "audio/M-002/ceb/s04-BONUS-d6cc125f3d0a.m4a",
+      "duration_ms": 5520,
+      "text": "Bonus sa kalidad: eight dollars and eighty-six cents.",
+      "text_sha256": "d6cc125f3d0af2762fa576a38eb54f7bb4845928a67ca46b1b696313fadb48fa",
+      "model": "gemini-3.8-flash-tts",
+      "voice": "Sulafat",
+      "style": "warm, unhurried, respectful; speaking to an older farmer",
+      "codec": {
+        "codec": "aac",
+        "bit_rate_kbps": 32,
+        "channels": 1
+      },
+      "created_at": "2026-11-04T10:56:12.777Z",
+      "synthetic": true,
+      "label": "Sintetikong tingog (Gemini TTS)",
+      "draft": false,
+      "review": "machine-translated, pending native review",
+      "request": {
+        "id": "v1_ChdRUV9yYXB5M0RmVHI0dDRQeFpIbDZBURIXUVFfcmFweTNEZlRyNHQ0UHhaSGw2QVE",
+        "latency_ms": 6777,
+        "sentences": 1
+      },
+      "offsets": [
+        {
+          "ref": "fact:BONUS_USD",
+          "at_ms": 2360
+        }
+      ]
+    },
+    {
+      "member_no": "M-002",
+      "lang": "ceb",
       "slot": "HELP",
       "variant": "default",
       "file": "audio/M-002/ceb/s09-HELP-091f4998832d.m4a",
@@ -68,6 +102,132 @@
         {
           "ref": "fact:TREASURER",
           "at_ms": 3420
+        }
+      ]
+    },
+    {
+      "member_no": "M-002",
+      "lang": "ceb",
+      "slot": "PAY",
+      "variant": "paypal",
+      "file": "audio/M-002/ceb/s07-PAY-6eef8c42d484.m4a",
+      "duration_ms": 17640,
+      "text": "Ang inyong bayad karong season: thirty dollars and twenty-seven cents, sa inyong PayPal. Sa peso, mga one thousand eight hundred ninety-one pesos, gibanabana, sa dili pa ang three porsiyento nga bayad sa PayPal sa pag-ilis.",
+      "text_sha256": "6eef8c42d484603659316aa41f523a1f2d1358f61e8f1a0eb010396c824e5119",
+      "model": "gemini-3.8-flash-tts",
+      "voice": "Sulafat",
+      "style": "warm, unhurried, respectful; speaking to an older farmer",
+      "codec": {
+        "codec": "aac",
+        "bit_rate_kbps": 32,
+        "channels": 1
+      },
+      "created_at": "2026-11-04T10:56:46.562Z",
+      "synthetic": true,
+      "label": "Sintetikong tingog (Gemini TTS)",
+      "draft": false,
+      "review": "machine-translated, pending native review",
+      "request": {
+        "id": "v1_ChdYd19yYXEyNUZZZTJ6N3NQeTdMeTZBVRIXWHdfcmFxMjVGWWUyejdzUHk3THk2QVU",
+        "latency_ms": 10292,
+        "sentences": 1
+      },
+      "offsets": [
+        {
+          "ref": "fact:NET_USD",
+          "at_ms": 1960
+        },
+        {
+          "ref": "fact:NET_PHP",
+          "at_ms": 6460
+        },
+        {
+          "ref": "fact:FX_FEE",
+          "at_ms": 11820
+        }
+      ]
+    },
+    {
+      "member_no": "M-002",
+      "lang": "ceb",
+      "slot": "PREMIUM",
+      "variant": "default",
+      "file": "audio/M-002/ceb/s03-PREMIUM-fc67cd1273ad.m4a",
+      "duration_ms": 8640,
+      "text": "Premium gikan sa Lantern Bay Chocolate Co.: twenty-one dollars and eighty-five cents, walay kaltas.",
+      "text_sha256": "fc67cd1273ade177def045b36de79c0945510d50bac78e1c38b388c09194c1c0",
+      "model": "gemini-3.8-flash-tts",
+      "voice": "Sulafat",
+      "style": "warm, unhurried, respectful; speaking to an older farmer",
+      "codec": {
+        "codec": "aac",
+        "bit_rate_kbps": 32,
+        "channels": 1
+      },
+      "created_at": "2026-11-04T10:55:55.051Z",
+      "synthetic": true,
+      "label": "Sintetikong tingog (Gemini TTS)",
+      "draft": false,
+      "review": "machine-translated, pending native review",
+      "request": {
+        "id": "v1_ChdMZ19yYXMtNUtJcmc0dDRQcTV2MnFRURIXTGdfcmFzLTVLSXJnNHQ0UHE1djJxUVE",
+        "latency_ms": 7455,
+        "sentences": 1
+      },
+      "offsets": [
+        {
+          "ref": "fact:PAYER",
+          "at_ms": 880
+        },
+        {
+          "ref": "fact:PREMIUM_USD",
+          "at_ms": 2940
+        }
+      ]
+    },
+    {
+      "member_no": "M-002",
+      "lang": "ceb",
+      "slot": "SOURCES",
+      "variant": "default",
+      "file": "audio/M-002/ceb/s08-SOURCES-2075aac58cae.m4a",
+      "duration_ms": 9960,
+      "text": "Gikan kini sa inyong resibo zero three seven five, zero four eight two ug zero five three three.",
+      "text_sha256": "2075aac58caeaa659506992b7111ae32fd930008d8cc5b1cbf48682f99744b89",
+      "model": "gemini-3.8-flash-tts",
+      "voice": "Sulafat",
+      "style": "warm, unhurried, respectful; speaking to an older farmer",
+      "codec": {
+        "codec": "aac",
+        "bit_rate_kbps": 32,
+        "channels": 1
+      },
+      "created_at": "2026-11-04T10:57:12.451Z",
+      "synthetic": true,
+      "label": "Sintetikong tingog (Gemini TTS)",
+      "draft": false,
+      "review": "machine-translated, pending native review",
+      "request": {
+        "id": "v1_ChdlZ19yYXQ2M081Zk4zTFVQcW83VTJRVRIXZWdfcmF0NjNPNWZOM0xVUHFvN1UyUVU",
+        "latency_ms": 8782,
+        "sentences": 1
+      },
+      "offsets": [
+        {
+          "ref": "fact:SLIPS",
+          "at_ms": 1990
+        },
+        {
+          "ref": "slip:0375",
+          "at_ms": 1990
+        },
+        {
+          "ref": "slip:0482",
+          "at_ms": 4130
+        },
+        {
+          "ref": "slip:0533",
+          "at_ms": 7250
         }
       ]
     },
@@ -142,6 +302,94 @@
     {
       "member_no": "M-007",
       "lang": "ceb",
+      "slot": "DEDUCTION",
+      "variant": "default",
+      "file": "audio/M-007/ceb/s05-DEDUCTION-664a29bd032b.m4a",
+      "duration_ms": 7920,
+      "text": "Gikaltasan og one dollar and six cents para sa CBU (R one, resolusyon sa Board).",
+      "text_sha256": "664a29bd032b417addcbbb3ffc72f8afc12a0ef577d459801b276f9b0fb7c10d",
+      "model": "gemini-3.8-flash-tts",
+      "voice": "Sulafat",
+      "style": "warm, unhurried, respectful; speaking to an older farmer. Read every word verbatim, including English number words; do not translate, substitute or omit any word.",
+      "codec": {
+        "codec": "aac",
+        "bit_rate_kbps": 32,
+        "channels": 1
+      },
+      "created_at": "2026-11-04T10:17:59.240Z",
+      "synthetic": true,
+      "label": "Sintetikong tingog (Gemini TTS)",
+      "draft": false,
+      "review": "machine-translated, pending native review",
+      "request": {
+        "id": "v1_ChdTZ2JyYXNhR01feTN6N3NQM01xOG9RdxIXU2dicmFzYUdNX3kzejdzUDNNcThvUXc",
+        "latency_ms": 7407,
+        "sentences": 1
+      },
+      "offsets": [
+        {
+          "ref": "fact:DEDUCTION_USD",
+          "at_ms": 880
+        },
+        {
+          "ref": "fact:RULE_LABEL",
+          "at_ms": 2480
+        },
+        {
+          "ref": "fact:RULE",
+          "at_ms": 3020
+        },
+        {
+          "ref": "fact:BR",
+          "at_ms": 3440
+        },
+        {
+          "ref": "rule:R1",
+          "at_ms": 3020
+        }
+      ]
+    },
+    {
+      "member_no": "M-007",
+      "lang": "ceb",
+      "slot": "DELIVERY",
+      "variant": "default",
+      "file": "audio/M-007/ceb/s02-DELIVERY-7d09e78695c1.m4a",
+      "duration_ms": 7720,
+      "text": "Nagdala mo og one hundred forty-four kilos nga uga nga cacao, tanan Grade one.",
+      "text_sha256": "7d09e78695c1c84002ccd8bb0564d0c5613b2a2fe887a5c975233c986aed44a4",
+      "model": "gemini-3.8-flash-tts",
+      "voice": "Sulafat",
+      "style": "warm, unhurried, respectful; speaking to an older farmer. Read every word verbatim, including English number words; do not translate, substitute or omit any word.",
+      "codec": {
+        "codec": "aac",
+        "bit_rate_kbps": 32,
+        "channels": 1
+      },
+      "created_at": "2026-11-04T10:17:40.488Z",
+      "synthetic": true,
+      "label": "Sintetikong tingog (Gemini TTS)",
+      "draft": false,
+      "review": "machine-translated, pending native review",
+      "request": {
+        "id": "v1_ChdOZ2JyYXVIUUNvem80dDRQNDZtVG9RdxIXTmdicmF1SFFDb3pvNHQ0UDQ2bVRvUXc",
+        "latency_ms": 8690,
+        "sentences": 1
+      },
+      "offsets": [
+        {
+          "ref": "fact:KG_TOTAL",
+          "at_ms": 1610
+        },
+        {
+          "ref": "fact:GRADE_SUMMARY",
+          "at_ms": 6060
+        }
+      ]
+    },
+    {
+      "member_no": "M-007",
+      "lang": "ceb",
       "slot": "HELP",
       "variant": "default",
       "file": "audio/M-007/ceb/s09-HELP-091f4998832d.m4a",
@@ -208,6 +456,56 @@
         {
           "ref": "fact:PREMIUM_USD",
           "at_ms": 4094
+        }
+      ]
+    },
+    {
+      "member_no": "M-007",
+      "lang": "ceb",
+      "slot": "SOURCES",
+      "variant": "default",
+      "file": "audio/M-007/ceb/s08-SOURCES-cf991d62ef31.m4a",
+      "duration_ms": 13880,
+      "text": "Gikan kini sa inyong resibo zero three zero three, zero four five seven, zero four nine seven ug zero five six two.",
+      "text_sha256": "cf991d62ef3188a5922884c9ddfe3b9bdd45aa71618efc4bc66e3ee25aa8f5f8",
+      "model": "gemini-3.8-flash-tts",
+      "voice": "Sulafat",
+      "style": "warm, unhurried, respectful; speaking to an older farmer",
+      "codec": {
+        "codec": "aac",
+        "bit_rate_kbps": 32,
+        "channels": 1
+      },
+      "created_at": "2026-11-04T10:18:47.137Z",
+      "synthetic": true,
+      "label": "Sintetikong tingog (Gemini TTS)",
+      "draft": false,
+      "review": "machine-translated, pending native review",
+      "request": {
+        "id": "v1_ChdlUWJyYXE3UU90aW56N3NQaXYybXFRWRIXZVFicmFxN1FPdGluejdzUGl2Mm1xUVk",
+        "latency_ms": 8211,
+        "sentences": 1
+      },
+      "offsets": [
+        {
+          "ref": "fact:SLIPS",
+          "at_ms": 3499
+        },
+        {
+          "ref": "slip:0303",
+          "at_ms": 3499
+        },
+        {
+          "ref": "slip:0457",
+          "at_ms": 6069
+        },
+        {
+          "ref": "slip:0497",
+          "at_ms": 8529
+        },
+        {
+          "ref": "slip:0562",
+          "at_ms": 11599
         }
       ]
     },
@@ -439,6 +737,48 @@
       "member_no": "M-014",
       "lang": "ceb",
       "slot": "PAY",
+      "variant": "paypal",
+      "file": "audio/M-014/ceb/s07-PAY-951cf7877220.m4a",
+      "duration_ms": 22070,
+      "text": "Ang inyong bayad karong season: sixty-four dollars and forty-five cents, sa inyong PayPal. Sa peso, mga four thousand twenty-eight pesos, gibanabana, sa dili pa ang three porsiyento nga bayad sa PayPal sa pag-ilis.",
+      "text_sha256": "951cf7877220320908429ecf06d73f2726e849762964b5a51e1407fcc1361826",
+      "model": "gemini-3.8-flash-tts",
+      "voice": "Vindemiatrix",
+      "style": "warm, unhurried, respectful; speaking to an older farmer",
+      "codec": {
+        "codec": "aac",
+        "bit_rate_kbps": 32,
+        "channels": 1
+      },
+      "created_at": "2026-11-04T06:33:04.530Z",
+      "synthetic": true,
+      "label": "Sintetikong tingog (Gemini TTS)",
+      "draft": false,
+      "review": "machine-translated, pending native review",
+      "request": {
+        "id": "v1_ChdJX25tYXQyX0ZNLWIwUG9Qa0tXTXlRURIXSV9ubWF0Ml9GTS1iMFBvUGtLV015UVE",
+        "latency_ms": 12878,
+        "sentences": 1
+      },
+      "offsets": [
+        {
+          "ref": "fact:NET_USD",
+          "at_ms": 4607
+        },
+        {
+          "ref": "fact:NET_PHP",
+          "at_ms": 10977
+        },
+        {
+          "ref": "fact:FX_FEE",
+          "at_ms": 18497
+        }
+      ]
+    },
+    {
+      "member_no": "M-014",
+      "lang": "ceb",
+      "slot": "PAY",
       "file": "audio/M-014/ceb/s5.m4a",
       "duration_ms": 10997,
       "text": "Ang inyong bayad karong season: sixty-four dollars and forty-five cents, mga four thousand and twenty-eight pesos, pinaagi sa PayPal.",
@@ -642,6 +982,40 @@
       "member_no": "M-014",
       "lang": "en",
       "slot": "GREETING",
+      "variant": "default",
+      "file": "audio/M-014/en/s01-GREETING-3d724d31bbfc.m4a",
+      "duration_ms": 4040,
+      "text": "Good day, Mrs. Bacus. Thank you for your hard work.",
+      "text_sha256": "3d724d31bbfccccc84ea9d1f5e9c0b179c02952dbcd7bf8d519582b215e0f643",
+      "model": "gemini-3.8-flash-tts",
+      "voice": "Sulafat",
+      "style": "warm, unhurried, respectful; speaking to an older farmer. Read every word verbatim, including English number words; do not translate, substitute or omit any word.",
+      "codec": {
+        "codec": "aac",
+        "bit_rate_kbps": 32,
+        "channels": 1
+      },
+      "created_at": "2026-11-04T10:11:25.002Z",
+      "synthetic": true,
+      "label": "Synthetic voice (Gemini TTS)",
+      "draft": false,
+      "review": "machine-translated, pending native review",
+      "request": {
+        "id": "v1_Chd3Z1RyYXVQZUJhX0xtTk1QblpPcmdRcxIXd2dUcmF1UGVCYV9MbU5NUG5aT3JnUXM",
+        "latency_ms": 6298,
+        "sentences": 1
+      },
+      "offsets": [
+        {
+          "ref": "fact:HONORIFIC_NAME",
+          "at_ms": 640
+        }
+      ]
+    },
+    {
+      "member_no": "M-014",
+      "lang": "en",
+      "slot": "GREETING",
       "file": "audio/M-014/en/s1.m4a",
       "duration_ms": 3687,
       "text": "Good day, Nang Celing. Thank you for your hard work.",
@@ -691,6 +1065,86 @@
         "latency_ms": 9420,
         "sentences": 2
       }
+    },
+    {
+      "member_no": "M-014",
+      "lang": "en",
+      "slot": "PAY",
+      "variant": "paypal",
+      "file": "audio/M-014/en/s07-PAY-c8fa80c918dd.m4a",
+      "duration_ms": 16480,
+      "text": "Your pay this season: sixty-four dollars and forty-five cents, to your PayPal. In pesos that is about four thousand twenty-eight pesos, estimate, before PayPal's three percent fee to change it.",
+      "text_sha256": "c8fa80c918dddcef6f74eef64e32dc4fe06b7a7eb89e97120675e6c811f1497c",
+      "model": "gemini-3.8-flash-tts",
+      "voice": "Sulafat",
+      "style": "warm, unhurried, respectful; speaking to an older farmer. Read every word verbatim, including English number words; do not translate, substitute or omit any word.",
+      "codec": {
+        "codec": "aac",
+        "bit_rate_kbps": 32,
+        "channels": 1
+      },
+      "created_at": "2026-11-04T10:15:37.370Z",
+      "synthetic": true,
+      "label": "Synthetic voice (Gemini TTS)",
+      "draft": false,
+      "review": "machine-translated, pending native review",
+      "request": {
+        "id": "v1_Chd1UVhyYXVTZU1ZYmk0dDRQdDgzUDhRURIXdVFYcmF1U2VNWWJpNHQ0UHQ4M1A4UVE",
+        "latency_ms": 10759,
+        "sentences": 1
+      },
+      "offsets": [
+        {
+          "ref": "fact:NET_USD",
+          "at_ms": 1220
+        },
+        {
+          "ref": "fact:NET_PHP",
+          "at_ms": 5720
+        },
+        {
+          "ref": "fact:FX_FEE",
+          "at_ms": 9780
+        }
+      ]
+    },
+    {
+      "member_no": "M-014",
+      "lang": "en",
+      "slot": "PREMIUM",
+      "variant": "default",
+      "file": "audio/M-014/en/s03-PREMIUM-35ae497bd6ea.m4a",
+      "duration_ms": 8080,
+      "text": "Premium from Lantern Bay Chocolate Co.: forty-three dollars and sixty-nine cents, with no deductions.",
+      "text_sha256": "35ae497bd6ea42418438760a65571b0b0f001e706c52627adb074fb74301d3cc",
+      "model": "gemini-3.8-flash-tts",
+      "voice": "Sulafat",
+      "style": "warm, unhurried, respectful; speaking to an older farmer. Read every word verbatim, including English number words; do not translate, substitute or omit any word.",
+      "codec": {
+        "codec": "aac",
+        "bit_rate_kbps": 32,
+        "channels": 1
+      },
+      "created_at": "2026-11-04T10:12:52.698Z",
+      "synthetic": true,
+      "label": "Synthetic voice (Gemini TTS)",
+      "draft": false,
+      "review": "machine-translated, pending native review",
+      "request": {
+        "id": "v1_ChdHUVhyYXItQ0JkMzcwUG9QdzZPeHFROBIXR1FYcmFyLUNCZDM3MFBvUHc2T3hxUTg",
+        "latency_ms": 6964,
+        "sentences": 1
+      },
+      "offsets": [
+        {
+          "ref": "fact:PAYER",
+          "at_ms": 600
+        },
+        {
+          "ref": "fact:PREMIUM_USD",
+          "at_ms": 1940
+        }
+      ]
     },
     {
       "member_no": "M-014",
@@ -1027,6 +1481,86 @@
     {
       "member_no": "M-018",
       "lang": "ceb",
+      "slot": "CREDIT",
+      "variant": "written",
+      "file": "audio/M-018/ceb/s06-CREDIT-575a5b4532b1.m4a",
+      "duration_ms": 13360,
+      "text": "Ang two hundred pesos nga kaltas sa resibo zero four five eight wala sa rate card nga giaprobahan sa Board, mao nga gibalik kini kaninyo: three dollars and twenty cents.",
+      "text_sha256": "575a5b4532b1727a95039cc2d98e0c05dd77e72bc86e67533b178a523751560d",
+      "model": "gemini-3.8-flash-tts",
+      "voice": "Sulafat",
+      "style": "warm, unhurried, respectful; speaking to an older farmer",
+      "codec": {
+        "codec": "aac",
+        "bit_rate_kbps": 32,
+        "channels": 1
+      },
+      "created_at": "2026-11-04T10:23:57.545Z",
+      "synthetic": true,
+      "label": "Sintetikong tingog (Gemini TTS)",
+      "draft": false,
+      "review": "machine-translated, pending native review",
+      "request": {
+        "id": "v1_ChdzQWZyYXFDNklPS2l6N3NQbjlyMjRRdxIXc0FmcmFxQzZJT0tpejdzUG45cjI0UXc",
+        "latency_ms": 7975,
+        "sentences": 1
+      },
+      "offsets": [
+        {
+          "ref": "fact:WRITTEN_PHP",
+          "at_ms": 220
+        },
+        {
+          "ref": "fact:SLIP",
+          "at_ms": 2760
+        },
+        {
+          "ref": "fact:CREDIT_USD",
+          "at_ms": 10580
+        },
+        {
+          "ref": "slip:0458",
+          "at_ms": 2760
+        }
+      ]
+    },
+    {
+      "member_no": "M-018",
+      "lang": "ceb",
+      "slot": "GREETING",
+      "variant": "default",
+      "file": "audio/M-018/ceb/s01-GREETING-6a8701862ebc.m4a",
+      "duration_ms": 4600,
+      "text": "Maayong adlaw, Nong Tidoy. Salamat sa inyong paghago.",
+      "text_sha256": "6a8701862ebc396ad122d7610d6f4dce926f2ead6227e2b621ac1aeccd72d6df",
+      "model": "gemini-3.8-flash-tts",
+      "voice": "Sulafat",
+      "style": "warm, unhurried, respectful; speaking to an older farmer",
+      "codec": {
+        "codec": "aac",
+        "bit_rate_kbps": 32,
+        "channels": 1
+      },
+      "created_at": "2026-11-04T10:22:18.204Z",
+      "synthetic": true,
+      "label": "Sintetikong tingog (Gemini TTS)",
+      "draft": false,
+      "review": "machine-translated, pending native review",
+      "request": {
+        "id": "v1_ChdUd2ZyYXQyMUw2U3V6N3NQX0k3Vm9BURIXVHdmcmF0MjFMNlN1ejdzUF9JN1ZvQVE",
+        "latency_ms": 5617,
+        "sentences": 1
+      },
+      "offsets": [
+        {
+          "ref": "fact:HONORIFIC_NAME",
+          "at_ms": 820
+        }
+      ]
+    },
+    {
+      "member_no": "M-018",
+      "lang": "ceb",
       "slot": "HELP",
       "variant": "default",
       "file": "audio/M-018/ceb/s09-HELP-091f4998832d.m4a",
@@ -1095,6 +1629,74 @@
     {
       "member_no": "M-022",
       "lang": "ceb",
+      "slot": "BONUS",
+      "variant": "default",
+      "file": "audio/M-022/ceb/s04-BONUS-617ddfea7dbf.m4a",
+      "duration_ms": 4070,
+      "text": "Bonus sa kalidad: eleven dollars and eighty-one cents.",
+      "text_sha256": "617ddfea7dbfea495a211187e9f324d7933c35d30776ab0644639c491b931710",
+      "model": "gemini-3.8-flash-tts",
+      "voice": "Sulafat",
+      "style": "warm, unhurried, respectful; speaking to an older farmer",
+      "codec": {
+        "codec": "aac",
+        "bit_rate_kbps": 32,
+        "channels": 1
+      },
+      "created_at": "2026-11-04T10:50:49.519Z",
+      "synthetic": true,
+      "label": "Sintetikong tingog (Gemini TTS)",
+      "draft": false,
+      "review": "machine-translated, pending native review",
+      "request": {
+        "id": "v1_Chc0ZzNyYXVXT0JLU3V6N3NQX0k3Vm9BURIXNGczcmF1V09CS1N1ejdzUF9JN1ZvQVE",
+        "latency_ms": 32494,
+        "sentences": 9
+      },
+      "offsets": [
+        {
+          "ref": "fact:BONUS_USD",
+          "at_ms": 1320
+        }
+      ]
+    },
+    {
+      "member_no": "M-022",
+      "lang": "ceb",
+      "slot": "GREETING",
+      "variant": "default",
+      "file": "audio/M-022/ceb/s01-GREETING-6e64a8426d62.m4a",
+      "duration_ms": 6710,
+      "text": "Maayong adlaw, Nong Pedring. Salamat sa inyong paghago.",
+      "text_sha256": "6e64a8426d62ab06213aa61705d221bcd9f0372a38ef8c9706507584d7f2d9b8",
+      "model": "gemini-3.8-flash-tts",
+      "voice": "Sulafat",
+      "style": "warm, unhurried, respectful; speaking to an older farmer",
+      "codec": {
+        "codec": "aac",
+        "bit_rate_kbps": 32,
+        "channels": 1
+      },
+      "created_at": "2026-11-04T10:50:47.782Z",
+      "synthetic": true,
+      "label": "Sintetikong tingog (Gemini TTS)",
+      "draft": false,
+      "review": "machine-translated, pending native review",
+      "request": {
+        "id": "v1_Chc0ZzNyYXVXT0JLU3V6N3NQX0k3Vm9BURIXNGczcmF1V09CS1N1ejdzUF9JN1ZvQVE",
+        "latency_ms": 32494,
+        "sentences": 9
+      },
+      "offsets": [
+        {
+          "ref": "fact:HONORIFIC_NAME",
+          "at_ms": 3298
+        }
+      ]
+    },
+    {
+      "member_no": "M-022",
+      "lang": "ceb",
       "slot": "HELP",
       "variant": "default",
       "file": "audio/M-022/ceb/s09-HELP-091f4998832d.m4a",
@@ -1123,6 +1725,348 @@
         {
           "ref": "fact:TREASURER",
           "at_ms": 3420
+        }
+      ]
+    },
+    {
+      "member_no": "M-022",
+      "lang": "ceb",
+      "slot": "PREMIUM",
+      "variant": "default",
+      "file": "audio/M-022/ceb/s03-PREMIUM-f32bdf5ce7c6.m4a",
+      "duration_ms": 8050,
+      "text": "Premium gikan sa Lantern Bay Chocolate Co.: twenty-eight dollars and forty-nine cents, walay kaltas.",
+      "text_sha256": "f32bdf5ce7c62dad0c1b9d7938d7c0a0f7a1382429138d9e85e7fed9090d7acb",
+      "model": "gemini-3.8-flash-tts",
+      "voice": "Sulafat",
+      "style": "warm, unhurried, respectful; speaking to an older farmer",
+      "codec": {
+        "codec": "aac",
+        "bit_rate_kbps": 32,
+        "channels": 1
+      },
+      "created_at": "2026-11-04T10:50:48.971Z",
+      "synthetic": true,
+      "label": "Sintetikong tingog (Gemini TTS)",
+      "draft": false,
+      "review": "machine-translated, pending native review",
+      "request": {
+        "id": "v1_Chc0ZzNyYXVXT0JLU3V6N3NQX0k3Vm9BURIXNGczcmF1V09CS1N1ejdzUF9JN1ZvQVE",
+        "latency_ms": 32494,
+        "sentences": 9
+      },
+      "offsets": [
+        {
+          "ref": "fact:PAYER",
+          "at_ms": 1180
+        },
+        {
+          "ref": "fact:PREMIUM_USD",
+          "at_ms": 3140
+        }
+      ]
+    },
+    {
+      "member_no": "M-031",
+      "lang": "en",
+      "slot": "BONUS",
+      "variant": "default",
+      "file": "audio/M-031/en/s04-BONUS-0a9dc628bff8.m4a",
+      "duration_ms": 5400,
+      "text": "Quality bonus: nine dollars and three cents.",
+      "text_sha256": "0a9dc628bff84838c176885fc822308b20b110f10a2c38815122ff27e2182f7f",
+      "model": "gemini-3.8-flash-tts",
+      "voice": "Sulafat",
+      "style": "warm, unhurried, respectful; speaking to an older farmer",
+      "codec": {
+        "codec": "aac",
+        "bit_rate_kbps": 32,
+        "channels": 1
+      },
+      "created_at": "2026-11-04T10:58:36.978Z",
+      "synthetic": true,
+      "label": "Synthetic voice (Gemini TTS)",
+      "draft": false,
+      "review": "machine-translated, pending native review",
+      "request": {
+        "id": "v1_ChcwQV9yYW8zYktvX096N3NQMDl1b29RdxIXMEFfcmFvM2JLb19PejdzUDA5dW9vUXc",
+        "latency_ms": 7544,
+        "sentences": 1
+      },
+      "offsets": [
+        {
+          "ref": "fact:BONUS_USD",
+          "at_ms": 1760
+        }
+      ]
+    },
+    {
+      "member_no": "M-031",
+      "lang": "en",
+      "slot": "DELIVERY",
+      "variant": "default",
+      "file": "audio/M-031/en/s02-DELIVERY-cc4e94bbd7de.m4a",
+      "duration_ms": 6720,
+      "text": "You delivered sixty-one point two kilos of dried cacao, all Grade one.",
+      "text_sha256": "cc4e94bbd7deabe88093d940cf22e2bad983764247457af9be7d53021696dfd2",
+      "model": "gemini-3.8-flash-tts",
+      "voice": "Sulafat",
+      "style": "warm, unhurried, respectful; speaking to an older farmer",
+      "codec": {
+        "codec": "aac",
+        "bit_rate_kbps": 32,
+        "channels": 1
+      },
+      "created_at": "2026-11-04T10:57:52.854Z",
+      "synthetic": true,
+      "label": "Synthetic voice (Gemini TTS)",
+      "draft": false,
+      "review": "machine-translated, pending native review",
+      "request": {
+        "id": "v1_ChdwQV9yYW9hMktyVG80dDRQX1AtSG1BOBIXcEFfcmFvYTJLclRvNHQ0UF9QLUhtQTg",
+        "latency_ms": 7266,
+        "sentences": 1
+      },
+      "offsets": [
+        {
+          "ref": "fact:KG_TOTAL",
+          "at_ms": 620
+        },
+        {
+          "ref": "fact:GRADE_SUMMARY",
+          "at_ms": 3400
+        }
+      ]
+    },
+    {
+      "member_no": "M-031",
+      "lang": "en",
+      "slot": "PAY",
+      "variant": "cash_nodate",
+      "file": "audio/M-031/en/s07-PAY-c7578b9696a8.m4a",
+      "duration_ms": 18840,
+      "text": "Your pay this season: one thousand six hundred sixty-five pesos and sixty-three centavos, in cash at the bodega. That is twenty-six dollars and sixty-five cents at sixty-two pesos and fifty centavos to the dollar.",
+      "text_sha256": "c7578b9696a8197636e493183cb54b3feb5104215e00c9f06d681d311ddd2ea7",
+      "model": "gemini-3.8-flash-tts",
+      "voice": "Sulafat",
+      "style": "warm, unhurried, respectful; speaking to an older farmer",
+      "codec": {
+        "codec": "aac",
+        "bit_rate_kbps": 32,
+        "channels": 1
+      },
+      "created_at": "2026-11-04T10:59:51.581Z",
+      "synthetic": true,
+      "label": "Synthetic voice (Gemini TTS)",
+      "draft": false,
+      "review": "machine-translated, pending native review",
+      "request": {
+        "id": "v1_ChdHQkRyYXN6N0QtTGczTFVQXzZXUG9RdxIXR0JEcmFzejdELUxnM0xVUF82V1BvUXc",
+        "latency_ms": 10683,
+        "sentences": 1
+      },
+      "offsets": [
+        {
+          "ref": "fact:NET_PHP",
+          "at_ms": 1320
+        },
+        {
+          "ref": "fact:NET_USD",
+          "at_ms": 8010
+        },
+        {
+          "ref": "fact:RATE",
+          "at_ms": 10740
+        }
+      ]
+    },
+    {
+      "member_no": "M-031",
+      "lang": "en",
+      "slot": "PREMIUM",
+      "variant": "default",
+      "file": "audio/M-031/en/s03-PREMIUM-4de0ae12447f.m4a",
+      "duration_ms": 7720,
+      "text": "Premium from Lantern Bay Chocolate Co.: eighteen dollars and seven cents, with no deductions.",
+      "text_sha256": "4de0ae12447f87d1f477c14c4b47341b61ba99f7c457101da43daccb4b7615e6",
+      "model": "gemini-3.8-flash-tts",
+      "voice": "Sulafat",
+      "style": "warm, unhurried, respectful; speaking to an older farmer",
+      "codec": {
+        "codec": "aac",
+        "bit_rate_kbps": 32,
+        "channels": 1
+      },
+      "created_at": "2026-11-04T10:58:10.798Z",
+      "synthetic": true,
+      "label": "Synthetic voice (Gemini TTS)",
+      "draft": false,
+      "review": "machine-translated, pending native review",
+      "request": {
+        "id": "v1_Chd0Z19yYXRTeU5aQ3F6N3NQNk9UMWtRNBIXdGdfcmF0U3lOWkNxejdzUDZPVDFrUTQ",
+        "latency_ms": 7093,
+        "sentences": 1
+      },
+      "offsets": [
+        {
+          "ref": "fact:PAYER",
+          "at_ms": 900
+        },
+        {
+          "ref": "fact:PREMIUM_USD",
+          "at_ms": 3200
+        }
+      ]
+    },
+    {
+      "member_no": "M-031",
+      "lang": "en",
+      "slot": "SOURCES",
+      "variant": "default",
+      "file": "audio/M-031/en/s08-SOURCES-962635a1c238.m4a",
+      "duration_ms": 5880,
+      "text": "It comes from your slips zero three three five and zero three seven three.",
+      "text_sha256": "962635a1c238973a6b2c5dbd0eafd36df67bcf036b58a0a27fa715db2841911f",
+      "model": "gemini-3.8-flash-tts",
+      "voice": "Sulafat",
+      "style": "warm, unhurried, respectful; speaking to an older farmer",
+      "codec": {
+        "codec": "aac",
+        "bit_rate_kbps": 32,
+        "channels": 1
+      },
+      "created_at": "2026-11-04T11:00:12.075Z",
+      "synthetic": true,
+      "label": "Synthetic voice (Gemini TTS)",
+      "draft": false,
+      "review": "machine-translated, pending native review",
+      "request": {
+        "id": "v1_ChdNQkRyYXNMSEVOaW56N3NQaXYybXFRWRIXTUJEcmFzTEhFTmluejdzUGl2Mm1xUVk",
+        "latency_ms": 7192,
+        "sentences": 1
+      },
+      "offsets": [
+        {
+          "ref": "fact:SLIPS",
+          "at_ms": 1560
+        },
+        {
+          "ref": "slip:0335",
+          "at_ms": 1560
+        },
+        {
+          "ref": "slip:0373",
+          "at_ms": 3200
+        }
+      ]
+    },
+    {
+      "member_no": "M-039",
+      "lang": "en",
+      "slot": "BONUS",
+      "variant": "default",
+      "file": "audio/M-039/en/s04-BONUS-a5ce5362f3ad.m4a",
+      "duration_ms": 5400,
+      "text": "Quality bonus: twelve dollars and ninety-nine cents.",
+      "text_sha256": "a5ce5362f3ad092b3b28e17c186a573b12cdc34ff2cd75980cf466422529f970",
+      "model": "gemini-3.8-flash-tts",
+      "voice": "Sulafat",
+      "style": "warm, unhurried, respectful; speaking to an older farmer",
+      "codec": {
+        "codec": "aac",
+        "bit_rate_kbps": 32,
+        "channels": 1
+      },
+      "created_at": "2026-11-04T10:26:20.787Z",
+      "synthetic": true,
+      "label": "Synthetic voice (Gemini TTS)",
+      "draft": false,
+      "review": "machine-translated, pending native review",
+      "request": {
+        "id": "v1_ChdQUWpyYXBPLUU4aWswcjRQd05DbjBRRRIXUFFqcmFwTy1FOGlrMHI0UHdOQ24wUUU",
+        "latency_ms": 9995,
+        "sentences": 1
+      },
+      "offsets": [
+        {
+          "ref": "fact:BONUS_USD",
+          "at_ms": 940
+        }
+      ]
+    },
+    {
+      "member_no": "M-039",
+      "lang": "en",
+      "slot": "DELIVERY",
+      "variant": "default",
+      "file": "audio/M-039/en/s02-DELIVERY-0a4a8eb6db58.m4a",
+      "duration_ms": 5600,
+      "text": "You delivered eighty-eight kilos of dried cacao, all Grade one.",
+      "text_sha256": "0a4a8eb6db584552891859d81a5b7d936e76387e2e575a14a8993f4b00763b72",
+      "model": "gemini-3.8-flash-tts",
+      "voice": "Sulafat",
+      "style": "warm, unhurried, respectful; speaking to an older farmer",
+      "codec": {
+        "codec": "aac",
+        "bit_rate_kbps": 32,
+        "channels": 1
+      },
+      "created_at": "2026-11-04T10:25:46.976Z",
+      "synthetic": true,
+      "label": "Synthetic voice (Gemini TTS)",
+      "draft": false,
+      "review": "machine-translated, pending native review",
+      "request": {
+        "id": "v1_ChdId2pyYW9qQklvV3o2OTRQaHJudzBBMBIXSHdqcmFvakJJb1d6Njk0UGhybncwQTA",
+        "latency_ms": 6499,
+        "sentences": 1
+      },
+      "offsets": [
+        {
+          "ref": "fact:KG_TOTAL",
+          "at_ms": 816
+        },
+        {
+          "ref": "fact:GRADE_SUMMARY",
+          "at_ms": 3796
+        }
+      ]
+    },
+    {
+      "member_no": "M-039",
+      "lang": "en",
+      "slot": "PREMIUM",
+      "variant": "default",
+      "file": "audio/M-039/en/s03-PREMIUM-1ed8fdb50856.m4a",
+      "duration_ms": 8240,
+      "text": "Premium from Lantern Bay Chocolate Co.: twenty-five dollars and ninety-eight cents, with no deductions.",
+      "text_sha256": "1ed8fdb508567ff400ae5bdac3077d95de98a7b6afdfe61c371ee536b1696b44",
+      "model": "gemini-3.8-flash-tts",
+      "voice": "Sulafat",
+      "style": "warm, unhurried, respectful; speaking to an older farmer",
+      "codec": {
+        "codec": "aac",
+        "bit_rate_kbps": 32,
+        "channels": 1
+      },
+      "created_at": "2026-11-04T10:26:03.877Z",
+      "synthetic": true,
+      "label": "Synthetic voice (Gemini TTS)",
+      "draft": false,
+      "review": "machine-translated, pending native review",
+      "request": {
+        "id": "v1_ChdMd2pyYXRYb0ZJenQ2OTRQNk5tY2dBNBIXTHdqcmF0WG9GSXp0Njk0UDZObWNnQTQ",
+        "latency_ms": 7550,
+        "sentences": 1
+      },
+      "offsets": [
+        {
+          "ref": "fact:PAYER",
+          "at_ms": 720
+        },
+        {
+          "ref": "fact:PREMIUM_USD",
+          "at_ms": 2800
         }
       ]
     },
@@ -1163,6 +2107,78 @@
     {
       "member_no": "M-053",
       "lang": "ceb",
+      "slot": "BONUS",
+      "variant": "default",
+      "file": "audio/M-053/ceb/s04-BONUS-33fb4c827084.m4a",
+      "duration_ms": 5680,
+      "text": "Bonus sa kalidad: forty-one dollars and thirty-four cents.",
+      "text_sha256": "33fb4c827084f68e2c12423df820e46c5e1f280cb575efd500aa55bdc3d600a7",
+      "model": "gemini-3.8-flash-tts",
+      "voice": "Sulafat",
+      "style": "warm, unhurried, respectful; speaking to an older farmer",
+      "codec": {
+        "codec": "aac",
+        "bit_rate_kbps": 32,
+        "channels": 1
+      },
+      "created_at": "2026-11-04T11:06:35.332Z",
+      "synthetic": true,
+      "label": "Sintetikong tingog (Gemini TTS)",
+      "draft": false,
+      "review": "machine-translated, pending native review",
+      "request": {
+        "id": "v1_ChdyaEhyYXNEOUs0bnM2OTRQazR6ZDZBMBIXcmhIcmFzRDlLNG5zNjk0UGs0emQ2QTA",
+        "latency_ms": 7885,
+        "sentences": 1
+      },
+      "offsets": [
+        {
+          "ref": "fact:BONUS_USD",
+          "at_ms": 1820
+        }
+      ]
+    },
+    {
+      "member_no": "M-053",
+      "lang": "ceb",
+      "slot": "DELIVERY",
+      "variant": "default",
+      "file": "audio/M-053/ceb/s02-DELIVERY-a67e86af0e24.m4a",
+      "duration_ms": 7760,
+      "text": "Nagdala mo og three hundred kilos nga uga nga cacao, two hundred eighty kilos niini Grade one.",
+      "text_sha256": "a67e86af0e24a48f1feebcda664aef73995c5e9ec9b7f77601df504e8d9ba7d7",
+      "model": "gemini-3.8-flash-tts",
+      "voice": "Sulafat",
+      "style": "warm, unhurried, respectful; speaking to an older farmer",
+      "codec": {
+        "codec": "aac",
+        "bit_rate_kbps": 32,
+        "channels": 1
+      },
+      "created_at": "2026-11-04T11:03:45.819Z",
+      "synthetic": true,
+      "label": "Sintetikong tingog (Gemini TTS)",
+      "draft": false,
+      "review": "machine-translated, pending native review",
+      "request": {
+        "id": "v1_ChdCUkhyYW9TZ0JfeTN6N3NQM01xOG9RdxIXQlJIcmFvU2dCX3kzejdzUDNNcThvUXc",
+        "latency_ms": 7974,
+        "sentences": 1
+      },
+      "offsets": [
+        {
+          "ref": "fact:KG_TOTAL",
+          "at_ms": 940
+        },
+        {
+          "ref": "fact:GRADE_SUMMARY",
+          "at_ms": 3300
+        }
+      ]
+    },
+    {
+      "member_no": "M-053",
+      "lang": "ceb",
       "slot": "HELP",
       "variant": "default",
       "file": "audio/M-053/ceb/s09-HELP-091f4998832d.m4a",
@@ -1191,6 +2207,116 @@
         {
           "ref": "fact:TREASURER",
           "at_ms": 3420
+        }
+      ]
+    },
+    {
+      "member_no": "M-053",
+      "lang": "ceb",
+      "slot": "PREMIUM",
+      "variant": "default",
+      "file": "audio/M-053/ceb/s03-PREMIUM-5f170246d64d.m4a",
+      "duration_ms": 9080,
+      "text": "Premium gikan sa Lantern Bay Chocolate Co.: eighty-eight dollars and fifty-seven cents, walay kaltas.",
+      "text_sha256": "5f170246d64d12b768b3e23c25c76959e738791cb6e55924460c337943e35c85",
+      "model": "gemini-3.8-flash-tts",
+      "voice": "Sulafat",
+      "style": "warm, unhurried, respectful; speaking to an older farmer",
+      "codec": {
+        "codec": "aac",
+        "bit_rate_kbps": 32,
+        "channels": 1
+      },
+      "created_at": "2026-11-04T11:05:27.933Z",
+      "synthetic": true,
+      "label": "Sintetikong tingog (Gemini TTS)",
+      "draft": false,
+      "review": "machine-translated, pending native review",
+      "request": {
+        "id": "v1_ChdheEhyYXBDVU5LcnM2OTRQaExfMHFRNBIXYXhIcmFwQ1VOS3JzNjk0UGhMXzBxUTQ",
+        "latency_ms": 7316,
+        "sentences": 1
+      },
+      "offsets": [
+        {
+          "ref": "fact:PAYER",
+          "at_ms": 900
+        },
+        {
+          "ref": "fact:PREMIUM_USD",
+          "at_ms": 2480
+        }
+      ]
+    },
+    {
+      "member_no": "M-060",
+      "lang": "fil",
+      "slot": "BONUS",
+      "variant": "default",
+      "file": "audio/M-060/fil/s04-BONUS-6735db397358.m4a",
+      "duration_ms": 6080,
+      "text": "Bonus sa kalidad: eighteen dollars and ninety-seven cents.",
+      "text_sha256": "6735db397358045a0258dec8451f6eb1a5371499e00aa2c06e693eb8cc02016d",
+      "model": "gemini-3.8-flash-tts",
+      "voice": "Sulafat",
+      "style": "warm, unhurried, respectful; speaking to an older farmer",
+      "codec": {
+        "codec": "aac",
+        "bit_rate_kbps": 32,
+        "channels": 1
+      },
+      "created_at": "2026-11-04T10:19:58.480Z",
+      "synthetic": true,
+      "label": "Sintetikong boses (Gemini TTS)",
+      "draft": false,
+      "review": "machine-translated, pending native review",
+      "request": {
+        "id": "v1_Chd3d2JyYXMtNkM3Q1V6N3NQLWU3UzhRURIXd3dicmFzLTZDN0NVejdzUC1lN1M4UVE",
+        "latency_ms": 6340,
+        "sentences": 1
+      },
+      "offsets": [
+        {
+          "ref": "fact:BONUS_USD",
+          "at_ms": 1880
+        }
+      ]
+    },
+    {
+      "member_no": "M-060",
+      "lang": "fil",
+      "slot": "DELIVERY",
+      "variant": "default",
+      "file": "audio/M-060/fil/s02-DELIVERY-1a87c959fab6.m4a",
+      "duration_ms": 7840,
+      "text": "Nagdala po kayo ng one hundred twenty-eight point five kilo na tuyong cacao, lahat ay Grade one.",
+      "text_sha256": "1a87c959fab6b4f2f15f220d65e147523772ed5b7f1240cea171e65bf9c66f26",
+      "model": "gemini-3.8-flash-tts",
+      "voice": "Sulafat",
+      "style": "warm, unhurried, respectful; speaking to an older farmer",
+      "codec": {
+        "codec": "aac",
+        "bit_rate_kbps": 32,
+        "channels": 1
+      },
+      "created_at": "2026-11-04T10:19:20.082Z",
+      "synthetic": true,
+      "label": "Sintetikong boses (Gemini TTS)",
+      "draft": false,
+      "review": "machine-translated, pending native review",
+      "request": {
+        "id": "v1_ChduQWJyYXMtX0pMRG0xX29Qa3N2ODhBOBIXbkFicmFzLV9KTERtMV9vUGtzdjg4QTg",
+        "latency_ms": 6675,
+        "sentences": 1
+      },
+      "offsets": [
+        {
+          "ref": "fact:KG_TOTAL",
+          "at_ms": 1350
+        },
+        {
+          "ref": "fact:GRADE_SUMMARY",
+          "at_ms": 6350
         }
       ]
     },
@@ -1225,6 +2351,52 @@
         {
           "ref": "fact:TREASURER",
           "at_ms": 4073
+        }
+      ]
+    },
+    {
+      "member_no": "M-060",
+      "lang": "fil",
+      "slot": "SOURCES",
+      "variant": "default",
+      "file": "audio/M-060/fil/s08-SOURCES-84498f0db072.m4a",
+      "duration_ms": 8920,
+      "text": "Galing po ito sa inyong mga resibo zero three six nine, zero four six two at zero five two seven.",
+      "text_sha256": "84498f0db072bb0c6a9259e4af1976696edbf9989c122a11ec8ed7219aa574c4",
+      "model": "gemini-3.8-flash-tts",
+      "voice": "Sulafat",
+      "style": "warm, unhurried, respectful; speaking to an older farmer",
+      "codec": {
+        "codec": "aac",
+        "bit_rate_kbps": 32,
+        "channels": 1
+      },
+      "created_at": "2026-11-04T10:21:00.820Z",
+      "synthetic": true,
+      "label": "Sintetikong boses (Gemini TTS)",
+      "draft": false,
+      "review": "machine-translated, pending native review",
+      "request": {
+        "id": "v1_ChdBUWZyYXRlQUNfSGk0dDRQaDYtWWdBWRIXQVFmcmF0ZUFDX0hpNHQ0UGg2LVlnQVk",
+        "latency_ms": 6802,
+        "sentences": 1
+      },
+      "offsets": [
+        {
+          "ref": "fact:SLIPS",
+          "at_ms": 2160
+        },
+        {
+          "ref": "slip:0369",
+          "at_ms": 2160
+        },
+        {
+          "ref": "slip:0462",
+          "at_ms": 3920
+        },
+        {
+          "ref": "slip:0527",
+          "at_ms": 6060
         }
       ]
     }
