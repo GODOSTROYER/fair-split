@@ -245,9 +245,7 @@ export async function loadMobileStatement(
     })
     .at(-1);
   const replay = ctx.provenance === "seeded" || ctx.provenance === "replay";
-  const verified =
-    !!success ||
-    (replay && item !== undefined && (item.provenance === "seeded" || item.provenance === "replay"));
+  const verified = !!success || item?.provenance === "replay" || (replay && item?.provenance === "seeded");
   const itemStatus = mobileItemStatus(item?.status, verified);
   const slips = await db
     .select({
@@ -294,7 +292,7 @@ export async function loadMobileStatement(
     lineId: f.lineId,
     runId: ctx.runId,
     runSlug: ctx.runSlug,
-    provenance: ctx.provenance,
+    provenance: item?.provenance === "replay" ? "replay" : ctx.provenance,
     coop: { name: coop?.name ?? f.coop, place: coop?.region ?? "" },
     season: { id: run.seasonId, code: run.seasonCode },
     payer: { short: f.payer },

@@ -11,11 +11,19 @@ import {
   JUDGE_QUOTA,
   type JudgeStep,
   type QuotaFacts,
+  REPLAY_COPY,
 } from "./quota.js";
 import { PRESENCE, PresenceTracker } from "./runtime.js";
 import { EXTRA_RECIPIENT, OVERCHARGE_CENTS, tamperedDraft } from "./tamper.js";
 
 const NOW = new Date("2026-11-03T10:15:00.000Z");
+
+it("inv.i8.quota-copy: payout limits name the simulated rail without live-payment claims", () => {
+  for (const reason of ["daily_cap", "hourly_cap", "session_cap", "public_share"] as const) {
+    expect(REPLAY_COPY[reason]).toContain("simulated PayPal sandbox payouts");
+    expect(REPLAY_COPY[reason]).not.toMatch(/live payouts/i);
+  }
+});
 
 function facts(o: Partial<QuotaFacts> = {}): QuotaFacts {
   return {
@@ -103,7 +111,7 @@ describe("live or replay", () => {
     expect(decideRail(facts(), NOW, "session", "sandbox")).toMatchObject({
       mode: "live",
       reason: null,
-      label: "Live in PayPal's sandbox",
+      label: "PayPal's own sandbox (untested in this build)",
     });
     expect(decideRail(facts(), NOW, "session", "simulated").label).toMatch(/^Simulated PayPal sandbox/);
   });

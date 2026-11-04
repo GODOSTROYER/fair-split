@@ -125,13 +125,13 @@ export const REPLAY_COPY: Readonly<Record<ReplayReason, string>> = {
   kill_switch: "PayPal calls are paused by the kill switch",
   simulator_not_running: "the PayPal simulator is not running",
   circuit_open: "the simulated PayPal sandbox is pacing us",
-  lane_full: "too many live runs are waiting",
-  balance_unknown: "the sandbox balance has not been read in the last day",
-  balance_low: "the sandbox balance is low",
-  daily_cap: "today's live payouts are used up",
-  hourly_cap: "this hour's live payouts are used up",
-  session_cap: "you have used your three live payouts today",
-  public_share: "today's public live payouts are used up",
+  lane_full: "too many simulated PayPal sandbox runs are waiting",
+  balance_unknown: "the simulated PayPal sandbox balance has not been read in the last day",
+  balance_low: "the simulated PayPal sandbox balance is low",
+  daily_cap: "today's simulated PayPal sandbox payouts are used up",
+  hourly_cap: "this hour's simulated PayPal sandbox payouts are used up",
+  session_cap: "you have used your three simulated PayPal sandbox payouts today",
+  public_share: "today's public simulated PayPal sandbox payouts are used up",
 };
 
 export const BALANCE_SOURCES = ["reading", "simulator_opening", "unknown"] as const;
@@ -212,7 +212,7 @@ export function dailyLivePostCap(balanceCents: number, today: string): number {
 
 function liveLabel(rail: RailLabel): string {
   return rail === "sandbox"
-    ? "Live in PayPal's sandbox"
+    ? "PayPal's own sandbox (untested in this build)"
     : "Simulated PayPal sandbox (contract-tested against PayPal's OpenAPI specs)";
 }
 

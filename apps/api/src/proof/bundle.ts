@@ -200,6 +200,17 @@ export function weakestProvenance(labels: readonly Provenance[]): Provenance {
   return out;
 }
 
+/** Payout replays must survive a seeded or simulated envelope label in every served export. */
+function proofProvenance(
+  run: Provenance,
+  invoice: Provenance | null,
+  payouts: readonly Provenance[],
+): Provenance {
+  return payouts.includes("replay")
+    ? "replay"
+    : weakestProvenance([run, ...(invoice ? [invoice] : []), ...payouts]);
+}
+
 // ---------------------------------------------------------------- facts the metrics reuse
 
 export interface LineFact {
@@ -233,7 +244,7 @@ export interface ProofFacts {
   premiumPoolCents: number;
   bonusPoolCents: number;
   ledger: LedgerEntry[];
-  /** The least-real label of the run, its invoice, batch and items (I8). */
+  /** Replay when payouts replay; otherwise the least-real label of the run, invoice, batch and items (I8). */
   provenance: Provenance;
 }
 
@@ -295,11 +306,7 @@ async function readFacts(db: DbOrTx, lookedUp: ProofRun, strict = true): Promise
     premiumPoolCents: pools.premiumPoolCents,
     bonusPoolCents: pools.bonusPoolCents,
     ledger,
-    provenance: weakestProvenance([
-      run.provenance,
-      ...(invoice?.provenance ? [invoice.provenance] : []),
-      ...batch.provenances,
-    ]),
+    provenance: proofProvenance(run.provenance, invoice?.provenance ?? null, batch.provenances),
   };
 }
 
@@ -355,11 +362,7 @@ async function assemble(db: DbOrTx, lookedUp: ProofRun, o: BuildOptions): Promis
     ledger,
   };
   const checkpoint = signProofCheckpoint(ledger, run.id, o.key, o.now);
-  const provenance = weakestProvenance([
-    run.provenance,
-    ...(invoice.provenance ? [invoice.provenance] : []),
-    ...batch.provenances,
-  ]);
+  const provenance = proofProvenance(run.provenance, invoice.provenance, batch.provenances);
   return {
     bundle: { ...bundleWithoutCheckpoint, checkpoint },
     provenance,
