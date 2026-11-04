@@ -768,6 +768,9 @@ importers:
       "@fairsplit/domain":
         specifier: workspace:*
         version: link:../packages/domain
+      "@fairsplit/motion":
+        specifier: workspace:*
+        version: link:../packages/motion
       "@fairsplit/seed":
         specifier: workspace:*
         version: link:../packages/seed
