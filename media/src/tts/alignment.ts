@@ -3,6 +3,21 @@ import { cer, normaliseForCer } from "./asr.js";
 /** Conservative publication gate. Timing remains measured even when surrounding words differ. */
 export const STATEMENT_CER_LIMIT = 0.12;
 
+const NUMBER_WORDS = new Set(
+  (
+    "zero one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen " +
+    "sixteen seventeen eighteen nineteen twenty thirty forty fifty sixty seventy eighty ninety " +
+    "hundred thousand million point"
+  ).split(" "),
+);
+
+function numberSequence(text: string): string {
+  return normaliseForCer(text)
+    .split(" ")
+    .filter((token) => NUMBER_WORDS.has(token))
+    .join(" ");
+}
+
 interface Span {
   start: number;
   end: number;
@@ -260,6 +275,9 @@ export function alignWords(
       .map((token) => token.text)
       .join(" ");
     if (cer(anchor.spoken, phrase) > STATEMENT_CER_LIMIT) return null;
+    // CER tolerates spelling, but a nearby number is a different payroll fact. Digits have already
+    // been spelled by normaliseForCer; compare their number-word sequence without fuzzy matching.
+    if (numberSequence(anchor.spoken) !== numberSequence(phrase)) return null;
     const measured = transcript[firstMatch];
     if (!measured) return null;
     const atMs = Math.round(measured.start * 1000);

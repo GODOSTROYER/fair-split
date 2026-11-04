@@ -25,6 +25,19 @@ describe("listening proxy (ASR round trip)", () => {
     expect(cer("", "x")).toBe(1);
   });
 
+  it("normalises the Cebuano compound's hyphenation without rewriting numbers or translations", () => {
+    expect(normaliseForCer("gibana-bana")).toBe(normaliseForCer("gibanabana"));
+    expect(
+      cer(
+        "mga four thousand twenty-eight pesos, gibanabana",
+        "mga four thousand twenty-eight pesos, gibana-bana",
+      ),
+    ).toBe(0);
+    expect(normaliseForCer("twenty-eight")).toBe("twenty eight");
+    expect(cer("three porsiyento", "three percent")).toBeGreaterThan(0.12);
+    expect(cer("three porsiyento", "tres porsyento")).toBeGreaterThan(0.12);
+  });
+
   it("preserves explicit leading zeros in slip identifiers digit by digit", () => {
     expect(spellNumerals("0403 0410 0000")).toBe(
       "zero four zero three zero four one zero zero zero zero zero",

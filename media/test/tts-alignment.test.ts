@@ -166,6 +166,29 @@ describe("alignWords", () => {
     ).toBeNull();
   });
 
+  it("inv.i1.pay-amount: accepts compound spelling but rejects a changed amount inside the same anchor", () => {
+    const amount = "mga four thousand twenty-eight pesos, gibanabana";
+    const expected = `Sa peso ${amount} sa dili pa ang bayad.`;
+    const anchors = [{ ref: "fact:NET_PHP", spoken: amount, start: expected.indexOf("mga") }];
+    const heard = expected.replace("gibanabana", "gibana-bana");
+    expect(alignWords(words(heard.split(" ")), expected, 10, anchors)?.offsets).toEqual([
+      { ref: "fact:NET_PHP", at_ms: 600 },
+    ]);
+    for (const wrong of ["twenty-nine", "thirty-eight", "twenty-seven"])
+      expect(
+        alignWords(words(heard.replace("twenty-eight", wrong).split(" ")), expected, 10, anchors),
+      ).toBeNull();
+    const usd = "sixty-four dollars and forty-five cents";
+    for (const wrong of ["sixty-five dollars and forty-five cents", "sixty-four dollars and forty-six cents"])
+      expect(
+        alignWords(words(wrong.split(" ")), usd, 10, [{ ref: "fact:NET_USD", spoken: usd, start: 0 }]),
+      ).toBeNull();
+    expect(
+      alignWords(words(["$64.45"]), usd, 10, [{ ref: "fact:NET_USD", spoken: usd, start: 0 }])?.cer,
+    ).toBe(0);
+    expect(STATEMENT_CER_LIMIT).toBe(0.12);
+  });
+
   it("uses reference position for repeated words, rejecting ambiguous recognition deletions", () => {
     expect(
       alignWords(words(["pay", "pay", "now"]), "pay pay now", 2, [{ ref: "second", spoken: "pay", start: 4 }])
