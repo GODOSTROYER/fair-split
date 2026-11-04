@@ -252,6 +252,17 @@ describe("postman/lib.cjs", () => {
     ]);
   });
 
+  it("inv.i8.postman: a replayed id (RPLY) is labelled only with provenance replay", () => {
+    const replayed = {
+      invoice: { paypalInvoiceId: "INV2-RPLY-9ED5-063B-22FA-144E", provenance: "replay" },
+      items: [{ payoutItemId: "RPLY6B14A208B300C677", eventId: null, provenance: "replay" }],
+    };
+    expect(fair.simLabelIssues(replayed)).toEqual({ issues: [], seen: 4 });
+    // fs-api's Mark paid answer on a replayed run (docs/reports/cloud-postman.md): a replayed invoice called simulated
+    const markPaid = { invoiceId: "INV2-RPLY-9ED5-063B-22FA-144E", provenance: "simulated_rail" };
+    expect(fair.simLabelIssues(markPaid).issues).toEqual(["$.provenance=simulated_rail"]);
+  });
+
   describe("Proof verify on a bundle signed here", () => {
     const officer = (role) => ({ role, seed: randomBytes(32) });
     const keys = [officer("treasurer"), officer("chair")].map((o) => ({ ...o, ...nodeKey(o.seed) }));

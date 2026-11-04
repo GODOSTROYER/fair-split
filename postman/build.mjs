@@ -147,10 +147,11 @@ function waitRunTest() {
         });
       }
       if (ARGS.invoiced) {
+        const live = pm.collectionVariables.get("railMode") === "live";
         pm.test(
-          "the invoice is the simulator's (INV2-SIM…), its pay page the simulator's labelled page",
+          `the invoice is ${live ? "the simulator's (INV2-SIM…)" : "a labelled replay (INV2-RPLY…)"}, its pay page the simulator's`,
           () => {
-            pm.expect(view.invoice.paypalInvoiceId).to.match(/^INV2-SIM/);
+            pm.expect(view.invoice.paypalInvoiceId).to.match(live ? /^INV2-SIM/ : /^INV2-RPLY/);
             pm.expect(
               view.invoice.payerViewUrl.startsWith(`${pm.variables.get("baseUrl")}/paypal-sim/`),
             ).to.equal(true);
@@ -203,7 +204,9 @@ function sessionViewTest() {
   const s = pm.response.json();
   pm.test("the rail is the simulated PayPal sandbox, labelled", () => {
     pm.expect(s.rail.rail).to.equal("simulated");
-    pm.expect(s.rail.label).to.equal(pm.collectionVariables.get("simulatedLabel"));
+    if (s.rail.mode === "live")
+      pm.expect(s.rail.label).to.equal(pm.collectionVariables.get("simulatedLabel"));
+    else pm.expect(s.rail.label).to.match(/^Replay: .*simulated PayPal sandbox/);
     pm.expect(["live", "replay"]).to.include(s.rail.mode);
   });
   pm.test("no tamper is armed", () => {
@@ -519,6 +522,12 @@ function verificationTest() {
         [pm.collectionVariables.get("keyId.treasurer"), pm.collectionVariables.get("keyId.chair")].sort(),
       );
     });
+    if (replay) {
+      pm.test("the payout items plate reads replay, labelled, never fresh simulator notices", () => {
+        pm.expect(v.plates.payoutItems.state).to.equal("replay");
+        pm.expect(v.plates.payoutItems.reason).to.match(/^Replayed \(labelled\)/);
+      });
+    }
     pm.test("PayPal's anchors name this run's batch", () => {
       pm.expect(v.anchors.senderBatchId).to.equal(pm.collectionVariables.get("senderBatchId"));
       pm.expect(r.provenance).to.equal(pm.collectionVariables.get("paypalProvenance"));
@@ -607,13 +616,24 @@ function proofDownloadTest() {
       pm.expect(r.checkpoint).to.eql({ keyPublished: true, headMatches: true, signatureOk: true });
     },
   );
-  pm.test("PayPal's ids in the bundle are the simulator's; receivers are withheld in the public tier", () => {
-    for (const i of b.batch.items) {
-      pm.expect(i.payoutItemId).to.match(/^SIM/);
-      pm.expect(i.receiver).to.equal("withheld");
-    }
-    pm.expect(body.provenance).to.equal(pm.collectionVariables.get("paypalProvenance"));
-  });
+  const live = pm.collectionVariables.get("railMode") === "live";
+  pm.test(
+    live
+      ? "PayPal's ids in the bundle are the simulator's; receivers are withheld in the public tier"
+      : "every payout item is a labelled replay (RPLY…, provenance replay, no webhook event); receivers withheld",
+    () => {
+      for (const i of b.batch.items) {
+        pm.expect(i.receiver).to.equal("withheld");
+        if (live) {
+          pm.expect(i.payoutItemId).to.match(/^SIM/);
+        } else {
+          pm.expect(i.payoutItemId).to.match(/^RPLY/);
+          pm.expect(i).to.include({ provenance: "replay", eventId: null });
+        }
+      }
+      pm.expect(body.provenance).to.equal(pm.collectionVariables.get("paypalProvenance"));
+    },
+  );
   // A copy with one cent moved: its line hash, and so the signed lines root, no longer match.
   const altered = JSON.parse(JSON.stringify(b));
   altered.lines[0].canonical.netCents += 1;
@@ -761,26 +781,38 @@ function overviewTest() {
   pm.response.to.have.status(200);
   const w = pm.response.json().webhooks;
   const ids = w.recent.map((e) => e.paypalEventId);
-  pm.test("the simulator's signed deliveries are stored once per event id, verified, labelled", () => {
-    pm.expect(ids.length).to.be.above(0);
-    pm.expect(new Set(ids).size).to.equal(ids.length);
-    for (const e of w.recent) {
-      pm.expect(e.verified).to.equal("self");
-      pm.expect(e.provenance).to.equal("simulated_rail");
-    }
-    pm.expect(w.duplicates).to.be.a("number");
-  });
+  const replay = pm.collectionVariables.get("railMode") !== "live";
+  pm.test(
+    replay
+      ? "a replayed run took no PayPal delivery: none is stored for this workspace"
+      : "the simulator's signed deliveries are stored once per event id, verified, labelled",
+    () => {
+      if (replay) pm.expect(ids).to.eql([]);
+      else pm.expect(ids.length).to.be.above(0);
+      pm.expect(new Set(ids).size).to.equal(ids.length);
+      for (const e of w.recent) {
+        pm.expect(e.verified).to.equal("self");
+        pm.expect(e.provenance).to.equal("simulated_rail");
+      }
+      pm.expect(w.duplicates).to.be.a("number");
+    },
+  );
   if (ARGS.after) {
-    const stored = w.recent.find((e) => e.paypalEventId === pm.collectionVariables.get("whEventId"));
-    pm.test("the re-posted copies changed nothing: the stored event is still there once, same status", () => {
-      pm.expect(stored, "stored event").to.be.an("object");
-      pm.expect(stored.status).to.equal(pm.collectionVariables.get("whStatus"));
-      pm.expect(ids.filter((x) => x === stored.paypalEventId)).to.have.length(1);
+    const id = pm.collectionVariables.get("whEventId");
+    pm.test("the re-posted copies changed nothing: the event is stored exactly as before", () => {
+      const stored = w.recent.filter((e) => e.paypalEventId === id);
+      if (replay) pm.expect(stored).to.eql([]);
+      else pm.expect(stored.map((e) => e.status)).to.eql([pm.collectionVariables.get("whStatus")]);
     });
-  } else {
+  } else if (w.recent.length > 0) {
     pm.collectionVariables.set("whEventId", w.recent[0].paypalEventId);
     pm.collectionVariables.set("whEventType", w.recent[0].eventType);
     pm.collectionVariables.set("whStatus", w.recent[0].status);
+  } else {
+    // nothing stored to copy: post a copy of an event id this server never saw (still refused, still not stored)
+    pm.collectionVariables.set("whEventId", "WH-SIM0POSTMAN00COPY-0POSTMAN0000000COPY");
+    pm.collectionVariables.set("whEventType", "INVOICING.INVOICE.PAID");
+    pm.collectionVariables.set("whStatus", "");
   }
 }
 
