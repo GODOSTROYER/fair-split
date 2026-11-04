@@ -3,9 +3,23 @@
 import { randomUUID } from "node:crypto";
 import postgres from "postgres";
 import { Api, type JudgeSession, waitForRun } from "./api.js";
-import { expect } from "./fixtures.js";
+import { expect, test } from "./fixtures.js";
 import { bothKeys, officers, pressToReview, workTheReview } from "./judge-run.js";
+import { quotaHourDelay } from "./quota-clock.js";
 import { E2E_HOURLY_CAP } from "./quota-config.js";
+
+/** Quota counts clock hours: never insert fillers that can expire in the middle of the assertion. */
+async function waitForQuotaHour(sql: ReturnType<typeof postgres>): Promise<void> {
+  const [clock] = await sql<{ now: string }[]>`select clock_timestamp()::text as now`;
+  if (!clock) throw new Error("quota fixture could not read the database clock");
+  const delay = quotaHourDelay(Date.parse(clock.now));
+  if (delay === 0) return;
+  test.setTimeout(test.info().timeout + delay);
+  process.stdout.write(`[judge-quota] waiting ${Math.ceil(delay / 1_000)}s for a fresh clock hour\n`);
+  // Small chunks keep the wait interruptible while the old hour's rows age out.
+  for (let left = delay; left > 0; left -= 30_000)
+    await new Promise((resolve) => setTimeout(resolve, Math.min(left, 30_000)));
+}
 
 export async function withFullHourlyQuota<T>(run: () => Promise<T>): Promise<T> {
   const url = process.env.E2E_DATABASE_URL;
@@ -13,6 +27,7 @@ export async function withFullHourlyQuota<T>(run: () => Promise<T>): Promise<T> 
   const sql = postgres(url, { max: 1, onnotice: () => {} });
   const ids: string[] = [];
   try {
+    await waitForQuotaHour(sql);
     for (let i = 0; i < E2E_HOURLY_CAP; i++) {
       const id = randomUUID();
       await sql`
@@ -44,14 +59,15 @@ export async function withFullHourlyQuota<T>(run: () => Promise<T>): Promise<T> 
 export async function withLastHourlySlot<T>(api: Api, run: () => Promise<T>): Promise<T> {
   const url = process.env.E2E_DATABASE_URL;
   if (!url) throw new Error("quota fixtures require the private test stack (E2E_DATABASE_URL)");
-  const lane = await api.get("/v1/judge/lane");
-  expect(lane.status).toBe(200);
-  const { quota } = (lane.json as { rail: { quota: { hourlyCap: number; usedThisHour: number } } }).rail;
-  expect(quota.hourlyCap).toBe(E2E_HOURLY_CAP);
-  expect(quota.usedThisHour).toBeLessThan(E2E_HOURLY_CAP);
   const sql = postgres(url, { max: 1, onnotice: () => {} });
   const ids: string[] = [];
   try {
+    await waitForQuotaHour(sql);
+    const lane = await api.get("/v1/judge/lane");
+    expect(lane.status).toBe(200);
+    const { quota } = (lane.json as { rail: { quota: { hourlyCap: number; usedThisHour: number } } }).rail;
+    expect(quota.hourlyCap).toBe(E2E_HOURLY_CAP);
+    expect(quota.usedThisHour).toBeLessThan(E2E_HOURLY_CAP);
     for (let i = quota.usedThisHour; i < E2E_HOURLY_CAP - 1; i++) {
       const id = randomUUID();
       await sql`

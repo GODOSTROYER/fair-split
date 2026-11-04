@@ -75,6 +75,7 @@ describe("E-19 public copy", () => {
         "apps/api/src/statements/templates.ts",
         "apps/mobile/src/_shims/seed.ts",
       ]);
+      expect(areas.get("judge rail notices")).toEqual(["apps/api/src/judge/quota.ts"]);
       expect(scanned().some((f) => /\.test\./.test(f))).toBe(false);
     },
     SLOW,

@@ -323,10 +323,44 @@ test("a quota-replayed run labels the stage, payout summary, chips and log befor
         { timeout: 30_000 },
       );
       await expect(page.getByTestId("W-JG-01.proofChip")).not.toContainText(/statuses replayed/i);
+      await page.getByTestId("W-JG-01.tab.member").click();
+      const member = page.frameLocator('[data-testid="W-JG-01.frame.member"]');
+      // Keep the phone subscribed before POST: the event must override this run's original simulator DTO.
+      await expect(member.getByTestId("M-MB-01.rail")).toHaveAttribute("data-rail", "simulated");
       expect((await bothKeys(api, s, keys)).map((answer) => answer.status)).toEqual([201, 201]);
       expect(
         (await waitForRun(api, s, (run) => run.run.state === "NEEDS_FOLLOW_UP", 120_000))?.run.state,
       ).toBe("NEEDS_FOLLOW_UP");
+      await expect(member.getByTestId("M-MB-01.rail")).toHaveAttribute("data-rail", "replay");
+      await expect(member.getByTestId("M-MB-01.rail")).toContainText(/replay/i);
+      await expect(member.getByTestId("M-MB-01.railCopy")).toContainText(/replay/i);
+      await expect(member.getByTestId("M-MB-01.capsule")).toContainText(/replay/i);
+      await expect(member.getByTestId("M-MB-01.capsule")).toHaveAttribute("data-tone", "neutral");
+      await expect(member.getByTestId("M-MB-01.machine")).toContainText(
+        "Machine-translated, pending native review",
+      );
+      await expect(member.getByTestId("M-MB-01.railCopy")).not.toContainText(
+        /This payment uses|Kini nga bayad pinaagi|Ang bayad na ito ay sa/,
+      );
+      // Cold read uses payout evidence without SSE history restoring the replay label after navigation.
+      await page.route("**/v1/lines/*/events*", (route) => route.abort());
+      const coldRead = page.waitForResponse(
+        (response) =>
+          /\/v1\/statements\/[^/]+$/.test(new URL(response.url()).pathname) && response.status() === 200,
+      );
+      const navigated = page.waitForEvent("framenavigated", (frame) => frame.name() === "member");
+      await page.getByTestId("W-JG-01.frame.member").evaluate((element: HTMLIFrameElement) => {
+        element.contentWindow?.location.reload();
+      });
+      await navigated;
+      expect(await (await coldRead).json()).toMatchObject({
+        provenance: "replay",
+        mobile: { provenance: "replay", item: { status: "SUCCESS", provenance: "replay" } },
+      });
+      await expect(member.getByTestId("M-MB-01.rail")).toHaveAttribute("data-rail", "replay");
+      await expect(member.getByTestId("M-MB-01.railCopy")).toContainText(/replay/i);
+      await expect(member.getByTestId("M-MB-01.capsule")).toContainText(/replay/i);
+      await expect(member.getByTestId("M-MB-01.capsule")).toHaveAttribute("data-tone", "neutral");
       await page.getByTestId("W-JG-01.rail.run").click();
       await expect(page.getByTestId("W-JG-01.notice.state")).toContainText(
         "Replayed (labelled): earlier simulated PayPal sandbox run",
@@ -341,7 +375,13 @@ test("a quota-replayed run labels the stage, payout summary, chips and log befor
       await expect(summary).not.toContainText(/confirmed|verified|sent by PayPal/i);
       const statusCells = page.getByTestId("W-TR-08.table").getByRole("cell", { name: /Replayed/i });
       await expect(statusCells).toHaveCount(8);
-      for (const status of await statusCells.all()) await expect(status).toContainText(/Replayed/i);
+      const payoutRows = page
+        .getByTestId("W-TR-08.table")
+        .getByRole("row")
+        .filter({ hasText: /M-\d{3}/ });
+      await expect(payoutRows).toHaveCount(8);
+      for (const row of await payoutRows.all())
+        await expect(row.getByRole("cell").last()).toHaveText("Replayed (labelled)");
       const parkedChip = page.getByTestId(/^W-TR-08\.chip\./);
       await expect(parkedChip).toHaveCount(1);
       await expect(parkedChip).toHaveText("Replayed");
@@ -368,6 +408,29 @@ test("a quota-replayed run labels the stage, payout summary, chips and log befor
       await expect(rheaRow).toContainText("Cash due");
       await expect(rheaRow).not.toContainText("Replayed");
       await expect(statusCells).toHaveCount(7);
+      for (const row of await payoutRows.all()) {
+        const status = row.getByRole("cell").last();
+        await expect(status).toHaveText(
+          (await row.textContent())?.includes("Rhea Jumawan") ? "Cash due" : "Replayed (labelled)",
+        );
+      }
+      // The film's tab layout must fit its phone figure without a horizontal scrollbar.
+      await page.setViewportSize({ width: 1470, height: 956 });
+      await page.getByTestId("W-JG-01.phoneTab").click();
+      await page.getByTestId("W-JG-01.tab.member").click();
+      await expect(page.locator("#fsc-phone-panel")).toBeVisible();
+      const dimensions = await page.locator("#fsc-phone-panel").evaluate((panel) => {
+        const figure = panel.querySelector("figure");
+        return {
+          scrollWidth: panel.scrollWidth,
+          clientWidth: panel.clientWidth,
+          figureWidth: figure?.getBoundingClientRect().width ?? 0,
+        };
+      });
+      expect(dimensions.figureWidth).toBeGreaterThan(0);
+      expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.clientWidth);
+      expect(dimensions.figureWidth).toBeLessThanOrEqual(dimensions.clientWidth);
+      await page.setViewportSize({ width: 1920, height: 1080 });
       await chip.click();
       await expect(page.getByTestId("W-PF-01.progress")).toContainText(
         /payout statuses replayed \(labelled\)/i,
@@ -392,14 +455,19 @@ test("inv.i8.the last hourly slot stays live on the stage, Run and Proof after i
     await workTheReview(api, s);
     const keys = await officers(api, s);
     await withLastHourlySlot(api, async () => {
-      // Before posting, no item evidence exists: a quota peek must never invent replayed statuses.
-      await expect(page.getByTestId("W-JG-01.proofChip")).not.toContainText(/replayed/i);
+      await page.getByTestId("W-JG-01.tab.member").click();
+      const member = page.frameLocator('[data-testid="W-JG-01.frame.member"]');
+      await expect(member.getByTestId("M-MB-01.rail")).toHaveAttribute("data-rail", "simulated");
       expect((await bothKeys(api, s, keys)).map((answer) => answer.status)).toEqual([201, 201]);
       expect(
         (await waitForRun(api, s, (run) => run.run.state === "NEEDS_FOLLOW_UP", 120_000))?.run.state,
       ).toBe("NEEDS_FOLLOW_UP");
       const item = await events.waitFor((event) => event.type === "item.updated", 10_000);
       expect(item?.provenance).toBe("simulated_rail");
+      await expect(member.getByTestId("M-MB-01.rail")).toHaveAttribute("data-rail", "simulated");
+      await expect(member.getByTestId("M-MB-01.railCopy")).toContainText(/simulated PayPal sandbox/);
+      await expect(member.getByTestId("M-MB-01.railCopy")).not.toContainText(/replay/i);
+      await expect(member.getByTestId("M-MB-01.capsule")).toContainText(/Bayad na|Paid|Bayad/);
       const browserQuota = page.waitForResponse(
         async (response) => {
           if (new URL(response.url()).pathname !== "/v1/judge/session" || response.status() !== 200)
@@ -412,6 +480,23 @@ test("inv.i8.the last hourly slot stays live on the stage, Run and Proof after i
       const session = await api.get("/v1/judge/session", s.asJudge);
       expect(session.json).toMatchObject({ rail: { mode: "replay", reason: "hourly_cap" } });
       await browserQuota;
+      await page.route("**/v1/lines/*/events*", (route) => route.abort());
+      const coldRead = page.waitForResponse(
+        (response) =>
+          /\/v1\/statements\/[^/]+$/.test(new URL(response.url()).pathname) && response.status() === 200,
+      );
+      const navigated = page.waitForEvent("framenavigated", (frame) => frame.name() === "member");
+      await page.getByTestId("W-JG-01.frame.member").evaluate((element: HTMLIFrameElement) => {
+        element.contentWindow?.location.reload();
+      });
+      await navigated;
+      expect(await (await coldRead).json()).toMatchObject({
+        provenance: "simulated_rail",
+        mobile: { provenance: "simulated_rail", item: { status: "SUCCESS", provenance: "simulated_rail" } },
+      });
+      await expect(member.getByTestId("M-MB-01.rail")).toHaveAttribute("data-rail", "simulated");
+      await expect(member.getByTestId("M-MB-01.railCopy")).not.toContainText(/replay/i);
+      await expect(member.getByTestId("M-MB-01.capsule")).toContainText(/Bayad na|Paid|Bayad/);
       await page.getByTestId("W-JG-01.rail.run").click();
       const chip = page.getByTestId("W-JG-01.proofChip");
       await expect(chip).toContainText(/confirmed/i);
