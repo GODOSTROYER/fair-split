@@ -29,7 +29,7 @@ async function press(testId: string) {
 
 describe("Judge stage", () => {
   it("keeps a viewer's raise through co-sign cues and resets to Member", async () => {
-    const view = await renderConsole({ path: "/judge", viewport: { width: 1470 } });
+    const view = await renderConsole({ path: "/judge", viewport: { width: 1366 } });
     await press("W-JG-01.markPaid");
     await waitFor(() => expect(view.world.run.state).toBe("FUNDED"));
     fireEvent.click(screen.getByTestId("W-JG-01.phoneTab"));
@@ -50,7 +50,7 @@ describe("Judge stage", () => {
     expect(screen.getByTestId("W-JG-01.tab.member").getAttribute("aria-selected")).toBe("true");
   });
   it("ignores unrelated frame focus until the story names that persona", async () => {
-    const view = await renderConsole({ path: "/judge", viewport: { width: 1470 } });
+    const view = await renderConsole({ path: "/judge", viewport: { width: 1366 } });
     const sendFocus = async () => {
       for (const persona of ["chair", "clerk"]) {
         const frame = (await screen.findByTestId(`W-JG-01.frame.${persona}`)) as HTMLIFrameElement;
@@ -78,7 +78,7 @@ describe("Judge stage", () => {
   });
 
   it("lowers a moment when the next step has no persona, and resets scroll only for a pathname", async () => {
-    const view = await renderConsole({ path: "/judge", viewport: { width: 1470 } });
+    const view = await renderConsole({ path: "/judge", viewport: { width: 1366 } });
     await press("W-JG-01.markPaid");
     await waitFor(() => expect(view.world.run.state).toBe("FUNDED"));
     act(() => {
@@ -106,14 +106,15 @@ describe("Judge stage", () => {
     const callSpy = vi.spyOn(view.adapter, "call");
     const stage = screen.getByTestId("W-JG-01.stage");
     expect(stage.dataset.state).toBe("ready");
-    expect(stage.dataset.layout).toBe("tab");
-    expect(screen.getByTestId("W-JG-01.ribbon").textContent).toMatch(/Davao time/);
+    // The test window is 1470 px wide: the narrow dock (UI gate round 2) keeps the phone beside the console.
+    expect(stage.dataset.layout).toBe("dock");
+    expect(screen.getByTestId("W-JG-01.ribbon").textContent).toMatch(/\d\d:\d\d:\d\d PHT/);
     expect(screen.getByTestId("W-JG-01.runPill").dataset.step).toBe("mark-paid");
     expect(screen.getByTestId("W-JG-01.notice").textContent).toMatch(/simulated PayPal sandbox/i);
     expect(screen.getByTestId("W-JG-01.ribbon.paypal").textContent).toMatch(/FS-2026A-r37/);
-    expect(screen.getByTestId("W-JG-01.caption").textContent).toMatch(
-      /Seed stand-in, not a Claude recording/,
-    );
+    // The seeded rows wear their small tag; the canonical phrase is the lane's title.
+    expect(screen.getByTestId("W-JG-01.ribbon.machine").textContent).toMatch(/Seed stand-in/);
+    expect(screen.queryByTestId("W-JG-01.caption")).toBeNull();
     expect(screen.queryByTestId("W-JG-01.reset")).toBeNull();
     expect(callSpy).not.toHaveBeenCalled();
     expect(view.world.run.state).toBe("INVOICED");
@@ -164,7 +165,7 @@ describe("Judge stage", () => {
   });
 
   it("the skip link moves focus to the screen without scrolling the stage, so the top bar stays in view", async () => {
-    await renderConsole({ path: "/judge", viewport: { width: 1470, height: 956 } });
+    await renderConsole({ path: "/judge", viewport: { width: 1366, height: 768 } });
     const main = document.getElementById("fsc-main") as HTMLElement;
     const focus = vi.spyOn(main, "focus");
     const skip = screen.getByText("Skip to the screen");
@@ -359,7 +360,21 @@ describe("Judge stage", () => {
     });
     const sheet = await screen.findByTestId("W-JG-01.whatsReal");
     expect(sheet.dataset.rail).toBe("simulator");
-    expect(within(sheet).getByText("PayPal, simulated")).toBeTruthy();
+    // Five rows, each one line, the details behind "More".
+    const rows = within(sheet).getByTestId("W-JG-01.whatsReal.rows");
+    expect(rows.querySelector('[data-section="simulated-paypal"] dt')?.textContent).toBe(
+      "Simulated PayPal sandbox",
+    );
+    // A mock-data build says so first (I8); then the five rows.
+    expect([...rows.querySelectorAll("[data-section]")].map((r) => r.getAttribute("data-section"))).toEqual([
+      "build",
+      "real",
+      "simulated-paypal",
+      "replayed",
+      "synthetic",
+      "not-built",
+    ]);
+    expect(rows.querySelectorAll("details")).toHaveLength(6);
     expect(within(sheet).getByTestId("W-JG-01.tryToBreak").textContent).toMatch(/Try to break it/);
     await expectNoAxeViolations(sheet);
     await act(async () => {
@@ -381,8 +396,8 @@ describe("Judge stage", () => {
     });
   });
 
-  it("raises the phone from its ribbon lane and lowers it with Escape (1024–1679 px)", async () => {
-    await renderConsole({ path: "/judge", viewport: { width: 1470 } });
+  it("raises the phone from its ribbon lane and lowers it with Escape (1024–1439 px)", async () => {
+    await renderConsole({ path: "/judge", viewport: { width: 1366 } });
     const tab = screen.getByTestId("W-JG-01.phoneTab");
     // The collapsed phone is the ribbon's fourth lane: it never covers the screen.
     expect(screen.getByTestId("W-JG-01.ribbon").contains(tab)).toBe(true);
@@ -402,7 +417,7 @@ describe("Judge stage", () => {
   });
 
   it("under the viewer's scrim the console is inert and focus is in the phone; lowering hands focus back", async () => {
-    await renderConsole({ path: "/judge", viewport: { width: 1470 } });
+    await renderConsole({ path: "/judge", viewport: { width: 1366 } });
     const tab = screen.getByTestId("W-JG-01.phoneTab");
     const console_ = document.querySelector<HTMLElement>(".fsc-console");
     tab.focus();
@@ -422,7 +437,7 @@ describe("Judge stage", () => {
   });
 
   it("a moment raises the phone beside a lit console: no scrim, both screens read at once", async () => {
-    const view = await renderConsole({ path: "/judge", viewport: { width: 1470 } });
+    const view = await renderConsole({ path: "/judge", viewport: { width: 1366 } });
     await press("W-JG-01.markPaid");
     await waitFor(() => expect(screen.getByTestId("W-JG-01.stage").dataset.state).toBe("session"));
     await waitFor(() => expect(view.world.run.state).toBe("FUNDED"));
@@ -726,7 +741,20 @@ describe("Judge stage", () => {
     expect(console_?.contains(document.activeElement)).toBe(true);
   });
 
-  it("docks the phone under a scrim from 1680 px, and the scrim hands it focus", async () => {
+  it("docks a narrow phone with the rail folded at 1470 px, its statement never under a veil or a label", async () => {
+    await renderConsole({ path: "/judge", viewport: { width: 1470, height: 956 } });
+    const stage = screen.getByTestId("W-JG-01.stage");
+    expect(stage.dataset.layout).toBe("dock");
+    expect(stage.dataset.rail).toBe("collapsed");
+    expect(screen.queryByTestId("W-JG-01.phoneTab")).toBeNull();
+    // "Use the phone" sits on the line under the device, outside the frame's screen.
+    const scrim = screen.getByTestId("W-JG-01.phoneScrim");
+    expect(scrim.textContent).toBe("Use the phone");
+    const frame = screen.getByTestId("W-JG-01.frame");
+    expect(frame.contains(scrim)).toBe(false);
+  });
+
+  it("docks the phone from 1680 px, and its button hands it focus", async () => {
     await renderConsole({ path: "/judge", viewport: { width: 1920, height: 1080 } });
     expect(screen.getByTestId("W-JG-01.stage").dataset.layout).toBe("dock");
     const scrim = screen.getByTestId("W-JG-01.phoneScrim");
@@ -768,7 +796,7 @@ describe("Judge stage", () => {
   );
 
   it.each([
-    ["lowered into the ribbon", 1470, 956],
+    ["lowered into the ribbon", 1366, 768],
     ["dimmed in the dock", 1920, 1080],
   ])(
     "a frame that focuses itself while the phone is %s hands focus to the screen's control",
@@ -789,7 +817,7 @@ describe("Judge stage", () => {
   );
 
   it("a frame focused from inside (Chromium fires only the page's blur) is handed back to the screen too", async () => {
-    await renderConsole({ path: "/judge", viewport: { width: 1470, height: 956 } });
+    await renderConsole({ path: "/judge", viewport: { width: 1366, height: 768 } });
     const frame = await screen.findByTestId("W-JG-01.frame.member");
     // Its document takes focus and no focus event reaches the <iframe>: only document.activeElement says so.
     act(() => frame.focus());

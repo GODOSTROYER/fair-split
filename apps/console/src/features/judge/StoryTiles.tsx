@@ -1,15 +1,19 @@
-// W-JG-01's story, under the invoice and the first slab (ADR-0016, decision.md §3, grafts from C and B):
-// - the five numbered story tiles, Read, Check, Sign, Pay and Prove, which are also the colour key: each has a
-//   solid bubble and a 3 px top bar in its role's colour (graphite pencil, marigold, ballpoint, jade, ink) and one
-//   real figure, counted from the seed (never typed); the six checks are Proof's own plates;
-// - the honest "What's real" strip: real code, the simulated PayPal sandbox, synthetic samples.
+// W-JG-01's story, under the invoice and the first press (ADR-0016; UI gate round 2, number first):
+// - five steps, Read, Check, Sign, Pay and Prove, each a small coloured dot and its verb over one figure counted
+//   from the seed (never typed): 48 slips, 3 holds, 2 keys, 7 PayPal · 57 cash, 6 checks. The dots are the
+//   stage's own marks: graphite for the machine, marigold for a hold, ballpoint for a person's key, the dashed
+//   steel ring for the simulated PayPal sandbox, ink for Proof. No bubbles, no coloured bars, no sentences;
+// - the honesty row, the legend for the stage's marks: Real code, Simulated PayPal sandbox, Synthetic sample. The
+//   explanations live in What's real, opened from the top bar.
 // Nothing here claims a live Claude reading: on this stage the reading is the labelled seed stand-in.
 
 import type { SeasonSnapshot } from "@fairsplit/contracts";
-import { Glyph, type GlyphName } from "@fairsplit/ui-web";
 import type { ReactNode } from "react";
+import { railTag } from "../../chrome/copy.js";
+import type { PaypalRail } from "../../lib/env.js";
 import { PLATES } from "../proof/verify.js";
 import { replayPhotos } from "../reading/model.js";
+import { FIRST_VIEW_COPY } from "../season/copy.js";
 import { isCardHold } from "../split/model.js";
 
 export type StoryRole = "read" | "check" | "sign" | "pay" | "prove";
@@ -17,17 +21,13 @@ export type StoryRole = "read" | "check" | "sign" | "pay" | "prove";
 export interface StoryTile {
   readonly role: StoryRole;
   readonly step: string;
-  readonly glyph: GlyphName;
-  /** The tile's figure, its numbers in bold. */
+  /** The step's figure: the number, then its unit. */
   readonly figure: ReactNode;
-  /** The same in words, for the tile's accessible name and tests. */
+  /** The same in words, for the step's accessible name and tests. */
   readonly text: string;
 }
 
-const NUMBER_WORDS = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine"];
-const word = (n: number) => NUMBER_WORDS[n] ?? String(n);
-
-/** The five tiles' figures, from the season's own snapshot and Proof's plates. */
+/** The five steps' figures, from the season's own snapshot and Proof's plates. */
 export function storyTiles(snapshot: SeasonSnapshot): readonly StoryTile[] {
   const f = snapshot.figures;
   // The slips on the desk: the replay photos' own serials (the reading room's "of 48 slips read").
@@ -38,62 +38,22 @@ export function storyTiles(snapshot: SeasonSnapshot): readonly StoryTile[] {
   const paypal = f.endPaidMembers;
   const cash = f.endCashMembers;
   const checks = PLATES.length;
+  const big = (n: number) => <b className="fsc-tile__no">{n}</b>;
   return [
-    {
-      role: "read",
-      step: "Read",
-      glyph: "triplicate-slip",
-      figure: (
-        <>
-          Claude is built to read <b>{slips}</b> slips
-        </>
-      ),
-      text: `Claude is built to read ${slips} slips`,
-    },
-    {
-      role: "check",
-      step: "Check",
-      glyph: "hanging-scale",
-      figure: (
-        <>
-          <b>{holds}</b> holds stop mistakes
-        </>
-      ),
-      text: `${holds} holds stop mistakes`,
-    },
-    {
-      role: "sign",
-      step: "Sign",
-      glyph: "thumbmark",
-      figure: (
-        <>
-          <b>{signers}</b> officers, <b>1</b> hash
-        </>
-      ),
-      text: `${signers} officers, 1 hash`,
-    },
+    { role: "read", step: "Read", figure: <>{big(slips)} slips</>, text: `${slips} slips` },
+    { role: "check", step: "Check", figure: <>{big(holds)} holds</>, text: `${holds} holds` },
+    { role: "sign", step: "Sign", figure: <>{big(signers)} keys</>, text: `${signers} keys` },
     {
       role: "pay",
       step: "Pay",
-      glyph: "rail",
       figure: (
         <>
-          <b>{paypal}</b> PayPal, <b>{cash}</b> cash
+          {big(paypal)} PayPal <span className="fsc-tile__sep">·</span> {big(cash)} cash
         </>
       ),
-      text: `${paypal} PayPal, ${cash} cash`,
+      text: `${paypal} PayPal · ${cash} cash`,
     },
-    {
-      role: "prove",
-      step: "Prove",
-      glyph: "seal",
-      figure: (
-        <>
-          Brand re-checks <b>{checks}</b>
-        </>
-      ),
-      text: `Brand re-checks ${checks}`,
-    },
+    { role: "prove", step: "Prove", figure: <>{big(checks)} checks</>, text: `${checks} checks` },
   ];
 }
 
@@ -108,60 +68,37 @@ export function StoryTiles({ snapshot }: { readonly snapshot: SeasonSnapshot }) 
           data-role={tile.role}
           data-testid={`story-tiles.${tile.role}`}
         >
-          <span className="fsc-tile__bubble" aria-hidden>
-            <Glyph name={tile.glyph} size={16} />
+          <span className="fsc-tile__step fs-t-label">
+            <span className="fsc-tile__dot" aria-hidden />
+            <span className="fs-sr">{i + 1} </span>
+            {tile.step}
           </span>
-          <span className="fsc-tile__body">
-            <span className="fsc-tile__step fs-t-label">
-              <span className="fsc-tile__no">{i + 1}</span> {tile.step}
-            </span>
-            <span className="fsc-tile__figure fs-t-caption">{tile.figure}</span>
-          </span>
+          <span className="fsc-tile__figure">{tile.figure}</span>
         </li>
       ))}
     </ol>
   );
 }
 
-/** "What's real", in three honest parts (decision.md §3, graft 6 from B). */
-export function whatsReal(members: number): readonly { kind: string; title: string; body: string }[] {
+/** The honesty row's three marks (decision.md §3, graft 6 from B; UI gate round 2: tags, never sentences). */
+export function whatsReal(rail: PaypalRail = "simulator"): readonly { kind: string; title: string }[] {
   return [
-    {
-      kind: "real",
-      title: "Real code, running now",
-      body: `The split engine, the holds, both signatures and Proof's ${word(PLATES.length)} checks.`,
-    },
-    {
-      kind: "simulated",
-      title: "Simulated PayPal sandbox",
-      body: "Every PayPal step, labelled wherever it shows.",
-    },
-    {
-      kind: "synthetic",
-      title: "Synthetic samples",
-      body: `The co-op, its ${members} people and their slips. No real money moves.`,
-    },
+    { kind: "real", title: FIRST_VIEW_COPY.realCode },
+    { kind: "simulated", title: railTag(rail) },
+    { kind: "synthetic", title: FIRST_VIEW_COPY.syntheticSample },
   ];
 }
 
-export function WhatsRealStrip({ members }: { readonly members: number }) {
+/** The legend for the stage's honesty marks; the details live in What's real (the top bar). */
+export function WhatsRealStrip({ rail = "simulator" }: { readonly rail?: PaypalRail }) {
   return (
-    <section className="fsc-real" aria-label="What's real" data-testid="W-JG-01.realStrip">
-      <p className="fsc-real__title fs-t-label">
-        <Glyph name="ms:visibility" size={16} />
-        What's real
-      </p>
-      <ul className="fsc-real__list">
-        {whatsReal(members).map((part) => (
-          <li key={part.kind} className="fsc-real__part" data-kind={part.kind}>
-            <span className="fsc-real__mark" aria-hidden />
-            <span className="fsc-real__words">
-              <span className="fsc-real__name fs-t-label">{part.title}</span>
-              <span className="fsc-real__body fs-t-caption">{part.body}</span>
-            </span>
-          </li>
-        ))}
-      </ul>
-    </section>
+    <ul className="fsc-real" aria-label="What's real" data-testid="W-JG-01.realStrip">
+      {whatsReal(rail).map((part) => (
+        <li key={part.kind} className="fsc-real__part fs-t-micro" data-kind={part.kind}>
+          <span className="fsc-real__mark" aria-hidden />
+          {part.title}
+        </li>
+      ))}
+    </ul>
   );
 }

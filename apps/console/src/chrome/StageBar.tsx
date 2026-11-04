@@ -9,15 +9,16 @@ import { type ReactNode, useRef } from "react";
 import type { PaypalRail } from "../lib/env.js";
 import { useFocusOnLeave } from "../lib/focus.js";
 import { AppLink } from "./AppLink.js";
-import { MOCK_DATA, railTag, STAGE, story } from "./copy.js";
+import { MOCK_DATA, railTag, STAGE } from "./copy.js";
 import { SoundToggle } from "./SoundToggle.js";
 import { Wordmark } from "./Wordmark.js";
 
 export interface StageBarProps {
-  readonly members: number;
+  /** The season's member count (the lockup's story is no longer printed: UI gate round 2). */
+  readonly members?: number;
   readonly rail: PaypalRail;
   readonly mock: boolean;
-  /** Show the lockup and the story in the bar (the rail is folded, or there is no rail). */
+  /** Show the lockup in the bar (the rail is folded, or there is no rail). */
   readonly lockup: boolean;
   /** The run pill, centred in the bar. */
   readonly pill?: ReactNode;
@@ -83,7 +84,6 @@ export function proofChipLabel(
 }
 
 export function StageBar({
-  members,
   rail,
   mock,
   lockup,
@@ -113,7 +113,6 @@ export function StageBar({
             <span className="fs-t-label">{MOCK_DATA.chip}</span>
           </span>
         )}
-        {lockup && <p className="fsc-bar__story">{story(members)}</p>}
       </div>
       {pill && <div className="fsc-bar__pill">{pill}</div>}
       <nav className="fsc-bar__actions" aria-label="Stage">

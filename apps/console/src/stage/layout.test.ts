@@ -11,20 +11,25 @@ describe("stage layout (S1.6)", () => {
     [1023, "phone-visit", "push-full", true],
     [1024, "tab", "push-full", true],
     [1280, "tab", "push", false],
-    [1470, "tab", "push", false],
-    [1600, "tab", "overlay", false],
-    [1679, "tab", "overlay", false],
+    [1366, "tab", "push", false],
+    [1439, "tab", "push", false],
+    [1440, "dock", "push", true],
+    [1470, "dock", "push", true],
+    [1600, "dock", "overlay", true],
+    [1679, "dock", "overlay", true],
     [1680, "dock", "overlay", false],
     [2560, "dock", "overlay", false],
   ] as const)("%i px: phone %s, drawers %s, rail folded %s", (width, phone, drawer, railCollapsed) => {
     expect(stageLayoutFor(width)).toEqual({ width, phone, drawer, railCollapsed });
   });
 
-  it("keeps the phone 360 px wide on the stage and fits its height to the window", () => {
-    expect(phoneSizeFor(stageLayoutFor(1920), 1080)).toEqual({ width: 360, height: 780 });
-    expect(phoneSizeFor(stageLayoutFor(1470), 956).width).toBe(360);
+  it("keeps the phone 360 px wide on the stage (340 in the narrow dock) and fits its height to the window", () => {
+    expect(phoneSizeFor(stageLayoutFor(1920), 1080)).toEqual({ width: 360, height: 740 });
+    expect(phoneSizeFor(stageLayoutFor(1470), 956)).toEqual({ width: 340, height: 616 });
+    expect(phoneSizeFor(stageLayoutFor(1366), 768).width).toBe(360);
     expect(phoneSizeFor(stageLayoutFor(1280), 600).height).toBe(400);
-    expect(phoneSizeFor(stageLayoutFor(390), 844)).toEqual({ width: 338, height: 700 });
+    // The phone visit: the statement at the page's width, as tall as the window leaves.
+    expect(phoneSizeFor(stageLayoutFor(390), 844)).toEqual({ width: 354, height: 660 });
   });
 });
 

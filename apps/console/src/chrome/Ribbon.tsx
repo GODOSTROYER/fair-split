@@ -2,14 +2,16 @@
 // the governance model reads at a glance: the machine prints in pencil, people decide in ink, PayPal lands.
 // Each lane's mark is that grammar: a graphite square, an ink square, and an open ring for PayPal that turns
 // jade flush only when its newest row is a payment PayPal confirmed. A new row prints with the clip wipe,
-// only when its event arrives (motion is evidence); a repeated delivery is logged and changes nothing. A row's
-// detail keeps two lines, so an item ID or a webhook's name is never cut mid-word.
-// Between 1024 and 1679 px the phone lives here too, as a fourth lane ("Phone: Nang Celing, Gisusi pa"): it
-// never covers the screen, and pressing it raises the phone above the ribbon. The stage's honesty caption
-// ("Synthetic co-op, people and slips…") closes the ribbon at its right end.
+// only when its event arrives (motion is evidence); a repeated delivery is logged and changes nothing.
+// UI gate round 2: one line per lane, the lane's name and its time in Davao (PHT), then the event in plain words.
+// The detail (an item ID, a webhook's name and how it was checked) is the row's title; the PayPal lane's name is
+// the honesty tag itself, and a seeded or replayed row wears its own small tag, never a sentence.
+// Between 1024 and 1439 px the phone lives here too, as a fourth lane ("Phone: Nang Celing, Gisusi pa"): it
+// never covers the screen, and pressing it raises the phone above the ribbon. The stage's honesty caption moved
+// to What's real.
 
 import type { LogLane, RunEvent } from "@fairsplit/contracts";
-import { Glyph, useT } from "@fairsplit/ui-web";
+import { Glyph, HonestyTag, useT } from "@fairsplit/ui-web";
 import { useMemo, useState } from "react";
 import { describeEvent, type LogRow, latestByLane } from "../data/describe.js";
 import { useDescribeContext, usePaypalRail, useRunEvents } from "../data/hooks.js";
@@ -17,10 +19,34 @@ import { payoutStatus } from "../data/payout-replay.js";
 import type { RunView } from "../data/run-view.js";
 import { davaoShort } from "../features/proof/davao.js";
 import { env } from "../lib/env.js";
-import { PHONE_LANE, STAGE } from "./copy.js";
+import { format } from "../lib/format.js";
+import { PHONE_LANE, RIBBON, railTag, STAGE } from "./copy.js";
 
-/** The PayPal lane's rail, after its name under the simulator: "PayPal, simulated sandbox". */
-const PAYPAL_LANE_RAIL = "simulated sandbox";
+/** PayPal's event names in plain words for the ribbon ("PAYMENT.PAYOUTS-ITEM.SUCCEEDED" is "payout succeeded"). */
+const NOTICE_NOUNS: Readonly<Record<string, string>> = {
+  INVOICE: "invoice",
+  "PAYOUTS-ITEM": "payout",
+  PAYOUTSBATCH: "payout batch",
+};
+const NOTICE_VERBS: Readonly<Record<string, string>> = { CANCELED: "cancelled", SUCCEEDED: "succeeded" };
+
+export function plainNotice(eventType: string): string {
+  const [, noun = "", verb = ""] = eventType.split(".");
+  const what = NOTICE_NOUNS[noun] ?? noun.toLowerCase().replace(/[-_]/g, " ");
+  const how = NOTICE_VERBS[verb] ?? verb.toLowerCase().replace(/[-_]/g, " ");
+  return [what, how].filter(Boolean).join(" ");
+}
+
+/** A row the seed stands in for: the first view's seeded history, or a reading the seed stand-in replays. */
+function seededRow(row: LogRow): boolean {
+  return row.provenance === "seeded" && (row.id.startsWith("seed-") || /seed/i.test(row.detail ?? ""));
+}
+
+/** A row's words as the ribbon prints them: a PayPal notice by what it says, never its raw event name. */
+export function ribbonWords(words: string): string {
+  const notice = /^PayPal notice: ([A-Z0-9_.-]+)$/.exec(words);
+  return notice?.[1] ? RIBBON.notice(plainNotice(notice[1])) : words;
+}
 
 const LANES: readonly { readonly lane: LogLane; readonly key: "machine" | "people" | "paypal" }[] = [
   { lane: "MACHINE", key: "machine" },
@@ -40,10 +66,8 @@ export interface RibbonProps {
   readonly view: RunView | undefined;
   /** Rows to show before any event (the first view's seeded history). */
   readonly seeded?: Readonly<Record<LogLane, LogRow | null>>;
-  /** The phone's lane, between 1024 and 1679 px; null where the phone is docked or visited. */
+  /** The phone's lane, between 1024 and 1439 px; null where the phone is docked or visited. */
   readonly phone?: PhoneLane | null;
-  /** The stage's honesty caption, at the ribbon's right end. */
-  readonly caption?: string;
 }
 
 /** Live event IDs remembered for the print wipe; older ones have printed already. */
@@ -59,7 +83,7 @@ function landed(row: LogRow | null, events: readonly RunEvent[]): boolean {
   );
 }
 
-export function Ribbon({ view, seeded, phone = null, caption }: RibbonProps) {
+export function Ribbon({ view, seeded, phone = null }: RibbonProps) {
   const t = useT();
   const ctx = useDescribeContext();
   // The PayPal lane says its rail in its own name (I8), so a row's long detail can never clip the label away.
@@ -103,15 +127,22 @@ export function Ribbon({ view, seeded, phone = null, caption }: RibbonProps) {
             data-landed={jade ? "" : undefined}
             data-provenance={row?.provenance}
             data-testid={`W-JG-01.ribbon.${key}`}
-            title={row ? `${row.words}${row.detail ? `. ${row.detail}` : ""}` : undefined}
+            title={
+              row
+                ? `${row.words}${row.detail ? `. ${row.detail}` : ""}${row.at ? `. ${davaoShort(row.at)} ${RIBBON.zone}` : ""}`
+                : undefined
+            }
           >
             <p className="fsc-ribbon__name fs-t-caption">
               <span className="fsc-ribbon__mark" aria-hidden />
-              {t(`W-JG-01.lane.${key}`)}
-              {key === "paypal" && rail === "simulator" ? `, ${PAYPAL_LANE_RAIL}` : ""}
+              {key === "paypal" ? (
+                <HonestyTag className="fsc-ribbon__tag">{railTag(rail)}</HonestyTag>
+              ) : (
+                t(`W-JG-01.lane.${key}`)
+              )}
               {row?.at && (
-                <time className="fsc-ribbon__time" dateTime={row.at}>
-                  {davaoShort(row.at)}
+                <time className="fsc-ribbon__time fs-t-micro" dateTime={row.at}>
+                  {`${format.time(row.at)} ${RIBBON.zone}`}
                 </time>
               )}
             </p>
@@ -122,11 +153,13 @@ export function Ribbon({ view, seeded, phone = null, caption }: RibbonProps) {
                 data-duplicate={row.duplicate ? "" : undefined}
                 data-print={live.includes(row.id) ? "" : undefined}
               >
-                <p className="fsc-ribbon__words fs-t-label">{row.words}</p>
-                {row.detail || row.replayNote ? (
-                  <p className="fsc-ribbon__detail fs-t-caption">
-                    {[row.detail, row.replayNote].filter(Boolean).join(", ")}
-                  </p>
+                <p className="fsc-ribbon__words fs-t-label">{ribbonWords(row.words)}</p>
+                {row.replayNote ? (
+                  <HonestyTag className="fsc-ribbon__tag">{row.replayNote}</HonestyTag>
+                ) : seededRow(row) && key !== "paypal" ? (
+                  <span className="fsc-ribbon__tag" title={RIBBON.seededTitle}>
+                    <HonestyTag>{RIBBON.seeded}</HonestyTag>
+                  </span>
                 ) : null}
               </div>
             ) : (
@@ -157,10 +190,6 @@ export function Ribbon({ view, seeded, phone = null, caption }: RibbonProps) {
           </span>
         </button>
       )}
-      <div className="fsc-ribbon__caption fs-t-caption">
-        {caption && <p data-testid="W-JG-01.caption">{caption}</p>}
-        <p className="fsc-ribbon__zone">{STAGE.zone}</p>
-      </div>
     </section>
   );
 }

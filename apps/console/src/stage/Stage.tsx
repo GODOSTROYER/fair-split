@@ -1,8 +1,8 @@
 import { payoutReplayed } from "../data/payout-replay.js";
-// The Judge stage (S1.6, design §6 J1): one bar on top (the honesty line, the run pill in its centre, What's
-// real, Sound, Reset and Proof), the console (rail and the screen) on the left, one phone frame on the right,
-// and the ribbon along the bottom: the newest log row of each lane, the phone's lane between 1024 and 1679 px,
-// and the honesty caption at its end. Nothing else takes the screens' height. It holds the run the judge is
+// The Judge stage (S1.6, design §6 J1; UI gate round 2): one bar on top (the run pill in its centre, What's
+// real, Sound and Reset as line icons, the Proof counter and the honesty tag), the console (rail and the screen)
+// on the left, one phone on the right from 1440 px, and the ribbon along the bottom: one line per lane, and the
+// phone's lane between 1024 and 1439 px. Under 1024 px the stage is a phone visit: the member's statement. Nothing else takes the screens' height. It holds the run the judge is
 // driving: the first view before the first press (no session, no calls), then the session's run, kept live by
 // one SSE stream. Every console route renders inside it.
 
@@ -12,12 +12,11 @@ import { useLocation, useNavigate } from "@tanstack/react-router";
 import { type ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { ConnectionBanner } from "../chrome/ConnectionBanner.js";
 import { ConsoleRail } from "../chrome/ConsoleRail.js";
-import { STAGE, stageCaption, story } from "../chrome/copy.js";
+import { STAGE } from "../chrome/copy.js";
 import { nextStep } from "../chrome/next-step.js";
 import { Ribbon } from "../chrome/Ribbon.js";
 import { RunPill } from "../chrome/RunPill.js";
 import { placeStates, railItems } from "../chrome/rail-items.js";
-import { SoundOffer } from "../chrome/SoundOffer.js";
 import { StageBar } from "../chrome/StageBar.js";
 import { StageNotice, stageNoticeFor } from "../chrome/StageNotice.js";
 import { ChromeSlot } from "../chrome/slots.js";
@@ -143,6 +142,15 @@ export function Stage({ children }: { readonly children: ReactNode }) {
   const [autoplay, setAutoplay] = useState<AutoplayState>("off");
 
   const season = snapshot?.season.label ?? SEASON_FALLBACK;
+  // Who the judge acts as, for the rail's foot: "AS Analyn · Treasurer".
+  const officer = snapshot?.officers.find((o) => o.role === "TREASURER");
+  const treasurer = officer
+    ? {
+        initials: officer.initials,
+        first: officer.shortName.split(" ")[0] ?? officer.shortName,
+        role: "Treasurer",
+      }
+    : null;
   const recordedOn = snapshot ? format.dateShort(snapshot.run.recordedOn) : "";
   const byHandSlip = snapshot?.holds.find((h) => h.kind === "LOW_CONFIDENCE")?.serials[0] ?? "0462";
   const payouts = snapshot?.figures.batchItemCount ?? 0;
@@ -180,8 +188,10 @@ export function Stage({ children }: { readonly children: ReactNode }) {
   // on both screens at once. Below 1280 px there is no room beside it (the screen would be 488 px: the approve
   // column ran under the phone, the fan's labels overlapped), so the phone rises over the scrim, as S1.6's table
   // has it for that width.
-  const roomBeside = useRef(!layout.railCollapsed);
-  roomBeside.current = !layout.railCollapsed;
+  // The docked phone (1440 px and wider) always has its own column, whatever the rail does beside it.
+  const besideAt = (l: typeof layout) => l.phone === "dock" || !l.railCollapsed;
+  const roomBeside = useRef(besideAt(layout));
+  roomBeside.current = besideAt(layout);
   const raisePhone = useCallback(
     (p: FramePersona) => {
       setPersona(p);
@@ -421,9 +431,8 @@ export function Stage({ children }: { readonly children: ReactNode }) {
                 <ConsoleRail
                   items={items}
                   collapsed={layout.railCollapsed}
-                  seasonMark={season}
-                  story={story(snapshot?.figures.members ?? 0)}
                   states={places}
+                  {...(treasurer ? { actor: treasurer } : {})}
                   {...(next ? { nextActor: next.actor } : {})}
                 />
                 <div className="fsc-console__main">
@@ -455,7 +464,6 @@ export function Stage({ children }: { readonly children: ReactNode }) {
             <Ribbon
               view={inSession ? view : undefined}
               seeded={seeded}
-              caption={stageCaption(recordedOn)}
               phone={
                 layout.phone === "tab"
                   ? {
@@ -467,13 +475,8 @@ export function Stage({ children }: { readonly children: ReactNode }) {
               }
             />
           )}
-          {visit && (
-            <footer className="fsc-stage__caption fs-t-caption" data-testid="W-JG-01.caption">
-              <span>{stageCaption(recordedOn)}</span>
-            </footer>
-          )}
           <ChromeSlot name="stage.overlay" className="fsc-stage__overlay" />
-          <SoundOffer />
+          {/* No sound offer (UI gate round 2): the speaker icon in the bar, off by default, is the one control. */}
           <WhatsRealSheet
             open={whatsReal}
             onOpenChange={setWhatsReal}

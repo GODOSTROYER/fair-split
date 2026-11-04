@@ -6,7 +6,7 @@
 // pencil: Claude chose the labels, every amount is the code's quote (I1).
 
 import { INVOICE_STATUS_LABELS, pickLabel, type SeasonSnapshot } from "@fairsplit/contracts";
-import { CurrencyFigure, Glyph, useT } from "@fairsplit/ui-web";
+import { CurrencyFigure, Glyph, HonestyTag, useT } from "@fairsplit/ui-web";
 import { type MotionValue, motion, useMotionValue, useTransform } from "motion/react";
 import {
   type ReactNode,
@@ -17,6 +17,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { railTag } from "../../chrome/copy.js";
 import { DataTable, Mirrored } from "../../chrome/DataTable.js";
 import { Stamp } from "../../chrome/Stamp.js";
 import { useJudgeSession, useRunEvents } from "../../data/hooks.js";
@@ -25,11 +26,14 @@ import type { PaypalRail } from "../../lib/env.js";
 import { format } from "../../lib/format.js";
 import { type MomentController, useMoment } from "../../lib/moment.js";
 import { provenanceFooter } from "../../lib/provenance.js";
-import { fundedSource, SEASON_COPY } from "./copy.js";
+import { FIRST_VIEW_COPY, fundedSource, SEASON_COPY } from "./copy.js";
 import { invoiceLines, isFunded, isPaid, poolOf } from "./model.js";
 import "./season.css";
 
 export type FundingMoment = MomentController<"MM-S">;
+
+/** An invoice status that names the simulated rail in words: the compact plate says it with the tag instead. */
+const SIMULATED_SUFFIX = / in the simulated PayPal sandbox$/;
 
 export function invoiceTitle(
   snapshot: SeasonSnapshot,
@@ -319,6 +323,12 @@ export function FundingBlock({
   const recorded = format.dateShort(snapshot.run.recordedOn);
   const statusWord = status ? pickLabel(INVOICE_STATUS_LABELS[status], "en") : SEASON_COPY.waiting;
   const arc = typeof values.arc === "number" ? null : values.arc;
+  // When the invoice read back as paid: the funded tag's time (compact).
+  const paidAt = view?.events.find(
+    (event) =>
+      event.type === "invoice.state" &&
+      (event.payload.to === "PAID" || event.payload.to === "MARKED_AS_PAID"),
+  )?.at;
   const draftBody = (
     <>
       <dl className="fsc-fund__lines">
@@ -358,14 +368,31 @@ export function FundingBlock({
         <header className="fsc-fund__head">
           <h2 id={`${screen}-invoice-title`} className="fsc-fund__title fs-t-label">
             <Glyph name="triplicate-slip" size={18} />
-            {invoiceTitle(snapshot, view, session.session !== null)}
+            {compact ? (
+              <>
+                {FIRST_VIEW_COPY.invoice}
+                <span className="fsc-fund__number fs-t-micro">
+                  {session.session !== null
+                    ? (view?.invoice.number ?? "draft")
+                    : `${invoice.invoiceNumber} · ${FIRST_VIEW_COPY.seededSample.toLowerCase()}`}
+                </span>
+              </>
+            ) : (
+              invoiceTitle(snapshot, view, session.session !== null)
+            )}
           </h2>
           <span
             className="fsc-fund__status fs-t-caption"
             data-state={funded ? "funded" : "waiting"}
             data-testid={`${screen}.invoice.status`}
           >
-            {statusWord}
+            {compact && SIMULATED_SUFFIX.test(statusWord) ? (
+              <>
+                {statusWord.replace(SIMULATED_SUFFIX, "")} <HonestyTag>{railTag(rail)}</HonestyTag>
+              </>
+            ) : (
+              statusWord
+            )}
           </span>
         </header>
         <div className="fsc-fund__total">
@@ -378,7 +405,13 @@ export function FundingBlock({
             anchor={from}
             testId={`${screen}.invoice.amount`}
           />
-          <span className="fsc-fund__estimate fs-t-caption">{invoice.pesoEstimate}</span>
+          {compact ? (
+            <span className="fsc-fund__estimate fs-t-micro" title={invoice.pesoEstimate}>
+              {invoice.pesoEstimate.replace(/^about /, "≈ ").replace(/ \(estimate\)$/, "")}
+            </span>
+          ) : (
+            <span className="fsc-fund__estimate fs-t-caption">{invoice.pesoEstimate}</span>
+          )}
         </div>
         {action && compact && (
           <div className="fsc-fund__action" data-place="lead">
@@ -395,10 +428,14 @@ export function FundingBlock({
           >
             <summary className="fsc-fund__draft-head fs-t-label">
               <Glyph name="pencil" size={16} />
-              {SEASON_COPY.invoiceLines}
+              {SEASON_COPY.invoiceLines.replace(/ \(seeded sample\)$/, "")}
+              <HonestyTag>{FIRST_VIEW_COPY.seededSample}</HonestyTag>
               <Glyph name="ms:expand-more" size={18} />
             </summary>
             {draftBody}
+            <p className="fsc-fund__memo fs-t-micro">
+              {`${memo} · ${t("W-TR-01.invoice.autoCancel", { date: format.date(invoice.autoCancelOn) })}`}
+            </p>
           </details>
         ) : (
           <div className="fsc-fund__draft" data-provenance="seeded" data-testid={`${screen}.invoice.draft`}>
@@ -409,11 +446,7 @@ export function FundingBlock({
             {draftBody}
           </div>
         )}
-        {compact ? (
-          <p className="fsc-fund__memo fs-t-caption">
-            {`${memo}. ${t("W-TR-01.invoice.autoCancel", { date: format.date(invoice.autoCancelOn) })}`}
-          </p>
-        ) : (
+        {compact ? null : (
           <dl className="fsc-fund__meta fs-t-caption">
             <div>
               <dt className="fs-sr">Memo</dt>
@@ -498,10 +531,13 @@ export function FundingBlock({
         <header className="fsc-fund__head">
           <h2 id={`${screen}-pool-title`} className="fsc-fund__title fs-t-label">
             <Glyph name="sack" size={18} />
-            {SEASON_COPY.pool}
+            {layout === "desk" ? FIRST_VIEW_COPY.pool : SEASON_COPY.pool}
             {layout === "desk" && (
-              <span className="fsc-fund__share fs-t-caption">
-                {SEASON_COPY.poolShare(snapshot.figures.members)}
+              <span
+                className="fsc-fund__share fs-t-micro"
+                title={SEASON_COPY.poolShare(snapshot.figures.members)}
+              >
+                {FIRST_VIEW_COPY.members(snapshot.figures.members)}
               </span>
             )}
           </h2>
@@ -598,7 +634,24 @@ export function FundingBlock({
             </dl>
           </>
         )}
-        {funded && (
+        {funded && compact && (
+          <p
+            className="fsc-fund__source fsc-fund__source--tag"
+            title={`${fundedSource(rail)} ${provenanceFooter({
+              kind: "paypal",
+              source: "status_check",
+              rail,
+              provenance: view?.invoice.provenance,
+            })}`}
+            data-testid={`${screen}.funded.source`}
+          >
+            <HonestyTag>{railTag(rail)}</HonestyTag>
+            <span className="fs-t-micro fsc-fund__muted">
+              {["status check", paidAt ? format.time(paidAt) : null].filter(Boolean).join(" · ")}
+            </span>
+          </p>
+        )}
+        {funded && !compact && (
           <p className="fsc-fund__source fs-t-caption" data-testid={`${screen}.funded.source`}>
             {fundedSource(rail)}{" "}
             <span className="fsc-fund__muted">

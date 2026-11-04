@@ -35,9 +35,9 @@ describe("W-JG-01 first view", { timeout: 60_000 }, () => {
     const button = screen.getByRole("button", { name: /Mark Lantern Bay.s invoice paid/ });
     // The face's words; its Enter keycap is decoration, hidden from assistive tech.
     expect(button.querySelector(".fs-slab__words")?.textContent).toBe("Mark the invoice paid");
-    expect(screen.getByTestId("W-JG-01.invoice.draft").textContent).toContain(
-      "Invoice lines (seeded sample)",
-    );
+    // The lines' fold names itself and wears the seeded tag; its note stays inside.
+    expect(screen.getByTestId("W-JG-01.invoice.draft").textContent).toContain("Invoice lines");
+    expect(screen.getByTestId("W-JG-01.invoice.draft").textContent).toContain("Seeded sample");
     expect(screen.getByTestId("W-JG-01.invoice.draft").textContent).toContain(
       "Claude did not draft these lines",
     );
@@ -81,9 +81,7 @@ describe("W-JG-01 first view", { timeout: 60_000 }, () => {
     const view = await renderConsole({ path: "/judge", world });
     await view.startSession();
     await waitFor(() =>
-      expect(screen.getByTestId("W-JG-01.title").textContent).toBe(
-        "Season 2026-A is paid: 7 by PayPal, 57 in cash.",
-      ),
+      expect(screen.getByTestId("W-JG-01.title").textContent).toBe("Season 2026-A: 7 by PayPal, 57 in cash."),
     );
     expect(screen.getByTestId("W-JG-01.markPaid").textContent).toMatch(/Marked paid by Analyn/);
     expect(screen.getByTestId("W-JG-01.status").textContent).not.toMatch(/plays next/);
@@ -130,8 +128,11 @@ describe("W-JG-01 first view", { timeout: 60_000 }, () => {
     for (const f of figures) expect(f.dataset.amountState).toBe("pencil");
     expect(within(screen.getByTestId("W-JG-01.photos")).getAllByRole("link")).toHaveLength(12);
     expect(screen.getByTestId("W-JG-01.rules.sealed").textContent).toMatch(
-      /^sha256 [0-9a-f]{4} [0-9a-f]{4}, sealed/,
+      /^[0-9a-f]{4} [0-9a-f]{4} · sealed \d{1,2} [A-Z][a-z]{2}$/,
     );
+    // One mono line of facts under the title, and the press's honesty as its one tag.
+    expect(screen.getByTestId("W-JG-01.facts").textContent).toBe("64 members · 1 invoice · 48 slips");
+    expect(screen.getByTestId("W-JG-01.action").textContent).toContain("Simulated PayPal sandbox");
     expect(root.querySelectorAll(".fs-slab").length).toBeLessThanOrEqual(2);
     expect(screen.getByTestId("W-JG-01.markPaid").dataset.state).toBe("rest");
     expect(log.calls()).toEqual([]);
@@ -197,6 +198,9 @@ describe("W-JG-01 first view", { timeout: 60_000 }, () => {
     expect(screen.getByTestId("W-JG-01.pool").dataset.state).toBe("landed");
     expect(screen.getByTestId("W-JG-01.funded").textContent).toBe("Funded");
     expect(screen.getByTestId("W-JG-01.funded.source").textContent).toMatch(
+      /^Simulated PayPal sandboxstatus check/,
+    );
+    expect(screen.getByTestId("W-JG-01.funded.source").getAttribute("title")).toMatch(
       /Simulated PayPal sandbox, status check/,
     );
     expect(screen.getByTestId("W-JG-01.status").textContent).toMatch(/^Funded\./);

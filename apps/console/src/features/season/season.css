@@ -583,6 +583,25 @@ details[open] > summary.fsc-fund__draft-head > .fs-glyph:last-child {
   color: var(--fs-ink-3);
 }
 
+/* The first view's invoice title: "Invoice", then its number in micro (UI gate round 2). */
+.fsc-fund__number {
+  margin-left: 4px;
+  color: var(--fs-ink-3);
+}
+
+/* Funded on the first view: the honesty tag and the status check's time, never a sentence. */
+.fsc-fund__source--tag {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin: 0;
+}
+
+.fsc-fund[data-compact] summary.fsc-fund__draft-head .fs-honesty {
+  margin-left: 4px;
+}
+
 /* The arc lives over the whole block and never takes a pointer. In Data mode its table takes a row. */
 .fsc-fund__arc {
   position: absolute;
@@ -753,7 +772,7 @@ details[open] > summary.fsc-fund__draft-head > .fs-glyph:last-child {
 }
 
 .fsc-contact__id {
-  font-weight: 600;
+  font-weight: 520;
 }
 
 .fsc-contact__item[data-read] .fsc-contact__caption {

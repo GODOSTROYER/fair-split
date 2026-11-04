@@ -1,5 +1,6 @@
-// The Judge stage's breakpoints (S1.6's table): one phone docked at 1680 px and wider, a 64 px tab that rises
-// below that, and a phone-visit layout under 1024 px. Drawers push the content aside below 1600 px (full
+// The Judge stage's breakpoints (S1.6's table, UI gate round 2): one phone docked at 1440 px and wider (a
+// narrower column, with the rail folded to its glyphs, below 1680 px, so a 1470 laptop keeps the member's
+// statement beside the console), a 64 px tab that rises below that, and a phone-visit layout under 1024 px. Drawers push the content aside below 1600 px (full
 // width below 1280) and overlay at 560 px from 1600. Split review drops to five columns in containers under
 // 1,180 px. Playwright snapshots run at 390, 1280, 1470, 1536, 1920 and 2560 px.
 
@@ -8,7 +9,7 @@ import { useSyncExternalStore } from "react";
 export type PhoneLayout = "phone-visit" | "tab" | "dock";
 export type DrawerMode = "push-full" | "push" | "overlay";
 
-export const BREAKPOINTS = { visit: 1024, rail: 1280, overlay: 1600, dock: 1680 } as const;
+export const BREAKPOINTS = { visit: 1024, rail: 1280, dock: 1440, overlay: 1600, wide: 1680 } as const;
 /** Container width under which the split grid shows five columns (S1.6). */
 export const NARROW_GRID_PX = 1180;
 
@@ -24,9 +25,12 @@ export function drawerModeFor(width: number): DrawerMode {
   return "overlay";
 }
 
-/** The console rail collapses to glyphs below 1280 px so the work keeps its width. */
+/**
+ * The console rail collapses to glyphs below 1280 px so the work keeps its width, and again beside the narrow
+ * docked phone (1440-1679 px), where the screen keeps the width it has at 1280 px.
+ */
 export function railCollapsedAt(width: number): boolean {
-  return width < BREAKPOINTS.rail;
+  return width < BREAKPOINTS.rail || (width >= BREAKPOINTS.dock && width < BREAKPOINTS.wide);
 }
 
 export interface StageLayout {
@@ -52,14 +56,22 @@ export interface PhoneSize {
 }
 
 /** Vertical space the stage's own chrome takes around the phone screen, per layout (px). */
-const PHONE_CHROME_PX = { dock: 300, tab: 370 } as const;
+const PHONE_CHROME_PX = { dock: 340, tab: 370, visit: 184 } as const;
 
 export function phoneSizeFor(layout: StageLayout, viewportHeight: number): PhoneSize {
   const clamp = (n: number, lo: number, hi: number) => Math.round(Math.max(lo, Math.min(hi, n)));
-  if (layout.phone === "phone-visit") return { width: clamp(layout.width - 52, 280, 390), height: 700 };
+  // The phone visit: the member's statement, the page's full width (less the stage's 8 px gutters and the frame's
+  // 10 px sides), as tall as the window leaves under the bar and the laptop line.
+  if (layout.phone === "phone-visit")
+    return {
+      width: clamp(layout.width - 36, 260, 988),
+      height: clamp(viewportHeight - PHONE_CHROME_PX.visit, 480, 1200),
+    };
   if (layout.phone === "tab")
     return { width: 360, height: clamp(viewportHeight - PHONE_CHROME_PX.tab, 400, 680) };
-  return { width: 360, height: clamp(viewportHeight - PHONE_CHROME_PX.dock, 480, 780) };
+  // The narrow dock (1440-1679 px) keeps a 340 px screen; from 1680 px it is S1.6's 360.
+  const width = layout.width < BREAKPOINTS.wide ? 340 : 360;
+  return { width, height: clamp(viewportHeight - PHONE_CHROME_PX.dock, 480, 780) };
 }
 
 function readWidth(): number {

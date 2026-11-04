@@ -84,16 +84,18 @@ export function fundedSource(rail: PaypalRail): string {
     : "The payment was recorded on the untested PayPal sandbox rail, then the invoice read back as paid with nothing due.";
 }
 
-/** The first view's single action (W-JG-01), and what happens while it runs. */
+/** The first view's single action (W-JG-01), and what happens while it runs (UI gate round 2: one line each). */
 export const FIRST_VIEW_COPY = {
+  /** The hero's one mono line under the title. */
+  facts: (members: number, slips: number) => `${members} members · 1 invoice · ${slips} slips`,
   lede: (members: number, buyer: string) =>
     `${members} members' cacao went to ${buyer} in one lot. One invoice funds every member's share; the slips on the desk decide who gets what.`,
   pressNote: (payer: string, amount: string, rail: PaypalRail) =>
     `${payer}, ${amount}. ${rail === "simulator" ? "Simulated PayPal sandbox" : "Untested PayPal sandbox rail"}. The run starts once the invoice reads as paid.`,
   srConsequence: "starts the run, changes a line",
   starting: "Starting your run.",
-  pending: "Recording the payment, then reading the invoice back.",
-  funded: "Funded. The slips decide each member's share.",
+  pending: "Recording the payment.",
+  funded: "Funded.",
   movedOn: "The invoice is paid. The run has moved on.",
   /** A settled run's title: PayPal counts only payouts its own evidence confirmed; a replay says so. */
   settled: (
@@ -102,12 +104,30 @@ export const FIRST_VIEW_COPY = {
   ) =>
     c.replayed
       ? `Season ${season} is settled: ${c.paypal} payout statuses replayed (labelled), ${c.cash} in cash.`
-      : `Season ${season} is paid: ${c.paypal} by PayPal, ${c.cash} in cash.`,
-  openNext: "Go to the next step",
+      : `Season ${season}: ${c.paypal} by PayPal, ${c.cash} in cash.`,
+  /** A settled run's status line, beside the honesty tag. */
+  settledStatus: (replayed: boolean) =>
+    `${replayed ? "Replayed payouts" : "Payouts recorded"}. Cash at the bodega.`,
+  openNext: "Next step",
   rules: "The rules, bolted before the first slip",
   openCard: "Open the rate card",
+  /** The rate card's chip: its name, then its hash and seal date in micro, then "Open". */
+  card: "Rate card",
+  cardSealed: (hash: string, date: string) => `${hash} · sealed ${date}`,
+  open: "Open",
+  /** The pool's strip and the desk's head (W-JG-01). */
+  pool: "Pool",
+  members: (n: number) => `${n} members`,
+  slips: "Slips",
+  slipsMicro: (photos: number, slips: number) => `${photos} photos · ${slips} slips`,
+  exhibit: "Claude's real readings of 10 hero slips",
+  invoice: "Invoice",
+  seededSample: "Seeded sample",
+  /** The honesty row: the legend for the marks the stage uses. */
+  realCode: "Real code",
+  syntheticSample: "Synthetic sample",
   titleFunded: (season: string) => `Season ${season} is funded.`,
-  desk: "The slips on the desk",
+  desk: "Slips",
   synthetic: "Synthetic samples",
   deskNote: (count: number, funded: boolean) =>
     funded

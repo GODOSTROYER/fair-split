@@ -1,5 +1,5 @@
-// The first view's five story tiles and the What's real strip (ADR-0016): every figure is counted from the seed or
-// Proof's plates, and nothing claims a live Claude reading.
+// The first view's five steps and the honesty row (ADR-0016; UI gate round 2, number first): every figure is
+// counted from the seed or Proof's plates, and nothing claims a live Claude reading.
 import { UiProvider } from "@fairsplit/ui-web";
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
@@ -9,13 +9,13 @@ import { StoryTiles, storyTiles, WhatsRealStrip, whatsReal } from "./StoryTiles.
 const snapshot = seedSnapshot();
 
 describe("the story tiles", () => {
-  it("count the season from the seed: 48 slips, 3 holds, 2 officers, 7 PayPal and 57 cash, 6 checks", () => {
+  it("count the season from the seed: 48 slips, 3 holds, 2 keys, 7 PayPal and 57 cash, 6 checks", () => {
     expect(storyTiles(snapshot).map((t) => t.text)).toEqual([
-      "Claude is built to read 48 slips",
-      "3 holds stop mistakes",
-      "2 officers, 1 hash",
-      "7 PayPal, 57 cash",
-      "Brand re-checks 6",
+      "48 slips",
+      "3 holds",
+      "2 keys",
+      "7 PayPal · 57 cash",
+      "6 checks",
     ]);
   });
 
@@ -29,7 +29,8 @@ describe("the story tiles", () => {
     expect(list.tagName).toBe("OL");
     const tiles = within(list).getAllByRole("listitem");
     expect(tiles.map((t) => t.dataset.role)).toEqual(["read", "check", "sign", "pay", "prove"]);
-    expect(tiles[3]?.textContent).toContain("4 Pay");
+    expect(tiles[3]?.textContent).toContain("Pay");
+    expect(tiles[3]?.textContent).toContain("7 PayPal · 57 cash");
   });
 
   it("never claims a live Claude reading", () => {
@@ -37,20 +38,20 @@ describe("the story tiles", () => {
   });
 });
 
-describe("What's real", () => {
-  it("says what is real code, what is the simulated PayPal sandbox and what is synthetic", () => {
-    expect(whatsReal(64).map((p) => p.title)).toEqual([
-      "Real code, running now",
+describe("the honesty row", () => {
+  it("is the legend of three marks: real code, the simulated PayPal sandbox, a synthetic sample", () => {
+    expect(whatsReal().map((p) => p.title)).toEqual([
+      "Real code",
       "Simulated PayPal sandbox",
-      "Synthetic samples",
+      "Synthetic sample",
     ]);
+    expect(whatsReal("sandbox")[1]?.title).toBe("PayPal sandbox, untested in this build");
     render(
       <UiProvider lang="en" motion="full">
-        <WhatsRealStrip members={64} />
+        <WhatsRealStrip />
       </UiProvider>,
     );
     const strip = screen.getByTestId("W-JG-01.realStrip");
-    expect(strip.textContent).toContain("The co-op, its 64 people and their slips. No real money moves.");
-    expect(strip.textContent).toContain("Proof's six checks");
+    expect(strip.textContent).toBe("Real codeSimulated PayPal sandboxSynthetic sample");
   });
 });

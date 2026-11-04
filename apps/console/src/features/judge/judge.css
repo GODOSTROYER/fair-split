@@ -1,13 +1,14 @@
-/* W-JG-01's first view and the stage extras the season slice adds: the desk of photos, the invoice above the
-   pool with the one slab, the five story tiles and the What's real strip, "Play it for me" on the run pill and
-   its cursor. Every value is a --fs-* token (ADR-0016: radii from the scale, cards on e1, one morning wash). */
+/* W-JG-01's first view and the stage extras the season slice adds: the desk of photos, the invoice beside the
+   pool with the one press, the five steps as numbers and the honesty row, "Play it for me" on the run pill and
+   its cursor. Every value is a --fs-* token (ADR-0016: radii from the scale, cards on e1; UI gate round 2: no
+   wash, colour only as a mark that means something, one spacing scale of 4/8/12/16/24/32). */
 
 /* ---------------------------------------------------------------- the first view */
 
 .fsc-first {
   display: grid;
   align-content: start;
-  gap: 20px;
+  gap: 24px;
   max-width: 1320px;
 }
 
@@ -21,14 +22,14 @@
 
 .fsc-first__head {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(280px, 380px);
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: end;
-  gap: 24px 48px;
+  gap: 16px 32px;
 }
 
 .fsc-first__titles {
   display: grid;
-  gap: 12px;
+  gap: 8px;
   min-width: 0;
 }
 
@@ -37,41 +38,72 @@
   color: var(--fs-ink);
 }
 
-.fsc-first__lede {
-  max-width: 62ch;
+/* The hero's one line of facts, in the numeral face: "64 members · 1 invoice · 48 slips". */
+.fsc-first__facts {
+  margin: 0;
   color: var(--fs-ink-2);
+  font-size: 0.875rem;
+  line-height: 1.25rem;
 }
 
-.fsc-first__rules {
-  display: grid;
-  justify-items: start;
+/* The rate card as one quiet chip: a lock, its name, its hash and seal date in micro, then "Open". */
+.fsc-first__card {
+  display: inline-flex;
+  align-items: center;
   gap: 8px;
+  min-height: 40px;
+  padding: 0 8px 0 12px;
+  border: 1px solid var(--fs-rule-strong);
+  border-radius: var(--fs-radius-control);
+  background: var(--fs-plate);
+  color: var(--fs-ink);
+  text-decoration: none;
+  white-space: nowrap;
 }
 
-.fsc-first__rules > .fsc-bolted-plate {
-  width: 100%;
-}
-
-.fsc-first__rules-link {
+.fsc-first__card > .fs-glyph {
   color: var(--fs-ink-2);
+}
+
+.fsc-first__card-hash {
+  color: var(--fs-ink-3);
+}
+
+.fsc-first__card-open {
+  padding: 4px 8px;
+  border-radius: var(--fs-radius-control);
+  color: var(--fs-pod);
+}
+
+.fsc-first__card:hover {
+  border-color: var(--fs-steel-line);
+}
+
+.fsc-first__card:hover .fsc-first__card-open {
+  background: var(--fs-plate-2);
 }
 
 /* The paper, beside the invoice under the pool's strip: it starts inside the first screen at every stage size. */
 .fsc-first__desk {
   display: grid;
   align-content: start;
-  gap: 14px;
+  gap: 12px;
 }
 
+/* "Slips", its micro line and the synthetic tag: one row. */
 .fsc-first__desk-head {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
-  gap: 4px 16px;
+  align-items: center;
+  gap: 4px 12px;
+}
+
+.fsc-first__desk-title {
+  margin: 0;
+  color: var(--fs-ink);
 }
 
 .fsc-first__desk-note {
-  max-width: 64ch;
   color: var(--fs-ink-3);
 }
 
@@ -80,6 +112,10 @@
   display: grid;
   justify-items: start;
   gap: 12px;
+}
+
+.fsc-first__sheet > .fs-link {
+  color: var(--fs-ink-2);
 }
 
 /* Prints at about 84 px: still four slips each, and two rows of six leave the tiles and the strip in view. */
@@ -92,135 +128,144 @@
   gap: 4px;
 }
 
-/* The sheet's own label: a synthetic sample is "not real", so it wears the dashed honesty outline. */
+/* The desk's synthetic tag sits in the head's row. */
 .fsc-first__synthetic {
   display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 2px 10px;
-  border: 1px dashed var(--fs-steel-line);
-  border-radius: var(--fs-radius-pill);
-  background: var(--fs-copy-white);
-  color: var(--fs-paper-ink);
 }
 
-/* ---------------------------------------------------------------- the five story tiles (the colour key) */
+/* ---------------------------------------------------------------- the five steps, number first */
 
+/* One quiet band of five: each step a coloured dot and its verb, over one figure in the numeral face. Colour is
+   only the dot, and each dot is the stage's own mark for who acts: graphite for the machine, marigold for a hold
+   a person settles, ballpoint for a person's key, the dashed steel ring for the simulated PayPal sandbox, ink
+   for Proof. No bubbles, no coloured bars, no sentences. */
 .fsc-tiles {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 12px;
   margin: 0;
   padding: 0;
+  border-radius: var(--fs-radius-card);
+  background: var(--fs-plate);
+  box-shadow: inset 0 0 0 1px var(--fs-rule);
   list-style: none;
 }
 
 .fsc-tile {
-  --tile: var(--fs-pencil);
-  --tile-on: var(--fs-plate);
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
+  --dot: var(--fs-pencil);
+  display: grid;
+  align-content: start;
+  gap: 8px;
   min-width: 0;
-  padding: 14px 14px 14px;
-  border-top: 3px solid var(--tile);
-  border-radius: var(--fs-radius-card);
-  background: var(--fs-plate);
-  box-shadow: var(--fs-shadow-e1);
+  padding: 16px 20px;
 }
 
-/* Each tile is its step's colour: the machine reads, a person decides, a person signs, money moves, Proof checks. */
+.fsc-tile + .fsc-tile {
+  border-left: 1px solid var(--fs-rule);
+}
+
 .fsc-tile[data-role="check"] {
-  --tile: var(--fs-canary);
-  --tile-on: var(--fs-on-canary);
+  --dot: var(--fs-canary);
 }
 
 .fsc-tile[data-role="sign"] {
-  --tile: var(--fs-slab-chalk-face);
-  --tile-on: var(--fs-slab-chalk-label);
-}
-
-.fsc-tile[data-role="pay"] {
-  --tile: var(--fs-jade);
-  --tile-on: var(--fs-on-jade);
+  --dot: var(--fs-pod);
 }
 
 .fsc-tile[data-role="prove"] {
-  --tile: var(--fs-ink);
-  --tile-on: var(--fs-plate);
-}
-
-.fsc-tile__bubble {
-  display: inline-grid;
-  flex: none;
-  place-items: center;
-  width: 30px;
-  height: 30px;
-  border-radius: var(--fs-radius-control);
-  background: var(--tile);
-  color: var(--tile-on);
-}
-
-.fsc-tile__body {
-  display: grid;
-  gap: 3px;
-  min-width: 0;
+  --dot: var(--fs-ink);
 }
 
 .fsc-tile__step {
-  color: var(--fs-ink);
-  font-weight: 650;
-  font-size: 0.9375rem;
-  line-height: 1.25rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--fs-ink-2);
 }
 
-.fsc-tile__no {
-  margin-right: 2px;
-  color: var(--fs-ink-3);
-  font-weight: 560;
-  font-variant-numeric: lining-nums proportional-nums;
+.fsc-tile__dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--dot);
+}
+
+.fsc-tile[data-role="pay"] .fsc-tile__dot {
+  border: 1.25px dashed var(--fs-steel-line);
+  background: transparent;
 }
 
 .fsc-tile__figure {
   color: var(--fs-ink-2);
-  font-size: 0.8125rem;
-  line-height: 1.125rem;
-  font-variant-numeric: lining-nums proportional-nums;
+  font-family: var(--fs-font-ui);
+  font-stretch: 87.5%;
+  font-weight: 500;
+  font-size: 0.875rem;
+  line-height: 1.75rem;
+  font-variant-numeric: tabular-nums lining-nums;
+  white-space: nowrap;
 }
 
-.fsc-tile__figure b {
+.fsc-tile__no {
   color: var(--fs-ink);
-  font-weight: 700;
+  font-weight: 500;
+  font-size: 1.75rem;
+  letter-spacing: -0.01em;
+}
+
+.fsc-tile__sep {
+  color: var(--fs-ink-3);
 }
 
 @media (max-width: 1599px) {
-  .fsc-tiles {
-    gap: 10px;
-  }
-
   .fsc-tile {
-    gap: 10px;
-    padding: 12px;
+    padding: 12px 16px;
   }
 
-  /* Half the desk is narrow: four prints a row (three rows) keep each one large enough to read as four slips. */
+  .fsc-tile__no {
+    font-size: 1.5rem;
+  }
+
+  /* Half the desk is narrow: still two rows of six, smaller, so the panel ends on whole rows above the steps. */
   .fsc-first__sheet > .fsc-contact {
-    grid-template-columns: repeat(4, minmax(0, 84px));
+    grid-template-columns: repeat(6, minmax(0, 66px));
+    gap: 8px;
   }
 
   /* Below 1600 px the keycap gives the press's words the room. */
   .fsc-first__key {
     display: none;
   }
+}
 
-  /* What's real as one band under the tiles: the three parts side by side, their bodies at caption size. */
-  .fsc-real {
-    padding: 10px 14px;
-    gap: 8px 16px;
+/* A short window (1280 x 800): the first view's rhythm tightens so the steps and the honesty row stay in view. */
+@media (max-height: 899px) {
+  .fsc-first {
+    gap: 16px;
   }
 
-  .fsc-real__list {
-    gap: 8px 16px;
+  .fsc-console__screen:has(> .fsc-first) {
+    padding-top: 16px;
+  }
+
+  /* The season's stencil and the co-op's name share one line. */
+  .fsc-first__titles > .fsc-mark {
+    flex-direction: row;
+    align-items: baseline;
+    gap: 12px;
+  }
+
+  .fsc-first__sheet {
+    gap: 8px;
+  }
+
+  .fsc-first__sheet > .fsc-contact {
+    grid-template-columns: repeat(6, minmax(0, 56px));
+  }
+
+  .fsc-tile {
+    gap: 4px;
+    padding: 10px 16px;
   }
 }
 
@@ -228,89 +273,49 @@
   .fsc-tiles {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
+
+  .fsc-tile + .fsc-tile {
+    border-left: 0;
+  }
 }
 
-/* ---------------------------------------------------------------- What's real (three honest parts) */
+/* ---------------------------------------------------------------- the honesty row (the legend for the marks) */
 
+/* Three marks in one line, each in the tag's anatomy: real code a solid ink square (solid is real), the simulated
+   PayPal sandbox the dashed steel ring, a synthetic sample the hatch. What's real (the top bar) explains them. */
 .fsc-real {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: start;
-  gap: 12px 24px;
-  padding: 14px 18px;
-  border-radius: var(--fs-radius-card);
-  background: var(--fs-plate-2);
-  box-shadow: inset 0 0 0 1px var(--fs-rule);
-}
-
-.fsc-real__title {
-  display: inline-flex;
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
-  padding-top: 1px;
-  color: var(--fs-ink);
-  white-space: nowrap;
-}
-
-.fsc-real__list {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px 24px;
+  gap: 8px 20px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
 .fsc-real__part {
-  display: flex;
-  align-items: flex-start;
+  display: inline-flex;
+  align-items: center;
   gap: 8px;
-  min-width: 0;
+  color: var(--fs-ink-3);
 }
 
-/* Real code is ink (a checked fact); simulated is the dashed steel ring (not real); synthetic is evidence paper. */
 .fsc-real__mark {
   flex: none;
   width: 10px;
   height: 10px;
-  margin-top: 4px;
-  border-radius: 3px;
-  background: var(--fs-ink);
+  border-radius: 2px;
+  background: var(--fs-ink-3);
 }
 
 .fsc-real__part[data-kind="simulated"] .fsc-real__mark {
-  border: 1.5px dashed var(--fs-steel-line);
+  border: 1.25px dashed var(--fs-steel-line);
   border-radius: 50%;
   background: transparent;
 }
 
 .fsc-real__part[data-kind="synthetic"] .fsc-real__mark {
-  background: var(--fs-copy-yellow);
-  box-shadow: inset 0 0 0 1px var(--fs-canary-border);
-}
-
-.fsc-real__words {
-  display: grid;
-  gap: 2px;
-  min-width: 0;
-}
-
-.fsc-real__name {
-  color: var(--fs-ink);
-}
-
-.fsc-real__body {
-  color: var(--fs-ink-2);
-}
-
-@media (max-width: 1199px) {
-  .fsc-real {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .fsc-real__list {
-    grid-template-columns: minmax(0, 1fr);
-  }
+  background: repeating-linear-gradient(-45deg, var(--fs-ink-3) 0 1.5px, transparent 1.5px 3px);
 }
 
 .fsc-first__action {
@@ -363,28 +368,24 @@
 }
 
 .fsc-first__note {
-  max-width: 52ch;
+  display: flex;
+  margin: 0;
   color: var(--fs-ink-2);
 }
 
 /* The status: its glyph, then the words beside it (they wrap under themselves, never under the glyph), then the
    link under the words. */
 .fsc-first__status {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: start;
-  gap: 4px 10px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  margin: 0;
   color: var(--fs-ink);
 }
 
 .fsc-first__status > .fs-glyph {
-  margin-top: 2px;
   color: var(--fs-ink-2);
-}
-
-.fsc-first__status > a {
-  grid-column: 2;
-  justify-self: start;
 }
 
 .fsc-nowrap {
@@ -415,7 +416,7 @@
   background: transparent;
   color: var(--fs-ink-2);
   font-family: var(--fs-font-ui);
-  font-weight: 600;
+  font-weight: 520;
   font-size: 0.8125rem;
   line-height: 1rem;
   white-space: nowrap;
@@ -523,8 +524,36 @@
 
 .fsc-tampers {
   display: grid;
-  gap: 12px;
-  margin-block: 16px;
+  gap: 8px;
+  margin-block: 12px;
+}
+
+.fsc-tampers__tag {
+  display: flex;
+  margin: 0;
+}
+
+.fsc-tampers__hint {
+  margin: 0;
+  color: var(--fs-ink-2);
+}
+
+.fsc-tampers__result {
+  display: grid;
+  gap: 4px;
+}
+
+.fsc-tampers__verdict {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  margin: 0;
+  color: var(--fs-ink);
+}
+
+.fsc-tampers__verdict > .fs-t-micro {
+  color: var(--fs-ink-2);
 }
 .fsc-tampers .fs-flat {
   white-space: normal;

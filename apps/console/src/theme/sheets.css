@@ -102,6 +102,11 @@
   padding: 0;
 }
 
+.fsc-sheet__slot {
+  display: grid;
+  gap: 8px;
+}
+
 .fsc-sheet__slot:empty {
   display: none;
 }
@@ -188,6 +193,120 @@
 /* Round 2: no bolt heads or corner dots on any plate; its rule and the steel glyphs say "bolted". */
 .fsc-bolted__bolt {
   display: none;
+}
+
+/* ---------------------------------------------------------------- What's real: five rows (UI gate round 2) */
+
+/* Each row: its mark and name on the left, one line beside them, the details behind "More". The marks are the
+   honesty row's: real code a solid ink square, the simulated PayPal sandbox the dashed steel ring, replayed a
+   graphite square, synthetic hatched, not built an outline. */
+.fsc-truth {
+  display: grid;
+  margin: 8px 0 0;
+}
+
+.fsc-truth__row {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr);
+  align-items: start;
+  gap: 4px 16px;
+  padding: 16px 28px;
+  border-top: 1px solid var(--fs-rule);
+}
+
+.fsc-truth__row:last-child {
+  border-bottom: 1px solid var(--fs-rule);
+}
+
+.fsc-truth__term {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 20px;
+  color: var(--fs-ink);
+}
+
+.fsc-truth__mark {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  background: var(--fs-ink);
+}
+
+.fsc-truth__row[data-section="replayed"] .fsc-truth__mark {
+  background: var(--fs-pencil);
+}
+
+.fsc-truth__row:is([data-section="simulated-paypal"], [data-section="real-paypal"]) .fsc-truth__mark {
+  border: 1.25px dashed var(--fs-steel-line);
+  border-radius: 50%;
+  background: transparent;
+}
+
+.fsc-truth__row[data-section="synthetic"] .fsc-truth__mark {
+  background: repeating-linear-gradient(-45deg, var(--fs-ink-3) 0 1.5px, transparent 1.5px 3px);
+}
+
+.fsc-truth__row:is([data-section="not-built"], [data-section="build"]) .fsc-truth__mark {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.25px var(--fs-ink-3);
+}
+
+.fsc-truth__line {
+  display: grid;
+  justify-items: start;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+}
+
+.fsc-truth__line > p {
+  margin: 0;
+  color: var(--fs-ink);
+}
+
+.fsc-truth__more > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-height: 24px;
+  color: var(--fs-ink-2);
+  cursor: pointer;
+  list-style: none;
+}
+
+.fsc-truth__more > summary::-webkit-details-marker {
+  display: none;
+}
+
+.fsc-truth__more > summary:hover {
+  color: var(--fs-ink);
+}
+
+.fsc-truth__chev {
+  display: inline-flex;
+}
+
+.fsc-truth__more[open] .fsc-truth__chev {
+  transform: rotate(180deg);
+}
+
+.fsc-truth__more > ul {
+  display: grid;
+  gap: 8px;
+  max-width: 60ch;
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--fs-ink-2);
+}
+
+@media (max-width: 639px) {
+  .fsc-truth__row {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 14px 20px;
+  }
 }
 
 /* ---------------------------------------------------------------- ledgers (term on the left, items beside) */

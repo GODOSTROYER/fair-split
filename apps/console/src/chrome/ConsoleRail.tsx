@@ -1,6 +1,7 @@
-// The console's flat 220 px rail (S1.7): the lockup and the stage's one-line story, six places with WS-DS's
-// glyphs (filled when current), the person the judge acts as, Shortcuts, and the season's stencilled mark, as on
-// the jute sacks. Each place says where the run stands with it, in the run pill's own marks: an ink tick once
+// The console's flat 220 px rail (S1.7; UI gate round 2): the lockup, six places with WS-DS's glyphs (filled
+// when current), and at its foot the person the judge acts as ("AS Analyn · Treasurer", the catalog's whole
+// sentence as its name) and the "?" key for Shortcuts. The one-line story and the stencilled season mark are gone
+// from the rail: the first view's header says both. Each place says where the run stands with it, in the run pill's own marks: an ink tick once
 // it is done, and on the place the next step is in, the pill's mark for who moves next (canary when a person
 // decides, pencil while the machine reads, an open ring while PayPal confirms). The current
 // place is marked by a 3 px ink rule, not a filled plate. Below 1280 px it folds to glyphs; each label is still
@@ -15,13 +16,20 @@ import type { StepActor } from "./next-step.js";
 import { activeRailItem, type PlaceState, type RailItem } from "./rail-items.js";
 import { Wordmark } from "./Wordmark.js";
 
+/** The person the judge acts as, short: their initials, first name and role. */
+export interface RailActor {
+  readonly initials: string;
+  readonly first: string;
+  readonly role: string;
+}
+
 export interface ConsoleRailProps {
   readonly items: readonly RailItem[];
   readonly collapsed: boolean;
-  /** The stencilled season mark: "2026-A". */
-  readonly seasonMark: string;
-  /** The stage's one-line story, under the lockup. */
-  readonly story?: string;
+  /** The stencilled season mark: "2026-A" (no longer printed in the rail; kept for its callers). */
+  readonly seasonMark?: string;
+  /** The person the judge acts as. */
+  readonly actor?: RailActor;
   /** Where the run stands with each place: done, next, or still ahead. */
   readonly states?: Readonly<Partial<Record<RailItem["id"], PlaceState>>>;
   /** Who moves the run next (the pill's actor): the next place's mark follows it. */
@@ -42,14 +50,7 @@ const PLACE_WORDS: Readonly<Record<PlaceState, string>> = {
   later: "later",
 };
 
-export function ConsoleRail({
-  items,
-  collapsed,
-  seasonMark,
-  story,
-  states,
-  nextActor = "person",
-}: ConsoleRailProps) {
+export function ConsoleRail({ items, collapsed, actor, states, nextActor = "person" }: ConsoleRailProps) {
   const t = useT();
   const shortcuts = useShortcuts();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -64,11 +65,6 @@ export function ConsoleRail({
       {!collapsed && (
         <div className="fsc-rail__head">
           <Wordmark />
-          {story && (
-            <p className="fsc-rail__story fs-t-caption" data-testid="W-JG-01.story">
-              {story}
-            </p>
-          )}
         </div>
       )}
       <ul className="fsc-rail__list">
@@ -113,21 +109,35 @@ export function ConsoleRail({
         })}
       </ul>
       <div className="fsc-rail__foot">
-        {!collapsed && <p className="fsc-rail__acting fs-t-caption">{t("W-JG-01.actingAs")}</p>}
+        {!collapsed && (
+          <p className="fsc-rail__acting fs-t-label" title={t("W-JG-01.actingAs")}>
+            {actor ? (
+              <>
+                <span className="fs-stamp" aria-hidden>
+                  <span className="fs-t-stamp">{actor.initials}</span>
+                </span>
+                <span className="fs-sr">{t("W-JG-01.actingAs")}</span>
+                <span aria-hidden>{STAGE.actingShort(actor.first, actor.role)}</span>
+              </>
+            ) : (
+              t("W-JG-01.actingAs")
+            )}
+          </p>
+        )}
         <button
           type="button"
           className="fsc-rail__item fsc-rail__shortcuts"
           onClick={() => shortcuts.setSheetOpen(true)}
-          aria-label={collapsed ? STAGE.shortcuts : undefined}
+          aria-label={STAGE.shortcuts}
+          title={STAGE.shortcuts}
           data-testid="W-JG-01.rail.shortcuts"
         >
           <Glyph name="ms:keyboard" size={18} />
-          <span className="fsc-rail__label">{STAGE.shortcuts}</span>
+          <span className="fsc-rail__label" aria-hidden>
+            {STAGE.shortcuts}
+          </span>
           {!collapsed && <kbd className="fsc-kbd">?</kbd>}
         </button>
-        <p className="fsc-rail__mark" aria-hidden>
-          {seasonMark}
-        </p>
       </div>
     </nav>
   );

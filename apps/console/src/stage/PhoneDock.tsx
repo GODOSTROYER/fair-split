@@ -1,15 +1,16 @@
 // The stage's one phone (S1.6): Member, Chair and Clerk tabs over the Expo web export at /app, one iframe per
-// persona (named after it) so each keeps its own token and screen. Docked at the right from 1680 px under a
-// 56% ground scrim until it is the focus; between 1024 and 1679 px it folds into the ribbon's phone lane and
+// persona (named after it) so each keeps its own token and screen. Docked at the right from 1440 px (a narrower
+// column below 1680), at full contrast, with "Use the phone" on a line under it until it is the focus (UI gate
+// round 2: never a veil or a label over the statement); between 1024 and 1439 px it folds into the ribbon's lane and
 // rises above the ribbon at the right, beside the screen: a moment that raises it (a co-sign request, M-014's
 // payment) leaves the console lit and usable, so both screens read at once; only a raise the viewer asked for
-// lays the scrim over the console. The member's frame alone on the phone-visit layout under 1024 px. The aside
+// lays the scrim over the console. The member's frame alone, full width, on the phone visit under 1024 px. The aside
 // never moves in the DOM, because a re-parented iframe reloads. Frames load once the console is idle (S2.11:
 // all within 6 s); until the app answers, each shows a labelled preview drawn from the run on the stage.
 
 import { Tabs } from "@base-ui/react/tabs";
 import type { SeasonSnapshot } from "@fairsplit/contracts";
-import { PhoneFrame, useT } from "@fairsplit/ui-web";
+import { Glyph, PhoneFrame, useT } from "@fairsplit/ui-web";
 import { useEffect, useRef, useState } from "react";
 import { STAGE } from "../chrome/copy.js";
 import type { FramePersona } from "../data/adapter.js";
@@ -24,7 +25,8 @@ import type { FrameStatus, StageBridgeApi } from "./useStageBridge.js";
 
 /**
  * The caption under the phone says what the frame shows: S1.6's "The app's web build, running here" only once the
- * app answered; otherwise the preview, the asleep notice or the stand-in, in the frame's own words (I8).
+ * app answered; otherwise the preview, the asleep notice or the stand-in, in the frame's own words (I8). The stage
+ * prints only the latter (UI gate round 2): a frame showing the app needs no caption.
  */
 export function frameCaption(status: FrameStatus, asleep: boolean, appCaption: string): string {
   if (status === "app") return appCaption;
@@ -89,8 +91,9 @@ function tabFor(persona: FramePersona): HTMLElement | null {
 }
 
 /**
- * The docked phone's dimmed face (1680 px and up): "Use the phone" raises it, and the button goes with the dim
- * while it holds the keyboard. In that commit, before it goes, focus moves to the tab of the frame the phone
+ * The docked phone's resting face (1440 px and up): one button over the phone and the line under it, where "Use
+ * the phone" sits, outside the device (the statement stays at full contrast); pressing it raises the phone, and the
+ * button goes while it holds the keyboard. In that commit, before it goes, focus moves to the tab of the frame the phone
  * shows, so the next Tab goes on inside the phone, never back to the skip link from <body> (WCAG 2.4.3).
  */
 function PhoneScrim({
@@ -110,7 +113,10 @@ function PhoneScrim({
       onClick={onRaise}
       data-testid="W-JG-01.phoneScrim"
     >
-      <span className="fsc-dock__scrim-label fs-t-label">{STAGE.focusPhone}</span>
+      <span className="fsc-dock__scrim-label fs-t-label">
+        <Glyph name="ms:fingerprint" size={16} />
+        {STAGE.focusPhone}
+      </span>
     </button>
   );
 }
@@ -234,7 +240,11 @@ export function PhoneDock({
             <div className="fsc-dock__frame" inert={dimmed}>
               <PhoneFrame
                 label={`${info.name}'s phone`}
-                caption={frameCaption(bridge.status[shown], asleep, t("W-JG-01.frameCaption"))}
+                caption={
+                  bridge.status[shown] === "app"
+                    ? undefined
+                    : frameCaption(bridge.status[shown], asleep, t("W-JG-01.frameCaption"))
+                }
                 width={size.width}
                 height={size.height}
                 testId="W-JG-01.frame"

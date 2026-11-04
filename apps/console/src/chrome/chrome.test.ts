@@ -155,7 +155,16 @@ describe("honest labels (I8: nothing simulated is unlabelled)", () => {
     const sections = whatsReal(facts);
     const real = sections.find((s) => s.id === "real");
     expect(real?.items.join(" ")).not.toMatch(/PayPal/);
-    expect(sections.find((s) => s.id === "simulated-paypal")?.title).toBe("PayPal, simulated");
+    expect(sections.find((s) => s.id === "simulated-paypal")?.title).toBe("Simulated PayPal sandbox");
+    // Five rows, each one short line (UI gate round 2); the details stay behind "More".
+    expect(sections.map((s) => s.id)).toEqual([
+      "real",
+      "simulated-paypal",
+      "replayed",
+      "synthetic",
+      "not-built",
+    ]);
+    for (const s of sections) expect(s.line.split(" ").length).toBeLessThanOrEqual(10);
     expect(sections.some((s) => s.id === "real-paypal")).toBe(false);
     const sandbox = whatsReal({ ...facts, rail: "sandbox" });
     expect(sandbox.some((s) => s.id === "real-paypal")).toBe(true);

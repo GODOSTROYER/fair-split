@@ -1,18 +1,18 @@
-// W-JG-01's first view (S1.6, design §6 J1, plan "Judge Mode" step 0): "Season 2026-A is ready to pay." It
-// leads with paper on lacquer (design §1, signature 1): the twelve replay photos lie as a contact sheet beside
-// the invoice plate, under the pool's one-line strip, with the evidence shadow, inside the first screen. The
-// bolted BR 2026-04 plate carries its hash, and the invoice plate holds Claude's recorded draft in pencil with
-// US$4,333.50 hollow. Nothing here calls the API: the snapshot and the first view are built locally (S3.9).
-// The single d2 slab is the first press: it starts the judge session, then records Lantern Bay's payment; MM-S
-// plays when the invoice reads back as paid, on the event, never on the press, and the title says it's funded.
-// Under the invoice and the slab, the five story tiles (Read, Check, Sign, Pay, Prove: the story and the colour
-// key at once) and the honest "What's real" strip (ADR-0016).
+// W-JG-01's first view (S1.6, design §6 J1, plan "Judge Mode" step 0): "Season 2026-A is ready to pay." UI gate
+// round 2 puts it on a word diet: the title, one mono line of facts and the rate card's chip; the invoice with
+// its one amount and one press (the honesty tag under it, never a sentence); the pool's strip and the twelve slip
+// photos beside it; the five steps as numbers; and the honesty row, the legend for the stage's marks. Every
+// explanation lives in What's real, a row's "More", or a title. Nothing here calls the API: the snapshot and the
+// first view are built locally (S3.9). The single press starts the judge session, then records Lantern Bay's
+// payment; MM-S plays when the invoice reads back as paid, on the event, never on the press, and the title says
+// it's funded.
 
 import { PAY_RUN_RANK, type PayRunState, webRoutes } from "@fairsplit/contracts";
-import { Glyph, Slab, useT } from "@fairsplit/ui-web";
+import { Glyph, HonestyTag, Slab, useT } from "@fairsplit/ui-web";
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { AppLink } from "../../chrome/AppLink.js";
 import { CommandNotice } from "../../chrome/CommandNotice.js";
+import { railTag } from "../../chrome/copy.js";
 import { ScreenRoot } from "../../chrome/ScreenRoot.js";
 import { SeasonText } from "../../chrome/SeasonText.js";
 import { Stamp } from "../../chrome/Stamp.js";
@@ -24,7 +24,7 @@ import { env } from "../../lib/env.js";
 import { useFocusAfterRemoval } from "../../lib/focus.js";
 import { format } from "../../lib/format.js";
 import { useNextStep, usePrefocus } from "../../stage/context.js";
-import { HashPlate } from "../ratecard/parts.js";
+import { sealedText } from "../ratecard/model.js";
 import { ExhibitLink } from "../reading/ExhibitLink.js";
 import { photoIsRead, replayPhotos } from "../reading/model.js";
 import { FIRST_VIEW_COPY } from "../season/copy.js";
@@ -144,6 +144,7 @@ function Desk() {
     </span>
   );
   const photos = replayPhotos(snapshot);
+  const slipCount = photos.reduce((n, photo) => n + photo.slips.length, 0);
   const readPhotos = new Set(
     photos.filter((photo) => photoIsRead({ view, snapshot, photo })).map((p) => p.photoId),
   );
@@ -270,7 +271,7 @@ function Desk() {
       ? FIRST_VIEW_COPY.titleFunded(season)
       : t("W-JG-01.ready", { season });
   const status = settled
-    ? `${payoutReplayed(view) ? "Replayed payouts" : "Payouts recorded"}. Simulated PayPal sandbox. Cash is collected at the bodega.`
+    ? FIRST_VIEW_COPY.settledStatus(payoutReplayed(view))
     : markPaid.queuedMs === null
       ? statusLine[phase]
       : `You're next, about ${Math.ceil(markPaid.queuedMs / 1000)} s`;
@@ -287,17 +288,22 @@ function Desk() {
         <p className="fsc-first__status fs-t-label" role="status" data-testid="W-JG-01.status">
           <Glyph name={phase === "funded" ? "ms:check" : "rail"} size={16} />
           <span>{status}</span>
+          {settled && <HonestyTag>{railTag(rail)}</HonestyTag>}
           {phase === "funded" && next && next.id !== "mark-paid" && (
             <AppLink href={next.to} className="fs-link" data-testid="W-JG-01.continue">
               {FIRST_VIEW_COPY.openNext}
             </AppLink>
           )}
         </p>
+      ) : movedOn ? (
+        <p className="fsc-first__note fs-t-caption">{FIRST_VIEW_COPY.movedOn}</p>
       ) : (
-        <p className="fsc-first__note fs-t-caption">
-          {movedOn
-            ? FIRST_VIEW_COPY.movedOn
-            : FIRST_VIEW_COPY.pressNote(snapshot.payer.shortName, format.money(cents), rail)}
+        // The press's honesty, as the one tag (UI gate round 2); the whole sentence is its title.
+        <p
+          className="fsc-first__note"
+          title={FIRST_VIEW_COPY.pressNote(snapshot.payer.shortName, format.money(cents), rail)}
+        >
+          <HonestyTag>{railTag(rail)}</HonestyTag>
         </p>
       )}
       <CommandNotice
@@ -320,16 +326,32 @@ function Desk() {
           <h1 id="fsc-first-title" className="fs-t-display fsc-first__title" data-testid="W-JG-01.title">
             <SeasonText text={title} season={season} />
           </h1>
-          <p className="fsc-first__lede fs-t-lede">
-            {FIRST_VIEW_COPY.lede(snapshot.figures.members, snapshot.lot.buyer)}
+          <p
+            className="fsc-first__facts fs-t-micro"
+            title={FIRST_VIEW_COPY.lede(snapshot.figures.members, snapshot.lot.buyer)}
+            data-testid="W-JG-01.facts"
+          >
+            {FIRST_VIEW_COPY.facts(snapshot.figures.members, slipCount)}
           </p>
         </div>
-        <div className="fsc-first__rules">
-          <HashPlate snapshot={snapshot} testId="W-JG-01.rules" compact />
-          <AppLink href={webRoutes.rateCard(season)} className="fs-link fs-t-caption fsc-first__rules-link">
-            {FIRST_VIEW_COPY.openCard}
-          </AppLink>
-        </div>
+        <AppLink
+          href={webRoutes.rateCard(season)}
+          className="fsc-first__card"
+          aria-label={`${FIRST_VIEW_COPY.openCard}: ${sealedText(snapshot.rateCard)}`}
+          data-testid="W-JG-01.rules"
+        >
+          <Glyph name="ms:lock" size={16} />
+          <span className="fs-t-label">{FIRST_VIEW_COPY.card}</span>
+          <span className="fsc-first__card-hash fs-t-micro" data-testid="W-JG-01.rules.sealed">
+            {FIRST_VIEW_COPY.cardSealed(
+              format.hashGroups(snapshot.rateCard.sha256),
+              format.dateShort(snapshot.rateCard.canonical.ratifiedOn),
+            )}
+          </span>
+          <span className="fsc-first__card-open fs-t-label" aria-hidden>
+            {FIRST_VIEW_COPY.open}
+          </span>
+        </AppLink>
       </header>
 
       <FundingBlock
@@ -344,14 +366,16 @@ function Desk() {
         compact
         desk={
           <section className="fsc-first__desk" aria-labelledby="fsc-first-desk" data-testid="W-JG-01.desk">
-            <header className="fsc-first__desk-head">
-              <h2 id="fsc-first-desk" className="fsc-section-title fs-t-label">
+            <header className="fsc-first__desk-head" title={FIRST_VIEW_COPY.deskNote(photos.length, funded)}>
+              <h2 id="fsc-first-desk" className="fsc-first__desk-title fs-t-label">
                 {FIRST_VIEW_COPY.desk}
               </h2>
-              <p className="fs-t-caption fsc-first__desk-note">
-                {FIRST_VIEW_COPY.deskNote(photos.length, funded)}
-              </p>
-              <ExhibitLink season={season} />
+              <span className="fsc-first__desk-note fs-t-micro">
+                {FIRST_VIEW_COPY.slipsMicro(photos.length, slipCount)}
+              </span>
+              <span className="fsc-first__synthetic" data-testid="W-JG-01.synthetic">
+                <HonestyTag>{FIRST_VIEW_COPY.syntheticSample}</HonestyTag>
+              </span>
             </header>
             <div className="fsc-first__sheet">
               <ContactSheet
@@ -362,16 +386,13 @@ function Desk() {
                 testId="W-JG-01.photos"
                 columns={6}
               />
-              <p className="fsc-first__synthetic fs-t-caption" data-testid="W-JG-01.synthetic">
-                <Glyph name="triplicate-slip" size={14} />
-                {FIRST_VIEW_COPY.synthetic}
-              </p>
+              <ExhibitLink season={season}>{FIRST_VIEW_COPY.exhibit}</ExhibitLink>
             </div>
           </section>
         }
       />
       <StoryTiles snapshot={snapshot} />
-      <WhatsRealStrip members={snapshot.figures.members} />
+      <WhatsRealStrip rail={rail} />
     </ScreenRoot>
   );
 }
