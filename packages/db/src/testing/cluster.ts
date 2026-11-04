@@ -6,6 +6,8 @@
  *   `<package>/.cache/pg/` (gitignored). initdb runs once; later runs start the cluster in about half a second.
  *   It binds 127.0.0.1 on a free port with trust auth, fsync off. Everything it writes stays in the worktree:
  *   TEMP/TMP point into .cache while initdb runs.
+ * - As root (uid 0: Docker, many CI images) the embedded cluster cannot run, since initdb and postgres refuse
+ *   it; the harness says so before it creates anything, and names the two ways out.
  */
 import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync } from "node:fs";
@@ -87,9 +89,23 @@ function runningPort(dataDir: string): number | null {
   return Number.isInteger(port) && port > 0 ? port : null;
 }
 
-export async function startTestCluster(opts: { cacheDir?: string } = {}): Promise<TestCluster> {
+/** Why the embedded cluster cannot run as this user, or null when it can. `uid` is undefined on Windows. */
+export function rootRefusal(uid: number | undefined): string | null {
+  if (uid !== 0) return null;
+  return (
+    "The embedded test Postgres cannot run as root: initdb and postgres refuse uid 0. " +
+    "Run as a regular user, or set FS_TEST_DATABASE_URL to the admin URL of a Postgres server " +
+    "(for example postgres://postgres@127.0.0.1:5432/postgres)."
+  );
+}
+
+export async function startTestCluster(
+  opts: { cacheDir?: string; uid?: number | undefined } = {},
+): Promise<TestCluster> {
   const external = process.env.FS_TEST_DATABASE_URL;
   if (external) return { adminUrl: external, source: "external", stop: async () => {}, stopSync: () => {} };
+  const refusal = rootRefusal("uid" in opts ? opts.uid : process.getuid?.());
+  if (refusal) throw new Error(refusal);
 
   const cacheDir = path.resolve(opts.cacheDir ?? path.join(process.cwd(), ".cache"));
   const dataDir = path.join(cacheDir, "pg", "pg17");
