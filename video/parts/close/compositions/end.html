@@ -6,7 +6,8 @@
          weigh-slip and the member's phone on one line. The hand's box marks the handwritten figure and the trace runs
          from it to her pay, ending in one jade pulse ("Members check their own pay; the buyer traces its premium").
          A daylight veil, "Every peso, traced.", then the film's one name card, the opening's mark and lockup.
-         The phone shows PayPal values, so the sandbox tag is on until the veil hides them. -->
+         The phone shows PayPal values, so the sandbox tag is on until the veil hides them; the voices' tag holds under
+         the name to the last frame. -->
   </head>
   <body>
     <template>
@@ -428,6 +429,7 @@
           Simulated PayPal sandbox
         </div>
         <div id="ce-veil"></div>
+        <div id="ce-vtag" class="cf-tag cf-tag--nodot" data-layout-allow-occlusion>Synthetic voices · Gemini TTS</div>
         <div id="ce-end" data-layout-allow-overflow>
           <span class="w">Every</span><span class="w">peso,</span
           ><span class="w acc">traced.<i id="ce-endLine"></i></span>
@@ -833,6 +835,9 @@
             5.1,
           );
           tl.fromTo("#ce-nameSub", { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.6, ease: "power3.out" }, 5.5);
+          // the end card discloses the voices (decision register: captions, end card, description): the one tag,
+          // once the name has landed, held to the last frame
+          tl.fromTo("#ce-vtag", { opacity: 0, x: 14 }, { opacity: 1, x: 0, duration: 0.4, ease: "power2.out" }, 6.0);
 
           rig.draw(0);
           window.__timelines["close-end"] = tl;

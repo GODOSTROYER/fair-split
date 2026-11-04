@@ -253,6 +253,28 @@
           color: #5a6476;
         }
         /* style:end */
+        /* the joint at 143 s (STYLE §5): the reel ends under a 92% daylight veil, so the close opens under it and
+           lifts it as the first figure lifts in */
+        #ci-veil {
+          position: absolute;
+          inset: 0;
+          background: #f3f5f8;
+          opacity: 0;
+        }
+        #ci-veil::after {
+          content: "";
+          position: absolute;
+          inset: 0;
+          background:
+            radial-gradient(
+              52% 70% at 0% 0%,
+              rgb(20 204 144 / 0.14),
+              rgb(20 204 144 / 0.07) 35%,
+              rgb(20 204 144 / 0.02) 65%,
+              transparent 90%
+            ),
+            radial-gradient(42% 58% at 62% 0%, rgb(74 47 214 / 0.09), rgb(74 47 214 / 0.04) 40%, transparent 85%);
+        }
         #root {
           position: absolute;
           inset: 0;
@@ -292,6 +314,7 @@
             </div>
           </div>
         </div>
+        <div id="ci-veil"></div>
         <div
           id="ci-kw"
           class="cf-kw"
@@ -515,6 +538,8 @@
           const clock = { t: 0 };
           tl.to(clock, { t: 11, duration: 11, ease: "none", onUpdate: () => rig.draw(clock.t) }, 0);
 
+          // the reel's daylight veil lifts off the field (0-0.7 s)
+          tl.fromTo("#ci-veil", { opacity: 0.92 }, { opacity: 0, duration: 0.7, ease: "sine.inOut" }, 0);
           // over five thousand automated tests: the figure lifts in, the quiet words settle under it
           tl.fromTo(
             "#ci-tests-fig",

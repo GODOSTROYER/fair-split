@@ -530,11 +530,19 @@ animate("#arch-grain", {
 });
 
 // ---------- camera, motion blur, depth of field ----------
+// the joints (STYLE §5): the opening ends under a 92% daylight veil, so this beat opens under the same veil and
+// lifts it (0-0.7 s) as the slip lifts in; at the end the diagram dissolves into the field (blur and fade,
+// last 0.6 s) and the reel's focus pull starts on that same empty field at 44 s, with the sandbox tag running on
+const veilAt = (t) => 0.92 * (1 - prog(t, 0, 0.7, E.inOutSine));
+const dissolveAt = (t) => prog(t, DUR - 0.6, DUR - 1 / FPS, E.inQuad);
+animate("#arch-veil", { opacity: (t) => opacity(veilAt(t)) });
 animate("#arch-world", {
   transform: (t) => {
     const c = camAt(t);
     return `matrix(${r3(c.s)},0,0,${r3(c.s)},${r2(960 - c.s * c.x)},${r2(540 - c.s * c.y)})`;
   },
+  opacity: (t) => opacity(1 - dissolveAt(t)),
+  filter: (t) => blurOf(18 * (veilAt(t) / 0.92) + 16 * dissolveAt(t)),
 });
 // directional motion blur keyed to the camera's speed (STYLE §5), on a container of its own; one SVG filter per
 // quantised (x, y) sigma that the camera actually uses
@@ -708,6 +716,8 @@ const css = `
 #arch-wash{position:absolute;inset:0;background:radial-gradient(56% 74% at 0% 0%,rgb(20 204 144/.15),rgb(20 204 144/.1) 20%,rgb(20 204 144/.055) 42%,rgb(20 204 144/.02) 66%,transparent 90%),radial-gradient(44% 60% at 64% 0%,rgb(74 47 214/.09),rgb(74 47 214/.06) 22%,rgb(74 47 214/.03) 46%,rgb(74 47 214/.01) 70%,transparent 92%)}
 #arch-dapple{position:absolute;left:0;top:0;width:3200px;height:1800px;opacity:.85;background:url("../assets/dapple.png") 0 0/100% 100% no-repeat}
 #arch-mb{position:absolute;inset:0}
+#arch-veil{position:absolute;inset:0;background:${C.ground}}
+#arch-veil::after{content:"";position:absolute;inset:0;background:radial-gradient(52% 70% at 0% 0%,rgb(20 204 144/.14),rgb(20 204 144/.07) 35%,rgb(20 204 144/.02) 65%,transparent 90%),radial-gradient(42% 58% at 62% 0%,rgb(74 47 214/.09),rgb(74 47 214/.04) 40%,transparent 85%)}
 #arch-world{position:absolute;left:0;top:0;width:1920px;height:1080px;transform-origin:0 0}
 #arch-svgwrap{position:absolute;left:0;top:0;width:1920px;height:1080px}
 #arch-svg{position:absolute;left:0;top:0;overflow:visible}
@@ -773,6 +783,7 @@ ${NODES.map(nodeHtml).join("\n")}
 <div id="arch-end"></div>
 </div>
 </div>
+<div id="arch-veil"></div>
 <div class="tag tag--nodot" id="arch-tag-demo">Demo: seed stand-in</div>
 <div class="tag" id="arch-tag-sim">${FLASK}Simulated PayPal sandbox</div>
 <div id="arch-grain" data-layout-allow-overflow></div>

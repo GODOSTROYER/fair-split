@@ -16,25 +16,25 @@ opens on. No third-party logos or artwork: "PayPal" is set in our own type on a 
 Word times are word-proportional across the speech window (30–41 s), as the captions are timed, and come from
 `script.ts` at build time, so the build moves with F4's alignment.
 
-| Beat s     | Film s | On the words           | Picture                                                                                                    |
-| ---------- | ------ | ---------------------- | ---------------------------------------------------------------------------------------------------------- |
-| 0.0–0.4    | 30.0   | "Slips"                | Daylight. The slip disc lifts in close up (camera 1.9×): **Slips**.                                        |
-| 0.4–1.3    | 30.4   | "go to"                | The handwriting runs to Claude as an ink wave that calms as it arrives.                                    |
-| 1.2–1.9    | 31.2   | "Claude"               | **Claude** lands (scan icon); the tag **Demo: seed stand-in** while Claude is the subject. Step 1.         |
-| 1.9–2.9    | 31.9   | "then a deterministic" | The indigo trace leaves Claude, its light at the head; the camera pushes to the engine.                    |
-| 2.6–3.4    | 32.6   | "deterministic engine" | **Engine** lands (sum icon). Step 2.                                                                       |
-| 3.1–3.9    | 33.1   | "engine. Two"          | 64 thin ink member lines fan out of the engine and converge on one ring.                                   |
-| 3.4–4.6    | 33.4   | "Two keys"             | The camera pushes to the ring; two key discs land above it.                                                |
-| 4.3–4.9    | 34.3   | "sign"                 | Each key signs with an indigo thread; two indigo pulses on the ring: **Signed**. Step 3.                   |
-| 5.0–5.6    | 35.0   | "one batch hash"       | A # draws inside the ring.                                                                                 |
-| 6.2–7.4    | 36.2   | "An outbox"            | The trace leaves the hash, the camera pushes on: **Outbox** lands (tray icon).                             |
-| 7.4–8.2    | 37.4   | "makes each"           | An ink line draws out towards PayPal.                                                                      |
-| 8.1–8.7    | 38.1   | "simulated PayPal"     | **PayPal** lands on a dashed node; the **Simulated PayPal sandbox** tag turns on (to the end). Step 4.     |
-| 8.9–9.6    | 38.9   | "call"                 | The call leaves the outbox and is lost halfway: its light goes out and its trace fades.                    |
-| 9.5–10.0   | 39.5   | "safe to"              | A retry loop draws over the outbox; its word becomes **Safe to retry**.                                    |
-| 10.0–11.2  | 40.0   | "retry"                | The same call goes again and lands once: one jade pulse on the PayPal node, a jade end node stays.         |
-| 10.6–12.55 | 40.6   | (silence)              | The camera pulls back to the whole line; **Signed**, **Engine**, **Claude** return as each fits the frame. |
-| 12.55–14.0 | 42.55  | (silence)              | The overview holds with a 1.2% push to the cut.                                                            |
+| Beat s     | Film s | On the words           | Picture                                                                                                                                                                                        |
+| ---------- | ------ | ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0.0–0.4    | 30.0   | "Slips"                | Daylight, under the opening's 92% veil, which lifts (0–0.7 s) as the slip disc lifts in close up (camera 1.9×): **Slips**.                                                                     |
+| 0.4–1.3    | 30.4   | "go to"                | The handwriting runs to Claude as an ink wave that calms as it arrives.                                                                                                                        |
+| 1.2–1.9    | 31.2   | "Claude"               | **Claude** lands (scan icon); the tag **Demo: seed stand-in** while Claude is the subject. Step 1.                                                                                             |
+| 1.9–2.9    | 31.9   | "then a deterministic" | The indigo trace leaves Claude, its light at the head; the camera pushes to the engine.                                                                                                        |
+| 2.6–3.4    | 32.6   | "deterministic engine" | **Engine** lands (sum icon). Step 2.                                                                                                                                                           |
+| 3.1–3.9    | 33.1   | "engine. Two"          | 64 thin ink member lines fan out of the engine and converge on one ring.                                                                                                                       |
+| 3.4–4.6    | 33.4   | "Two keys"             | The camera pushes to the ring; two key discs land above it.                                                                                                                                    |
+| 4.3–4.9    | 34.3   | "sign"                 | Each key signs with an indigo thread; two indigo pulses on the ring: **Signed**. Step 3.                                                                                                       |
+| 5.0–5.6    | 35.0   | "one batch hash"       | A # draws inside the ring.                                                                                                                                                                     |
+| 6.2–7.4    | 36.2   | "An outbox"            | The trace leaves the hash, the camera pushes on: **Outbox** lands (tray icon).                                                                                                                 |
+| 7.4–8.2    | 37.4   | "makes each"           | An ink line draws out towards PayPal.                                                                                                                                                          |
+| 8.1–8.7    | 38.1   | "simulated PayPal"     | **PayPal** lands on a dashed node; the **Simulated PayPal sandbox** tag turns on (to the end). Step 4.                                                                                         |
+| 8.9–9.6    | 38.9   | "call"                 | The call leaves the outbox and is lost halfway: its light goes out and its trace fades.                                                                                                        |
+| 9.5–10.0   | 39.5   | "safe to"              | A retry loop draws over the outbox; its word becomes **Safe to retry**.                                                                                                                        |
+| 10.0–11.2  | 40.0   | "retry"                | The same call goes again and lands once: one jade pulse on the PayPal node, a jade end node stays.                                                                                             |
+| 10.6–12.55 | 40.6   | (silence)              | The camera pulls back to the whole line; **Signed**, **Engine**, **Claude** return as each fits the frame.                                                                                     |
+| 12.55–14.0 | 42.55  | (silence)              | The overview holds with a 1.2% push; in the last 0.6 s the diagram dissolves into the field (blur and fade), so the reel's focus pull starts on the same empty field; the sandbox tag runs on. |
 
 ## The rules it keeps (video/proto/STYLE.md)
 

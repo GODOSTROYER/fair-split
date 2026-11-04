@@ -102,7 +102,11 @@ jade pulse (the hand delivers the money).
 - **Joints with the parts:** no dip to navy, no crossfade between day and night. The opening glides off its end
   line and comes to rest on the empty daylight field at 30.0; the reel opens with a focus pull on its first
   window (44.0–44.8); the run ends with a glide off the last phone under a daylight veil (92% by 142.8) and
-  rests on the field at 143.0. Each part starts and ends on that field.
+  rests on the field at 143.0. Each part starts and ends on that field, and where one side ends under the veil
+  the other opens under the same veil and lifts it (0.7 s): the architecture lifts the opening's (30.0–30.7) and
+  the close lifts the run's (143.0–143.7). The architecture ends by dissolving its diagram into the field
+  (blur and fade, 43.4–44.0), so the reel's first window fades in with its focus pull, and the sandbox tag runs
+  on across the cut. The two sides of a joint draw the same pixels at the cut (checked frame by frame).
 - **Night camera:** a slow drift in (≤ 4%), and a push of about 1.25× towards the detail in question (the
   doubled thread) during its beat, easing back as it resolves; back to rest before the next metaphor.
 - **The turn:** the ring's disc becomes a portal (0.4 s iris to the ring's radius), already showing the morning

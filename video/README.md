@@ -1,4 +1,4 @@
-# Fair Split film · script v4, rough cut v2
+# Fair Split film · script v4, rough cut v3
 
 1920 × 1080, 30 fps, 175 seconds (2:55), in the motion language of [`proto/STYLE.md`](proto/STYLE.md): almost no
 text, one accent per frame, a visual metaphor per idea, night then day, calm floating product windows, a smooth
@@ -13,7 +13,7 @@ music are not chosen yet (their cue points are in [`AUDIO-CUES.md`](AUDIO-CUES.m
 | --------- | ------------ | ----------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 0–14      | problem      | `compositions/opening.html` (from `proto/index.html`) | Night. Hairline, "64 farmers." (tag Synthetic co-op), "one shoebox of slips.", the slip's wave fans into 64 member threads, "one slip, twice." (the pink copy), "count it once.", the dots gather into a jade ring: US$4,333.50, "one invoice." (tag Simulated PayPal sandbox).                                                                                                     |
 | 14–30     | solution     | (same)                                                | The turn at 14.45: the ring becomes a portal into daylight, "traced.". "read." (Claude's reading of slip 0403), "checked." (the duplicate row, Count it once), "paid." (her statement in Cebuano), the trace slip → peso → phone, "Every peso, traced.", then the camera glides off it onto the empty daylight field (28.3–30). No name card: the name shows once, on the end card. |
-| 30–44     | architecture | `parts/architecture/compositions/architecture.html`   | Night. The line-and-node diagram builds on its words (30–40.6), then holds.                                                                                                                                                                                                                                                                                                         |
+| 30–44     | architecture | `parts/architecture/compositions/architecture.html`   | Day. The beat lifts the opening's veil (30.0–30.7) and builds the line in four steps on their words, the camera pushing node to node: Claude, Engine, Signed, PayPal (sandbox tag on from the PayPal node); the call is lost, retried and lands once (one jade pulse); the camera pulls back to the whole line (40.6–42.55), which dissolves into the field (43.4–44.0).            |
 | 44–57     | highlights   | `compositions/highlights.html`                        | A focus pull on the first window, then one camera glides through six floating windows, each glide straddling the cut on the word that names it: balanced. · frozen. · signed. · checked. · heard. · refused. Sandbox tag throughout.                                                                                                                                                |
 | 57–65     | paper        | `compositions/paper.html`                             | Bumper "The deep dive." on a daylight veil over the camera's glide (57–58.65), then paper. (paper-photos, 57–61) · twice. (paper-carbon, 61–65). No PayPal value, no tag.                                                                                                                                                                                                           |
 | 65–73     | funding      | `compositions/funding.html`                           | funded. (funding-console, a jade hit at 66.1). Sandbox tag on from 65.                                                                                                                                                                                                                                                                                                              |
@@ -25,9 +25,9 @@ music are not chosen yet (their cue points are in [`AUDIO-CUES.md`](AUDIO-CUES.m
 | 121–129   | proof        | `compositions/proof.html`                             | re-checked. (proof-browser).                                                                                                                                                                                                                                                                                                                                                        |
 | 129–134   | member       | `compositions/member.html`                            | traced. (member-phone, a phone window): her four slips trace into her net pay, one jade pulse at 131.2.                                                                                                                                                                                                                                                                             |
 | 134–143   | listening    | `compositions/listening.html`                         | heard. (listening-phone, a phone window); her sentence plays alone. The camera glides off the phone under a daylight veil (141.3–143) and rests on the field.                                                                                                                                                                                                                       |
-| 143–154   | impressive   | `parts/close/compositions/impressive.html`            | Night: 5,000+ tests, 3 kill switches, the prior-art line; the weigh-slip line blooms into daylight (153.4–154).                                                                                                                                                                                                                                                                     |
-| 154–167   | limits       | `parts/close/compositions/limits.html`                | Day: each disclosure while it is said, filed into the ledger.                                                                                                                                                                                                                                                                                                                       |
-| 167–175   | end          | `parts/close/compositions/end.html`                   | Slip → members → buyer, "Every peso, traced.", the name; the voice disclosure holds to the last frame.                                                                                                                                                                                                                                                                              |
+| 143–154   | impressive   | `parts/close/compositions/impressive.html`            | Day, on the reel's field: the close lifts the run's veil (143.0–143.7); "5,000+" over "automated tests", a glide to "3" over "kill switches", a glide to the handwritten weigh-slip, "handwritten." and the hand's indigo box round 38.45. No PayPal value, no tag.                                                                                                                 |
+| 154–167   | limits       | `parts/close/compositions/limits.html`                | Day. The camera glides into open field, "the limits." (small, grey), then one limit at a time while it is said, a keyword and its one tag: simulated. · synthetic. · generated. · replayed. · synthesized.                                                                                                                                                                          |
+| 167–175   | end          | `parts/close/compositions/end.html`                   | The slip and her phone on one line (sandbox tag on), the trace from the handwritten 38.45 to her pay and one jade pulse (169.85), a veil, "Every peso, traced." (170.6), then the film's one name card (171.95) with the voices' tag to the last frame.                                                                                                                             |
 
 Script v4's boundaries are unchanged: each part's real length matches its beats (the opening 30 s, the
 architecture 14 s, the close 32 s), and the build refuses a part whose own `data-duration` drifts from its beats.
@@ -65,10 +65,22 @@ architecture 14 s, the close 32 s), and the build refuses a part whose own `data
 STYLE §7 replaces v1's disclosure rails and lower thirds with one dashed tag at a time. "Synthetic co-op" arrives
 with the first people count (1.95 s) and "Simulated PayPal sandbox" with the first PayPal value (13.1 s), then stays
 on through every product run; the reading's real-reading and stand-in labels take the tag's place over their own
-clips; the architecture and the close carry their own tags; the limits card (154–167) shows every disclosure while
-it is said, and the voice disclosure holds to the last frame. v1's opening rail (`FILM.firstCaption`, 0–14 s) is
-no longer on screen: its four disclosures are in the tags, the limits card, the end ledger and the upload's
-description (`FILM.descriptionDisclosure`). Review that change before delivery.
+clips; the architecture carries "Demo: seed stand-in" while Claude is the subject, then the sandbox tag from the
+PayPal node, which runs on into the reel; the close shows one limit at a time while it is said (154–167), each with
+its one tag, and the end card's tag ("Synthetic voices · Gemini TTS") holds to the last frame. v1's opening rail
+(`FILM.firstCaption`, 0–14 s) is no longer on screen: its four disclosures are in the tags, the limits, the end
+card's tag and the upload's description (`FILM.descriptionDisclosure`). Review that change before delivery.
+
+## Joints and seams (rough cut v3)
+
+There is one turn, in the opening; everything after 15.8 s is day on one field. Where one side of a cut ends
+under the daylight veil, the other opens under the same veil and lifts it: the architecture lifts the opening's
+(30.0–30.7) and the close lifts the run's (143.0–143.7). The architecture dissolves its diagram into the field
+(43.4–44.0) and the reel's first window fades in with its focus pull, the sandbox tag running on across the cut.
+Inside the run, a keyword's wipe out finishes two frames before its composition's cut and an accent leaves with
+its keyword, because the next beat draws only its neighbours' windows. Check a cut with
+`node video/contact.mjs <ffmpeg> video/out/rough-cut-v3.mp4 <out.png> 29.967,30,43.967,44,...` (both sides of each
+cut); v3's sheet of every cut is `out/rough-cut-v3-seams.png`.
 
 ## Dropping in the captures (F3)
 
@@ -98,11 +110,11 @@ node video/check.mjs
 . video/proto/tools/env.sh           # offline HyperFrames 0.8.157, cached Chromium, WinGet ffmpeg
 $HF lint video && $HF check video
 $HF snapshot video --describe false --no-end --at 2.4,15,20.9,35,45.5,57.5,69,75,107,131,145,160,172
-$HF render video --quality draft --fps 30 --workers 1 --output video/out/rough-cut-v2-picture.mp4
-ffmpeg -i video/out/rough-cut-v2-picture.mp4 -f lavfi -t 175 -i anullsrc=r=48000:cl=stereo -i video/captions.vtt \
+$HF render video --quality draft --fps 30 --workers 1 --output video/out/rough-cut-v3-picture.mp4
+ffmpeg -i video/out/rough-cut-v3-picture.mp4 -f lavfi -t 175 -i anullsrc=r=48000:cl=stereo -i video/captions.vtt \
   -map 0:v -map 1:a -map 2:s -c:v copy -c:a aac -b:a 96k -c:s mov_text -metadata:s:s:0 language=eng \
-  video/out/rough-cut-v2.mp4
-cp video/captions.vtt video/out/rough-cut-v2.en.vtt
+  video/out/rough-cut-v3.mp4
+cp video/captions.vtt video/out/rough-cut-v3.en.vtt
 ```
 
 The MP4 carries a silent stereo track (so editors and players see an audio stream) and the soft English caption

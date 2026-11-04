@@ -242,9 +242,12 @@ window.FairSplitSlots = (() => {
         svg,
       );
       return (T) => {
+        // the trace leaves with its keyword, before the cut: the next beat draws only this window, not its accent
+        const gone = 1 - E.p2i(prog(T, slot.kwOut, slot.kwOut + 0.3));
+        svg.style.opacity = gone.toFixed(3);
         cards.forEach((card, i) => {
           const u = E.p3o(prog(T, at - 0.35 + 0.08 * i, at + 0.35 + 0.08 * i));
-          card.style.opacity = u.toFixed(3);
+          card.style.opacity = (u * gone).toFixed(3);
           card.style.transform = `translateY(${(30 * (1 - u)).toFixed(2)}px) rotate(${SLIPS[i].r}deg)`;
           card.style.filter = u < 0.98 ? `blur(${(10 * (1 - u)).toFixed(2)}px)` : "none";
         });
@@ -413,8 +416,11 @@ window.FairSplitSlots = (() => {
           continue;
         }
         // windows come in and leave with the camera; one still at the frame's edge as its glide starts or ends
-        // fades with the move, so none pops in or lingers there (STYLE §4)
-        const fadeIn = slot.first ? 1 : E.sio(prog(T, from, from + 0.35));
+        // fades with the move, so none pops in or lingers there (STYLE §4); the reel's first window fades in with
+        // its focus pull, since the architecture ends on the empty field
+        const fadeIn = slot.first
+          ? E.sio(prog(T, slot.start, slot.start + 0.5))
+          : E.sio(prog(T, from, from + 0.35));
         const fadeOut = slot.last ? 1 : 1 - E.sio(prog(T, to - 0.35, to));
         const geo = cfg.windows[slot.kind];
         const sx = 960 + (slot.x - c.x) * c.s;
@@ -471,7 +477,10 @@ window.FairSplitSlots = (() => {
         { yPercent: 0, duration: 0.75, ease: "expo.out" },
         Math.max(0, slot.kwIn - T0),
       );
-      tl.to(kw, { yPercent: -108, duration: 0.32, ease: "power3.in" }, slot.kwOut - T0);
+      // the wipe out finishes two frames before the composition's cut (the next beat does not draw this keyword),
+      // so no sliver of it is cut off: 0.32 s, or a little less for a keyword held to the end of a short clip
+      const outFor = Math.max(0.2, Math.min(0.32, cfg.duration - 0.08 - (slot.kwOut - T0)));
+      tl.to(kw, { yPercent: -108, duration: outFor, ease: "power3.in" }, slot.kwOut - T0);
       // a slot's own honesty label holds while its window can be read
       if (own.tag) {
         const tag = $(`${own.id}-tag`);

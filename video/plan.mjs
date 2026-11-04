@@ -24,7 +24,7 @@ export const SEGMENTS = [
     id: "architecture",
     beats: ["architecture"],
     src: "parts/architecture/compositions/architecture.html",
-    field: "night",
+    field: "day",
   },
   { id: "highlights", beats: ["highlights"], src: "compositions/highlights.html", slots: true, field: "day" },
   ...[
@@ -43,7 +43,7 @@ export const SEGMENTS = [
     id: "close-impressive",
     beats: ["impressive"],
     src: "parts/close/compositions/impressive.html",
-    field: "night, blooming into day",
+    field: "day",
   },
   { id: "close-limits", beats: ["limits"], src: "parts/close/compositions/limits.html", field: "day" },
   { id: "close-end", beats: ["end"], src: "parts/close/compositions/end.html", field: "day" },
@@ -69,21 +69,21 @@ export const JOINTS = [
     side: "out",
     how: "glide",
     span: [28.25, 30],
-    cue: "The opening glides off its end line (28.3–30.0) and comes to rest on the empty daylight field; no dip, no resolve, the bed runs on into the architecture.",
+    cue: "The opening glides off its end line (28.3–30.0) and comes to rest on the veiled daylight field; the architecture lifts the veil as the slip lifts in (30.0–30.7); no dip, no resolve, the bed runs on.",
   },
   {
     at: 44,
     side: "in",
     how: "focus pull",
     span: [44, 44.8],
-    cue: "The reel opens by a focus pull on its first window over the daylight field (44.0–44.8): a lift, not a hit.",
+    cue: "The architecture's diagram dissolves into the field (43.4–44.0), then the reel opens by a focus pull on its first window (44.0–44.8): a lift, not a hit.",
   },
   {
     at: 143,
     side: "out",
     how: "veil",
     span: [141.3, 143],
-    cue: "Her sentence ends; the camera glides off the phone under a daylight veil (92% by 142.8) and rests on the field at 143.0; the bed comes back in low for the close.",
+    cue: "Her sentence ends; the camera glides off the phone under a daylight veil (92% by 142.8) and rests on the field at 143.0; the close lifts the veil (143.0–143.7) and the bed comes back in low.",
   },
 ];
 
@@ -157,6 +157,8 @@ export function slotTag(slot) {
     return { kind: "sim", text: SIM };
   return null;
 }
+/** Cuts where a part ends with the sandbox tag on (the architecture's PayPal node), so the next tag runs on. */
+const SIM_HANDOFFS = [44];
 /** The sandbox tag's span inside one composition, and whether it runs on from or into a neighbour (no re-fade). */
 export function simSpan(segment) {
   const own = CAPTURES.filter((slot) => segment.beats.includes(slot.beat) && slotTag(slot)?.kind === "sim");
@@ -170,7 +172,10 @@ export function simSpan(segment) {
   return {
     from,
     to,
-    continuesIn: near(from, segment.start) && sim.some((slot) => near(slot.start + slot.duration, from)),
+    continuesIn:
+      near(from, segment.start) &&
+      (SIM_HANDOFFS.some((at) => near(at, from)) ||
+        sim.some((slot) => near(slot.start + slot.duration, from))),
     continuesOut: near(to, segment.end) && sim.some((slot) => near(slot.start, to)),
   };
 }
@@ -304,7 +309,8 @@ function choreograph() {
     const glideOut = next ? next.glideIn : outro.glide;
     const after = PARTS.find((part) => part.bumper && part.start === s.start);
     const held = CAMERA.keywordHeld;
-    // the keyword lands as the window arrives (the wipe is the hit) and is gone before its composition ends
+    // the keyword lands as the window arrives (the wipe is the hit) and is gone before its composition ends (a wipe
+    // out that would reach the cut is shortened in film-slots.js so it finishes two frames before it)
     let kwIn = Math.max(s.start + 0.05, arrive - 0.45, lastOut + 0.3);
     if (after) kwIn = Math.max(kwIn, s.start + BUMPER_SECONDS + 0.1);
     const push = depart - arrive >= CAMERA.pushAfter;
@@ -587,8 +593,19 @@ export const NARRATION_FIT = [
     why: "Ends before her own sentence starts (134.15) with a breath between.",
   },
 ];
-/** The close's own events (video/parts/close): the weigh-slip line blooms into daylight, then the end card. */
-export const CLOSE = { bloom: [153.36, 153.98], endLine: 167 };
-/** The IC-11 PREMIUM sentence, placed inside the listening beat so it ends before the dip to night at 142.6 s. */
+/**
+ * The close's own events (video/parts/close, film time), all in daylight on the reel's field: the figures, the hand's
+ * box on the handwritten weigh-slip, one limit at a time (each with its tag), the trace's jade pulse, the end line
+ * and the film's one name card.
+ */
+export const CLOSE = {
+  figures: [143.3, 147.4],
+  hand: 152.6,
+  limits: [155.45, 157.6, 159.95, 162.1, 165.2],
+  jadePulse: 169.85,
+  endLine: 170.6,
+  name: 171.95,
+};
+/** The IC-11 PREMIUM sentence, placed inside the listening beat so it ends before the glide off the phone (141.3 s). */
 export const MEMBER_CLIP = { start: 134.15, seconds: 8.44 };
 export const FILM_SECONDS = FILM.duration;
