@@ -114,6 +114,8 @@ export interface Reply<B> {
   readonly status: number;
   readonly body: B;
   readonly headers: Readonly<Record<string, string>>;
+  /** Already serialized trusted handler result (Proof cache). Contract checks still apply below. */
+  readonly serializedBody?: string;
 }
 
 /** Answer with a specific success status (e.g. 200 instead of 201 for a resumed session) and headers. */
@@ -123,6 +125,14 @@ export function reply<B>(
   headers: Record<string, string> = {},
 ): Reply<B> {
   return { [REPLY]: true, status, body, headers };
+}
+
+export function serializedReply<B>(
+  body: B,
+  serializedBody: string,
+  headers: Record<string, string> = {},
+): Reply<B> {
+  return { ...reply(200, body, headers), serializedBody };
 }
 
 function isReply(v: unknown): v is Reply<unknown> {
@@ -464,6 +474,9 @@ async function runRoute(c: AppContext, spec: RouteSpec, handler: AnyHandler): Pr
     await deps.idempotency.complete(idem.scope, idem.hold, { status: out.status, body: out.body ?? null });
   for (const [k, v] of Object.entries(out.headers)) c.header(k, v);
   if (out.status === 204) return c.body(null, 204);
+  if ("serializedBody" in out && typeof out.serializedBody === "string") {
+    return c.body(out.serializedBody, out.status as 200, { "content-type": "application/json" });
+  }
   return c.json(out.body as object, out.status as 200);
 }
 

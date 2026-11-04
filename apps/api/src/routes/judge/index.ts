@@ -260,7 +260,9 @@ export default defineRouteFolder({
       },
       async (ctx) => {
         const cred = ctx.credential;
-        const key = cred.kind === "judge_session" ? `judge:${cred.sessionId}` : `tok:${cred.tokenId}`;
+        const key = cred.sessionId
+          ? `judge:${cred.sessionId}`
+          : `tok:${cred.kind === "judge_session" ? cred.sessionId : cred.tokenId}`;
         const limit = ctx.deps.rateLimits.take(JUDGE_RATE_RULES.keys, key);
         if (!limit.ok) throw problem.rateLimited(limit.retryAfterMs);
         return reply(201, await registerDemoKey(ctx.deps, cred, ctx.input));

@@ -44,6 +44,7 @@ import type { JudgeSessionCredential } from "../credentials/verify/index.js";
 import { killEnv } from "../env.js";
 import type { AppDeps } from "../lib/context.js";
 import { ApiProblem, problem } from "../lib/problem.js";
+import { assertJudgeLedgerRoom } from "./ledger-room.js";
 import { latestRun } from "./session.js";
 
 export const DRAFT_TAMPERS = ["amount", "offsetting", "recipient"] as const;
@@ -191,6 +192,7 @@ export async function tamperDraft(
   const label = TAMPER_LABEL[kind];
   await withWorkspaceTx(deps.db, cred.workspaceId, async (tx) => {
     const lattice = scopeFor(cred, "policy-lattice");
+    await assertJudgeLedgerRoom(tx, cred.workspaceId);
     await appendEvent(tx, {
       workspaceId: cred.workspaceId,
       runId: run.id,
@@ -333,6 +335,7 @@ export async function armChangePayout(deps: AppDeps, cred: JudgeSessionCredentia
         },
       );
     }
+    await assertJudgeLedgerRoom(tx, cred.workspaceId);
     await appendLedger(tx, scopeFor(cred), {
       kind: ARMED,
       payload: { runId: run.id, kind: "change_payout", deltaCents: 1, simulated: true },

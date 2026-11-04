@@ -329,7 +329,7 @@ export function buildProofBundle(db: DbOrTx, run: ProofRun, o: BuildOptions): Pr
 async function assemble(db: DbOrTx, lookedUp: ProofRun, o: BuildOptions): Promise<BuiltProof> {
   const run = await runInSnapshot(db, lookedUp);
   if (!proofReady(run)) notReady(run);
-  const ledger = await readWorkspaceLedger(db, run.workspaceId);
+  const ledger = await readWorkspaceLedger(db, run.workspaceId, o.log);
   const card = await readCard(db, run);
   const invoice = await readInvoice(db, run);
   const lines = await readLines(db, run);

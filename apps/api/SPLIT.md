@@ -446,3 +446,4 @@ await t.close();
 - HD6-2: Request windows have a 20,000-key LRU bound, per-rule expiry, paced sweeping and atomic takeAll/peek/refund; refused cookieless starts mint no throttle key.
 - HD6-6: IPv6 throttle identities use canonical /64 networks (mapped addresses use IPv4); at most two live initial lane reservations per network. The existing guarded local simulator hourly override also lifts this network cap for e2e.
 - HD6-5b: Session admission caps claimed unexpired judge workspaces at 200 before any claim/clone, global starts at 60/min and networks at 60/day; smaller test caps are rejected outside local test simulator mode.
+- HD6-3: Session credentials share optional-write budgets; judge-ledger optional appends stop at 5000 while money/system/webhooks continue. Oversized Proof heads refuse before row reads. Public bodies, metrics and verification share a 2s head-and-tier cache (four completed results, 16MiB serialized, at most 32 in-flight builds).
