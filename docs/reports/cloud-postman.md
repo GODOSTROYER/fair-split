@@ -26,8 +26,8 @@ requests and 498 assertions, with **5 failed**, all of them the fs-api labelling
 in replay: `INV2-RPLY…`/`RPLY…` ids with `provenance: "replay"`, Proof status `replay`, the payout items plate
 `replay`, and 0 PayPal-verified members.
 
-`packages/test-kit/test/postman-collection.test.mjs` passes 19 of 19. The whole test-kit suite passed 376 of 376
-before the last case was added, and test-kit's typecheck is clean.
+`packages/test-kit/test/postman-collection.test.mjs` passes 19 of 19, the whole test-kit suite 377 of 377 (16
+files), and test-kit's typecheck is clean.
 
 ## What was built
 
@@ -170,5 +170,14 @@ against the generated schemas, including error bodies (`ApiError` 410 and 422).
 
 ## Commits
 
-See `git log origin/main..cloud/postman`. All are WS-QA, and each was checked with
-`node tools/check-ownership.mjs --ws qa --base <sha>^ --head <sha>` ("all within WS-QA").
+| SHA       | Commit                                                                                       |
+| --------- | -------------------------------------------------------------------------------------------- |
+| `9b4b3e2` | docs(qa): skeleton report for the Postman collection task (T6)                               |
+| `8f83904` | feat(qa): Postman collection for the judge loop, Proof verify and the labelled failure paths |
+| `3d11dfc` | docs(qa): README section on running the Postman collection locally                           |
+| `337622e` | feat(qa): Postman collection checks replayed runs by their RPLY labels                       |
+| `29d5bfb` | docs(qa): T6 report: newman green locally, four findings for other workstreams               |
+| (this)    | docs(qa): T6 report: commit list and final test counts                                       |
+
+All are WS-QA. Each was checked with `node tools/check-ownership.mjs --ws qa --base <sha>^ --head <sha>` before it
+was pushed ("all within WS-QA").
