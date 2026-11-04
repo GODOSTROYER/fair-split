@@ -91,6 +91,56 @@ describe("SSE hub and the workspace stream", () => {
       for (const stream of opened) await stream.reader.close();
     }
   });
+  it("HD6-4 public streams still open when eight judges fill their network's 40 credentialed slots", async () => {
+    const { ws } = await setup();
+    t.app.app.get("/test-public-at-cap", (c) =>
+      t.deps.sse.open(c, {
+        scope: { workspaceId: ws },
+        caps: publicCaps(c),
+        label: "proof",
+      }),
+    );
+    const opened: Awaited<ReturnType<TestApp["sse"]>>[] = [];
+    try {
+      for (let judge = 0; judge < 8; judge++) {
+        const as = t.credentials.judge(t.credentials.judgeCookie({ workspaceId: ws }));
+        for (let i = 0; i < 5; i++) {
+          const stream = await t.sse(`/v1/workspaces/${ws}/events`, { as });
+          expect(stream.response.status).toBe(200);
+          opened.push(stream);
+        }
+      }
+      for (let i = 0; i < 3; i++) {
+        const stream = await t.sse("/test-public-at-cap");
+        expect(stream.response.status).toBe(200);
+        opened.push(stream);
+      }
+      expect((await t.request("/test-public-at-cap")).status).toBe(429);
+    } finally {
+      for (const stream of opened) await stream.reader.close();
+    }
+  });
+
+  it("HD6-4 hub-refused retries refund the open budget so a freed slot is immediately usable", async () => {
+    const { ws, token } = await setup();
+    const as = t.credentials.bearer(token);
+    const a = await t.sse(`/v1/workspaces/${ws}/events`, { as });
+    const b = await t.sse(`/v1/workspaces/${ws}/events`, { as });
+    expect([a.response.status, b.response.status]).toEqual([200, 200]);
+    try {
+      for (let i = 0; i < 35; i++) {
+        expect((await t.request(`/v1/workspaces/${ws}/events`, { as })).status).toBe(429);
+      }
+      await a.reader.close();
+      const resumed = await t.sse(`/v1/workspaces/${ws}/events`, { as });
+      expect(resumed.response.status).toBe(200);
+      await resumed.reader.close();
+    } finally {
+      await a.reader.close();
+      await b.reader.close();
+    }
+  });
+
   it("HD6-4 caps one network at 40 streams across six judge sessions", async () => {
     const { ws } = await setup();
     const opened: Awaited<ReturnType<TestApp["sse"]>>[] = [];

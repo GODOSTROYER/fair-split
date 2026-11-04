@@ -29,6 +29,18 @@ it("HD6-6: throttle IPv6 by /64, canonicalize mapped addresses, preserve IPv4 ha
   );
 });
 
+it("HD6-6: zone-scoped IPv6 peers and trusted headers share their /64 without throwing", () => {
+  const keys = createCredentialKeys({});
+  const now = new Date("2026-11-04T00:00:00Z");
+  for (const ip of ["fe80::1%eth0", "[fe80::2%25en0]:443"]) {
+    const resolved = resolveClientIp("render", headers({ "cf-connecting-ip": ip }), null);
+    expect(resolved).not.toBeNull();
+    expect(hashedClientIp(keys, resolved, now)).toBe(hashedClientIp(keys, "fe80::3", now));
+  }
+  const peer = resolveClientIp("none", headers({}), "fe80::1%eth0");
+  expect(hashedClientIp(keys, peer, now)).toBe(hashedClientIp(keys, "fe80::3", now));
+});
+
 /** Everything a client can put on the wire, all at once. */
 const SPOOFED = {
   "true-client-ip": "203.0.113.66",

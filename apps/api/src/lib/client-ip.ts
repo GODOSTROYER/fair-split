@@ -67,10 +67,15 @@ export function hashedClientIp(keys: CredentialKeys, ip: string | null, now: Dat
 
 /** Throttle identities are IPv4 addresses or canonical IPv6 /64s; never retain the raw address. */
 function networkAddress(ip: string | null): string | null {
-  const address = bare(ip);
+  const address = bare(ip)?.split("%")[0] ?? null;
   if (!address || isIP(address) === 4) return address;
   // URL canonicalizes embedded dotted IPv4 and compressed/upper-case IPv6 without changing bare().
-  const canonical = new URL(`http://[${address}]/`).hostname.slice(1, -1);
+  let canonical: string;
+  try {
+    canonical = new URL(`http://[${address}]/`).hostname.slice(1, -1);
+  } catch {
+    return address;
+  }
   const [left = "", right] = canonical.split("::");
   const prefix = left ? left.split(":") : [];
   const suffix = right ? right.split(":") : [];

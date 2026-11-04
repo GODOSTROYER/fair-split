@@ -47,10 +47,21 @@ export const RATE_RULES = {
 } as const satisfies Record<string, RateRule>;
 
 export const MAX_KEYS = 20_000;
+/** One noisy route cannot occupy the entire limiter. Live windows never get evicted. */
+export const MAX_KEYS_PER_RULE = 1_000;
 export const SWEEP_INTERVAL_MS = 5_000;
 
 export function createKeyedRateLimiter(clock: Clock, hooks: { onSweep?: () => void } = {}): KeyedRateLimiter {
-  const windows = new Map<string, { hits: number[]; windowMs: number }>();
+  const windows = new Map<string, { hits: number[]; windowMs: number; ruleName: string }>();
+  const counts = new Map<string, number>();
+  function drop(id: string) {
+    const value = windows.get(id);
+    if (!value) return;
+    windows.delete(id);
+    const count = (counts.get(value.ruleName) ?? 1) - 1;
+    if (count === 0) counts.delete(value.ruleName);
+    else counts.set(value.ruleName, count);
+  }
   let lastSweep = clock.nowMs();
   const idOf = (rule: RateRule, key: string) => `${rule.name}\u0000${key}`;
 
@@ -59,7 +70,7 @@ export function createKeyedRateLimiter(clock: Clock, hooks: { onSweep?: () => vo
     lastSweep = now;
     hooks.onSweep?.();
     for (const [k, value] of windows) {
-      if (value.hits.length === 0 || (value.hits.at(-1) ?? 0) <= now - value.windowMs) windows.delete(k);
+      if (value.hits.length === 0 || (value.hits.at(-1) ?? 0) <= now - value.windowMs) drop(k);
     }
   }
 
@@ -75,27 +86,45 @@ export function createKeyedRateLimiter(clock: Clock, hooks: { onSweep?: () => vo
       : { ok: true, remaining: rule.limit - hits.length };
   }
 
-  function touch(rule: RateRule, key: string, hits: number[], now: number) {
+  function hasCapacity(pairs: readonly (readonly [RateRule, string])[], now: number): boolean {
+    const fits = () => {
+      const added = new Map<string, number>();
+      const ids = new Set<string>();
+      for (const [rule, key] of pairs) {
+        const id = idOf(rule, key);
+        if (windows.has(id) || ids.has(id)) continue;
+        ids.add(id);
+        added.set(rule.name, (added.get(rule.name) ?? 0) + 1);
+      }
+      return (
+        windows.size + ids.size <= MAX_KEYS &&
+        [...added].every(([name, count]) => (counts.get(name) ?? 0) + count <= MAX_KEYS_PER_RULE)
+      );
+    };
+    if (fits()) return true;
+    sweep(now);
+    return fits();
+  }
+
+  function touch(rule: RateRule, key: string, hits: number[]) {
     const id = idOf(rule, key);
-    if (!windows.delete(id) && windows.size >= MAX_KEYS) sweep(now);
-    if (windows.size >= MAX_KEYS) {
-      const oldest = windows.keys().next().value;
-      if (oldest !== undefined) windows.delete(oldest);
-    }
-    windows.set(id, { hits, windowMs: rule.windowMs });
+    if (!windows.has(id)) counts.set(rule.name, (counts.get(rule.name) ?? 0) + 1);
+    windows.set(id, { hits, windowMs: rule.windowMs, ruleName: rule.name });
   }
 
   const limiter: KeyedRateLimiter = {
     take(rule, key) {
       const now = clock.nowMs();
+      if (!hasCapacity([[rule, key]], now)) return { ok: false, retryAfterMs: SWEEP_INTERVAL_MS };
       const hits = hitsFor(rule, key, now);
       const result = decision(rule, hits, now);
       if (result.ok) hits.push(now);
-      touch(rule, key, hits, now);
+      touch(rule, key, hits);
       return result.ok ? { ok: true, remaining: rule.limit - hits.length } : result;
     },
     peek(rule, key) {
       const now = clock.nowMs();
+      if (!hasCapacity([[rule, key]], now)) return { ok: false, retryAfterMs: SWEEP_INTERVAL_MS };
       return decision(rule, hitsFor(rule, key, now), now);
     },
     takeAll(pairs) {
@@ -114,7 +143,8 @@ export function createKeyedRateLimiter(clock: Clock, hooks: { onSweep?: () => vo
         value.hits.push(now);
         remaining = Math.min(remaining, rule.limit - value.hits.length);
       }
-      for (const value of pending.values()) touch(value.rule, value.key, value.hits, now);
+      if (!hasCapacity(pairs, now)) return { ok: false, retryAfterMs: SWEEP_INTERVAL_MS };
+      for (const value of pending.values()) touch(value.rule, value.key, value.hits);
       return { ok: true, remaining, takenAtMs: now };
     },
     refund(rule, key, takenAtMs) {
@@ -124,10 +154,11 @@ export function createKeyedRateLimiter(clock: Clock, hooks: { onSweep?: () => vo
         const at = hits.lastIndexOf(takenAtMs);
         if (at >= 0) hits.splice(at, 1);
       }
-      if (hits.length === 0) windows.delete(idOf(rule, key));
+      if (hits.length === 0) drop(idOf(rule, key));
     },
     reset() {
       windows.clear();
+      counts.clear();
       lastSweep = clock.nowMs();
     },
     get size() {
