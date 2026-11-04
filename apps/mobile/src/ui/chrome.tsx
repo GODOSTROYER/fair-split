@@ -14,6 +14,7 @@ import type { ScreenStateOf, ScreenWithStates } from "../_shims/contracts";
 import { space, target } from "../_shims/tokens.native";
 import { stage } from "../services/frame-bridge";
 import { useFs } from "../theme/theme";
+import { NAV_FADE_PX, navFadeBands } from "./nav-fade";
 import { SurfaceLabels } from "./primitives";
 import { Txt } from "./text";
 
@@ -37,6 +38,18 @@ export function NavBar({ state, descriptors, emitter, navigateToTab }: BottomTab
         },
       ]}
     >
+      {/* The screen's content ends above the bar in a 12 px fade to the plate, never a hard cut (round 3). */}
+      <View pointerEvents="none" aria-hidden style={styles.fade}>
+        {navFadeBands().map((band) => (
+          <View
+            key={band.top}
+            style={[
+              styles.fadeBand,
+              { top: band.top, height: band.height, opacity: band.opacity, backgroundColor: t.color.plate },
+            ]}
+          />
+        ))}
+      </View>
       {state.routes.map((route, index) => {
         const desc = descriptors[route.key];
         if (!desc) return null;
@@ -173,6 +186,8 @@ const styles = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     paddingTop: space.s12,
   },
+  fade: { position: "absolute", left: 0, right: 0, top: -NAV_FADE_PX, height: NAV_FADE_PX },
+  fadeBand: { position: "absolute", left: 0, right: 0 },
   item: { flex: 1, alignItems: "center", gap: space.s4, minHeight: target.min },
   indicator: {
     width: 64,
