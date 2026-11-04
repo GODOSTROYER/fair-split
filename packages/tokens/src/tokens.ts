@@ -664,6 +664,26 @@ export const WASH: Readonly<Record<ThemeName, string>> = {
     "radial-gradient(52% 70% at 0% 0%, rgb(20 204 144 / 0.16), transparent 72%), radial-gradient(42% 58% at 62% 0%, rgb(74 47 214 / 0.1), transparent 72%)",
 };
 
+/**
+ * Evidence paper's drop shadow as a CSS filter, for paper drawn without a box (a slip cut out on a desk photo).
+ * The same depth as `paper`, in each theme's shadow colour.
+ */
+export const PAPER_DROP: Readonly<Record<ThemeName, string>> = {
+  tablea: "drop-shadow(0 1px 1px rgb(0 0 0 / 0.35)) drop-shadow(0 6px 10px rgb(0 0 0 / 0.3))",
+  adlaw: "drop-shadow(0 1px 1px rgb(11 18 32 / 0.18)) drop-shadow(0 8px 14px rgb(11 18 32 / 0.18))",
+};
+
+/**
+ * Evidence drawn in code (the slips' printed form, Jessie's ballpoint capitals, the red serial, a water stain):
+ * the same in both themes, because paper is light in both. Evidence only, never UI chrome (ADR-0016).
+ */
+export const EVIDENCE = {
+  ballpoint: "#2B4BA0",
+  serial: "#B23A2E",
+  form: "#5F5A54",
+  stain: "#B79F73",
+} as const;
+
 export const LAYERS = {
   sticky: 10,
   dock: 20,

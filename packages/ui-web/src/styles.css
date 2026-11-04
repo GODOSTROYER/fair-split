@@ -249,6 +249,25 @@
     box-shadow: 0 0 0 1px var(--edge-b);
   }
 
+  /* A committed money slab is signed, not paid: flush jade belongs only to what the simulated PayPal confirmed, so
+     the pressed face turns plate with a dashed jade outline (money on its way) and an ink label (ADR-0016). */
+  .fs-slab[data-tone="jade"][data-state="committed"] .fs-slab__face {
+    background: var(--fs-plate);
+    box-shadow: none;
+    outline: 1.5px dashed var(--fs-jade-flush-border);
+    outline-offset: -1.5px;
+    color: var(--fs-ink);
+  }
+
+  .fs-slab[data-tone="jade"][data-state="committed"] .fs-slab__fill {
+    opacity: 0;
+  }
+
+  .fs-slab[data-tone="jade"][data-state="committed"] .fs-slab__edge--b {
+    background: var(--fs-rule);
+    box-shadow: none;
+  }
+
   .fs-slab__bolt {
     position: absolute;
     top: 6px;

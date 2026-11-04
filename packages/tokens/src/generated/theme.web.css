@@ -59,6 +59,7 @@
   --fs-wash:
     radial-gradient(52% 70% at 0% 0%, rgb(20 204 144 / 0.16), transparent 72%),
     radial-gradient(42% 58% at 62% 0%, rgb(74 47 214 / 0.1), transparent 72%);
+  --fs-drop-paper: drop-shadow(0 1px 1px rgb(11 18 32 / 0.18)) drop-shadow(0 8px 14px rgb(11 18 32 / 0.18));
   --fs-flash: var(--fs-pencil-wash);
 }
 
@@ -120,6 +121,7 @@
   --fs-wash:
     radial-gradient(36% 150% at 0% 100%, rgb(61 230 174 / 0.2), transparent 70%),
     radial-gradient(34% 140% at 52% 0%, rgb(91 67 234 / 0.3), transparent 72%);
+  --fs-drop-paper: drop-shadow(0 1px 1px rgb(0 0 0 / 0.35)) drop-shadow(0 6px 10px rgb(0 0 0 / 0.3));
   --fs-flash: var(--fs-pencil-wash);
 }
 
@@ -284,6 +286,10 @@
   --fs-stamp-size: 20px;
   --fs-hollow-stroke: 1.25px;
   --fs-noise-opacity: 0;
+  --fs-evidence-ballpoint: #2b4ba0;
+  --fs-evidence-serial: #b23a2e;
+  --fs-evidence-form: #5f5a54;
+  --fs-evidence-stain: #b79f73;
   --fs-dur-press: 90ms;
   --fs-dur-press-60: 60ms;
   --fs-dur-retract-200: 200ms;

@@ -32,6 +32,9 @@ describe("generated files", () => {
       expect(css.split(`--fs-shadow-${name}:`).length - 1, name).toBe(2);
     }
     expect(css.split("--fs-wash:").length - 1).toBe(2);
+    expect(css.split("--fs-drop-paper:").length - 1).toBe(2);
+    for (const name of ["ballpoint", "serial", "form", "stain"])
+      expect(css).toContain(`--fs-evidence-${name}: #`);
     expect(css).toContain("--fs-radius-card: 14px;");
     expect(css).toContain("--fs-radius-pill: 999px;");
     expect(css).toContain(".fs-amount {\n  font-variant-numeric: lining-nums proportional-nums;");

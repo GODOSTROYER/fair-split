@@ -14,6 +14,7 @@ import { type ContrastResult, contrastResults, RESOLVED } from "./resolve.js";
 import {
   COLOUR_NAMES,
   COLOUR_ROLES,
+  EVIDENCE,
   FONT_STACKS,
   HOLLOW,
   LAYERS,
@@ -21,6 +22,7 @@ import {
   M3_ROLES,
   MATERIALS,
   NATIVE_FONTS,
+  PAPER_DROP,
   RADII,
   SHADOWS,
   SPACE,
@@ -86,6 +88,7 @@ function themeBlock(theme: ThemeName, value: "css" | "cssOklch"): string[] {
     for (const [name, shadow] of Object.entries(SHADOWS[theme]))
       lines.push(cssDecl(`--fs-shadow-${name}`, shadow));
     lines.push(cssDecl("--fs-wash", WASH[theme]));
+    lines.push(cssDecl("--fs-drop-paper", PAPER_DROP[theme]));
     lines.push("  --fs-flash: var(--fs-pencil-wash);");
   }
   return lines;
@@ -152,6 +155,8 @@ export function renderThemeCss(): string {
   root.push(`  --fs-stamp-size: ${px(MATERIALS.stamp.size)};`);
   root.push(`  --fs-hollow-stroke: ${px(HOLLOW.stroke)};`);
   root.push(`  --fs-noise-opacity: ${MATERIALS.noise.opacity};`);
+  for (const [name, hex] of Object.entries(EVIDENCE))
+    root.push(`  --fs-evidence-${name}: ${hex.toLowerCase()};`);
   for (const [name, t] of Object.entries(TWEENS)) root.push(`  --fs-dur-${camelToKebab(name)}: ${t.ms}ms;`);
   for (const name of Object.keys(EASE))
     root.push(`  --fs-ease-${name}: ${cssEase(name as keyof typeof EASE)};`);
