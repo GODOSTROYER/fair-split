@@ -10,13 +10,13 @@ Fair Split: audited co-op payroll on PayPal
 
 ## Elevator pitch
 
-Co-op payroll from handwritten slips: Claude is built to read them, code audits every line, two officers sign, and PayPal Payouts (simulated sandbox) pays members on PayPal; the rest get cash.
+Co-op payroll every member can check: Claude is built to read handwritten slips, code computes the money, two officers sign, PayPal Payouts (simulated sandbox) pays those on PayPal; the rest get cash.
 
 ## About the project
 
-Fair Split: co-op payroll. claude-opus-5-5 is built to read a cacao co-op's handwritten slips, claude-sonnet-5-5 to check deductions, claude-haiku-5-5 to screen text. Invoicing v2 (Agent Toolkit 1.11.0), Payouts v1 and Webhooks run on a simulated PayPal sandbox; 7 of 64 paid there, 57 in cash.
+Co-op payroll members can check: claude-opus-5-5 is built to read handwritten slips, claude-sonnet-5-5 to match deductions, claude-haiku-5-5 to catch injections; code computes pay. Invoicing v2 (Agent Toolkit 1.11.0), Payouts v1, Webhooks: simulated PayPal sandbox; 7 of 64 paid there, 57 in cash.
 
-**The PayPal rail is a simulator.** PayPal runs only on our own contract-faithful simulator of PayPal's REST APIs, labelled "Simulated PayPal sandbox" wherever a PayPal value appears: the developer is in India and could not open the US PayPal accounts the sandbox needs. The PayPal client code is real (PayPal's Agent Toolkit 1.11.0 for Invoicing), but it is untested against PayPal's own sandbox. Every person, slip and document is synthetic, and no real money moves.
+**The PayPal rail is a simulator.** PayPal runs only on our own contract-faithful simulator of PayPal's REST APIs, labelled "Simulated PayPal sandbox" wherever a PayPal value appears. The developer, in India, reports being unable to create the US PayPal accounts the plan assumed, so there are no sandbox REST credentials and the simulator stands in (ADR-0002). The PayPal client code is real (PayPal's Agent Toolkit 1.11.0 for Invoicing), but it is untested against PayPal's own sandbox. Every person, slip and document is synthetic, and no real money moves.
 
 ### Inspiration
 
@@ -27,14 +27,14 @@ A cacao co-op's season of pay starts on paper. A clerk writes a weigh-slip for e
 Fair Split is built around one synthetic season: Bulawanon Kakaw Growers MPC (Calinan, Davao City; 64 members) and its buyer, Lantern Bay Chocolate Co. of Oakland. The model reads paper; code computes; people approve; PayPal executes, here on the simulator.
 1. **Rules before facts.** The co-op's rate card (BR 2026-04) is ratified and hashed before the first slip. Editing it later is refused, citing the hash.
 2. **Fund.** Lantern Bay pays one invoice of US$4,333.50: premium US$2,887.50, quality bonus US$1,386.00 and disbursement costs US$60.00. Code computes the quote; the invoice is created and sent through PayPal's Agent Toolkit 1.11.0 on the simulated PayPal sandbox, with an AUTO_CANCEL rule, and the run is funded only when a fresh GET reads it paid. The invoice's line labels are a placeholder written with the seed: the audit agent that was meant to draft them is paused.
-3. **Read.** Claude is built to read every slip twice and send anything unsure to a person. In Judge Mode the 48 slips in 12 photos replay a labelled seed stand-in, not a Claude recording. Separately, R1 (a live run on 1 Nov 2026) put Claude on the 10 synthetic hero slips; its results are under Accomplishments.
+3. **Read.** Claude is built to read every slip twice and send anything unsure to a person. In Judge Mode the 48 slips in 12 photos replay a labelled seed stand-in, not a Claude recording. Separately, R1 (a live run on 1 Nov 2026) put Claude on the 10 synthetic hero slips; the reading room exhibits its readings beside the stand-in, and its results are under Accomplishments.
 4. **Compute and hold.** A deterministic engine computes all 64 lines in integer cents and holds what it cannot justify:
    - H1: Slip 0457 is in two photos: the white original (B) and the pink duplicate (D). Counting both moves US$17.94 from 63 members to Nong Dioning and puts shrink at 2.05%, over the 2.0% limit.
    - H2: Merlyn Ponce: 300.0 kg from 140 registered trees is 2.14 kg a tree. The limit is 1.6.
-   - H3: 'Multa (absent GA) ₱200' on slip 0458 matches no Schedule A rule. It was netted from Nong Tidoy's cash at the bodega, so it returns as a US$3.20 correction credit paid by the co-op, not from Lantern Bay's pool. Hauling ₱91.20 (R2) stays.
+   - H3: 'Multa (absent GA) ₱200' on slip 0458 matches no Schedule A rule. It was netted from Nong Tidoy's cash at the bodega, so it returns as a US$3.20 correction credit paid by the co-op, not from Lantern Bay's pool. Hauling ₱91.20 (R2) stays. In plain words: the fine for missing the general assembly is not in the ratified rules, so it comes back to him; the hauling charge is a ratified rule and stays.
    - Slip 0462's stained digit is typed by a person, from the logbook.
-5. **Approve.** The treasurer and the Chair each sign one batch hash with an Ed25519 key; any batch over US$300 needs the Chair. Change one payout after both keys and the Payouts tool re-hashes the batch, refuses the change and voids both approvals.
-6. **Pay.** Our typed Payouts tool posts 8 items (US$368.39) to the simulated PayPal sandbox. Status checks and the simulator's signed webhooks confirm each item. Rhea has no PayPal account, so her item parks UNCLAIMED and is cancelled, and she is paid in cash. End state: 7 of 64 members paid through the simulated PayPal sandbox (US$341.74) and 57 in cash (US$3,876.43), on the same kind of statement; US$21.14 kept for members.
+5. **Approve.** The treasurer and the Chair each sign one batch hash with an Ed25519 key; any batch over US$300 needs the Chair. Arm a one-cent change to one payout before key 2: once both keys sign, the Payouts tool re-hashes the batch, refuses the changed payout and voids both approvals.
+6. **Pay.** Our typed Payouts tool posts 8 items (US$368.39) to the simulated PayPal sandbox. Status checks and the simulator's signed webhooks confirm each item. Rhea has no PayPal account, so her item parks UNCLAIMED and is cancelled, and she is paid in cash. End state: 7 of 64 members paid through the simulated PayPal sandbox (US$341.74) and 57 in cash (US$3,876.43), on the same kind of statement. The holds returned US$21.14 to the members it belonged to: US$17.94 by counting the duplicate slip once and US$3.20 by returning the unruled fine.
 7. **Explain and prove.** A member's statement explains her number down to her slips, in Cebuano, Filipino or English, from hand-written templates (the model writes no statement). Nang Celing's line: premium US$43.69, quality bonus US$21.85, CBU US$1.09, net US$64.45. Sentences with a verified Gemini TTS clip can be heard; the rest use the phone's own voice, labelled. Lantern Bay opens Proof and re-checks the rate card hash, both signatures, every line and the ledger's hash chain in its own browser.
 
 ### How we built it
@@ -44,23 +44,23 @@ Fair Split is built around one synthetic season: Bulawanon Kakaw Growers MPC (Ca
 - **Effects through an outbox.** Every PayPal call is enqueued in the same Postgres transaction as the state change that asks for it. Every event lands in a hash-chained ledger with Ed25519-signed checkpoints, which Proof verifies.
 - **PayPal.** Invoicing v2 runs through `@paypal/agent-toolkit` 1.11.0 (create, send, AUTO_CANCEL rule, record payment, GET). The toolkit has no Payouts tool, so we wrote a typed one, built on PR #107's schemas, with `PayPal-Request-Id` idempotency and re-hash checks. Webhooks are verified offline (CRC32 of the raw body plus RSA-SHA256 against the signing certificate), deduplicated by transmission id, and stored with their delivery evidence.
 - **The simulator.** `packages/paypal-sim` implements the REST subset we use (OAuth, Invoicing v2, Payouts v1, Webhooks v1) and validates every request and response against PayPal's published OpenAPI specs. It runs inside fs-api's process and intercepts the toolkit's HTTP calls, so the client code is unchanged; its resource IDs carry SIM and its debug IDs start with sim-.
-- **AI.** One ClaudeGateway is the only Anthropic SDK import. It keys a replay cache on sha256 of the image, variant, prompt version, schema version, model and effort, enforces per-lane spend caps and a kill switch, and sends any stop other than end_turn to a person.
-- **Tests.** Unit, property (fast-check) and embedded-Postgres integration suites across the packages, a smoke test that boots fs-api and walks every route, and a Playwright suite for the judge loop and the phone co-sign.
+- **AI.** One ClaudeGateway is the only Anthropic SDK import in product code (two schema spikes aside). It keys a replay cache on sha256 of the image, variant, prompt version, schema version, model and effort, enforces per-lane spend caps and a kill switch, and sends any stop other than end_turn to a person.
+- **Tests.** 6,362 unit, property (fast-check) and embedded-Postgres tests across 23 packages at the 1 Nov merge of main (8fc978c), a booted smoke of 85 checks over every route and IC-01 command, and a Playwright suite of 33 tests in 8 spec files for the judge loop and the phone co-sign.
 - **Who wrote it.** Claude Code agents wrote, reviewed and merged the code under an automated review-and-verify protocol, and OpenAI's Codex CLI built some work packages from written briefs; the user approved every outward step.
 
 ### Challenges we ran into
 
-- **No PayPal accounts.** Without US accounts we could not get sandbox credentials, so we built a strict simulator and kept PayPal's own client code. The integration is untested against PayPal's own sandbox, and we say so on every PayPal value.
+- **No PayPal accounts.** The developer, in India, reports being unable to create the US PayPal accounts the plan assumed, so there are no sandbox REST credentials; we built a strict simulator and kept PayPal's own client code. The integration is untested against PayPal's own sandbox, and we say so on every PayPal value.
 - **The toolkit's own HTTP client.** The Agent Toolkit sends its calls through its own axios instance, so a simulator in a separate service could not catch them. The simulator runs in fs-api's process and intercepts node:http, node:https and fetch.
 - **Signed webhooks from a simulator.** PayPal's verifier rightly refuses a certificate that is not PayPal's, so the simulator signs with its own certificate authority, which is trusted only in simulator mode.
-- **Honest copy.** A lint (E-19) reads this text, the README, the film script and every UI catalog, and fails when 'sandbox' or 'live' appears without 'simulated', on claims we cannot back, and on any money or kilo figure the seed does not hold.
+- **Honest copy.** A lint (E-19) reads this text, the README, the film script and every UI catalog, and fails when 'sandbox', or 'live' next to PayPal, appears without 'simulated', on claims we cannot back, and on any money or kilo figure the seed does not hold.
 - **Audio on a free tier.** Each Cebuano, Filipino and English clip is transcribed back and compared with its exact sentence before it is published; a sentence without a verified clip is spoken by the phone, labelled.
 
 ### Accomplishments that we're proud of
 
 - The judge loop runs end to end with no login: fund, read, hold, two keys, pay, Proof, reset.
-- A change to one payout after both keys is refused in view of the judge, and both approvals are voided.
-- Proof re-verifies in the buyer's browser against published keys, for PayPal and cash lines alike.
+- A payout changed after it was signed (armed before key 2) is refused in view of the judge, and both approvals are voided.
+- Proof re-verifies in the buyer's browser against published keys, for PayPal and cash lines alike; a judge run, signed with demo keys, reads Sample, never Verified.
 - Rhea's unclaimed item moves to cash on the same statement, so a member without PayPal is not left out.
 - R1, the only real Claude output in the repo: on 1 Nov 2026 claude-opus-5-5 (reads and zoom) and claude-haiku-5-5 (injection screen) ran live on the 10 synthetic hero slips. N = 10 scored slips: 10 of 10 rows exact against provisional, agent-checked labels, 0 unsafe auto-accepts, and the two stained 0462 fields were sent to a person. The labels are not person-reviewed, N is small, and a single read scored the same on this sample.
 
@@ -79,16 +79,21 @@ Fair Split is built around one synthetic season: Bulawanon Kakaw Growers MPC (Ca
 - The business model: the buyer pays a per-run audit fee. The co-op stays merchant of record, and Fair Split never holds funds.
 - Production onboarding, where PayPal must grant third-party permissions for Invoicing and Payouts.
 
-### What's real, replayed and simulated
+### How it differs
+
+Re-scanned 4 Nov 2026, before the hackathon's project gallery was public; the README's Prior art table names the projects. Most nearby projects protect the payer or the parties to a contract. Some now give the person paid a receipt, one has two signers on one approval hash with rules ratified by signed hash, and one checks a signed proof in the visitor's own browser. None we found starts from a handwritten weigh-slip. Fair Split reads each slip twice, holds what the ratified rate card cannot justify, binds the officers to one batch hash, puts members paid in cash on the same statement as members paid through PayPal, and lets the buyer re-verify every line in its own browser.
+
+### What's real, replayed, simulated, seeded and synthetic
 
 - **Real:** the presses, holds and approvals in a session; every amount, computed in integer cents; the rate card hash; Proof's checks in the browser; R1's committed Claude responses.
 - **Replayed:** the slip reading in Judge Mode (a labelled seed stand-in). If the hour's quota of payout runs is spent, the payout steps replay an earlier simulated run, labelled as a replay.
 - **Simulated:** every PayPal call, ID, status, webhook and fee (the simulated PayPal sandbox), the phone's push banners and the clerk's scanner.
-- **Synthetic:** the co-op, its 64 members, the buyer, the 264 slip images in 66 photos, the documents and the voices.
+- **Seeded:** the invoice-send approval, and the 54 earlier photos' manifest entries with their seeded read dates (those photos are not imaged).
+- **Synthetic:** the co-op, its 64 members, the buyer, the 48 slips in 12 photos (A–L, composed in code from model-made hero slips and code-drawn slips), the documents and the voices.
 
 ### Limits
 
-- Fees on screen are the simulator's ($0.25 × 8 = $2.00, PayPal's published US rate). In production a Philippine co-op pays PayPal PH's fees: receiving 4.40% + US$0.30, payouts 2% capped at ₱50 each (2% = $7.37 on this batch), conversion 3.0%.
+- Fees on screen are the simulator's ($0.25 × 8 = $2.00, PayPal's published US rate). In production a Philippine co-op pays PayPal PH's fees: receiving 4.40% + US$0.30, payouts 2% capped at ₱50 each, conversion 3.0%.
 - No APK is built yet; the app runs as a web export in the stage's phone frames and in a phone's browser.
 - Push notifications, the clerk's offline capture, iOS and the audit agent are not part of this build.
 
@@ -111,20 +116,20 @@ paypal, paypal-invoicing, paypal-payouts, paypal-webhooks, paypal-agent-toolkit,
 
 **Most Impactful.**
 
-Fair Split protects the people being paid, not the payer. In the demo season 57 of 64 members are paid in cash and 7 through the simulated PayPal sandbox, and each gets a statement that explains the number down to the slip, in Cebuano, Filipino or English, with audio where a verified clip exists. The buyer can re-check every line in its own browser, so a premium can be shown to reach the members. Similar entries, such as Supplora Pay, Clause-to-Cash and Tributary, protect a payer or a contract's parties.
+Fair Split protects the people being paid, not the payer. In the demo season 57 of 64 members are paid in cash and 7 through the simulated PayPal sandbox, and each gets a statement that explains the number down to the slip, in Cebuano, Filipino or English, with audio where a verified clip exists. The buyer can re-check every line in its own browser, so a premium can be shown to reach the members. It starts where co-op pay starts, on handwritten weigh-slips, and gives the people being paid a statement they can check while the buyer checks the same lines in Proof.
 
 ## AI tools used
 
-| Tool                                             | How it is used                                                                                           | Where it ran                                                                                                              |
-| ------------------------------------------------ | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| claude-opus-5-5                                  | Slip reads A and B, a zoom re-read of one field, the rate-card reader (`packages/ai`)                    | Reads and zoom live in R1 (1 Nov 2026, the 10 hero slips) and in development; Judge Mode replays a labelled seed stand-in |
-| claude-sonnet-5-5                                | The deduction classifier: each deduction gets a ratified rule ID or NO_MATCH, and code checks the amount | Built and unit-tested; not on the judge path                                                                              |
-| claude-haiku-5-5                                 | The injection screen: text on a slip is never an instruction                                             | Live in R1                                                                                                                |
-| Claude Code (Opus 5.5)                           | Research, planning, code, review and merges, under an automated review-and-verify protocol               | Development                                                                                                               |
-| OpenAI Codex CLI                                 | Built some work packages from written briefs                                                             | Development                                                                                                               |
-| OpenAI's image model (gpt-image-2) via Codex CLI | The 10 synthetic hero slips, the 2 rate-card pages, the logbook page and one four-slip test photo        | Offline; prompts and hashes in `media/manifest.json`                                                                      |
-| Gemini 3.8 Flash TTS                             | Member statement audio, labelled as a synthetic voice                                                    | Offline                                                                                                                   |
-| Gemini 3.8 Flash                                 | Speech recognition that checks each clip against its exact sentence before it is published               | Offline                                                                                                                   |
+| Tool                                             | How it is used                                                                                                                                                  | Where it ran                                                                                                              |
+| ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| claude-opus-5-5                                  | Slip reads A and B, a zoom re-read of one field, the rate-card reader (`packages/ai`)                                                                           | Reads and zoom live in R1 (1 Nov 2026, the 10 hero slips) and in development; Judge Mode replays a labelled seed stand-in |
+| claude-sonnet-5-5                                | The deduction classifier: each deduction gets a ratified rule ID or NO_MATCH, and code checks the amount                                                        | Built and unit-tested; not on the judge path                                                                              |
+| claude-haiku-5-5                                 | The injection screen: text on a slip is never an instruction                                                                                                    | Live in R1                                                                                                                |
+| Claude Code (Opus 5.5)                           | Research, planning, code, review and merges, under an automated review-and-verify protocol                                                                      | Development                                                                                                               |
+| OpenAI Codex CLI                                 | Built some work packages from written briefs                                                                                                                    | Development                                                                                                               |
+| OpenAI's image model (gpt-image-2) via Codex CLI | The 10 synthetic hero slips, the 2 rate-card pages, the logbook page and one four-slip test photo                                                               | Offline; prompts and hashes in `media/manifest.json`                                                                      |
+| Gemini 3.8 Flash TTS                             | Member statement audio, labelled as a synthetic voice                                                                                                           | Offline                                                                                                                   |
+| Gemini 3.8 Flash, 3.6 Flash and 2.5 Flash        | Speech recognition that checks each clip against its exact sentence before it is published (the model per clip is in `media/audio/statement-verification.json`) | Offline                                                                                                                   |
 
 Member statements are hand-written templates, not model output. The audit agent is paused, and no model drafted the invoice.
 
@@ -132,7 +137,8 @@ Member statements are hand-written templates, not model output. The audit agent 
 
 No login: open Judge Mode. Local: pnpm i && pnpm verify.
 - **Judge Mode:** open `/judge` on the hosted URL (Try it out) in a window at least 1024 px wide. No account, PayPal login or key is needed. "Play it for me" drives every step except the two keys; Reset starts a fresh run in about 10 seconds.
-- **Local, keyless:** with Node 24.19 or newer and Git, `corepack pnpm i && corepack pnpm verify` clones the committed tree and runs install, typecheck, lint, the dependency rules, every test suite and the build, with every key removed from the environment.
+- **The real model output:** in the reading room, scroll to 'Ten hero slips: the recorded exhibit' for R1's committed readings of the 10 hero slips beside the stand-in.
+- **Local, keyless:** with Node 24 LTS (24.19.0 or a later 24.x, which ships corepack; on Node 25 or newer run `npm install -g corepack` first) and Git, clone the repo, then run `corepack pnpm i` and `corepack pnpm verify` (two commands; Windows PowerShell 5.1 has no `&&`). Verify clones the committed tree and runs install, typecheck, lint, the dependency rules, every package's unit and integration tests (not the Playwright suite) and the build, with every key removed from the environment.
 - **Drive it yourself:** `corepack pnpm --filter @fairsplit/e2e stack` starts embedded Postgres and fs-api with the in-process simulator, and prints the local `/judge` URL.
 - **Check a Proof page:** `corepack pnpm verify-proof <proof url>` re-runs the six checks from the command line.
 - PayPal is the simulator in all of these; no PayPal account is needed, and a real sandbox app is untested.
