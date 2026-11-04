@@ -40,6 +40,12 @@ export const STATE_ORDER = [
   "SETTLED",
 ] as const;
 
+const tallyOf = (xs: readonly string[]) => {
+  const m = new Map<string, number>();
+  for (const x of xs) m.set(x, (m.get(x) ?? 0) + 1);
+  return [...m].map(([k, n]) => `${k}:${n}`).join(" ");
+};
+
 export const rank = (state: string | null | undefined) =>
   STATE_ORDER.indexOf((state ?? "") as (typeof STATE_ORDER)[number]);
 
@@ -89,6 +95,9 @@ export interface JudgeResult {
   proofStatus: string;
   payoutPlate: string;
   paypalVerified: number;
+  /** The PAID lines' provenance ("seeded:7"), and for a replayed payout the Proof export's batch items. */
+  paidLineProvenance: string;
+  exportItems: string;
   /** Label checks: each counts violations (0 = the labels held). */
   labelViolations: number;
   labelNotes: string;
@@ -191,6 +200,8 @@ export async function runJudge(
     labelViolations: 0,
     labelNotes: "",
     lines: "",
+    paidLineProvenance: "",
+    exportItems: "",
     events: 0,
     streamRefusals: 0,
     streamReconnects: 0,
@@ -356,6 +367,12 @@ export async function runJudge(
     r.lines = Object.entries(settled?.lines ?? {})
       .map(([k, v]) => `${k}:${v}`)
       .join(" ");
+    const final = (await client.get("lines", `/v1/runs/${run}/lines`, asT)).json as {
+      lines?: { state: string; provenance: string }[];
+    } | null;
+    r.paidLineProvenance = tallyOf(
+      (final?.lines ?? []).filter((l) => l.state === "PAID").map((l) => l.provenance),
+    );
 
     // 7. Proof: the public verification, until it settles on sample (live) or replay; then the label checks.
     const replayed = r.payoutRail === "replay" || r.rail === "replay";
@@ -381,6 +398,17 @@ export async function runJudge(
     r.payoutPlate = verification?.plates?.payoutItems?.state ?? "?";
     const items = streams.flatMap((x) => x.events).filter((e) => e.type === "item.updated");
     if (replayed) {
+      // the treasurer's Proof export (as e2e inv.i8.over-quota checks it): every batch item replayed, no notice id
+      const exported = await client.get("proof-export", `/v1/proof/${run}/export`, asT);
+      const exportItems =
+        (
+          exported.json as {
+            bundle?: { batch?: { items?: { provenance?: string; eventId: string | null }[] } };
+          } | null
+        )?.bundle?.batch?.items ?? [];
+      r.exportItems = tallyOf(exportItems.map((i) => `${i.provenance}${i.eventId === null ? "" : "+event"}`));
+      if (exported.status === 200 && exportItems.some((i) => i.provenance !== "replay" || i.eventId !== null))
+        violate(`replayed payout's export items read ${r.exportItems}`);
       if (r.proofStatus !== "replay") violate(`replayed payout's Proof reads ${r.proofStatus}`);
       if (r.paypalVerified !== 0) violate(`replayed payout counts ${r.paypalVerified} PayPal-verified`);
       if (items.some((e) => e.provenance !== "replay"))
