@@ -38,7 +38,7 @@ export const SEASON_COPY = {
     "Line labels: a placeholder written with the seed (no Claude recording in this build). Every amount is the engine's quote, checked by the live policy lattice before anything is sent.",
   invoiceLines: "Invoice lines (seeded sample)",
   invoiceLinesNote: (_recorded: string) =>
-    "Written with the seed; Claude did not draft these lines in this build. Every amount is the engine's quote; policy checks it before anything is sent.",
+    "Written with the seed, not drafted by Claude in this build. Every amount is the engine's quote; policy checks it before anything is sent.",
   memo: (note: string) => `Memo: ${note}`,
   autoCancel: (date: string) => `Auto-cancels ${date} if unpaid.`,
   sentBy: (name: string) => `Sent by ${name}`,
@@ -88,10 +88,8 @@ export function fundedSource(rail: PaypalRail): string {
 export const FIRST_VIEW_COPY = {
   lede: (members: number, buyer: string) =>
     `${members} members' cacao went to ${buyer} in one lot. One invoice funds every member's share; the slips on the desk decide who gets what.`,
-  pressNote: (rail: PaypalRail) =>
-    rail === "simulator"
-      ? "Records Lantern Bay's payment in the simulated PayPal sandbox, then reads the invoice back. Nothing starts until it reads as paid."
-      : "Records Lantern Bay's payment on the untested PayPal sandbox rail, then reads the invoice back. Nothing starts until it reads as paid.",
+  pressNote: (payer: string, amount: string, rail: PaypalRail) =>
+    `${payer}, ${amount}. ${rail === "simulator" ? "Simulated PayPal sandbox" : "Untested PayPal sandbox rail"}. The run starts once the invoice reads as paid.`,
   srConsequence: "starts the run, changes a line",
   starting: "Starting your run.",
   pending: "Recording the payment, then reading the invoice back.",

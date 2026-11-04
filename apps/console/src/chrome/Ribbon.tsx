@@ -92,7 +92,6 @@ export function Ribbon({ view, seeded, phone = null, caption }: RibbonProps) {
       data-phone={phone ? "" : undefined}
       data-testid="W-JG-01.ribbon"
     >
-      <span className="fsc-ribbon__zone fs-t-caption">Davao time</span>
       {LANES.map(({ lane, key }) => {
         const row = latest[lane];
         const jade = key === "paypal" && landed(row, view?.events ?? []);
@@ -158,11 +157,10 @@ export function Ribbon({ view, seeded, phone = null, caption }: RibbonProps) {
           </span>
         </button>
       )}
-      {caption && (
-        <p className="fsc-ribbon__caption fs-t-caption" data-testid="W-JG-01.caption">
-          {caption}
-        </p>
-      )}
+      <div className="fsc-ribbon__caption fs-t-caption">
+        {caption && <p data-testid="W-JG-01.caption">{caption}</p>}
+        <p className="fsc-ribbon__zone">{STAGE.zone}</p>
+      </div>
     </section>
   );
 }

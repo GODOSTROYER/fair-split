@@ -99,8 +99,8 @@ function firstViewRows(snapshot: SeasonSnapshot | undefined, rail: string): Reco
   return {
     MACHINE: row(
       "MACHINE",
-      "Invoice lines (seeded sample); code quotes and policy checks every amount",
-      "Written with the seed; Claude did not draft these lines in this build",
+      "Invoice lines: a seeded sample",
+      "Not drafted by Claude in this build. Code quotes every amount",
       run.recordedOn,
     ),
     PEOPLE: row(

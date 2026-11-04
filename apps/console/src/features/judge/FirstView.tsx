@@ -278,7 +278,7 @@ function Desk() {
         <p className="fsc-first__note fs-t-caption">
           {movedOn
             ? FIRST_VIEW_COPY.movedOn
-            : `${snapshot.payer.shortName}, ${format.money(cents)}. ${rail === "simulator" ? "Simulated PayPal sandbox." : "Untested PayPal sandbox."} ${FIRST_VIEW_COPY.pressNote(rail)}`}
+            : FIRST_VIEW_COPY.pressNote(snapshot.payer.shortName, format.money(cents), rail)}
         </p>
       )}
       <CommandNotice

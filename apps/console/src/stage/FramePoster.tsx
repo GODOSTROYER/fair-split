@@ -116,9 +116,7 @@ function ChairPoster({
     return (
       <div className="fsc-poster__statement">
         <p className="fsc-poster__coop fs-t-caption">{chair ? POSTER.chairRole(chair.name) : ""}</p>
-        <p className="fsc-poster__greet fs-t-statement-lead">
-          Nothing to sign yet. Ernesto signs after Analyn.
-        </p>
+        <p className="fsc-poster__greet fs-t-statement-lead">{POSTER.chairIdle}</p>
       </div>
     );
   }

@@ -28,7 +28,7 @@ export function railLine(rail: PaypalRail): string {
 }
 
 export function stageCaption(_recordedOn: string): string {
-  return "Synthetic co-op, people and slips. Seed stand-in, not a Claude recording. Real hero-slip readings are a separate exhibit in the reading room.";
+  return "Synthetic co-op, people and slips. Seed stand-in, not a Claude recording.";
 }
 
 export const MOCK_DATA = {
@@ -45,6 +45,7 @@ export const PHONE_LANE = {
 
 export const STAGE = {
   whatsReal: "What's real",
+  zone: "Davao time",
   soundOn: "Sound on",
   soundOff: "Sound off",
   reset: "Reset",
@@ -99,7 +100,7 @@ export const STAGE_NOTICE = {
 
 /** What the phone frames show before the app's web build answers (FramePoster). Never the app itself. */
 export const POSTER = {
-  chairIdle: "Nothing to co-sign yet.",
+  chairIdle: "Nothing to sign yet. Ernesto signs after Analyn.",
   chairRole: (name: string) => `${name}, Chair`,
   /** M-BD-01's heading, as the app words it (Cebuano; the machine-translated chip sits beneath). */
   chairTitle: (season: string) => `Pirmahan sa Season ${season}`,
@@ -107,7 +108,6 @@ export const POSTER = {
   slabPreview: "Preview. In the app, Ernesto holds this slab to sign.",
   clerkRole: (name: string) => `${name}, clerk`,
   clerkReady: "Ready to scan slips",
-  sign: "Sign",
 } as const;
 
 /** The console's drawers (W-TR-06, W-TR-09): the frame around them is shared. */

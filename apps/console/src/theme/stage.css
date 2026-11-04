@@ -978,7 +978,6 @@
 
 /* Three log lanes, then (1024–1679 px) the phone's lane, then the stage's honesty caption at the right end. */
 .fsc-ribbon {
-  position: relative;
   display: grid;
   flex: none;
   grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(200px, 0.72fr);
@@ -986,10 +985,12 @@
   background: var(--fs-plate);
 }
 
+.fsc-ribbon__caption > p {
+  margin: 0;
+}
+
 .fsc-ribbon__zone {
-  position: absolute;
-  right: 20px;
-  bottom: 2px;
+  margin-top: 4px;
   color: var(--fs-ink-3);
 }
 

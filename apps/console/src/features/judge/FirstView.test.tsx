@@ -36,7 +36,7 @@ describe("W-JG-01 first view", { timeout: 60_000 }, () => {
       "Invoice lines (seeded sample)",
     );
     expect(screen.getByTestId("W-JG-01.invoice.draft").textContent).toContain(
-      "Claude did not draft these lines",
+      "not drafted by Claude in this build",
     );
     const heading = screen.getByRole("heading", { name: /Season 2026-A is ready to pay/ });
     expect(heading.querySelector(".fsc-nowrap")?.textContent).toBe("2026-A");
