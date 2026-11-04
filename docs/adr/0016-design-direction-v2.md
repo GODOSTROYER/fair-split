@@ -117,3 +117,18 @@ the keys is a later, separate change.
   hollow amount face keep the slashed zero until `assets/fonts/build/cut_fonts.py` can run with its pinned
   sources (they are fetched over the network).
 - The film's palette moves with the film rebuild package, not with this change.
+
+## Review round (4 Nov 2026)
+
+- **No brown on the evidence desk either.** Photos A–L were composed on a walnut desk; they are recomposed in code
+  on a cool laminate (`desk-photo-v2`), and the seed takes their new hashes. The slips' pixels do not change.
+- **Proof's bar adds up to the invoice.** decision.md §3 drew it as PayPal US$341.74, cash US$3,876.43 and "kept
+  for members" US$21.14, which sum to US$4,239.31: the US$21.14 the holds kept is already inside the members'
+  nets, and the ruled deductions and the disbursement costs were missing. The bar reads the bundle instead: the
+  members' share by tier, then the rate card's deductions net of credits (US$55.33) and the disbursement costs
+  (US$60.00), US$4,333.50 in all; what the holds kept is a note under it.
+- **One focus ring.** A committed jade slab draws its dashed "signed, not paid" outline inside the face, so the
+  pod focus ring still shows (WCAG 2.4.7); a solid amount no longer prints its hollow layer; the halo plays only
+  when the simulated PayPal confirms in view.
+- **The inline H1 row keeps "Open H1" alone.** Graft B2's two slabs in the row stay declined: the drawer is the
+  only place to decide, so no role selector there becomes ambiguous and the resolve flow is not duplicated.
