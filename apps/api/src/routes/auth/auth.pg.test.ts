@@ -1,10 +1,10 @@
 // The auth folder on embedded Postgres: pairing (createPairing / claimPairing, every listed error), stage
 // frame tokens, operator login, member and brand links with revocation, and GET /v1/credential.
 import { ApiError, ClaimPairingResponse, CreatePairingResponse } from "@fairsplit/contracts";
-import { schema } from "@fairsplit/db";
+import { appendLedger, schema, uuidv7, workspaceScope } from "@fairsplit/db";
 import { and, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { hashOperatorPassword, isLinkRevoked } from "../../credentials/issue/index.js";
+import { hashOperatorPassword, isLinkRevoked, liveLinksOfLine } from "../../credentials/issue/index.js";
 import { code6Digest } from "../../credentials/issue/pairing.js";
 import {
   createCredentialResolver,
@@ -858,6 +858,32 @@ describe("secrets are never stored or replayed", () => {
 });
 
 describe("links: revocation names a member link; brand links are throttled", () => {
+  it("HD6-11b: revoking the same jti in another workspace does not revoke this line's live link", async () => {
+    const a = await t.fixture();
+    const b = await t.fixture();
+    const lineId = uuidv7();
+    const jti = "hd6-shared-workspace-jti";
+    const scope = (workspaceId: string) =>
+      workspaceScope({ workspaceId, actor: { kind: "human", id: "treasurer:analyn" }, via: "frame_token" });
+    await appendLedger(t.deps.db, scope(a.workspaceId), {
+      kind: "link.issued",
+      payload: {
+        kind: "member",
+        jti,
+        lineId,
+        exp: new Date(t.clock.nowMs() + 60_000).toISOString(),
+      },
+    });
+    await appendLedger(t.deps.db, scope(b.workspaceId), { kind: "link.revoked", payload: { jti } });
+    expect(await isLinkRevoked(t.deps.db, b.workspaceId, jti)).toBe(true);
+    expect(await isLinkRevoked(t.deps.db, a.workspaceId, jti)).toBe(false);
+    expect(await liveLinksOfLine(t.deps.db, a.workspaceId, lineId, t.clock.now())).toEqual([jti]);
+
+    await appendLedger(t.deps.db, scope(a.workspaceId), { kind: "link.revoked", payload: { jti } });
+    expect(await isLinkRevoked(t.deps.db, a.workspaceId, jti)).toBe(true);
+    expect(await liveLinksOfLine(t.deps.db, a.workspaceId, lineId, t.clock.now())).toEqual([]);
+  });
+
   it("wired as SPLIT.md asks (dbCredentialStore + isLinkRevoked), the shell's resolver refuses a revoked link on every route", async () => {
     const s = await session();
     const [member] = await t.deps.db

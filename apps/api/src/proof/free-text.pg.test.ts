@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import type { ProofBundle } from "@fairsplit/contracts";
 import { afterAll, beforeAll, expect, it } from "vitest";
 import { type RunsHarness, runQueued, signBoth, startRuns } from "../runs/test/app.js";
 
@@ -10,6 +11,7 @@ afterAll(async () => h?.close());
 
 it("HD6-14: the public bundle never publishes dictionary-testable officer text hashes", async () => {
   const R = "A private officer reason for the duplicate delivery";
+  const R2 = "The chair checked two separate deliveries in the logbook";
   const D = "Please check the handwritten kilos before signing";
   const L = "A private rate-card edit label";
   const A = "123.45";
@@ -23,11 +25,12 @@ it("HD6-14: the public bundle never publishes dictionary-testable officer text h
   const hold = holds.body.holds.find((x) => x.label === "H1");
   if (!hold) throw new Error("H1");
   await api.resolveHold({ params: { holdId: hold.id }, body: { resolution: "ASK_CHAIR", reason: R } });
-  // The chair resolves the asked hold, then the ordinary review helper completes the other holds.
+  // Cover both reason sites: the Chair's resolution writes hold.resolved, not only hold.asked_chair.
   await h.t
     .client(h.tokens.chair)
-    .resolveHold({ params: { holdId: hold.id }, body: { resolution: "COUNT_ONCE" } });
-  await api.enterField({ params: { fieldId: h.world.fields0462.gross }, body: { value: "64.80" } });
+    .resolveHold({ params: { holdId: hold.id }, body: { resolution: "TWO_DELIVERIES", reason: R2 } });
+  // With both duplicate rows counted, this by-hand figure keeps shrink within the frozen tolerance.
+  await api.enterField({ params: { fieldId: h.world.fields0462.gross }, body: { value: "54.80" } });
   const remaining = holds.body.holds;
   const id = (label: string) => {
     const found = remaining.find((x) => x.label === label);
@@ -46,10 +49,20 @@ it("HD6-14: the public bundle never publishes dictionary-testable officer text h
   ).rejects.toMatchObject({ code: "RATE_CARD_RATIFIED" });
   await signBoth(h);
   await runQueued(h, "postPayoutBatch");
-  const proof = await h.t.json(`/v1/proof/${h.world.runSlug}`);
+  const proof = await h.t.json<{ bundle: ProofBundle }>(`/v1/proof/${h.world.runSlug}`);
   expect(proof.status).toBe(200);
+  expect(proof.body.bundle.ledger).toContainEqual(
+    expect.objectContaining({
+      kind: "hold.resolved",
+      payload: expect.objectContaining({
+        holdId: hold.id,
+        resolution: "TWO_DELIVERIES",
+        reasonSha256: expect.stringMatching(/^[a-f0-9]{64}$/),
+      }),
+    }),
+  );
   const json = JSON.stringify(proof.body);
-  for (const text of [R, D, L, A]) {
+  for (const text of [R, R2, D, L, A]) {
     expect(json).not.toContain(createHash("sha256").update(text, "utf8").digest("hex"));
   }
 }, 120_000);
