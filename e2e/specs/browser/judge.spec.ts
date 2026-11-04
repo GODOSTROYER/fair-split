@@ -438,10 +438,15 @@ test("a quota-replayed run labels the stage, payout summary, chips and log befor
       await expect(page.getByTestId("W-TR-09.status")).toHaveText(/Replayed \(labelled\)/i);
       await expect(page.getByTestId("W-TR-09.status")).toHaveAttribute("data-tone", "neutral");
       await expect(page.getByTestId("W-TR-09.amount")).toHaveAttribute("data-amount-state", "hollow");
-      await expect(page.getByTestId("W-TR-09.history")).toContainText(/replay/i);
-      await expect(page.getByTestId("W-TR-09.history")).toContainText(
-        /earlier simulated PayPal sandbox run/i,
-      );
+      // Each history row names the status it replayed; the drawer says once where it came from.
+      await expect(page.getByTestId("W-TR-09.history")).toContainText(/Replayed \(labelled\): /);
+      await expect(page.getByTestId("W-TR-09.history")).not.toContainText(/\bPaid\b/);
+      await expect(page.getByTestId("W-TR-09.line")).toContainText(/earlier simulated PayPal sandbox run/i);
+      expect(
+        ((await page.getByTestId("W-TR-09.line").textContent()) ?? "").split(
+          "From an earlier simulated PayPal sandbox run.",
+        ).length,
+      ).toBe(2);
       await page.getByTestId("W-TR-09.sms.en").click();
       await expect(page.getByTestId("W-TR-09.sms.text")).toContainText(/replay/i);
       await expect(page.getByTestId("W-TR-09.sms.text")).toContainText(/simulated PayPal sandbox/i);
@@ -494,15 +499,22 @@ test("a quota-replayed run labels the stage, payout summary, chips and log befor
         .getByRole("row")
         .filter({ hasText: /M-\d{3}/ });
       await expect(payoutRows).toHaveCount(8);
+      // Each row says which status replayed: Rhea's parked line never reads like a success.
       for (const row of await payoutRows.all())
         await expect(row.getByRole("cell").last()).toHaveText(
-          "Replayed (labelled), Simulated PayPal sandbox",
+          (await row.textContent())?.includes("Rhea Jumawan")
+            ? "Replayed (labelled): parked"
+            : "Replayed (labelled): successful in the earlier run",
         );
       const parkedChip = page.getByTestId(/^W-TR-08\.chip\./);
       await expect(parkedChip).toHaveCount(1);
       await expect(parkedChip).toHaveText("Replayed (labelled, simulated)");
       const payoutLog = page.getByTestId("W-TR-08.lane.PAYPAL");
-      await expect(payoutLog).toContainText(/replay of an earlier simulated/i);
+      // The log says the replay note once, above its lanes; each replayed row names what it replayed.
+      await expect(page.getByTestId("W-TR-08.log.replayNote")).toContainText(
+        /replay of an earlier simulated/i,
+      );
+      await expect(payoutLog).toContainText(/Replayed \(labelled\): Rhea Jumawan parked/);
       await expect(payoutLog).not.toContainText(/Confirmed by a status check|replay of the seed stand-in/i);
       const replayRows = payoutLog.locator('[data-provenance="replay"]');
       // Every replay event is labelled in its own row, including an unsuccessful recorded item.
@@ -529,7 +541,7 @@ test("a quota-replayed run labels the stage, payout summary, chips and log befor
         await expect(status).toHaveText(
           (await row.textContent())?.includes("Rhea Jumawan")
             ? "Cash due"
-            : "Replayed (labelled), Simulated PayPal sandbox",
+            : "Replayed (labelled): successful in the earlier run",
         );
       }
       await page.getByTestId("W-JG-01.rail.split").click();
