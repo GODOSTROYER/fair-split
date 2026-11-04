@@ -473,6 +473,7 @@ export function Screen({ runSlug }: RunScreenProps) {
           : undefined
       : undefined;
   const voidedAt = voidedByChange(view);
+  const voidedTime = voidedAt ? format.time(voidedAt).slice(0, 5) : null;
   const treasurerStamp = treasurerApproval
     ? stampFor(snapshot, "treasurer:analyn", treasurerApproval.at)
     : voidedAt
@@ -595,7 +596,7 @@ export function Screen({ runSlug }: RunScreenProps) {
 
         <section className="fsr-approve__ledger" aria-labelledby="W-TR-07-ledger">
           <h2 id="W-TR-07-ledger" className="fs-t-label">
-            What you and Ernesto sign
+            {APPROVE.signTitle}
           </h2>
           <p className="fs-t-caption fsr-muted">{APPROVE.ledgerNote}</p>
           <BatchLedger
@@ -608,10 +609,9 @@ export function Screen({ runSlug }: RunScreenProps) {
           />
         </section>
 
-        {voidedAt && (
+        {voidedTime && (
           <p className="fsr-banner fsr-banner--ink" role="status" data-testid="W-TR-07.voided">
-            Both approvals voided at {format.time(voidedAt).slice(0, 5)}. A payout changed after signing, so
-            nothing was sent. Review and sign again.
+            {APPROVE.voided(voidedTime)}
           </p>
         )}
 
@@ -690,8 +690,8 @@ export function Screen({ runSlug }: RunScreenProps) {
             status={
               treasurerApproval && treasurerStamp
                 ? en("W-TR-07.key.signed", { time: treasurerStamp.at })
-                : voidedAt
-                  ? `Voided ${format.time(voidedAt).slice(0, 5)}`
+                : voidedTime
+                  ? APPROVE.voidedKey(voidedTime)
                   : signing
                     ? APPROVE.signing
                     : APPROVE.waitingKey
@@ -713,8 +713,8 @@ export function Screen({ runSlug }: RunScreenProps) {
               status={
                 chairApproval && chairStamp
                   ? en("W-TR-07.key.signed", { time: chairStamp.at })
-                  : voidedAt
-                    ? `Voided ${format.time(voidedAt).slice(0, 5)}`
+                  : voidedTime
+                    ? APPROVE.voidedKey(voidedTime)
                     : treasurerApproval
                       ? APPROVE.waitingChair
                       : APPROVE.waitingKey

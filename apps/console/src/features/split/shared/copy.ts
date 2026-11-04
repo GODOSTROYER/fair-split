@@ -174,13 +174,15 @@ export const APPROVE = {
   srApprove: (label: string, spoken: string) => `${label}, ${spoken}, ${en("slab.consequence.money")}`,
   sealWaiting: "The seal grows from the batch hash once every hold that changes kilos is decided",
   batchLabel: "Batch",
-  batchHash: "Batch hash",
   batchPending: "Not final yet",
   linesDigest: "Lines digest",
   linesNote: (lines: number, cash: number) =>
     `all ${lines} lines, the ${cash} cash lines too; this browser recomputed it`,
   rateCard: "Rate card",
-  ledgerTitle: "What both keys sign",
+  signTitle: "What you and Ernesto sign",
+  voided: (time: string) =>
+    `Both approvals voided at ${time}. A payout changed after signing, so nothing was sent. Review and sign again.`,
+  voidedKey: (time: string) => `Voided ${time}`,
   ledgerNote: "Compare these by eye with the Chair's phone: the seal above grows from the batch hash.",
   cosignTitle: "Co-sign as Ernesto from your own phone",
   cosignBody: "Uses a labelled demo key made in your phone's browser.",

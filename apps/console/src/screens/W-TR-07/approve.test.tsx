@@ -19,7 +19,9 @@ import { workspaceLines } from "../../data/mock/fidelity.js";
 import { queryKeys } from "../../data/query.js";
 import type { RunView } from "../../data/run-view.js";
 import { heldSessionKey } from "../../features/approve/keys.js";
+import { APPROVE } from "../../features/split/shared/copy.js";
 import { screenControl } from "../../lib/focus.js";
+import { format } from "../../lib/format.js";
 import { linesRoot } from "../../lib/lines-root.js";
 import { fromHex } from "../../lib/sha256.js";
 import {
@@ -298,13 +300,16 @@ describe("W-TR-07 approve", () => {
         }),
       );
       const plate = await screen.findByTestId("W-TR-07.voided");
+      const time = format.time(at).slice(0, 5);
+      expect(plate.textContent).toBe(APPROVE.voided(time));
       expect(plate.textContent).toMatch(
         /Both approvals voided at .*A payout changed after signing, so nothing was sent/,
       );
+      expect(document.getElementById("W-TR-07-ledger")?.textContent).toBe(APPROVE.signTitle);
       expect(root.querySelector('[data-tone="red"], [data-tone="denied"]')).toBeNull();
       for (const officer of ["treasurer", "chair"]) {
         expect(screen.getByTestId(`W-TR-07.key.${officer}`).dataset.state).toBe("voided");
-        expect(screen.getByTestId(`W-TR-07.key.${officer}.status`).textContent).toMatch(/^Voided /);
+        expect(screen.getByTestId(`W-TR-07.key.${officer}.status`).textContent).toBe(APPROVE.voidedKey(time));
         expect(screen.getByTestId(`W-TR-07.key.${officer}.stamp`)).toBeTruthy();
       }
       const fresh = {
