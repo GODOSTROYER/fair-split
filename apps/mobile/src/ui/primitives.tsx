@@ -109,6 +109,7 @@ export function Chip({
     <Pressable
       onPress={onPress}
       accessibilityRole={role}
+      aria-checked={role === "radio" ? !!selected : undefined}
       accessibilityState={role === "radio" ? { checked: !!selected } : { selected: !!selected }}
       accessibilityLabel={accessibilityLabel ?? label}
       testID={testID}

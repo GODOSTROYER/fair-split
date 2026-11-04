@@ -64,7 +64,7 @@ export function AmountDisplay({ text, srLabel, state, size = "hero", fill, testI
 /** Accessibility props of an amount's wrapper: one spoken element, or nothing when its control speaks for it. */
 function spoken(srLabel: string | undefined) {
   return srLabel
-    ? ({ accessible: true, accessibilityRole: "text", accessibilityLabel: srLabel } as const)
+    ? ({ accessible: true, role: "img", accessibilityRole: "text", accessibilityLabel: srLabel } as const)
     : ({
         accessible: false,
         importantForAccessibility: "no-hide-descendants",
