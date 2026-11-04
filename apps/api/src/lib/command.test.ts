@@ -4,7 +4,7 @@ import { getProof } from "@fairsplit/seed";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import { createTestApp, type TestApp } from "../test/index.js";
-import { notImplemented, reply } from "./command.js";
+import { notImplemented, reply, serializedReply } from "./command.js";
 import { contentDigestOf } from "./digest.js";
 import { ApiProblem } from "./problem.js";
 import { defineRouteFolder } from "./slice.js";
@@ -105,6 +105,22 @@ afterEach(async () => {
 const holdPath = (id = randomUUID()) => `/v1/holds/${id}/resolve`;
 
 describe("command builder", () => {
+  it("validates a cached serialized response once, and revalidates a replacement", async () => {
+    await setup();
+    const body = { bundle: getProof(), provenance: "seeded", redacted: false };
+    const serialized = JSON.stringify(body);
+    proof.mockImplementation(() => serializedReply(body, serialized));
+    const parse = vi.spyOn(ProofResponse, "safeParse");
+    try {
+      for (let i = 0; i < 10; i++) expect((await t.json("/v1/proof/2026A-r37")).status).toBe(200);
+      expect(parse).toHaveBeenCalledTimes(1);
+      proof.mockImplementation(() => serializedReply({ bundle: {} }, '{"bundle":{}}'));
+      expect((await t.json("/v1/proof/2026A-r37")).status).toBe(500);
+      expect(parse).toHaveBeenCalledTimes(2);
+    } finally {
+      parse.mockRestore();
+    }
+  });
   it("runs the handler with typed input, params and the credential's scope, and answers the default status", async () => {
     await setup();
     const id = randomUUID();

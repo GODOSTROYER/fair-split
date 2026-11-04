@@ -114,7 +114,7 @@ export interface Reply<B> {
   readonly status: number;
   readonly body: B;
   readonly headers: Readonly<Record<string, string>>;
-  /** Already serialized trusted handler result (Proof cache). Contract checks still apply below. */
+  /** Already serialized trusted handler result (Proof cache). Validated once per immutable body/schema. */
   readonly serializedBody?: string;
 }
 
@@ -138,6 +138,10 @@ export function serializedReply<B>(
 function isReply(v: unknown): v is Reply<unknown> {
   return !!v && typeof v === "object" && (v as Record<symbol, unknown>)[REPLY] === true;
 }
+
+// Weak keys retain neither an evicted Proof nor a route schema. Only successful validation of the exact
+// object/string pair is reused; ordinary replies and replacement bodies still receive the full check.
+const validatedBodies = new WeakMap<object, WeakMap<z.ZodType, string>>();
 
 export type CredentialFor<A> = A extends "frame_or_session"
   ? ActingCredential
@@ -461,13 +465,22 @@ async function runRoute(c: AppContext, spec: RouteSpec, handler: AnyHandler): Pr
     if (strict) throw problem.internal(`${spec.name} answered an undocumented status ${out.status}.`);
   }
   if (spec.response && out.status !== 204) {
-    const check = spec.response.safeParse(out.body);
-    if (!check.success) {
+    const serialized =
+      "serializedBody" in out && typeof out.serializedBody === "string" ? out.serializedBody : null;
+    const objectBody = out.body !== null && typeof out.body === "object" ? out.body : null;
+    const validated = objectBody ? validatedBodies.get(objectBody) : undefined;
+    const cached = serialized !== null && validated?.get(spec.response) === serialized;
+    const check = cached ? null : spec.response.safeParse(out.body);
+    if (check && !check.success) {
       log.error(
         { route: spec.name, issues: check.error.issues.slice(0, 10) },
         "response does not match the contract",
       );
       if (strict) throw problem.internal(`${spec.name} answered a body that does not match its contract.`);
+    } else if (check?.success && serialized !== null && objectBody) {
+      const schemas = validated ?? new WeakMap<z.ZodType, string>();
+      schemas.set(spec.response, serialized);
+      validatedBodies.set(objectBody, schemas);
     }
   }
   if (idem)
