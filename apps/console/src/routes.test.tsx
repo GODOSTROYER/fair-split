@@ -62,15 +62,15 @@ describe("web routes (register §4)", () => {
     await waitFor(() => expect(document.querySelector("[data-testid^='W-DP-01']")).toBeTruthy());
   });
 
-  it("Proof and print are Adlaw; the stage is Tablea (one theme per surface)", async () => {
+  it("Proof, print and the stage are all Adlaw, Hayag in v2 (ADR-0016: one light theme everywhere)", async () => {
     const proof = await renderConsole({ path: webRoutes.proof(RUN) });
     await screen.findByTestId("W-PF-01");
     expect(document.documentElement.dataset.theme).toBe("adlaw");
     proof.unmount();
-    expect(document.documentElement.dataset.theme).toBe("tablea");
+    expect(document.documentElement.dataset.theme).toBe("adlaw");
     await renderConsole({ path: webRoutes.judge() });
     const stage = await screen.findByTestId("W-JG-01.stage");
-    expect(document.documentElement.dataset.theme).toBe("tablea");
+    expect(document.documentElement.dataset.theme).toBe("adlaw");
     expect(within(stage).getByTestId("W-JG-01.rail")).toBeTruthy();
   });
 });

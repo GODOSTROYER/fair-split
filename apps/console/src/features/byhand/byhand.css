@@ -119,9 +119,9 @@
 
 /* The second witness's line, marked the way the reading band marks a slip. */
 .fsc-logbook__band {
-  fill: color-mix(in srgb, var(--fs-pencil) 34%, transparent);
-  stroke: var(--fs-paper-ink);
-  stroke-width: 0.8;
+  fill: color-mix(in srgb, var(--fs-pod) 12%, transparent);
+  stroke: var(--fs-pod);
+  stroke-width: 1.2;
 }
 
 /* ---------------------------------------------------------------- the entry */
@@ -152,7 +152,7 @@
   min-height: 72px;
   padding: 0 16px;
   border: 1.5px solid var(--fs-canary-border);
-  border-radius: var(--fs-radius-2);
+  border-radius: var(--fs-radius-control);
   background: var(--fs-canary-wash);
   color: var(--fs-ink);
   caret-color: var(--fs-pod);
@@ -301,7 +301,7 @@
   gap: 8px;
   padding: 16px 18px;
   border: 1px dashed var(--fs-ink-3);
-  border-radius: var(--fs-radius-2);
+  border-radius: var(--fs-radius-card);
 }
 
 /* Under 1280 px the stage's bar takes a second row and the screen's padding narrows. */

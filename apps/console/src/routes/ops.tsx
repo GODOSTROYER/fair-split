@@ -9,7 +9,7 @@ export const Route = createFileRoute("/ops")({
   component: function OpsRoute() {
     useDocumentTitle(SCREENS["W-OP-01"].name);
     return (
-      <Surface theme="tablea" className="fsc-surface fsc-surface--ops">
+      <Surface theme="adlaw" className="fsc-surface fsc-surface--ops">
         <Screen />
       </Surface>
     );

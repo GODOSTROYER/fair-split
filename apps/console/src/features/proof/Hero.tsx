@@ -5,7 +5,15 @@
 // red, and it names its plate.
 
 import type { PlateName, ProofBundle } from "@fairsplit/contracts";
-import { Glyph, type GlyphName, Seal, Slab } from "@fairsplit/ui-web";
+import {
+  CurrencyFigure,
+  Glyph,
+  type GlyphName,
+  InkStamp,
+  Seal,
+  Slab,
+  type StampView,
+} from "@fairsplit/ui-web";
 import { type CSSProperties, type ReactNode, useEffect, useRef } from "react";
 import { CommandNotice } from "../../chrome/CommandNotice.js";
 import { DataTable, Mirrored } from "../../chrome/DataTable.js";
@@ -36,6 +44,8 @@ export interface ProofHeroProps {
   readonly level?: "h1" | "h2";
   /** The run's live line under the sentence: "7 of 8 PayPal payouts confirmed in the simulated sandbox…". */
   readonly status?: ReactNode;
+  /** The officers whose keys signed the batch, as indigo stamps on the signed-by line (AS, EC). */
+  readonly signers?: readonly StampView[];
 }
 
 export function sealKeys(bundle: Pick<ProofBundle, "approvals">): 0 | 1 | 2 {
@@ -51,6 +61,7 @@ export function ProofHero({
   verification,
   level = "h1",
   status,
+  signers = [],
 }: ProofHeroProps) {
   const Title = level;
   const paid = bundle.invoice.status === "PAID";
@@ -107,7 +118,7 @@ export function ProofHero({
           data-amount-state="landed"
           data-testid="W-PF-01.invoice-amount"
         >
-          {amount}
+          <CurrencyFigure display={amount} />
         </span>{" "}
         <span className="pf-hero__after">
           <SeasonText text={after.trim()} season={seasonLabel} />
@@ -119,7 +130,7 @@ export function ProofHero({
         <Glyph name="rail" size={16} />
         <span>{railName(rail)}. Synthetic co-op, people and slips.</span>
       </p>
-      <VerifyPanel verification={verification} rail={rail} />
+      <VerifyPanel verification={verification} rail={rail} signers={signers} />
     </section>
   );
 }
@@ -191,9 +202,12 @@ export function slotWords(state: SlotState): string {
 export function VerifyPanel({
   verification,
   rail = "simulator",
+  signers = [],
 }: {
   readonly verification: Verification;
   readonly rail?: PaypalRail;
+  /** The officers whose keys signed, drawn as stamps on the signed-by line. */
+  readonly signers?: readonly StampView[];
 }) {
   const { state, verify } = verification;
   const done = state.kind === "done" ? state : null;
@@ -304,9 +318,18 @@ export function VerifyPanel({
               </p>
             )}
             {!outcome.failure && outcome.sampleKeys.length > 0 && (
-              <p className="pf-verify__note" data-testid="W-PF-01.verdict.sample">
-                {VERIFY_COPY.sample(outcome.sampleKeys)}
-              </p>
+              <div className="pf-verify__signed">
+                {signers.length > 0 && (
+                  <span className="pf-verify__stamps" data-testid="W-PF-01.verdict.stamps">
+                    {signers.map((stamp) => (
+                      <InkStamp key={stamp.initials} stamp={stamp} />
+                    ))}
+                  </span>
+                )}
+                <p className="pf-verify__note" data-testid="W-PF-01.verdict.sample">
+                  {VERIFY_COPY.sample(outcome.sampleKeys)}
+                </p>
+              </div>
             )}
             {outcome.verdict === "partial" && <p className="pf-verify__note">{VERIFY_COPY.partial}</p>}
             <p className="pf-verify__trust" data-testid="W-PF-01.verdict.trust" data-trust={outcome.trust}>

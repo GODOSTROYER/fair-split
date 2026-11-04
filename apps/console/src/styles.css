@@ -29,20 +29,9 @@
     line-height: 1.25rem;
   }
 
-  /* The Tablea lacquer: a 128 px noise tile at 3% on the ground of the web console only (design §2.5). */
-  html[data-theme="tablea"]:not([data-rec="1"]) body::before {
-    content: "";
-    position: fixed;
-    inset: 0;
-    z-index: -1;
-    background: url("../../../assets/textures/noise-128.png");
-    opacity: var(--fs-noise-opacity);
-    pointer-events: none;
-  }
-
   ::selection {
-    background: var(--fs-ink);
-    color: var(--fs-ground);
+    background: var(--fs-pod-wash);
+    color: var(--fs-ink);
   }
 
   * {

@@ -14,6 +14,7 @@ import type {
   RowClassRules,
   RowClickedEvent,
 } from "ag-grid-community";
+import type { CustomCellRendererProps } from "ag-grid-react";
 import { lazy, type RefObject, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { focusAndReveal } from "../../lib/focus.js";
 import { format } from "../../lib/format.js";
@@ -34,6 +35,7 @@ import {
   SlipsCell,
   StatusCell,
 } from "./cells.js";
+import { type HoldNoteRow, HoldNoteView, holdNote } from "./HoldNote.js";
 import type { SplitRow, SplitTotals } from "./model.js";
 import { StaticTable } from "./StaticTable.js";
 import { en, SPLIT } from "./shared/copy.js";
@@ -88,6 +90,14 @@ export function columnSetFor(width: number, showAll: boolean): ColumnSet {
 
 const lineOf = (row: GridRow | undefined): SplitRow | null => (row && row.kind === "line" ? row : null);
 
+/** The lines with the inline hold note placed right under the held line it is about. */
+function withNote(lines: readonly GridRow[], note: HoldNoteRow | null): GridRow[] {
+  if (!note) return [...lines];
+  const at = lines.findIndex((r) => r.kind === "line" && r.memberNo === note.forMember);
+  if (at < 0) return [...lines];
+  return [...lines.slice(0, at + 1), note, ...lines.slice(at + 1)];
+}
+
 /** Stable across renders: AG Grid treats a new defaultColDef as new columns and a new getRowId as a new grid. */
 const DEFAULT_COL: ColDef<GridRow> = {
   sortable: false,
@@ -110,7 +120,8 @@ function columnDefs(premiumRate: string): Record<GridColumn, ColDef<GridRow>> {
       pinned: "left",
       lockPinned: true,
     },
-    slips: { colId: "slips", headerName: en("W-TR-05.col.slips"), cellRenderer: SlipsCell, width: 68 },
+    // Room for the carbon-copy chip ("0457 ×2") beside the count.
+    slips: { colId: "slips", headerName: en("W-TR-05.col.slips"), cellRenderer: SlipsCell, width: 136 },
     kg: { colId: "kg", headerName: en("W-TR-05.col.kg"), cellRenderer: KgCell, minWidth: 116, flex: 1 },
     confidence: {
       colId: "confidence",
@@ -180,6 +191,16 @@ const ALL: readonly GridColumn[] = [
 /** Minimum confidence waits behind "All columns": 60 of 64 lines were read earlier and show none. */
 const DEFAULT: readonly GridColumn[] = ALL.filter((c) => c !== "confidence");
 
+/**
+ * In the five-column set Verified kg and Kaltas keep fixed widths, so Member, Net and Status take the slack and no
+ * empty band opens between Verified kg and Kaltas (1,470 px). `flex: null` clears the default set's flex: AG Grid
+ * keeps a stateful attribute that a new definition leaves undefined.
+ */
+export const NARROW_FIXED: Partial<Record<GridColumn, ColDef<GridRow>>> = {
+  kg: { width: 150, flex: null, minWidth: undefined },
+  kaltas: { width: 168, flex: null, minWidth: undefined },
+};
+
 const SETS: Readonly<Record<ColumnSet, readonly GridColumn[]>> = {
   all: ALL,
   default: DEFAULT,
@@ -220,7 +241,10 @@ export function SplitGrid({
   const measured = width > 0;
   const set: ColumnSet = columns ?? columnSetFor(width, showAll);
   const defs = useMemo(() => columnDefs(context.premiumRate), [context.premiumRate]);
-  const colDefs = useMemo(() => SETS[set].map((c) => defs[c]), [defs, set]);
+  const colDefs = useMemo(
+    () => SETS[set].map((c) => (set === "narrow" ? { ...defs[c], ...NARROW_FIXED[c] } : defs[c])),
+    [defs, set],
+  );
   // One grid row per line object: an unchanged line keeps its row, so AG Grid refreshes only the lines that moved.
   const wrapped = useRef(new WeakMap<SplitRow, GridRow>());
   const wrap1 = useCallback((r: SplitRow): GridRow => {
@@ -231,14 +255,40 @@ export function SplitGrid({
     }
     return row;
   }, []);
-  const rowData = useMemo<GridRow[]>(() => rows.map(wrap1), [rows, wrap1]);
-  const topRows = useMemo<GridRow[]>(() => decisions.map(wrap1), [decisions, wrap1]);
+  // The H1 note sits under its held line while that hold is open (the drawer stays the only place to decide).
+  // The held lines may be pinned above the others as decisions: the note follows H1 wherever it is.
+  const note = useMemo(
+    () => holdNote([...decisions, ...rows], context.slip),
+    [decisions, rows, context.slip],
+  );
+  const rowData = useMemo<GridRow[]>(() => withNote(rows.map(wrap1), note), [rows, wrap1, note]);
+  const topRows = useMemo<GridRow[]>(() => withNote(decisions.map(wrap1), note), [decisions, wrap1, note]);
   const pinned = useMemo<GridRow[]>(
     () => [{ kind: "totals" as const, memberNo: "totals" as const, ...totals }],
     [totals],
   );
   const open = useRef(onOpen);
   open.current = onOpen;
+  // The note's renderer is one stable function: a new fullWidthCellRenderer would make AG Grid redraw every row,
+  // and a live wave would lose its slide. It reads the latest lines through a ref.
+  const lines = useRef<readonly SplitRow[]>([]);
+  lines.current = [...decisions, ...rows];
+  const openNote = useCallback((n: HoldNoteRow) => {
+    const row = lines.current.find((r) => r.memberNo === n.forMember);
+    if (row) open.current(row);
+  }, []);
+  const noteRenderer = useCallback(
+    (p: CustomCellRendererProps<GridRow>) =>
+      // A full-width row is still a row: its content sits in one gridcell (axe aria-required-children), focusable by
+      // script like AG Grid's own cells (tabindex -1).
+      p.data?.kind === "note" ? (
+        // biome-ignore lint/a11y/useSemanticElements: AG Grid's rows are divs; a <td> cannot sit in a div row.
+        <div role="gridcell" tabIndex={-1} className="fsr-note__cell">
+          <HoldNoteView note={p.data} onOpen={() => openNote(p.data as HoldNoteRow)} />
+        </div>
+      ) : null,
+    [openNote],
+  );
 
   const rowClassRules = useMemo<RowClassRules<GridRow>>(
     () => ({
@@ -251,6 +301,7 @@ export function SplitGrid({
         return row !== null && openMember !== null && openMember !== undefined && row.memberNo === openMember;
       },
       "fsr-row--totals": (p) => p.data?.kind === "totals",
+      "fsr-row--note": (p) => p.data?.kind === "note",
       "fsr-row--decision": (p) => p.node.rowPinned === "top",
     }),
     [openMember],
@@ -326,6 +377,7 @@ export function SplitGrid({
           context={context}
           {...(openMember !== undefined ? { openMember } : {})}
           onOpen={(row) => open.current(row)}
+          onOpenNote={openNote}
         />
       )}
     </section>
@@ -337,7 +389,7 @@ export function SplitGrid({
       ref={wrap}
       data-testid="W-TR-05.grid"
       data-columns={set}
-      data-pinned={topRows.length > 0 ? topRows.length : undefined}
+      data-pinned={decisions.length > 0 ? decisions.length : undefined}
     >
       {measured ? (
         <Suspense fallback={staticFrame}>
@@ -355,6 +407,7 @@ export function SplitGrid({
               defaultColDef={DEFAULT_COL}
               noRows={SPLIT.noMatch}
               onApi={onApi}
+              noteRenderer={noteRenderer}
             />
           </section>
         </Suspense>

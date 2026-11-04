@@ -19,9 +19,10 @@ export const COPY_FILL: Readonly<Record<SnapshotSlip["copy"], string>> = {
   LOGBOOK_LINE: "var(--fs-copy-white)",
   UNKNOWN: "var(--fs-copy-white)",
 };
-export const BALLPOINT = "#2b4ba0";
-export const SERIAL_RED = "#b23a2e";
-export const FORM_INK = "#5f5a54";
+/** Evidence ink drawn in code, from @fairsplit/tokens (--fs-evidence-*): the same on light paper in both themes. */
+export const BALLPOINT = "var(--fs-evidence-ballpoint)";
+export const SERIAL_RED = "var(--fs-evidence-serial)";
+export const FORM_INK = "var(--fs-evidence-form)";
 
 const W = 240;
 const H = 300;

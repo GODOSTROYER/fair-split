@@ -33,7 +33,8 @@ describe("W-JG-01 first view", { timeout: 60_000 }, () => {
   it("keeps the short invoice action and season code whole while preserving its accessible name", async () => {
     await renderConsole({ path: "/judge" });
     const button = screen.getByRole("button", { name: /Mark Lantern Bay.s invoice paid/ });
-    expect(button.textContent).toBe("Mark the invoice paid");
+    // The face's words; its Enter keycap is decoration, hidden from assistive tech.
+    expect(button.querySelector(".fs-slab__words")?.textContent).toBe("Mark the invoice paid");
     expect(screen.getByTestId("W-JG-01.invoice.draft").textContent).toContain(
       "Invoice lines (seeded sample)",
     );

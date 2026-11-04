@@ -99,7 +99,7 @@
   min-height: 28px;
   padding: 0 10px;
   border: 1px solid var(--fs-rule);
-  border-radius: var(--fs-radius-2);
+  border-radius: var(--fs-radius-pill);
   background: var(--fs-plate);
   color: var(--fs-ink-2);
   font-weight: 560;

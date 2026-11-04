@@ -6,7 +6,7 @@
 // pencil: Claude chose the labels, every amount is the code's quote (I1).
 
 import { INVOICE_STATUS_LABELS, pickLabel, type SeasonSnapshot } from "@fairsplit/contracts";
-import { Glyph, useT } from "@fairsplit/ui-web";
+import { CurrencyFigure, Glyph, useT } from "@fairsplit/ui-web";
 import { type MotionValue, motion, useMotionValue, useTransform } from "motion/react";
 import {
   type ReactNode,
@@ -117,13 +117,27 @@ export function HollowFigure({
 }) {
   const display = format.money(cents);
   const mirror = useMirror(solid);
+  // Landed and filled, the amount reads as money: a third layer in FS Sans's proportional figures (a plain zero)
+  // cross-fades in over the hollow cut, whose figures are tabular with the slashed zero (ADR-0016, decision §7).
+  const hasLanded = useMirror(landed ? 1 : 0);
+  const ink = useTransform([mirror, hasLanded], ([v, l]) =>
+    (l as number) >= 1 && (v as number) >= 1 ? 1 : 0,
+  );
+  const cut = useTransform(ink, (v) => 1 - v);
   return (
     <span className="fsc-figure" data-amount-state={landed ? "landed" : "hollow"} data-testid={testId}>
       <span className="fs-sr">{format.amountSpoken(cents, "en")}</span>
       <span ref={anchor} className={`fsc-figure__digits fs-t-${typeRole}`} aria-hidden>
-        <span className="fsc-figure__hollow">{display}</span>
-        <motion.span className="fsc-figure__solid" style={{ opacity: mirror }}>
-          {display}
+        <motion.span className="fsc-figure__cut" style={{ opacity: cut }}>
+          <span className="fsc-figure__hollow">
+            <CurrencyFigure display={display} />
+          </span>
+          <motion.span className="fsc-figure__solid" style={{ opacity: mirror }}>
+            <CurrencyFigure display={display} />
+          </motion.span>
+        </motion.span>
+        <motion.span className="fsc-figure__ink" style={{ opacity: ink }}>
+          <CurrencyFigure display={display} />
         </motion.span>
       </span>
     </span>
@@ -305,6 +319,21 @@ export function FundingBlock({
   const recorded = format.dateShort(snapshot.run.recordedOn);
   const statusWord = status ? pickLabel(INVOICE_STATUS_LABELS[status], "en") : SEASON_COPY.waiting;
   const arc = typeof values.arc === "number" ? null : values.arc;
+  const draftBody = (
+    <>
+      <dl className="fsc-fund__lines">
+        {lines.map((line) => (
+          <div key={line.key} className="fsc-fund__line">
+            <dt className="fsc-fund__pencil">{line.label}</dt>
+            <dd className="fsc-fund__pencil fs-t-figure" data-amount-state="pencil">
+              {format.money(line.cents)}
+            </dd>
+          </div>
+        ))}
+      </dl>
+      <p className="fsc-fund__note fs-t-caption">{SEASON_COPY.invoiceLinesNote(recorded)}</p>
+    </>
+  );
   const memo = t("W-TR-01.invoice.memo", {
     season: snapshot.season.label,
     hash: format.hashGroups(snapshot.rateCard.sha256),
@@ -356,23 +385,30 @@ export function FundingBlock({
             {action}
           </div>
         )}
-        <div className="fsc-fund__draft" data-provenance="seeded" data-testid={`${screen}.invoice.draft`}>
-          <p className="fsc-fund__draft-head fs-t-label">
-            <Glyph name="pencil" size={16} />
-            {SEASON_COPY.invoiceLines}
-          </p>
-          <dl className="fsc-fund__lines">
-            {lines.map((line) => (
-              <div key={line.key} className="fsc-fund__line">
-                <dt className="fsc-fund__pencil">{line.label}</dt>
-                <dd className="fsc-fund__pencil fs-t-figure" data-amount-state="pencil">
-                  {format.money(line.cents)}
-                </dd>
-              </div>
-            ))}
-          </dl>
-          <p className="fsc-fund__note fs-t-caption">{SEASON_COPY.invoiceLinesNote(recorded)}</p>
-        </div>
+        {compact ? (
+          // The first view folds the invoice's lines (the pool strip beside it shows the same three figures) under
+          // their provenance, which stays in view: "Invoice lines (seeded sample)".
+          <details
+            className="fsc-fund__draft"
+            data-provenance="seeded"
+            data-testid={`${screen}.invoice.draft`}
+          >
+            <summary className="fsc-fund__draft-head fs-t-label">
+              <Glyph name="pencil" size={16} />
+              {SEASON_COPY.invoiceLines}
+              <Glyph name="ms:expand-more" size={18} />
+            </summary>
+            {draftBody}
+          </details>
+        ) : (
+          <div className="fsc-fund__draft" data-provenance="seeded" data-testid={`${screen}.invoice.draft`}>
+            <p className="fsc-fund__draft-head fs-t-label">
+              <Glyph name="pencil" size={16} />
+              {SEASON_COPY.invoiceLines}
+            </p>
+            {draftBody}
+          </div>
+        )}
         {compact ? (
           <p className="fsc-fund__memo fs-t-caption">
             {`${memo}. ${t("W-TR-01.invoice.autoCancel", { date: format.date(invoice.autoCancelOn) })}`}

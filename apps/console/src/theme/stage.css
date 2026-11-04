@@ -1,21 +1,27 @@
-/* The Judge stage (S1.6, design §6 J1) in Tablea: one bar (the honesty line, the run pill in its centre, the
-   stage's links), the console (rail, screen), the phone, and the ribbon (three log lanes, the phone's lane, the
-   honesty caption). The screens get every pixel the chrome does not need. Depth comes from value steps
-   (ground, plate, plate-2) and 1 px rules; nothing here casts a shadow, because only paper does. Layout
-   follows S1.6's table: phone docked from 1680 px, a ribbon lane that rises from 1024, a phone visit below. */
+/* The Judge stage (S1.6, design §6 J1) in Hayag, the light default (ADR-0016): one bar (the honesty chip, the
+   run pill in its centre, the stage's links) at 72% plate over the morning wash, then white panels set on the
+   ground at radius 22 on e2: the console (rail, screen), the docked phone and the ribbon (three log lanes, the
+   phone's lane, the honesty caption). The screens get every pixel the chrome does not need. Layout follows
+   S1.6's table: phone docked from 1680 px, a ribbon lane that rises from 1024, a phone visit below. */
 
 /* ---------------------------------------------------------------- frame */
 
 .fsc-stage {
   /* The raised phone's panel (1024–1679 px): the 360 px screen in its bezel. */
   --fsc-phone-panel: 400px;
+  /* The gutter between the stage's panels. */
+  --fsc-gutter: 10px;
   position: relative;
   display: flex;
   flex-direction: column;
+  gap: var(--fsc-gutter);
   height: 100dvh;
   min-height: 600px;
+  padding: var(--fsc-gutter);
   /* clip, not hidden: a hidden box is still a scroller that script and fragment links can scroll. */
   overflow: clip;
+  /* The stage hero sits on the one morning wash; the panels on it are plate. */
+  background: var(--fs-wash), var(--fs-ground);
   color: var(--fs-ink);
 }
 
@@ -23,6 +29,7 @@
   position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
+  gap: var(--fsc-gutter);
   flex: 1 1 auto;
   min-height: 0;
 }
@@ -39,18 +46,25 @@
 .fsc-bar {
   display: grid;
   flex: none;
-  grid-template-columns: minmax(0, 1fr) auto minmax(max-content, 1fr);
+  grid-template-columns: minmax(max-content, 1fr) minmax(0, max-content) minmax(max-content, 1fr);
   align-items: center;
   gap: 8px 20px;
-  min-height: 48px;
-  padding: 6px 16px 6px 24px;
-  border-bottom: 1px solid var(--fs-rule);
-  background: var(--fs-plate);
+  min-height: 52px;
+  padding: 7px 10px 7px 18px;
+  border-radius: var(--fs-radius-panel);
+  background: color-mix(in srgb, var(--fs-plate) 72%, transparent);
+  box-shadow: var(--fs-shadow-e1);
 }
 
 .fsc-bar .fsc-wordmark {
   padding-right: 20px;
   border-right: 1px solid var(--fs-rule);
+}
+
+/* The honesty line opens on its dashed chip: "Simulated PayPal sandbox", then the rest of the sentence. */
+.fsc-bar__rail-lead.fs-honesty {
+  margin-right: 6px;
+  font-size: 0.8125rem;
 }
 
 .fsc-bar__honest {
@@ -60,11 +74,13 @@
   min-width: 0;
 }
 
+/* The honesty line keeps one line: the run pill beside it gives way first (its next step ellipsizes). */
 .fsc-bar__story {
   min-width: 0;
   color: var(--fs-ink-2);
   font-size: 0.8125rem;
   line-height: 1.125rem;
+  white-space: nowrap;
 }
 
 .fsc-bar__lead,
@@ -76,6 +92,10 @@
 .fsc-bar__pill {
   display: flex;
   justify-content: center;
+  min-width: 0;
+}
+
+.fsc-bar__pill > * {
   min-width: 0;
 }
 
@@ -121,10 +141,10 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  min-height: 32px;
-  padding: 0 10px;
+  min-height: 34px;
+  padding: 0 12px;
   border: 0;
-  border-radius: var(--fs-radius-2);
+  border-radius: var(--fs-radius-pill);
   background: transparent;
   color: var(--fs-ink-2);
   white-space: nowrap;
@@ -132,6 +152,7 @@
 
 .fsc-barlink:hover,
 .fsc-barlink[aria-pressed="true"] {
+  background: var(--fs-plate);
   color: var(--fs-ink);
 }
 
@@ -139,25 +160,27 @@
   color: var(--fs-ink-3);
 }
 
+/* The Proof chip: an ink pill, a checked fact (decision.md §4). */
 .fsc-proofchip {
   display: inline-flex;
   max-width: 100%;
   align-items: center;
   gap: 8px;
-  min-height: 32px;
+  min-height: 36px;
   margin-left: 8px;
-  padding: 0 12px;
-  border: 1px solid var(--fs-rule);
-  border-radius: var(--fs-radius-2);
-  background: var(--fs-plate-2);
-  color: var(--fs-ink);
+  padding: 0 16px 0 12px;
+  border: 0;
+  border-radius: var(--fs-radius-pill);
+  background: var(--fs-ink);
+  box-shadow: var(--fs-shadow-e1);
+  color: var(--fs-plate);
   text-decoration: none;
   white-space: normal;
-  font-variant-numeric: tabular-nums lining-nums;
+  font-variant-numeric: lining-nums proportional-nums;
 }
 
 .fsc-proofchip:hover {
-  border-color: var(--fs-ink-3);
+  background: var(--fs-ink-2);
 }
 
 /* The stage's own state (queued, resetting, start-failed, autoplay, paused, a switch that is off). */
@@ -167,9 +190,10 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 6px 12px;
-  padding: 8px 24px;
-  border-bottom: 1px solid var(--fs-rule);
-  background: var(--fs-plate-2);
+  padding: 8px 20px;
+  border-radius: var(--fs-radius-card);
+  background: var(--fs-plate);
+  box-shadow: var(--fs-shadow-e1);
   color: var(--fs-ink);
   font-size: 0.8125rem;
   line-height: 1.125rem;
@@ -190,11 +214,16 @@
 
 /* ---------------------------------------------------------------- console */
 
+/* The console: one white panel (radius 22, e2) holding the rail and the screen. */
 .fsc-console {
   display: grid;
   grid-template-columns: var(--fs-console-rail) minmax(0, 1fr);
   min-width: 0;
   min-height: 0;
+  overflow: clip;
+  border-radius: var(--fs-radius-panel);
+  background: var(--fs-plate);
+  box-shadow: var(--fs-shadow-e2);
 }
 
 .fsc-console[data-rail="collapsed"] {
@@ -243,6 +272,7 @@
   padding: 20px 12px 16px;
   overflow-y: auto;
   border-right: 1px solid var(--fs-rule);
+  background: var(--fs-plate-2);
 }
 
 /* The lockup and, under it, what the stage is: one sentence a judge reads before anything else. */
@@ -272,13 +302,13 @@
   align-items: center;
   gap: 10px;
   width: 100%;
-  min-height: 36px;
+  min-height: 38px;
   padding: 8px 12px;
   border: 0;
-  border-radius: 0;
+  border-radius: var(--fs-radius-control);
   background: transparent;
   color: var(--fs-ink-2);
-  font-weight: 500;
+  font-weight: 560;
   font-size: 0.875rem;
   line-height: 1.25rem;
   text-align: left;
@@ -298,10 +328,11 @@
   color: var(--fs-ink);
 }
 
-/* The current place: a 3 px ink rule on its left edge, never a filled plate. */
+/* The current place: a person's selection, the pod wash with a 3 px ballpoint rule on its left edge. */
 .fsc-rail__item[aria-current="page"] {
+  background: var(--fs-pod-wash);
   color: var(--fs-ink);
-  box-shadow: inset 3px 0 0 var(--fs-ink);
+  box-shadow: inset 3px 0 0 var(--fs-pod);
 }
 
 .fsc-rail__item .fsc-kbd {
@@ -321,24 +352,28 @@
 }
 
 .fsc-rail__square {
-  width: 8px;
-  height: 8px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
   background: var(--fs-canary);
+  box-shadow: 0 0 0 1px var(--fs-canary-border);
 }
 
 /* The pill's marks: canary only for a person's decision. */
 .fsc-rail__square[data-actor="machine"] {
   background: var(--fs-pencil);
+  box-shadow: none;
 }
 
 .fsc-rail__square[data-actor="paypal"] {
-  border: 1.5px solid var(--fs-ink-2);
-  border-radius: 50%;
+  border: 1.5px dashed var(--fs-jade-flush-border);
   background: transparent;
+  box-shadow: none;
 }
 
 .fsc-rail__square[data-actor="done"] {
   background: var(--fs-ink);
+  box-shadow: none;
 }
 
 .fsc-rail__foot {
@@ -390,8 +425,9 @@
   z-index: var(--fs-z-popover);
   padding: 5px 10px;
   border: 1px solid var(--fs-rule);
-  border-radius: var(--fs-radius-2);
-  background: var(--fs-plate-2);
+  border-radius: var(--fs-radius-control);
+  background: var(--fs-plate);
+  box-shadow: var(--fs-shadow-e2);
   color: var(--fs-ink);
   font-weight: 560;
   font-size: 0.8125rem;
@@ -433,14 +469,17 @@
 
 /* ---------------------------------------------------------------- run pill */
 
+/* The run pill: a pill on e1; its dot is marigold when a person acts next. */
 .fsc-pill {
   display: inline-flex;
   align-items: stretch;
   max-width: 100%;
-  min-height: 36px;
+  min-height: 38px;
+  overflow: hidden;
   border: 1px solid var(--fs-rule);
-  border-radius: var(--fs-radius-2);
+  border-radius: var(--fs-radius-pill);
   background: var(--fs-plate);
+  box-shadow: var(--fs-shadow-e1);
 }
 
 .fsc-pill__state {
@@ -479,23 +518,28 @@
    while PayPal confirms, ink when it is done. A word always says the same thing beside it. */
 .fsc-pill__mark {
   flex: none;
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
   background: var(--fs-canary);
+  box-shadow: 0 0 0 3px var(--fs-canary-wash);
 }
 
 .fsc-pill[data-actor="machine"] .fsc-pill__mark {
   background: var(--fs-pencil);
+  box-shadow: 0 0 0 3px var(--fs-pencil-wash);
 }
 
+/* PayPal next: the dashed jade ring (money on its way, not yet confirmed). */
 .fsc-pill[data-actor="paypal"] .fsc-pill__mark {
-  border: 1.5px solid var(--fs-ink-2);
-  border-radius: 50%;
+  border: 1.5px dashed var(--fs-jade-flush-border);
   background: transparent;
+  box-shadow: none;
 }
 
 .fsc-pill[data-actor="done"] .fsc-pill__mark {
   background: var(--fs-ink);
+  box-shadow: none;
 }
 
 .fsc-pill__slot {
@@ -538,6 +582,7 @@
   border-bottom: 1px solid var(--fs-rule);
   background: var(--fs-plate-2);
   color: var(--fs-ink-2);
+  font-weight: 560;
 }
 
 /* ---------------------------------------------------------------- the drawer frame (W-TR-06, W-TR-09) */
@@ -548,6 +593,12 @@
   z-index: var(--fs-z-scrim);
   background: var(--fs-scrim);
   transition: opacity var(--fs-dur-drawer-in) var(--fs-ease-drawer);
+}
+
+/* In Hayag the drawer's scrim is a light veil (ink at 18%): the held rows under it stay recognisably marigold, never
+   a taupe mud, and the rest of the stage stays light. */
+:root[data-theme="adlaw"] .fsc-drawer-scrim {
+  background: color-mix(in srgb, var(--fs-ink) 18%, transparent);
 }
 
 .fsc-drawer {
@@ -564,8 +615,11 @@
   /* A control scrolled into view (a focus return) clears the sticky head (56 px) and the bottom edge. */
   scroll-padding-block: 72px 16px;
   border-left: 1px solid var(--fs-rule);
-  background: var(--fs-plate-2);
-  box-shadow: inset 0 1px 0 var(--fs-drawer-highlight);
+  border-radius: var(--fs-radius-panel) 0 0 var(--fs-radius-panel);
+  background: var(--fs-plate);
+  box-shadow:
+    inset 0 1px 0 var(--fs-drawer-highlight),
+    var(--fs-shadow-e3);
   overscroll-behavior: contain;
   transition:
     transform var(--fs-dur-drawer-in) var(--fs-ease-drawer),
@@ -600,7 +654,7 @@
   min-height: 56px;
   padding: 8px 12px 8px 24px;
   border-bottom: 1px solid var(--fs-rule);
-  background: var(--fs-plate-2);
+  background: var(--fs-plate);
 }
 
 .fsc-drawer__meta {
@@ -643,16 +697,20 @@
   min-height: 0;
 }
 
+/* The dock: a panel washed from the pod tint down to the ground, so the graphite phone stands in light. */
 .fsc-stage[data-layout="dock"] .fsc-dock {
   overflow: hidden auto;
-  border-left: 1px solid var(--fs-rule);
+  border-radius: var(--fs-radius-panel);
+  background: linear-gradient(180deg, var(--fs-pod-wash), var(--fs-ground) 70%);
+  box-shadow: var(--fs-shadow-e2);
+  scrollbar-width: none;
 }
 
 .fsc-dock__panel {
   display: grid;
   justify-items: center;
   align-content: start;
-  padding: 16px 20px 20px;
+  padding: 12px 16px 12px;
 }
 
 .fsc-dock__tabsroot {
@@ -661,11 +719,13 @@
   gap: 14px;
 }
 
+/* Member, Chair, Clerk: a segmented pill; the selected persona is a white pill on e1. */
 .fsc-dock__tabs {
   display: inline-flex;
-  border: 1px solid var(--fs-rule);
-  border-radius: var(--fs-radius-2);
-  background: var(--fs-ground);
+  gap: 2px;
+  padding: 3px;
+  border-radius: var(--fs-radius-pill);
+  background: var(--fs-steel-face);
 }
 
 .fsc-dock__tab {
@@ -674,12 +734,10 @@
   min-width: 72px;
   padding: 0 14px;
   border: 0;
+  border-radius: var(--fs-radius-pill);
   background: transparent;
   color: var(--fs-ink-2);
-}
-
-.fsc-dock__tab + .fsc-dock__tab {
-  border-left: 1px solid var(--fs-rule);
+  font-weight: 600;
 }
 
 .fsc-dock__tab:hover {
@@ -688,7 +746,8 @@
 
 .fsc-dock__tab[data-selected],
 .fsc-dock__tab[aria-selected="true"] {
-  background: var(--fs-plate-2);
+  background: var(--fs-plate);
+  box-shadow: var(--fs-shadow-e1);
   color: var(--fs-ink);
 }
 
@@ -700,7 +759,8 @@
   transition: opacity var(--fs-dur-crossfade) var(--fs-ease-out);
 }
 
-/* Docked at 1680 px and wider: the phone waits under a 56% ground scrim until it is the focus (S1.6). */
+/* Docked at 1680 px and wider: the phone waits under a light plate scrim (28%, so its own honesty chip and
+   disclaimer still read) until it is the focus (S1.6). */
 .fsc-dock__scrim {
   appearance: none;
   position: absolute;
@@ -709,16 +769,17 @@
   display: grid;
   place-items: center;
   border: 0;
-  border-radius: 36px;
-  background: color-mix(in srgb, var(--fs-ground) 56%, transparent);
+  border-radius: 44px;
+  background: color-mix(in srgb, var(--fs-plate) 28%, transparent);
   color: var(--fs-ink);
 }
 
 .fsc-dock__scrim-label {
-  padding: 8px 14px;
+  padding: 8px 16px;
   border: 1px solid var(--fs-rule);
-  border-radius: var(--fs-radius-2);
-  background: var(--fs-plate-2);
+  border-radius: var(--fs-radius-pill);
+  background: var(--fs-plate);
+  box-shadow: var(--fs-shadow-e2);
   color: var(--fs-ink);
   transition: border-color var(--fs-dur-tooltip) var(--fs-ease-out);
 }
@@ -786,7 +847,9 @@
   padding: 14px 8px 12px;
   border: 1px solid var(--fs-rule);
   border-bottom: 0;
-  background: var(--fs-plate);
+  border-radius: var(--fs-radius-panel) var(--fs-radius-panel) 0 0;
+  background: linear-gradient(180deg, var(--fs-pod-wash), var(--fs-plate) 60%);
+  box-shadow: var(--fs-shadow-e3);
   pointer-events: auto;
   transition:
     transform var(--fs-spring-glide-dur) var(--fs-spring-glide),
@@ -883,10 +946,10 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 8px;
-  border: 1px solid var(--fs-rule);
-  border-radius: var(--fs-radius-2);
-  background: var(--fs-plate);
+  padding: 4px 10px;
+  border: 1px dashed var(--fs-steel-line);
+  border-radius: var(--fs-radius-pill);
+  background: transparent;
   color: var(--fs-ink-2);
 }
 
@@ -896,9 +959,9 @@
   align-items: flex-start;
   gap: 6px;
   margin: 0 12px 12px;
-  padding: 8px 10px;
-  border: 1px solid var(--fs-rule);
-  border-radius: var(--fs-radius-2);
+  padding: 8px 12px;
+  border: 1px dashed var(--fs-steel-line);
+  border-radius: var(--fs-radius-card);
   background: var(--fs-plate);
   color: var(--fs-ink-2);
 }
@@ -927,7 +990,7 @@
   font-weight: 800;
   font-size: 3rem;
   line-height: 3.25rem;
-  font-variant-numeric: tabular-nums lining-nums;
+  font-variant-numeric: lining-nums proportional-nums;
 }
 
 .fsc-poster__amount[data-amount-state="ink"] {
@@ -945,6 +1008,7 @@
   width: 100%;
   margin: 2px 0 0;
   padding: 12px 0 10px;
+  border-radius: var(--fs-radius-card);
   background: var(--fs-plate);
 }
 
@@ -964,9 +1028,10 @@
   justify-content: center;
   gap: 8px;
   min-height: 52px;
+  border-radius: var(--fs-radius-card);
   background:
     repeating-linear-gradient(-45deg, var(--fs-hatch) 0 1.5px, transparent 1.5px 6px), var(--fs-plate);
-  box-shadow: inset 0 0 0 1px var(--fs-rule);
+  box-shadow: inset 0 0 0 1px var(--fs-rule-strong);
   color: var(--fs-ink);
 }
 
@@ -981,8 +1046,10 @@
   display: grid;
   flex: none;
   grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(200px, 0.72fr);
-  border-top: 1px solid var(--fs-rule);
+  overflow: clip;
+  border-radius: var(--fs-radius-panel);
   background: var(--fs-plate);
+  box-shadow: var(--fs-shadow-e2);
 }
 
 .fsc-ribbon__caption > p {
@@ -1063,35 +1130,38 @@
 
 /* The lane's material: graphite for the machine, ink for people, an open ring for PayPal until a payment
    it confirmed is the newest row, which is jade flush (design §2.2: jade only when PayPal confirms). */
+/* The lane's material: graphite for the machine, ballpoint for people (a person's hand), the dashed steel ring
+   for the simulated PayPal (not real; a notice, a cancellation) until a payment it confirmed is the newest row,
+   which is flush jade (jade only when PayPal confirms money; a dashed jade ring would read as money in flight). */
 .fsc-ribbon__mark {
   flex: none;
-  width: 8px;
-  height: 8px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
   background: var(--fs-pencil);
 }
 
 .fsc-ribbon__lane[data-lane="people"] .fsc-ribbon__mark {
-  background: var(--fs-ink);
+  background: var(--fs-pod);
 }
 
 .fsc-ribbon__lane[data-lane="paypal"] .fsc-ribbon__mark {
-  border: 1.5px solid var(--fs-ink-2);
-  border-radius: 50%;
+  border: 1.5px dashed var(--fs-steel-line);
   background: transparent;
 }
 
 .fsc-ribbon__lane[data-lane="paypal"][data-landed] .fsc-ribbon__mark {
-  border-color: var(--fs-jade-flush-border);
-  border-radius: 0;
+  border: 1.5px solid var(--fs-jade-flush-border);
   background: var(--fs-jade);
 }
 
 /* The phone lane's mark: a phone's outline. */
 /* biome-ignore lint/style/noDescendingSpecificity: a different lane from PayPal's; the two never meet */
 .fsc-ribbon__lane[data-lane="phone"] .fsc-ribbon__mark {
-  width: 6px;
-  height: 10px;
+  width: 7px;
+  height: 11px;
   border: 1.5px solid var(--fs-ink-2);
+  border-radius: 2px;
   background: transparent;
 }
 
@@ -1178,7 +1248,7 @@
   display: none;
 }
 
-/* The one-time sound question, beside the first press (S1.6). */
+/* The one-time sound question, beside the first press (S1.6): over the lower left of the console's screen. */
 .fsc-offer {
   position: absolute;
   bottom: 112px;
@@ -1188,11 +1258,11 @@
   align-items: center;
   gap: 12px;
   max-width: calc(100% - 48px);
-  padding: 8px 12px 8px 14px;
+  padding: 8px 12px 8px 16px;
   border: 1px solid var(--fs-rule);
-  border-radius: var(--fs-radius-2);
-  background: var(--fs-plate-2);
-  box-shadow: inset 0 1px 0 var(--fs-drawer-highlight);
+  border-radius: var(--fs-radius-pill);
+  background: var(--fs-plate);
+  box-shadow: var(--fs-shadow-e3);
   transition:
     opacity var(--fs-dur-popover) var(--fs-ease-out),
     transform var(--fs-dur-popover) var(--fs-ease-out);
@@ -1225,12 +1295,33 @@
   padding-bottom: 120px;
 }
 
+/* On the first view from 1280 px the story tiles fill the lower left, so the offer floats at the top right of the
+   screen instead, beside the headline (its empty side), never over the tiles, the phone or a drawer's head; the
+   first view then needs no room at its foot for it (lib/focus.ts counts only a chip over a frame's lower half). */
+@media (min-width: 1280px) {
+  .fsc-stage:has(.fsc-first) .fsc-offer {
+    top: 84px;
+    right: 34px;
+    bottom: auto;
+    left: auto;
+  }
+
+  .fsc-stage[data-layout="dock"]:has(.fsc-first) .fsc-offer {
+    right: calc(var(--fs-console-dock) + var(--fsc-gutter) + 34px);
+  }
+
+  .fsc-stage:has(.fsc-offer):has(.fsc-first) .fsc-console__screen {
+    padding-bottom: 24px;
+  }
+}
+
 /* ---------------------------------------------------------------- phone visit (under 1024 px) */
 
 .fsc-stage[data-layout="phone-visit"] {
   height: auto;
   min-height: 100dvh;
   overflow: visible;
+  background: var(--fs-wash), var(--fs-ground);
 }
 
 .fsc-stage[data-layout="phone-visit"] .fsc-stage__body {
@@ -1258,6 +1349,11 @@
   grid-row: 3;
   grid-column: 1;
   flex-wrap: wrap;
+}
+
+/* On a phone the honesty line wraps: kept to one line it would push its sandbox label past the screen's edge. */
+.fsc-stage[data-layout="phone-visit"] .fsc-bar__story {
+  white-space: normal;
 }
 
 .fsc-stage[data-layout="phone-visit"] .fsc-bar .fsc-wordmark {
@@ -1312,8 +1408,25 @@
   z-index: calc(var(--fs-z-drawer) + 1);
 }
 
+/* 1280-1679 px: one row still. The honesty line keeps its words; the pill gives way (its next step ellipsizes),
+   and Sound and Reset fold to their glyphs, each keeping its word for assistive technology. */
+@media (min-width: 1280px) and (max-width: 1679px) {
+  .fsc-bar {
+    gap: 8px 14px;
+  }
+
+  .fsc-bar .fsc-barlink--fold .fs-t-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
 /* Keep the rail label and every action inside the viewport when the labelled Proof chip grows. */
-@media (min-width: 1024px) and (max-width: 1679px) {
+@media (min-width: 1024px) and (max-width: 1279px) {
   .fsc-bar {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   }
@@ -1409,6 +1522,14 @@
    WS-DS for @fairsplit/tokens and ui-web; the console carries the sizes until then. */
 .fsc-stage {
   --fs-stamp-size: 22px;
+}
+
+/* Below 1600 px the stage's display headline steps down to 34/37 (decision.md §7). */
+@media (max-width: 1599px) {
+  .fsc-stage .fs-t-display {
+    font-size: 2.125rem;
+    line-height: 2.3125rem;
+  }
 }
 
 .fsc-stage .fs-t-stamp {

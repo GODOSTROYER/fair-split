@@ -30,7 +30,7 @@
 .fsc-mat__slip {
   position: absolute;
   transform-origin: 50% 50%;
-  filter: drop-shadow(0 1px 1px rgb(0 0 0 / 0.35)) drop-shadow(0 6px 10px rgb(0 0 0 / 0.3));
+  filter: var(--fs-drop-paper);
 }
 
 .fsc-mat__image {
@@ -425,10 +425,12 @@
   opacity: 1;
 }
 
+/* The photo being read: a selection, so ballpoint indigo on a rounded ring (decision §4), never an ink box. */
 .fsc-film__link[aria-current="true"] .fsc-film__thumb {
   opacity: 1;
-  outline: 2px solid var(--fs-ink);
+  outline: 2px solid var(--fs-pod);
   outline-offset: 3px;
+  border-radius: var(--fs-radius-cell);
 }
 
 .fsc-film__link:focus-visible {
@@ -586,8 +588,8 @@
   min-width: 24px;
   min-height: 28px;
   padding: 0 10px;
-  border: 1px solid var(--fs-rule);
-  border-radius: var(--fs-radius-2);
+  border: 1px solid var(--fs-steel-line);
+  border-radius: var(--fs-radius-control);
   background: transparent;
   color: var(--fs-ink);
   font-family: var(--fs-font-ui);
@@ -917,7 +919,7 @@
   grid-template-columns: 16px minmax(0, 1fr);
   gap: 10px;
   padding: 10px 12px;
-  border-radius: var(--fs-radius-2);
+  border-radius: var(--fs-radius-control);
   background: var(--fs-plate-2);
   color: var(--fs-ink);
   font-size: 0.8125rem;

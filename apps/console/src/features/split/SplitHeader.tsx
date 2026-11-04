@@ -65,11 +65,14 @@ export function Dial({
   swing,
   size = 132,
   testId,
+  valueRole = "figure",
 }: {
   readonly dial: MassBalanceView;
   readonly swing: boolean;
   readonly size?: number;
   readonly testId: string;
+  /** The bench reads its dial at amount-l, a hero reading; the drawer keeps the small figure. */
+  readonly valueRole?: "figure" | "amount-l";
 }) {
   const mode = useMotionMode();
   // MM-3 reduced: no swing. The needle cuts to the new value and fades in over 200 ms; keying the dial to the
@@ -96,6 +99,7 @@ export function Dial({
             label={en("W-TR-05.dial")}
             size={size}
             animateNeedle={swing}
+            valueRole={valueRole}
             testId={`${testId}.visual`}
           />
         </div>
@@ -140,7 +144,7 @@ export function SplitHeader({
   return (
     <section className="fsr-bench" aria-label="Pools, mass balance and filters" data-testid="W-TR-05.bench">
       <div className="fsr-bench__dial">
-        <Dial dial={dial} swing={swing} size={168} testId={dialTestId} />
+        <Dial dial={dial} swing={swing} size={168} testId={dialTestId} valueRole="amount-l" />
         <p
           className="fsr-bench__dial-note fs-t-caption"
           data-status={dial.status}

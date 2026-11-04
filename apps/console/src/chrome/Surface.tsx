@@ -1,5 +1,6 @@
-// One theme per surface (S2.1): the console and stage are Tablea; Proof is Adlaw only. Nothing switches
-// theme while a surface is open, so this sets the document's theme once for the surface's lifetime.
+// One theme per surface (S2.1, ADR-0016): every surface is Adlaw, shown as Hayag (day); Tablea, shown as Gabii
+// (night), is an opt-in slot and never on the judge path. Nothing switches theme while a surface is open, so this
+// sets the document's theme once for the surface's lifetime.
 
 import { withoutTransitions } from "@fairsplit/motion/web";
 import { type ReactNode, useLayoutEffect } from "react";
@@ -10,7 +11,7 @@ export type SurfaceTheme = "tablea" | "adlaw";
 export function useSurfaceTheme(theme: SurfaceTheme): void {
   useLayoutEffect(() => {
     const root = document.documentElement;
-    const previous = root.dataset.theme ?? "tablea";
+    const previous = root.dataset.theme ?? "adlaw";
     if (previous !== theme) {
       withoutTransitions(() => {
         root.dataset.theme = theme;

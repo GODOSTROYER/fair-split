@@ -4,20 +4,22 @@ import { PAYOUT_REPLAY_NOTE, payoutReplayed, payoutReplaySummary } from "../../d
 // every state is drawn: loading (print beds at their final size), error, none, progress, verified and failed.
 
 import type { SeasonSnapshot } from "@fairsplit/contracts";
-import { Glyph } from "@fairsplit/ui-web";
+import { Glyph, type StampView } from "@fairsplit/ui-web";
 import { useEffect, useMemo, useRef } from "react";
 import { AppLink } from "../../chrome/AppLink.js";
 import { CommandNotice } from "../../chrome/CommandNotice.js";
 import { PrintBed } from "../../chrome/PrintBed.js";
 import { useAnnounce } from "../../lib/announce.js";
 import type { PaypalRail } from "../../lib/env.js";
+import { format } from "../../lib/format.js";
 import { Chain } from "./Chain.js";
 import { FAILURE_PLACE, FOOTER_COPY, PLATE_TITLE, provenanceWords, railName, STATE_COPY, t } from "./copy.js";
+import { Distribution } from "./Distribution.js";
 import { Figures } from "./Figures.js";
 import { ProofHero } from "./Hero.js";
 import { type MemberLabel, shortRuleName } from "./Lines.js";
 import { isSettled } from "./model.js";
-import { PlotField } from "./PlotField.js";
+import { PlotField, plotTiers } from "./PlotField.js";
 import type { ProofPage } from "./useProof.js";
 import type { Verification } from "./useVerification.js";
 import { PLATES } from "./verify.js";
@@ -70,6 +72,23 @@ function slipsOf(snapshot: SeasonSnapshot | undefined) {
  */
 export function seasonLabelOf(code: string): string {
   return /^\d{4}[A-Z]$/.test(code) ? `${code.slice(0, 4)}-${code.slice(4)}` : code;
+}
+
+/** The officers whose keys signed the batch (treasurer, then Chair), as stamps: initials and name from the seed. */
+function signersOf(
+  snapshot: SeasonSnapshot | undefined,
+  bundle: { readonly approvals: readonly { readonly role: "treasurer" | "chair" }[] },
+): StampView[] {
+  const order = ["treasurer", "chair"] as const;
+  const signed = new Set(bundle.approvals.map((a) => a.role));
+  return order
+    .filter((role) => signed.has(role))
+    .flatMap((role) => {
+      const officer = snapshot?.officers.find((o) => o.role === role.toUpperCase());
+      return officer
+        ? [{ initials: officer.initials, name: officer.name, at: role === "chair" ? "Chair" : "Treasurer" }]
+        : [];
+    });
 }
 
 function marksOf(snapshot: SeasonSnapshot | undefined) {
@@ -160,24 +179,35 @@ export function ProofView({ page, verification, rail, names = null, level = "h1"
         rail={rail}
         verification={verification}
         level={level}
+        signers={signersOf(snapshot, bundle)}
         status={
-          <p
-            className="pf-progress"
-            data-state={settled ? "settled" : "progress"}
-            data-testid="W-PF-01.progress"
-          >
-            <Glyph name={settled ? "seal-fill" : "rail"} size={16} />
-            <span>
-              {replayed
-                ? payoutReplaySummary(page.progress.confirmed, page.progress.total)
-                : settled
-                  ? STATE_COPY.liveSettled(page.progress, rail)
-                  : STATE_COPY.liveProgress(page.progress, rail)}
-            </span>
-            <span className="pf-progress__source">
-              {page.live ? STATE_COPY.sourceSession : STATE_COPY.sourcePublic}
-            </span>
-          </p>
+          <>
+            <p
+              className="pf-progress"
+              data-state={settled ? "settled" : "progress"}
+              data-testid="W-PF-01.progress"
+            >
+              <Glyph name={settled ? "seal-fill" : "rail"} size={16} />
+              <span>
+                {replayed
+                  ? payoutReplaySummary(page.progress.confirmed, page.progress.total)
+                  : settled
+                    ? STATE_COPY.liveSettled(page.progress, rail)
+                    : STATE_COPY.liveProgress(page.progress, rail)}
+              </span>
+              <span className="pf-progress__source">
+                {page.live ? STATE_COPY.sourceSession : STATE_COPY.sourcePublic}
+              </span>
+            </p>
+            {/* Where every dollar went: replayed statuses are not money anyone confirmed, so a replay shows no bar. */}
+            {!replayed && state !== "failed" && (
+              <Distribution
+                bundle={bundle}
+                figures={figures}
+                amount={format.money(bundle.invoice.amountCents)}
+              />
+            )}
+          </>
         }
       />
       <Chain
@@ -212,7 +242,7 @@ export function ProofView({ page, verification, rail, names = null, level = "h1"
           fees={page.fees}
         />
       )}
-      <PlotField bundle={bundle} />
+      <PlotField bundle={bundle} tiers={plotTiers(bundle.lines, page.items, page.lineStates, replayed)} />
       <ProofFooter
         rail={rail}
         provenance={replayed ? PAYOUT_REPLAY_NOTE : page.provenance ? provenanceWords(page.provenance) : null}

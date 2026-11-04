@@ -161,7 +161,7 @@
 .fsr-sms__chip {
   padding: 0 6px;
   border: 1px solid var(--fs-rule);
-  border-radius: var(--fs-radius-2);
+  border-radius: var(--fs-radius-cell);
   color: var(--fs-ink-2);
 }
 
@@ -241,7 +241,7 @@
   padding: 6mm 5mm 8mm;
   background: var(--fs-copy-white);
   box-shadow: var(--fs-shadow-paper);
-  color: var(--fs-paper-ink, #1c1511);
+  color: var(--fs-paper-ink);
   font-family: var(--fs-font-ui);
   font-size: 12px;
   line-height: 1.35;
