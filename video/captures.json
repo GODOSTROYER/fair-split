@@ -1,0 +1,236 @@
+[
+  {
+    "id": "arrival-phone",
+    "beat": "arrival",
+    "start": 0,
+    "duration": 9,
+    "source": "phone recording",
+    "file": "captures/arrival-phone.mp4",
+    "placeholder": "Capture pending: MM-1 on M-MB-01",
+    "state": "MM-1 on M-MB-01",
+    "phase": "done",
+    "selector": "[data-moment=\"MM-1\"][data-moment-phase=\"done\"]",
+    "persona": "Nang Celing · Member · Synthetic persona",
+    "playbackRate": 1,
+    "mediaStart": 0,
+    "requirements": [
+      "MM-1: Nang Celing's phone, Bayad na; crop the confirmed statement, not a latency demonstration."
+    ]
+  },
+  {
+    "id": "title-persona",
+    "beat": "title",
+    "start": 9,
+    "duration": 11,
+    "source": "console film mode",
+    "file": "captures/title-persona.mp4",
+    "placeholder": "Capture pending: Analyn beside synthetic weigh-slips",
+    "state": "Analyn beside synthetic weigh-slips",
+    "phase": null,
+    "selector": null,
+    "persona": "Analyn · Treasurer · Synthetic persona",
+    "playbackRate": 1,
+    "mediaStart": 0,
+    "requirements": [
+      "Title lockup; Analyn beside handwritten cacao weigh-slips. Synthetic persona lower third."
+    ]
+  },
+  {
+    "id": "funding-console",
+    "beat": "funding",
+    "start": 20,
+    "duration": 12,
+    "source": "console film mode",
+    "file": "captures/funding-console.mp4",
+    "placeholder": "Capture pending: MM-S on W-TR-01",
+    "state": "MM-S on W-TR-01",
+    "phase": "funded",
+    "selector": "[data-moment=\"MM-S\"][data-moment-phase=\"funded\"]",
+    "persona": "Dana · Lantern Bay · Synthetic persona",
+    "playbackRate": 1,
+    "mediaStart": 0,
+    "requirements": [
+      "MM-S in Console: seed-written invoice placeholder, record-payment arc and one overcharge DENY row."
+    ]
+  },
+  {
+    "id": "reading-console",
+    "beat": "reading",
+    "start": 32,
+    "duration": 10,
+    "source": "console film mode",
+    "file": "captures/reading-console.mp4",
+    "placeholder": "Capture pending: MM-2 on W-TR-03",
+    "state": "MM-2 on W-TR-03",
+    "phase": "landed",
+    "selector": "[data-moment=\"MM-2\"][data-moment-phase=\"landed\"]",
+    "persona": "Analyn · Treasurer · Synthetic persona",
+    "playbackRate": 1,
+    "mediaStart": 0,
+    "requirements": ["MM-2: replay rows print beside the slip crops; keep the seed chip visible."]
+  },
+  {
+    "id": "reading-logbook",
+    "beat": "reading",
+    "start": 42,
+    "duration": 2,
+    "source": "console film mode",
+    "file": "captures/reading-logbook.mp4",
+    "placeholder": "Capture pending: MM-2 by-hand on W-TR-04",
+    "state": "MM-2 by-hand on W-TR-04",
+    "phase": "done",
+    "selector": "[data-moment=\"MM-2\"][data-moment-phase=\"done\"]",
+    "persona": "Analyn · Treasurer · Synthetic persona",
+    "playbackRate": 1,
+    "mediaStart": 0,
+    "requirements": [
+      "MM-2: replay rows print beside the slip crops; keep the seed chip visible.",
+      "Analyn enters field 0462 by hand from logbook page 14, line 7; keep the replay label visible."
+    ]
+  },
+  {
+    "id": "duplicate-console",
+    "beat": "duplicate",
+    "start": 44,
+    "duration": 12,
+    "source": "console film mode",
+    "file": "captures/duplicate-console.mp4",
+    "placeholder": "Capture pending: MM-3 on W-TR-06",
+    "state": "MM-3 on W-TR-06",
+    "phase": "resolved",
+    "selector": "[data-moment=\"MM-3\"][data-moment-phase=\"resolved\"]",
+    "persona": "Analyn · Treasurer · Synthetic persona",
+    "playbackRate": 1,
+    "mediaStart": 0,
+    "requirements": [
+      "MM-3: original and pink copy overlap; Count it once, then the AG Grid wave and mass-balance dial."
+    ]
+  },
+  {
+    "id": "holds-console",
+    "beat": "rules",
+    "start": 56,
+    "duration": 8,
+    "source": "console film mode",
+    "file": "captures/holds-console.mp4",
+    "placeholder": "Capture pending: H2 and H3 evidence in ink",
+    "state": "H2 and H3 evidence in ink",
+    "phase": null,
+    "selector": null,
+    "persona": "Analyn · Treasurer · Synthetic persona",
+    "playbackRate": 1,
+    "mediaStart": 0,
+    "requirements": [
+      "Resolve H2's plot evidence and H3's unruled multa in ink; then attempt a new deduction."
+    ]
+  },
+  {
+    "id": "rules-console",
+    "beat": "rules",
+    "start": 64,
+    "duration": 6,
+    "source": "console film mode",
+    "file": "captures/rules-console.mp4",
+    "placeholder": "Capture pending: MM-4 on W-TR-02",
+    "state": "MM-4 on W-TR-02",
+    "phase": "done",
+    "selector": "[data-moment=\"MM-4\"][data-moment-phase=\"done\"]",
+    "persona": "Analyn · Treasurer · Synthetic persona",
+    "playbackRate": 1,
+    "mediaStart": 0,
+    "requirements": [
+      "Resolve H2's plot evidence and H3's unruled multa in ink; then attempt a new deduction.",
+      "MM-4: bolted rate card; RATE_CARD_RATIFIED refusal citing its computed hash."
+    ]
+  },
+  {
+    "id": "signing-console",
+    "beat": "signing",
+    "start": 70,
+    "duration": 7,
+    "source": "console film mode",
+    "file": "captures/signing-console.mp4",
+    "placeholder": "Capture pending: MM-5 on W-TR-07",
+    "state": "MM-5 on W-TR-07",
+    "phase": "signed-1",
+    "selector": "[data-moment=\"MM-5\"][data-moment-phase=\"signed-1\"]",
+    "persona": "Analyn · Treasurer · Synthetic persona",
+    "playbackRate": 1,
+    "mediaStart": 0,
+    "requirements": [
+      "MM-5: Analyn holds to sign; the human Chair co-signs on a physical phone; show matching batch digests."
+    ]
+  },
+  {
+    "id": "signing-phone",
+    "beat": "signing",
+    "start": 77,
+    "duration": 7,
+    "source": "phone recording",
+    "file": "captures/signing-phone.mp4",
+    "placeholder": "Capture pending: MM-5 on M-BD-02",
+    "state": "MM-5 on M-BD-02",
+    "phase": "inked",
+    "selector": "[data-moment=\"MM-5\"][data-moment-phase=\"inked\"]",
+    "persona": "Ernesto · Chair · Synthetic persona",
+    "playbackRate": 1,
+    "mediaStart": 0,
+    "requirements": [
+      "MM-5: Analyn holds to sign; the human Chair co-signs on a physical phone; show matching batch digests."
+    ]
+  },
+  {
+    "id": "payouts-console",
+    "beat": "payouts",
+    "start": 84,
+    "duration": 18,
+    "source": "console film mode",
+    "file": "captures/payouts-console.mp4",
+    "placeholder": "Capture pending: MM-6 on W-TR-08",
+    "state": "MM-6 on W-TR-08",
+    "phase": "settled",
+    "selector": "[data-moment=\"MM-6\"][data-moment-phase=\"settled\"]",
+    "persona": "Analyn · Treasurer · Synthetic persona",
+    "playbackRate": 1,
+    "mediaStart": 0,
+    "requirements": [
+      "MM-6: hollow sent fan, confirmed items fill; Rhea parked, cancelled and returned to cash; resend a duplicate."
+    ]
+  },
+  {
+    "id": "proof-browser",
+    "beat": "proof",
+    "start": 102,
+    "duration": 18,
+    "source": "console film mode",
+    "file": "captures/proof-browser.mp4",
+    "placeholder": "Capture pending: Verify locally on W-PF-01",
+    "state": "Verify locally on W-PF-01",
+    "phase": null,
+    "selector": null,
+    "persona": "Dana · Lantern Bay · Synthetic persona",
+    "playbackRate": 1,
+    "mediaStart": 0,
+    "requirements": [
+      "Dana verifies Proof locally in her browser; rate card, signatures, lines and conservation show Matches."
+    ]
+  },
+  {
+    "id": "listening-phone",
+    "beat": "listening",
+    "start": 120,
+    "duration": 12,
+    "source": "phone recording",
+    "file": "captures/listening-phone.mp4",
+    "placeholder": "Capture pending: MM-7 on M-MB-01",
+    "state": "MM-7 on M-MB-01",
+    "phase": "zoomed",
+    "selector": "[data-moment=\"MM-7\"][data-moment-phase=\"zoomed\"]",
+    "persona": "Nang Celing · Member · Synthetic persona",
+    "playbackRate": 1,
+    "mediaStart": 0,
+    "requirements": [
+      "MM-7: Nang Celing taps her premium; slip chip rises. Play only the matching IC-11 PREMIUM sentence, seeded demo plan."
+    ]
+  }
+]

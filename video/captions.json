@@ -1,0 +1,146 @@
+[
+  {
+    "beat": "title",
+    "start": 9,
+    "end": 15.6,
+    "text": "At this cacao co-op, a season's pay starts as handwritten weigh-slips. Every"
+  },
+  {
+    "beat": "title",
+    "start": 15.6,
+    "end": 20,
+    "text": "mark needs a reason; every amount needs proof."
+  },
+  {
+    "beat": "funding",
+    "start": 20,
+    "end": 27.2,
+    "text": "Lantern Bay funds one invoice through PayPal's Agent Toolkit, on a simulated"
+  },
+  {
+    "beat": "funding",
+    "start": 27.2,
+    "end": 32,
+    "text": "PayPal sandbox. Nothing starts until it reads paid."
+  },
+  {
+    "beat": "reading",
+    "start": 32,
+    "end": 40.210526,
+    "text": "Claude is built to read every slip twice; this replay is a labelled"
+  },
+  {
+    "beat": "reading",
+    "start": 40.210526,
+    "end": 44,
+    "text": "stand-in. Analyn checks the stained digit."
+  },
+  {
+    "beat": "duplicate",
+    "start": 44,
+    "end": 51.8,
+    "text": "The original and its pink copy: one slip. Count it once, remove the"
+  },
+  {
+    "beat": "duplicate",
+    "start": 51.8,
+    "end": 56,
+    "text": "duplicate claim, and watch the grid rebalance."
+  },
+  {
+    "beat": "rules",
+    "start": 56,
+    "end": 65.578947,
+    "text": "Holds resolved in ink. Analyn tries adding a deduction. The rate card was"
+  },
+  {
+    "beat": "rules",
+    "start": 65.578947,
+    "end": 70,
+    "text": "hashed before the first slip. Refused."
+  },
+  {
+    "beat": "signing",
+    "start": 70,
+    "end": 79.333333,
+    "text": "Above the threshold, a second key. Analyn holds to sign; the Chair signs on"
+  },
+  {
+    "beat": "signing",
+    "start": 79.333333,
+    "end": 84,
+    "text": "his phone. Both sign one batch hash."
+  },
+  {
+    "beat": "payouts",
+    "start": 84,
+    "end": 93,
+    "text": "The simulated PayPal accepts the batch: sent, not yet paid. Status checks"
+  },
+  {
+    "beat": "payouts",
+    "start": 93,
+    "end": 101.25,
+    "text": "confirm each item. An unclaimed member moves to cash. Repeats change"
+  },
+  {
+    "beat": "payouts",
+    "start": 101.25,
+    "end": 102,
+    "text": "nothing."
+  },
+  {
+    "beat": "proof",
+    "start": 102,
+    "end": 113.368421,
+    "text": "Lantern Bay re-checks the rate card, signatures, and every line in its"
+  },
+  {
+    "beat": "proof",
+    "start": 113.368421,
+    "end": 120,
+    "text": "browser. PayPal and cash share one statement."
+  },
+  {
+    "beat": "listening",
+    "start": 120,
+    "end": 128.571429,
+    "text": "Premium gikan sa Lantern Bay Chocolate Co.: forty-three dollars and"
+  },
+  {
+    "beat": "listening",
+    "start": 128.571429,
+    "end": 132,
+    "text": "sixty-nine cents, walay kaltas."
+  },
+  {
+    "beat": "architecture",
+    "start": 132,
+    "end": 140.8,
+    "text": "Our typed Payouts tool, simulator-signed webhooks, and code computing every"
+  },
+  {
+    "beat": "architecture",
+    "start": 140.8,
+    "end": 150.48,
+    "text": "amount. Similar projects protect a payer or contract. Fair Split protects"
+  },
+  {
+    "beat": "architecture",
+    "start": 150.48,
+    "end": 154,
+    "text": "the people being paid."
+  },
+  {
+    "beat": "limits",
+    "start": 154,
+    "end": 162,
+    "text": "A prototype on a simulated PayPal sandbox, with synthetic people. No money"
+  },
+  {
+    "beat": "limits",
+    "start": 162,
+    "end": 170,
+    "text": "moves. Code computes. People approve. Every peso, traced to the pencil mark."
+  }
+]
