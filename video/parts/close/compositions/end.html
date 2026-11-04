@@ -1,0 +1,453 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- Script v4 beat "end", film 167-175 s (local 0-8 s). The brightest, calmest frame; the voice disclosure holds to the last frame. -->
+  </head>
+  <body>
+    <template>
+      <style>
+        @font-face {
+          font-family: "FS Sans";
+          src: url("assets/fonts/FSSans-VF.woff2") format("woff2");
+          font-weight: 200 900;
+          font-stretch: 75% 125%;
+        }
+        #root {
+          position: absolute;
+          inset: 0;
+          overflow: hidden;
+          background: #f3f5f8;
+          color: #0b1220;
+          font-family: "FS Sans", sans-serif;
+          font-variant-numeric: lining-nums proportional-nums;
+        }
+        #end-wash {
+          position: absolute;
+          left: -80px;
+          top: -60px;
+          width: 2080px;
+          height: 1200px;
+          background:
+            radial-gradient(52% 70% at 0% 0%, rgb(20 204 144 / 0.16), transparent 72%),
+            radial-gradient(42% 58% at 62% 0%, rgb(74 47 214 / 0.1), transparent 72%);
+        }
+        #end-sun {
+          position: absolute;
+          left: 260px;
+          top: 40px;
+          width: 1400px;
+          height: 1000px;
+          border-radius: 50%;
+          background: radial-gradient(closest-side, rgb(255 255 255 / 1), rgb(255 255 255 / 0.7) 45%, rgb(255 255 255 / 0));
+        }
+        #end-low {
+          position: absolute;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          height: 420px;
+          background:
+            radial-gradient(60% 90% at 85% 100%, rgb(20 204 144 / 0.1), transparent 70%),
+            radial-gradient(50% 80% at 20% 100%, rgb(74 47 214 / 0.06), transparent 70%);
+        }
+        #end-cam {
+          position: absolute;
+          inset: 0;
+        }
+        /* code-drawn cacao branch, pencil line on light fill */
+        #end-branch {
+          position: absolute;
+          left: 1080px;
+          top: 420px;
+          width: 960px;
+          height: 900px;
+          overflow: visible;
+          transform-origin: 100% 70%;
+        }
+        .end-stroke {
+          fill: none;
+          stroke: #4a5a73;
+          stroke-width: 2;
+          stroke-linecap: round;
+          stroke-linejoin: round;
+          stroke-dasharray: 1 2;
+          stroke-dashoffset: 1.01;
+          stroke-opacity: 0.55;
+        }
+        .end-stem {
+          stroke-width: 3;
+          stroke-opacity: 0.6;
+        }
+        .end-leaf {
+          fill: #e9edf2;
+          fill-opacity: 0;
+        }
+        .end-rib {
+          stroke-width: 1.4;
+          stroke-opacity: 0.4;
+        }
+
+        /* the trace: slip, members, buyer */
+        #end-trace {
+          position: absolute;
+          inset: 0;
+        }
+        #end-thread {
+          position: absolute;
+          left: 0;
+          top: 0;
+          width: 1920px;
+          height: 1080px;
+          overflow: visible;
+        }
+        .end-th {
+          fill: none;
+          stroke: #4a2fd6;
+          stroke-width: 3;
+          stroke-linecap: round;
+          stroke-dasharray: 1 2;
+          stroke-dashoffset: 1.01;
+        }
+        .end-th-glow {
+          stroke-width: 12;
+          stroke-opacity: 0.12;
+        }
+        #end-slip {
+          position: absolute;
+          left: 300px;
+          top: 420px;
+          width: 132px;
+          height: 172px;
+          border-radius: 2px;
+          background-color: #ffffff;
+          background-image: repeating-linear-gradient(180deg, transparent 0 27px, #e3e7ee 27px 28px);
+          background-position: 0 30px;
+          box-shadow:
+            0 1px 1px rgb(11 18 32 / 0.08),
+            0 14px 28px -12px rgb(11 18 32 / 0.28),
+            0 0 0 1px rgb(11 18 32 / 0.05);
+        }
+        #end-slip svg {
+          position: absolute;
+          left: 0;
+          top: 0;
+          width: 132px;
+          height: 172px;
+        }
+        .end-scr {
+          fill: none;
+          stroke: #4a5a73;
+          stroke-width: 2.2;
+          stroke-linecap: round;
+          stroke-linejoin: round;
+          stroke-dasharray: 1 2;
+          stroke-dashoffset: 1.01;
+        }
+        .end-node {
+          position: absolute;
+          width: 72px;
+          height: 72px;
+        }
+        .end-node .disc {
+          position: absolute;
+          inset: 0;
+          border-radius: 50%;
+          background: #ffffff;
+          box-shadow:
+            0 1px 2px rgb(11 18 32 / 0.05),
+            0 12px 32px -12px rgb(11 18 32 / 0.2),
+            0 0 0 1px #cbd2dc;
+        }
+        .end-node svg.ic {
+          position: absolute;
+          left: 4px;
+          top: 4px;
+          width: 64px;
+          height: 64px;
+        }
+        .end-check {
+          position: absolute;
+          right: -8px;
+          top: -8px;
+          width: 30px;
+          height: 30px;
+        }
+        .end-label {
+          position: absolute;
+          width: 240px;
+          text-align: center;
+          font-size: 24px;
+          font-stretch: 100%;
+          font-weight: 520;
+          color: #5a6476;
+        }
+
+        /* the end card type */
+        #end-mid {
+          position: absolute;
+          inset: 0;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          padding-bottom: 20px;
+        }
+        #end-tag {
+          display: flex;
+          gap: 0.24em;
+          font-size: 150px;
+          line-height: 1.1;
+          font-stretch: 112.5%;
+          font-weight: 690;
+          letter-spacing: -0.028em;
+          white-space: nowrap;
+        }
+        #end-tag .w {
+          display: inline-block;
+          position: relative;
+        }
+        #end-acc {
+          color: #4a2fd6;
+        }
+        #end-ul {
+          position: absolute;
+          left: 0.02em;
+          right: 0.3em;
+          bottom: -0.04em;
+          height: 0.16em;
+          overflow: visible;
+        }
+        #end-ul path {
+          fill: none;
+          stroke: #4a2fd6;
+          stroke-width: 7;
+          stroke-linecap: round;
+          stroke-dasharray: 1 2;
+          stroke-dashoffset: 1.01;
+          vector-effect: non-scaling-stroke;
+        }
+        #end-lock {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 10px;
+          margin-top: 46px;
+        }
+        #end-name {
+          font-size: 84px;
+          line-height: 1.05;
+          font-stretch: 112.5%;
+          font-weight: 760;
+          letter-spacing: -0.028em;
+        }
+        #end-sub {
+          font-size: 38px;
+          font-stretch: 100%;
+          font-weight: 450;
+          color: #3a4456;
+        }
+
+        #end-ledger {
+          position: absolute;
+          left: 64px;
+          top: 48px;
+          display: flex;
+          gap: 12px;
+        }
+        .end-chip {
+          height: 40px;
+          padding: 0 18px;
+          display: flex;
+          align-items: center;
+          border: 1.5px dashed #7e8898;
+          border-radius: 999px;
+          background: rgb(255 255 255 / 0.7);
+          color: #5a6476;
+          font-size: 19px;
+          font-stretch: 87.5%;
+          font-weight: 520;
+          white-space: nowrap;
+        }
+        #end-grain {
+          position: absolute;
+          inset: 0;
+          width: 1920px;
+          height: 1080px;
+          opacity: 0.045;
+          mix-blend-mode: multiply;
+          pointer-events: none;
+        }
+      </style>
+
+      <div id="root" data-composition-id="close-end" data-width="1920" data-height="1080" data-duration="8">
+        <div id="end-wash" data-layout-allow-overlap data-layout-allow-overflow></div>
+        <div id="end-sun" data-layout-allow-overlap data-layout-allow-overflow></div>
+        <div id="end-low"></div>
+
+        <div id="end-cam" data-layout-allow-overlap data-layout-allow-overflow>
+          <svg id="end-branch" viewBox="0 0 960 900" aria-hidden="true">
+            <path class="end-stroke end-stem" pathLength="1" d="M940 600 C770 500 600 390 360 290" />
+            <g transform="translate(899.2 575.8) rotate(-249.2)"><path class="end-stroke end-leaf" pathLength="1" d="M0 0 C50.6 -58.8 161 -51.2 207 6.8 L230 28.6 L207 34.8 C161 69.2 55.2 56 0 0Z" /><path class="end-stroke end-rib" pathLength="1" d="M0 0 Q126.5 7.8 223.1 27.3" /></g>
+            <g transform="translate(827.1 532.8) rotate(-187.2)"><path class="end-stroke end-leaf" pathLength="1" d="M0 0 C59.4 -67.2 189 -58.4 243 8 L270 33 L243 40 C189 79.2 64.8 64 0 0Z" /><path class="end-stroke end-rib" pathLength="1" d="M0 0 Q148.5 9 261.9 31.5" /></g>
+            <g transform="translate(742.4 482.8) rotate(-249.8)"><path class="end-stroke end-leaf" pathLength="1" d="M0 0 C55 -63 175 -56.4 225 4.2 L250 26.4 L225 34.2 C175 72.6 60 60 0 0Z" /><path class="end-stroke end-rib" pathLength="1" d="M0 0 Q137.5 7.2 242.5 25.2" /></g>
+            <g transform="translate(647.9 429.3) rotate(-189.2)"><path class="end-stroke end-leaf" pathLength="1" d="M0 0 C55 -63 175 -54 225 9 L250 33 L225 39 C175 75 60 60 0 0Z" /><path class="end-stroke end-rib" pathLength="1" d="M0 0 Q137.5 9 242.5 31.5" /></g>
+            <g transform="translate(559 382.2) rotate(-253)"><path class="end-stroke end-leaf" pathLength="1" d="M0 0 C46.2 -52.5 147 -47 189 3.5 L210 22 L189 28.5 C147 60.5 50.4 50 0 0Z" /><path class="end-stroke end-rib" pathLength="1" d="M0 0 Q115.5 6 203.7 21" /></g>
+            <g transform="translate(470.1 338.7) rotate(-192.9)"><path class="end-stroke end-leaf" pathLength="1" d="M0 0 C39.6 -46.2 126 -42 162 1.8 L180 17.6 L162 23.8 C126 52.6 43.2 44 0 0Z" /><path class="end-stroke end-rib" pathLength="1" d="M0 0 Q99 4.8 174.6 16.8" /></g>
+            <g transform="translate(381.4 299) rotate(-256.9)"><path class="end-stroke end-leaf" pathLength="1" d="M0 0 C30.8 -35.7 98 -33.4 126 -0.5 L140 11 L126 16.5 C98 39.7 33.6 34 0 0Z" /><path class="end-stroke end-rib" pathLength="1" d="M0 0 Q77 3 135.8 10.5" /></g>
+            <g transform="translate(785.1 513.8) rotate(80) scale(1)"><path class="end-stroke end-leaf end-pod" pathLength="1" d="M0 0 C18 -40 70 -52 128 -40 C176 -28 206 -8 214 0 C206 8 176 28 128 40 C70 52 18 40 0 0Z" /><path class="end-stroke end-rib" pathLength="1" d="M8 -8 C60 -30 150 -26 206 -3" /><path class="end-stroke end-rib" pathLength="1" d="M10 0 C70 -6 150 -6 212 0" /><path class="end-stroke end-rib" pathLength="1" d="M8 8 C60 30 150 26 206 3" /></g>
+            <g transform="translate(693 460.4) rotate(96) scale(0.82)"><path class="end-stroke end-leaf end-pod" pathLength="1" d="M0 0 C18 -40 70 -52 128 -40 C176 -28 206 -8 214 0 C206 8 176 28 128 40 C70 52 18 40 0 0Z" /><path class="end-stroke end-rib" pathLength="1" d="M8 -8 C60 -30 150 -26 206 -3" /><path class="end-stroke end-rib" pathLength="1" d="M10 0 C70 -6 150 -6 212 0" /><path class="end-stroke end-rib" pathLength="1" d="M8 8 C60 30 150 26 206 3" /></g>
+          </svg>
+
+          <!-- "Members check their own pay; the buyer traces its premium." -->
+          <div id="end-trace" data-layout-allow-overlap data-layout-allow-overflow>
+            <svg id="end-thread" viewBox="0 0 1920 1080" aria-hidden="true">
+              <path class="end-th end-th-glow" id="end-th1g" pathLength="1" d="M440 506 C600 470 780 362 924 410" />
+              <path class="end-th" id="end-th1" pathLength="1" d="M440 506 C600 470 780 362 924 410" />
+              <path class="end-th end-th-glow" id="end-th2g" pathLength="1" d="M996 424 C1160 470 1380 560 1544 522" />
+              <path class="end-th" id="end-th2" pathLength="1" d="M996 424 C1160 470 1380 560 1544 522" />
+            </svg>
+            <div id="end-slip">
+              <svg viewBox="0 0 132 172" aria-hidden="true">
+                <rect x="10" y="10" width="112" height="16" rx="2" fill="#e6eaf0" />
+                <path class="end-scr" pathLength="1" d="M18 50 c6 -10 12 -10 14 0 s8 10 14 0 m10 2 l4 -12 l4 12 m6 -6 h10" />
+                <path class="end-scr" pathLength="1" d="M18 78 c4 -8 10 -8 12 2 m8 -6 c6 -2 8 6 2 8 s2 8 8 4 m10 -2 l12 -10 m-6 0 v14" />
+                <path class="end-scr" pathLength="1" d="M18 106 l8 -10 l4 10 m10 -6 c6 -8 14 -2 8 6 m8 -8 h16 m-8 -6 v14" />
+                <path class="end-scr" pathLength="1" d="M18 136 h44 m10 0 c6 -10 16 -8 16 0 s-10 8 -14 2" />
+              </svg>
+            </div>
+            <div class="end-label" style="left: 246px; top: 618px">slip</div>
+
+            <div class="end-node" id="end-n1" style="left: 924px; top: 380px">
+              <div class="disc"></div>
+              <svg class="ic" viewBox="0 0 64 64" aria-hidden="true">
+                <circle cx="32" cy="25" r="8" fill="none" stroke="#3a4456" stroke-width="2.2" />
+                <path d="M17 47 C18 37 46 37 47 47" fill="none" stroke="#3a4456" stroke-width="2.2" stroke-linecap="round" />
+              </svg>
+              <svg class="end-check" id="end-k1" viewBox="0 0 30 30" aria-hidden="true">
+                <circle cx="15" cy="15" r="15" fill="#0b1220" />
+                <path d="M9 15.5l4 4 8-9" fill="none" stroke="#ffffff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </div>
+            <div class="end-label" style="left: 840px; top: 470px">members</div>
+
+            <div class="end-node" id="end-n2" style="left: 1544px; top: 486px">
+              <div class="disc"></div>
+              <svg class="ic" viewBox="0 0 64 64" aria-hidden="true">
+                <rect x="18" y="20" width="28" height="26" rx="3" fill="none" stroke="#3a4456" stroke-width="2.2" />
+                <path d="M27.3 20v26M36.7 20v26M18 28.7h28M18 37.3h28" fill="none" stroke="#3a4456" stroke-width="1.6" />
+              </svg>
+              <svg class="end-check" id="end-k2" viewBox="0 0 30 30" aria-hidden="true">
+                <circle cx="15" cy="15" r="15" fill="#0b1220" />
+                <path d="M9 15.5l4 4 8-9" fill="none" stroke="#ffffff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </div>
+            <div class="end-label" style="left: 1460px; top: 576px">buyer</div>
+          </div>
+
+
+          <div id="end-mid" data-layout-allow-overlap data-layout-allow-overflow>
+            <div id="end-tag">
+              <span class="w">Every</span>
+              <span class="w">peso,</span>
+              <span class="w" id="end-acc"
+                >traced.<svg id="end-ul" viewBox="0 0 400 24" preserveAspectRatio="none" aria-hidden="true">
+                  <path pathLength="1" d="M4 16 C80 6 160 20 240 12 S360 8 396 14" /></svg
+              ></span>
+            </div>
+            <div id="end-lock">
+              <div id="end-name">Fair Split</div>
+              <div id="end-sub">Audited co-op payroll on PayPal</div>
+            </div>
+          </div>
+        </div>
+
+        <svg id="end-grain" viewBox="0 0 1920 1080" aria-hidden="true">
+          <filter id="end-noise">
+            <feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="2" seed="23" stitchTiles="stitch" />
+            <feColorMatrix type="saturate" values="0" />
+          </filter>
+          <rect width="1920" height="1080" filter="url(#end-noise)" />
+        </svg>
+
+        <!-- The honesty ledger carried over from the limits card; the voice disclosure holds to the final frame. -->
+        <div id="end-ledger">
+          <span class="end-chip">Simulated PayPal sandbox</span>
+          <span class="end-chip">Synthetic people and data</span>
+          <span class="end-chip">Generated slip images</span>
+          <span class="end-chip">Seed reading stand-in</span>
+          <span class="end-chip">Narration and member audio: Gemini TTS (synthetic voices)</span>
+        </div>
+      </div>
+
+      <script>
+        (() => {
+          const tl = gsap.timeline({ paused: true });
+
+          // ---------- ambient: the calmest light, a slow push, a branch in the breeze ----------
+          tl.fromTo("#end-sun", { opacity: 0.55, scale: 0.92 }, { opacity: 1, scale: 1.04, duration: 8, ease: "sine.out" }, 0);
+          // continues the limits card's wash from where it stopped; never far enough to bare the left edge
+          tl.fromTo("#end-wash", { x: 70 }, { x: 78, duration: 8, ease: "sine.inOut" }, 0);
+          tl.fromTo("#end-cam", { scale: 1 }, { scale: 1.035, duration: 8, ease: "sine.inOut" }, 0);
+          tl.fromTo("#end-branch", { rotation: -1.2, x: 30 }, { rotation: 0.8, x: 0, duration: 8, ease: "sine.inOut" }, 0);
+
+          // the branch draws itself in pencil
+          tl.fromTo(".end-stem", { strokeDashoffset: 1.01 }, { strokeDashoffset: 0, duration: 2.2, ease: "power1.inOut" }, 0.3);
+          tl.fromTo(".end-leaf", { strokeDashoffset: 1.01 }, { strokeDashoffset: 0, duration: 1.1, ease: "sine.inOut", stagger: 0.16 }, 0.7);
+          tl.fromTo(".end-rib", { strokeDashoffset: 1.01 }, { strokeDashoffset: 0, duration: 0.8, ease: "sine.out", stagger: 0.1 }, 1.2);
+          tl.fromTo(".end-leaf", { fillOpacity: 0 }, { fillOpacity: 1, duration: 1.4, ease: "sine.out" }, 2.0);
+
+          // ---------- the trace: slip -> members -> buyer (0.15-4.3) ----------
+          tl.fromTo(
+            "#end-slip",
+            { opacity: 0, y: 30, rotation: -10 },
+            { opacity: 1, y: 0, rotation: -5, duration: 0.7, ease: "power3.out" },
+            0.15,
+          );
+          tl.fromTo(".end-scr", { strokeDashoffset: 1.01 }, { strokeDashoffset: 0, duration: 0.45, ease: "power1.inOut", stagger: 0.14 }, 0.4);
+          tl.fromTo(".end-label", { opacity: 0 }, { opacity: 0, duration: 0.01 }, 0);
+          
+          tl.fromTo(["#end-th1", "#end-th1g"], { strokeDashoffset: 1.01 }, { strokeDashoffset: 0, duration: 1.2, ease: "power1.inOut" }, 0.55);
+          tl.fromTo("#end-n1", { scale: 0, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.45, ease: "back.out(2)" }, 1.55);
+          tl.fromTo("#end-k1", { scale: 0 }, { scale: 1, duration: 0.35, ease: "back.out(3)", transformOrigin: "50% 50%" }, 1.95);
+          tl.fromTo(["#end-th2", "#end-th2g"], { strokeDashoffset: 1.01 }, { strokeDashoffset: 0, duration: 1.2, ease: "sine.inOut" }, 2.3);
+          tl.fromTo("#end-n2", { scale: 0, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.45, ease: "back.out(2)" }, 3.3);
+          tl.fromTo("#end-k2", { scale: 0 }, { scale: 1, duration: 0.35, ease: "back.out(3)", transformOrigin: "50% 50%" }, 3.7);
+          const labels = document.querySelectorAll("#end-trace .end-label");
+          tl.to(labels[0], { opacity: 1, duration: 0.4 }, 0.6);
+          tl.to(labels[1], { opacity: 1, duration: 0.4 }, 1.75);
+          tl.to(labels[2], { opacity: 1, duration: 0.4 }, 3.5);
+          // the trace steps back into depth as the line is said
+          tl.to("#end-trace", { opacity: 0.14, scale: 0.94, filter: "blur(4px)", duration: 0.7, ease: "power2.inOut", transformOrigin: "50% 45%" }, 4.3);
+          // and leaves the end card clean before the name arrives
+          tl.to("#end-trace", { opacity: 0, duration: 0.8, ease: "sine.inOut" }, 5.6);
+
+          // ---------- "Every peso, traced." (4.65-6.6) ----------
+          const words = document.querySelectorAll("#end-tag .w");
+          [4.65, 5.1, 5.55].forEach((at, i) => {
+            tl.fromTo(
+              words[i],
+              { opacity: 0, y: 60, filter: "blur(12px)" },
+              { opacity: 1, y: 0, filter: "blur(0px)", duration: 0.75, ease: "expo.out" },
+              at,
+            );
+          });
+          tl.fromTo("#end-ul path", { strokeDashoffset: 1.01 }, { strokeDashoffset: 0, duration: 0.6, ease: "power2.inOut" }, 5.95);
+
+          // ---------- the name (6.2-8) ----------
+          // the tagline and the name travel together, so the name never lands on the tagline
+          tl.fromTo("#end-mid", { y: 96 }, { y: 0, duration: 0.85, ease: "power3.inOut" }, 6.15);
+          tl.fromTo(
+            "#end-name",
+            { opacity: 0, scale: 0.94 },
+            { opacity: 1, scale: 1, duration: 0.9, ease: "power3.out" },
+            6.4,
+          );
+          tl.fromTo("#end-sub", { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.7, ease: "sine.out" }, 6.7);
+
+          window.__timelines["close-end"] = tl;
+        })();
+      </script>
+    </template>
+  </body>
+</html>

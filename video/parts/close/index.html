@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=1920, height=1080" />
+    <title>Fair Split film · close (143-175 s)</title>
+    <script src="assets/vendor/gsap.min.js"></script>
+    <style>
+      @font-face {
+        font-family: "FS Sans";
+        src: url("assets/fonts/FSSans-VF.woff2") format("woff2");
+        font-weight: 200 900;
+        font-stretch: 75% 125%;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        margin: 0;
+        background: #090d18;
+      }
+      body {
+        font-family: "FS Sans", sans-serif;
+      }
+      #root {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: #090d18;
+      }
+      #root > .clip {
+        position: absolute;
+        inset: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Film close, script v4 beats impressive (143-154 s), limits (154-167 s) and end (167-175 s).
+         Captions stay a closed-caption track (close.vtt); nothing here is burned in. -->
+    <div id="root" data-composition-id="close" data-start="0" data-width="1920" data-height="1080" data-duration="32">
+      <div
+        id="close-impressive"
+        class="clip"
+        data-composition-id="close-impressive"
+        data-composition-src="compositions/impressive.html"
+        data-start="0"
+        data-duration="11"
+        data-track-index="0"
+        data-width="1920"
+        data-height="1080"
+      ></div>
+      <div
+        id="close-limits"
+        class="clip"
+        data-composition-id="close-limits"
+        data-composition-src="compositions/limits.html"
+        data-start="11"
+        data-duration="13"
+        data-track-index="0"
+        data-width="1920"
+        data-height="1080"
+      ></div>
+      <div
+        id="close-end"
+        class="clip"
+        data-composition-id="close-end"
+        data-composition-src="compositions/end.html"
+        data-start="24"
+        data-duration="8"
+        data-track-index="0"
+        data-width="1920"
+        data-height="1080"
+      ></div>
+    </div>
+    <script>
+      window.__timelines.close = gsap.timeline({ paused: true });
+    </script>
+  </body>
+</html>

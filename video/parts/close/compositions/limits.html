@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- Script v4 beat "limits", film 154-167 s (local 0-13 s). Hayag daylight; every disclosure on screen while it is said. -->
+  </head>
+  <body>
+    <template>
+      <style>
+        @font-face {
+          font-family: "FS Sans";
+          src: url("assets/fonts/FSSans-VF.woff2") format("woff2");
+          font-weight: 200 900;
+          font-stretch: 75% 125%;
+        }
+        #root {
+          position: absolute;
+          inset: 0;
+          overflow: hidden;
+          background: #f3f5f8;
+          color: #0b1220;
+          font-family: "FS Sans", sans-serif;
+          font-variant-numeric: lining-nums proportional-nums;
+        }
+        #lim-wash {
+          position: absolute;
+          left: -80px;
+          top: -60px;
+          width: 2080px;
+          height: 1200px;
+          background:
+            radial-gradient(52% 70% at 0% 0%, rgb(20 204 144 / 0.16), transparent 72%),
+            radial-gradient(42% 58% at 62% 0%, rgb(74 47 214 / 0.1), transparent 72%);
+        }
+        .lim-orb {
+          position: absolute;
+          border-radius: 50%;
+        }
+        #lim-orb-a {
+          left: 460px;
+          top: 560px;
+          width: 1000px;
+          height: 760px;
+          background: radial-gradient(closest-side, rgb(255 255 255 / 0.95), rgb(255 255 255 / 0));
+        }
+        #lim-orb-b {
+          left: 1380px;
+          top: 520px;
+          width: 820px;
+          height: 820px;
+          background: radial-gradient(closest-side, rgb(20 204 144 / 0.09), rgb(20 204 144 / 0));
+        }
+        #lim-orb-c {
+          left: -260px;
+          top: 640px;
+          width: 900px;
+          height: 700px;
+          background: radial-gradient(closest-side, rgb(74 47 214 / 0.07), rgb(74 47 214 / 0));
+        }
+        #lim-cam {
+          position: absolute;
+          inset: 0;
+        }
+        #lim-intro {
+          position: absolute;
+          left: 0;
+          right: 0;
+          top: 500px;
+          text-align: center;
+          font-size: 48px;
+          font-stretch: 112.5%;
+          font-weight: 600;
+          letter-spacing: -0.02em;
+          color: #5a6476;
+        }
+        .lim-item {
+          position: absolute;
+          inset: 0;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          padding-bottom: 30px;
+        }
+        .lim-head {
+          font-size: 120px;
+          line-height: 1.12;
+          font-stretch: 112.5%;
+          font-weight: 690;
+          letter-spacing: -0.028em;
+          white-space: nowrap;
+        }
+        .lim-m {
+          display: inline-block;
+          overflow: hidden;
+          vertical-align: bottom;
+          padding: 0 0.03em 0.06em;
+        }
+        .lim-w {
+          display: inline-block;
+        }
+        .lim-acc {
+          position: relative;
+          color: #4a2fd6;
+        }
+        .lim-ul {
+          position: absolute;
+          left: 0.04em;
+          right: 0.04em;
+          bottom: 0.02em;
+          height: 0;
+          border-top: 6px dashed #7e8898;
+          transform-origin: 0% 50%;
+        }
+        .lim-tags {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 16px;
+          margin-top: 44px;
+        }
+        .lim-tag {
+          display: inline-flex;
+          align-items: center;
+          height: 64px;
+          padding: 0 30px;
+          border: 2px dashed #7e8898;
+          border-radius: 999px;
+          background: rgb(255 255 255 / 0.78);
+          box-shadow:
+            0 1px 2px rgb(11 18 32 / 0.05),
+            0 12px 32px -12px rgb(11 18 32 / 0.16);
+          font-size: 28px;
+          font-weight: 500;
+          color: #3a4456;
+          white-space: nowrap;
+        }
+        #lim-ledger {
+          position: absolute;
+          left: 64px;
+          top: 48px;
+          display: flex;
+          gap: 12px;
+        }
+        .lim-chip {
+          height: 40px;
+          padding: 0 18px;
+          display: flex;
+          align-items: center;
+          border: 1.5px dashed #7e8898;
+          border-radius: 999px;
+          background: rgb(255 255 255 / 0.7);
+          color: #5a6476;
+          font-size: 19px;
+          font-stretch: 87.5%;
+          font-weight: 520;
+          white-space: nowrap;
+        }
+        #lim-grain {
+          position: absolute;
+          inset: 0;
+          width: 1920px;
+          height: 1080px;
+          opacity: 0.05;
+          mix-blend-mode: multiply;
+          pointer-events: none;
+        }
+      </style>
+
+      <div id="root" data-composition-id="close-limits" data-width="1920" data-height="1080" data-duration="13">
+        <div id="lim-wash" data-layout-allow-overlap data-layout-allow-overflow></div>
+        <div id="lim-orb-a" data-layout-allow-overlap data-layout-allow-overflow class="lim-orb"></div>
+        <div id="lim-orb-b" data-layout-allow-overlap data-layout-allow-overflow class="lim-orb"></div>
+        <div id="lim-orb-c" data-layout-allow-overlap data-layout-allow-overflow class="lim-orb"></div>
+
+        <div id="lim-cam" data-layout-allow-overlap data-layout-allow-overflow>
+          <div id="lim-intro" data-layout-allow-overlap data-layout-allow-overflow>the limits.</div>
+
+          <!-- 1 · "PayPal runs on a simulated sandbox" -->
+          <div id="lim-i1" data-layout-allow-overlap data-layout-allow-overflow class="lim-item">
+            <div class="lim-head">
+              <span class="lim-m"><span class="lim-w lim-acc">Simulated<i class="lim-ul"></i></span></span>
+              <span class="lim-m"><span class="lim-w">PayPal.</span></span>
+            </div>
+            <div class="lim-tags"><span class="lim-tag">Simulated PayPal sandbox; untested against PayPal's own sandbox</span></div>
+          </div>
+
+          <!-- 2 · "People and data are synthetic" -->
+          <div id="lim-i2" data-layout-allow-overlap data-layout-allow-overflow class="lim-item">
+            <div class="lim-head">
+              <span class="lim-w lim-acc">Synthetic<i class="lim-ul"></i></span>
+              <span class="lim-w">people.</span>
+            </div>
+            <div class="lim-tags"><span class="lim-tag">Synthetic people and data; no money moves</span></div>
+          </div>
+
+          <!-- 3 · slip images -->
+          <div id="lim-i3" data-layout-allow-overlap data-layout-allow-overflow class="lim-item">
+            <div class="lim-head">
+              <span class="lim-w lim-acc">Generated<i class="lim-ul"></i></span>
+              <span class="lim-w">slips.</span>
+            </div>
+            <div class="lim-tags">
+              <span class="lim-tag">Slip images: Codex-made hero flats (OpenAI's image model); photos A–L composed in code</span>
+            </div>
+          </div>
+
+          <!-- 4 · "Your demo replays a labelled reading stand-in" -->
+          <div id="lim-i4" data-layout-allow-overlap data-layout-allow-overflow class="lim-item">
+            <div class="lim-head">
+              <span class="lim-w">A</span>
+              <span class="lim-w lim-acc">labelled<i class="lim-ul"></i></span>
+              <span class="lim-w">stand-in.</span>
+            </div>
+            <div class="lim-tags">
+              <span class="lim-tag">Your demo replays a labelled stand-in; Claude's real readings: ten hero slips, 1 Nov 2026</span>
+            </div>
+          </div>
+
+          <!-- 5 · "Voices are Gemini TTS" -->
+          <div id="lim-i5" data-layout-allow-overlap data-layout-allow-overflow class="lim-item">
+            <div class="lim-head">
+              <span class="lim-m"><span class="lim-w lim-acc">Synthetic<i class="lim-ul"></i></span></span>
+              <span class="lim-m"><span class="lim-w">voices.</span></span>
+            </div>
+            <div class="lim-tags">
+              <span class="lim-tag">Narration and member audio: Gemini TTS (synthetic voices)</span>
+              <span class="lim-tag">Cebuano and Filipino machine-translated, pending native review</span>
+            </div>
+          </div>
+        </div>
+
+        <svg id="lim-grain" viewBox="0 0 1920 1080" aria-hidden="true">
+          <filter id="lim-noise">
+            <feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="2" seed="11" stitchTiles="stitch" />
+            <feColorMatrix type="saturate" values="0" />
+          </filter>
+          <rect width="1920" height="1080" filter="url(#lim-noise)" />
+        </svg>
+
+        <!-- The honesty ledger: one small consistent tag per disclosure, filed as each is said. -->
+        <div id="lim-ledger">
+          <span class="lim-chip" id="lim-c1">Simulated PayPal sandbox</span>
+          <span class="lim-chip" id="lim-c2">Synthetic people and data</span>
+          <span class="lim-chip" id="lim-c3">Generated slip images</span>
+          <span class="lim-chip" id="lim-c4">Seed reading stand-in</span>
+          <span class="lim-chip" id="lim-c5">Narration and member audio: Gemini TTS (synthetic voices)</span>
+        </div>
+      </div>
+
+      <script>
+        (() => {
+          const tl = gsap.timeline({ paused: true });
+          const sel = (id, s) => `#${id} ${s}`;
+
+          // ---------- ambient: daylight arrives, the light field drifts ----------
+          tl.fromTo("#lim-wash", { opacity: 0, x: 0 }, { opacity: 1, x: 70, duration: 13, ease: "sine.out" }, 0);
+          tl.fromTo("#lim-orb-a", { x: 0, y: 30, opacity: 0.4 }, { x: -120, y: -20, opacity: 1, duration: 13, ease: "sine.inOut" }, 0);
+          tl.fromTo("#lim-orb-b", { x: 0, y: 0 }, { x: -160, y: -60, duration: 13, ease: "sine.inOut" }, 0);
+          tl.fromTo("#lim-orb-c", { x: 0, y: 0 }, { x: 180, y: -40, duration: 13, ease: "sine.inOut" }, 0);
+          tl.fromTo("#lim-cam", { scale: 1, y: 0 }, { scale: 1.03, y: -8, duration: 13, ease: "sine.inOut" }, 0);
+
+          // "the limits." small and grey, like the reference's first bright frame
+          tl.fromTo("#lim-intro", { opacity: 0, scale: 1.14 }, { opacity: 1, scale: 1, duration: 0.6, ease: "power2.out" }, 0.08);
+          tl.to("#lim-intro", { opacity: 0, y: -30, duration: 0.25, ease: "power2.in" }, 0.72);
+
+          // later chips wait for their disclosure
+          tl.fromTo(["#lim-c2", "#lim-c3", "#lim-c4", "#lim-c5"], { opacity: 0, scale: 0.8 }, { opacity: 0, scale: 0.8, duration: 0.01 }, 0);
+
+          const ITEMS = [
+            { id: "lim-i1", in: 0.9, out: 3.3, chip: "#lim-c1", dx: -765 },
+            { id: "lim-i2", in: 3.55, out: 5.12, chip: "#lim-c2", dx: -487 },
+            { id: "lim-i3", in: 5.35, out: 7.8, chip: "#lim-c3", dx: -222 },
+            { id: "lim-i4", in: 8.05, out: 10.95, chip: "#lim-c4", dx: 24 },
+            { id: "lim-i5", in: 11.2, out: 12.6, chip: "#lim-c5", dx: 438 },
+          ];
+
+          ITEMS.forEach((it, n) => {
+            const head = `#${it.id} .lim-head`;
+            const words = sel(it.id, ".lim-w");
+            const tags = sel(it.id, ".lim-tag");
+            const ul = sel(it.id, ".lim-ul");
+            // entrance: a different verb per disclosure, the same calm resolve
+            if (n === 0 || n === 4) {
+              tl.fromTo(words, { yPercent: 112 }, { yPercent: 0, duration: 0.8, ease: n === 0 ? "expo.out" : "circ.out", stagger: 0.08 }, it.in);
+            } else if (n === 1) {
+              tl.fromTo(words, { opacity: 0, y: -70 }, { opacity: 1, y: 0, duration: 0.9, ease: "power3.out", stagger: 0.1 }, it.in);
+            } else if (n === 2) {
+              tl.fromTo(words, { opacity: 0, x: 80 }, { opacity: 1, x: 0, duration: 0.7, ease: "power4.out", stagger: 0.07 }, it.in);
+            } else {
+              tl.fromTo(head, { opacity: 0, scale: 1.12, filter: "blur(14px)" }, { opacity: 1, scale: 1, filter: "blur(0px)", duration: 1.0, ease: "expo.out" }, it.in);
+            }
+            tl.fromTo(ul, { scaleX: 0 }, { scaleX: 1, duration: 0.55, ease: "power2.inOut" }, it.in + 0.38);
+            tl.fromTo(tags, { opacity: 0, y: 18 }, { opacity: 1, y: 0, duration: 0.6, ease: "power2.out", stagger: 0.12 }, it.in + 0.46);
+
+            // resolve: the headline lifts away and the tag files itself into the ledger
+            tl.to(head, { opacity: 0, y: -44, duration: 0.3, ease: "power2.in" }, it.out);
+            tl.to(tags, { opacity: 0, x: it.dx, y: -540, scale: 0.32, duration: 0.44, ease: "power3.in" }, it.out + 0.02);
+            if (n === 0) {
+              tl.to(it.chip, { scale: 1.1, duration: 0.16, ease: "power2.out" }, it.out + 0.42);
+              tl.to(it.chip, { scale: 1, duration: 0.3, ease: "power2.inOut" }, it.out + 0.58);
+            } else {
+              tl.to(it.chip, { opacity: 1, scale: 1, duration: 0.42, ease: "back.out(2)" }, it.out + 0.3);
+            }
+          });
+
+          window.__timelines["close-limits"] = tl;
+        })();
+      </script>
+    </template>
+  </body>
+</html>
