@@ -5,7 +5,9 @@
   "type": "module",
   "description": "End-to-end harness: a private stack (embedded Postgres, fs-api on the in-process PayPal simulator, the console and /app served by fs-api) driven by Playwright, Chromium only",
   "scripts": {
-    "e2e": "playwright test",
+    "test": "tsx --test run.test.ts film/capture.test.ts film/timeline.test.ts",
+    "e2e": "tsx run.ts",
+    "e2e:film": "playwright test -c film.config.ts",
     "stack": "tsx stack/cli.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
@@ -13,6 +15,7 @@
     "@fairsplit/contracts": "workspace:*",
     "@fairsplit/db": "workspace:*",
     "@fairsplit/domain": "workspace:*",
+    "@fairsplit/motion": "workspace:*",
     "@fairsplit/seed": "workspace:*",
     "@playwright/test": "catalog:",
     "@types/node": "catalog:",

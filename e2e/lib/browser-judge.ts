@@ -10,6 +10,7 @@ export async function startBrowserJudge(
   origin: string,
   drive: "press" | "autoplay" = "press",
   visit = true,
+  review: "wait" | "stream" = "wait",
 ) {
   await roomFor(PRESS_LIVE_CALLS);
   if (visit) await page.goto("/judge");
@@ -36,8 +37,10 @@ export async function startBrowserJudge(
     answer: { status: response.status(), headers: new Headers(), json: dto, text: "" },
   };
   try {
-    const read = await waitForRun(api, s, (r) => r.run.state === "IN_REVIEW", 60_000);
-    expect(read?.run.state).toBe("IN_REVIEW");
+    if (review === "wait") {
+      const read = await waitForRun(api, s, (r) => r.run.state === "IN_REVIEW", 60_000);
+      expect(read?.run.state).toBe("IN_REVIEW");
+    }
   } catch (error) {
     await stopBrowserJudge(page, api, s);
     throw error;

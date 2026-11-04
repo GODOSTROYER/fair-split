@@ -7,6 +7,23 @@ import { startStack } from "./stack.js";
 
 export default async function globalSetup(): Promise<() => Promise<void>> {
   const log = (line: string) => process.stdout.write(`[stack] ${line}\n`);
+  if (process.env.E2E_ORIGIN) {
+    const origin = new URL(process.env.E2E_ORIGIN);
+    if (
+      !/^https?:$/.test(origin.protocol) ||
+      origin.username ||
+      origin.password ||
+      origin.pathname !== "/" ||
+      origin.search ||
+      origin.hash
+    ) {
+      throw new Error("E2E_ORIGIN must be an http(s) origin without credentials, a path, query or fragment");
+    }
+    process.env.E2E_BASE_URL = origin.origin;
+    // Remote acceptance must never inspect a local database, even if inherited from a previous shell.
+    delete process.env.E2E_DATABASE_URL;
+    delete process.env.E2E_STACK_CONSOLE_DIR;
+  }
   if (process.env.E2E_BASE_URL) {
     log(`using ${process.env.E2E_BASE_URL} (E2E_BASE_URL); nothing started`);
     return async () => {};
