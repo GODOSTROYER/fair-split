@@ -3,10 +3,10 @@
  *
  * | state    | large (≥28 px, member surface)                 | inline (<28 px)                                   |
  * | -------- | ---------------------------------------------- | ------------------------------------------------- |
- * | pencil   | solid pencil (read or computed, nobody signed) | pencil                                            |
+ * | pencil   | solid ink (round 2: one hero numeral)          | pencil                                            |
  * | you      | –                                              | pencil-faint in a 1.5 px canary cell, "You" tag  |
  * | ink      | solid ink (a person entered or approved it)    | ink                                               |
- * | hollow   | hollow-fill with a 2 px ink stroke (in flight) | ink-2 with a 1.5 px dashed underline              |
+ * | hollow   | solid ink (round 2: no outline; the capsule)   | ink-2 with a 1.5 px dashed underline              |
  * | landed   | solid ink; its capsule is jade flush           | ink                                               |
  * | attested | solid ink, beside the clerk's stamp            | ink                                               |
  *
@@ -119,7 +119,8 @@ function LargeAmount({
   const box = fitAmount(type, natural, roomFrom(last, full));
 
   const hollowLook = state === "hollow";
-  const solidColour = state === "pencil" || state === "you" ? t.color.pencil : t.color.ink;
+  // One hero numeral (UI gate round 2): every large amount is solid ink, whatever its state.
+  const solidColour = t.color.ink;
   // MM-1 cross-fades the two looks: the outline fades out exactly as the landed ink fades in.
   const solidOpacity = useAnimatedStyle(() => ({ opacity: fill ? fill.get() : hollowLook ? 0 : 1 }));
   const hollowOpacity = useAnimatedStyle(() => ({ opacity: fill ? 1 - fill.get() : hollowLook ? 1 : 0 }));
@@ -169,13 +170,10 @@ function LargeAmount({
               style={[styles.layer, layer, hollowOpacity]}
               importantForAccessibility="no-hide-descendants"
             >
-              {/* Stroke under fill (paint-order: stroke): a 4 px stroke shows 2 px outside each glyph, and the
-                  fill covers the strokes of overlapping contours, so "$", "4" and "8" draw no inner lines. */}
+              {/* UI gate round 2: no outline face. The in-flight layer is the same solid ink figure, so MM-1's
+                  cross-fade changes nothing a member reads; the capsule beside it says where the money is. */}
               <Svg width={box.width} height={box.height}>
-                <SvgText {...common} fill="none" stroke={t.color.ink} strokeWidth={4} strokeLinejoin="round">
-                  <FigureSpans text={text} fontSize={box.fontSize} raise={raise} />
-                </SvgText>
-                <SvgText {...common} fill={t.color.hollowFill}>
+                <SvgText {...common} fill={t.color.ink}>
                   <FigureSpans text={text} fontSize={box.fontSize} raise={raise} />
                 </SvgText>
               </Svg>

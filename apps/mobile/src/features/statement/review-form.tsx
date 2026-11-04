@@ -126,7 +126,7 @@ export function ReviewFields({
             },
           ]}
         />
-        <Txt kind="caption" color="ink3" align="right">
+        <Txt kind="caption" color="statementInk2" align="right">
           {tr("M-MB-04.noteCount", { n: form.note.length, max: NOTE_MAX })}
         </Txt>
       </View>
@@ -146,7 +146,7 @@ export function ReviewFields({
         disabled={form.phase === "sending"}
         onCommit={() => void form.send()}
       />
-      <Txt kind="caption" color="ink3">
+      <Txt kind="caption" color="statementInk2">
         {`${tr("M-MB-04.committee")}, ${tr("M-MB-04.committeeCite")}`}
       </Txt>
     </View>

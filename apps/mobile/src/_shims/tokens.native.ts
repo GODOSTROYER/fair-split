@@ -71,6 +71,10 @@ export interface FsColors {
   podWash: string;
   /** The one earned glow: a ring on a Bayad na face, one beat after the simulated PayPal confirms. */
   jadeHalo: string;
+  /** A member's statement: its words and figures (7:1 or better on its card, UI gate round 2). */
+  statementInk: string;
+  /** A member's statement: secondary words and metadata (7:1 or better; never ink3). */
+  statementInk2: string;
   /**
    * Money in flight on member surfaces (S2.2 "hollow-fill"): ink mixed 65% over plate, drawn with a 2 px ink stroke
    * so a hollow amount stays legible in daylight yet reads clearly lighter than landed ink.
@@ -130,9 +134,9 @@ export const adlaw: FsTokens = {
     jadeWash: "#DEF8EF",
     canary: "#FFA41B",
     onCanary: "#0B1220",
-    canaryText: "#8A5300",
-    canaryWash: "#FFF2DF",
-    canaryBorder: "#B56A00",
+    canaryText: "#0B1220",
+    canaryWash: "#FFFFFF",
+    canaryBorder: "#FFA41B",
     red: "#CF2A27",
     redFace: "#D42A26",
     onRedFace: "#FFFFFF",
@@ -145,29 +149,32 @@ export const adlaw: FsTokens = {
     copyPink: "#F4C9D4",
     copyYellow: "#F5E27A",
     pencilWash: "#EDEFF1",
-    scrim: "rgba(11, 18, 32, 0.32)",
+    scrim: "rgba(58, 68, 86, 0.4)",
     highlight: "rgba(255, 255, 255, 0.45)",
     drawerHighlight: "#FFFFFF",
     slabChalkFace: "#4A2FD6",
     slabChalkRight: "#3722B0",
     slabChalkBottom: "#29188A",
     slabChalkLabel: "#FFFFFF",
-    slabJadeFace: "#14CC90",
-    slabJadeRight: "#0A9467",
-    slabJadeBottom: "#06724F",
-    slabJadeLabel: "#0B1220",
+    slabJadeFace: "#4A2FD6",
+    slabJadeRight: "#3722B0",
+    slabJadeBottom: "#29188A",
+    slabJadeLabel: "#FFFFFF",
     paperInk: "#0B1220",
     bezel: "#141A24",
     ruleStrong: "#CBD2DC",
     podWash: "#F1EEFC",
     jadeHalo: "rgba(20, 204, 144, 0.16)",
+    statementInk: "#0B1220",
+    statementInk2: "#3A4456",
     hollowFill: "#60656E",
     ballpoint: "#1E3A8A",
   },
   slab: {
     // The person's decision slab is ballpoint indigo with a white label (ADR-0016).
     chalk: { face: "#4A2FD6", edgeRight: "#3722B0", edgeBottom: "#29188A", label: "#FFFFFF" },
-    jade: { face: "#14CC90", edgeRight: "#0A9467", edgeBottom: "#06724F", label: "#0B1220" },
+    // UI gate round 2: no green button. The money slab wears the same indigo face; jade is confirmed money only.
+    jade: { face: "#4A2FD6", edgeRight: "#3722B0", edgeBottom: "#29188A", label: "#FFFFFF" },
   },
   shadowPaper: HAYAG_PAPER,
   shadow: {
@@ -224,21 +231,23 @@ export const tablea: FsTokens = {
     slabChalkRight: "#4630C9",
     slabChalkBottom: "#2E1E94",
     slabChalkLabel: "#FFFFFF",
-    slabJadeFace: "#3DE6AE",
-    slabJadeRight: "#26C48F",
-    slabJadeBottom: "#0F8A62",
-    slabJadeLabel: "#04170F",
+    slabJadeFace: "#5B43EA",
+    slabJadeRight: "#4630C9",
+    slabJadeBottom: "#2E1E94",
+    slabJadeLabel: "#FFFFFF",
     paperInk: "#0B1220",
     bezel: "#05070C",
     ruleStrong: "#3A4763",
     podWash: "#242748",
     jadeHalo: "rgba(61, 230, 174, 0.22)",
+    statementInk: "#F4F6FA",
+    statementInk2: "#C3C9D6",
     hollowFill: "#A4A8B1",
     ballpoint: "#1E3A8A",
   },
   slab: {
     chalk: { face: "#5B43EA", edgeRight: "#4630C9", edgeBottom: "#2E1E94", label: "#FFFFFF" },
-    jade: { face: "#3DE6AE", edgeRight: "#26C48F", edgeBottom: "#0F8A62", label: "#04170F" },
+    jade: { face: "#5B43EA", edgeRight: "#4630C9", edgeBottom: "#2E1E94", label: "#FFFFFF" },
   },
   shadowPaper: GABII_PAPER,
   shadow: {
@@ -267,11 +276,11 @@ export const space = {
 } as const;
 
 /**
- * Radii (ADR-0016): none for evidence paper and slip thumbnails, plate 2 for hairline plates, cell 6 for chips and
- * keys, control 10 for inputs and small buttons, card 14 for slabs and cards, panel 22 for the statement card, pill
- * for pills and segmented controls.
+ * One radius scale (ADR-0016; UI gate round 2): none for evidence paper and slip thumbnails, plate 2 for hairline
+ * plates, cell 6 for chips and keys, control 12 for every button and input, card 16 for cards, panel 24 for the
+ * statement card, pill for pills and segmented controls.
  */
-export const radius = { none: 0, plate: 2, cell: 6, control: 10, card: 14, panel: 22, pill: 999 } as const;
+export const radius = { none: 0, plate: 2, cell: 6, control: 12, card: 16, panel: 24, pill: 999 } as const;
 
 /** App targets (design §2.4): ≥48 dp, primary 56 dp, Paminawa and Pirmahi 64 dp, play/pause 72 dp. */
 export const target = { min: 48, primary: 56, hero: 64, play: 72 } as const;

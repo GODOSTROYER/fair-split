@@ -151,7 +151,7 @@ function Slips({ dto, lang }: { dto: StatementDTO; lang: Lang }) {
                         {f.date}
                       </Txt>
                       {demo && f.provisional ? (
-                        <Txt kind="caption" color="ink3">
+                        <Txt kind="caption" color="statementInk2">
                           {tr("M-MB-02.provisional")}
                         </Txt>
                       ) : null}
@@ -193,11 +193,11 @@ function Slips({ dto, lang }: { dto: StatementDTO; lang: Lang }) {
           />
         ) : null}
         {dto.slips.some((s) => !s.cropUrl) ? (
-          <Txt kind="caption" color="ink3">
+          <Txt kind="caption" color="statementInk2">
             {tr("M-MB-02.photoPending")}
           </Txt>
         ) : null}
-        <Txt kind="caption" color="ink3">
+        <Txt kind="caption" color="statementInk2">
           {tr("common.syntheticData")}
         </Txt>
       </Screen>

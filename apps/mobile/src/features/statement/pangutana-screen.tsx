@@ -84,7 +84,7 @@ export function PangutanaScreen() {
         <Glyph name="people" size={24} color={t.color.ink2} />
         <View style={styles.flex}>
           <Txt kind="statementBody">{tr("M-MB-04.rights")}</Txt>
-          <Txt kind="caption" color="ink3">
+          <Txt kind="caption" color="statementInk2">
             {tr("M-MB-04.rightsCite")}
           </Txt>
         </View>

@@ -267,7 +267,7 @@ function Statement({
             <Txt kind="label" color="ink2">
               {dto.coop.name}
             </Txt>
-            <Txt kind="caption" color="ink3">
+            <Txt kind="caption" color="statementInk2">
               {tr("M-MB-01.season", { code: dto.season.code })}
             </Txt>
           </View>
@@ -464,7 +464,7 @@ function Statement({
             {help ? <GlossedSentence pair={help} lang={lang} gloss={st.gloss} /> : null}
             <View style={styles.rights}>
               <Txt kind="statementBody">{tr("M-MB-04.rights")}</Txt>
-              <Txt kind="caption" color="ink3">
+              <Txt kind="caption" color="statementInk2">
                 {tr("M-MB-04.rightsCite")}
               </Txt>
             </View>
@@ -483,7 +483,7 @@ function Statement({
           </View>
         </View>
 
-        <Txt kind="caption" color="ink3">
+        <Txt kind="caption" color="statementInk2">
           {tr("common.syntheticData")}
         </Txt>
         {demoOn && demo ? <DemoTray demo={demo} /> : null}

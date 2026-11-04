@@ -189,7 +189,7 @@ function TraceBody({
             {trace.terms.map((x) => (
               <View key={`${x.op}${x.amount}`} style={styles.term}>
                 {x.op ? (
-                  <Txt kind="amountM" color="ink3">
+                  <Txt kind="amountM" color="statementInk2">
                     {x.op}
                   </Txt>
                 ) : null}
@@ -199,7 +199,7 @@ function TraceBody({
               </View>
             ))}
             <View style={styles.term}>
-              <Txt kind="amountM" color="ink3">
+              <Txt kind="amountM" color="statementInk2">
                 =
               </Txt>
               <Txt kind="amountM">{trace.total}</Txt>

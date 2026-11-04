@@ -1,10 +1,11 @@
 /**
  * TEMPORARY: the app's Slab until @fairsplit/ui-native ships the shared primitive (S2.7 props kept).
  *
- * A person's commit is a square slab whose depth matches its consequence: d1 3 px (reversible), d2 5 px (changes a
- * line), d3 8 px plus a hold (moves money or signs). The face travels (t, t); the right and bottom edges are 45°
- * parallelograms anchored to the far wall that collapse at t = d (design §2.5). A screen has at most two slabs and at
- * most one d3; navigation, filters, rows and status never get one.
+ * A person's commit, drawn as the one flat primary button (UI gate round 2, the same as the console's): an indigo
+ * face, radius 12, 48 dp, no lip, no glow, and never green (jade is only money the simulated PayPal confirmed).
+ * Depth still names the consequence: d1 (reversible), d2 (changes a line), d3 plus a hold (moves money or signs);
+ * the face shows a quarter of its travel. A screen has at most two slabs and at most one d3; navigation, filters,
+ * rows and status never get one.
  *
  * Hold slabs follow S2.7 exactly: arm on hold, act on release inside (WCAG 2.5.2). The fill runs linearly, the face
  * sinks 2 px at each quarter, the face clunks flush at the hold time ("Release to sign"), and only a release inside
@@ -21,7 +22,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   AppState,
   type GestureResponderEvent,
-  type LayoutChangeEvent,
   Platform,
   Pressable,
   StyleSheet,
@@ -111,7 +111,7 @@ export function Slab(props: SlabProps) {
 /* ------------------------------------------------------------------ the face (shared by both kinds) */
 
 function SlabFace({
-  depth,
+  depth: _depth,
   tone,
   height,
   travel,
@@ -136,39 +136,22 @@ function SlabFace({
   bolted?: boolean;
 }) {
   const { t, motion } = useFs();
-  const d = slabDepth[depth];
   const face = t.slab[tone];
-  const [width, setWidth] = useState(0);
-  // ADR-0016: the face sinks straight down onto its lip (d px deep); the lip itself never moves.
+  // UI gate round 2: one flat primary everywhere, the phone included. No lip, no glow, no highlight; one height
+  // (48) and the control radius (12). The travel keeps its depth's values; the face shows a quarter of it.
+  const faceHeight = Math.min(height, target.min);
   const faceStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: travel.get() }],
+    transform: [{ translateY: travel.get() * FACE_TRAVEL }],
   }));
   const fill = useAnimatedStyle(() => ({ transform: [{ scaleX: progress ? progress.get() : 0 }] }));
-  const onLayout = (e: LayoutChangeEvent) => setWidth(Math.max(0, e.nativeEvent.layout.width));
   const faceColor = flush ? t.color.plate2 : face.face;
   const labelColor = flush ? t.color.ink2 : face.label;
-  const showEdges = !flush && !motion.reduced;
   return (
-    <View onLayout={onLayout} style={{ paddingBottom: d }} pointerEvents="none">
-      {width > 0 && showEdges ? (
-        <View
-          style={[
-            styles.lip,
-            {
-              top: d,
-              width,
-              height,
-              backgroundColor: face.edgeRight,
-              borderColor: face.edgeBottom,
-              boxShadow: `0px 18px 30px -12px ${face.edgeRight}99`,
-            },
-          ]}
-        />
-      ) : null}
+    <View pointerEvents="none">
       <Animated.View
         style={[
           styles.face,
-          { height, backgroundColor: faceColor, borderColor: flush ? t.color.rule : faceColor },
+          { height: faceHeight, backgroundColor: faceColor, borderColor: flush ? t.color.rule : faceColor },
           flush || motion.reduced ? null : faceStyle,
           focused
             ? { outlineColor: t.color.pod, outlineWidth: 2, outlineOffset: 2, outlineStyle: "solid" }
@@ -187,7 +170,6 @@ function SlabFace({
             ]}
           />
         ) : null}
-        {!flush ? <View style={[styles.highlight, { backgroundColor: t.color.highlight }]} /> : null}
         <View style={styles.content}>
           {bolted ? <Glyph name="bolt" size={20} color={labelColor} /> : null}
           {icon ? <Glyph name={icon} size={24} color={labelColor} /> : null}
@@ -199,6 +181,9 @@ function SlabFace({
     </View>
   );
 }
+
+/** How much of the travel the flat face shows: d3's 8 px reads as a 2 px press (UI gate round 2). */
+const FACE_TRAVEL = 0.25;
 
 /** Web-only press styles (S2.7): no text selection, no browser gesture, no callout over the slab. */
 const WEB_PRESS: ViewStyle =
@@ -613,16 +598,8 @@ function SteppedCell({ on }: { on: boolean }) {
 }
 
 const styles = StyleSheet.create({
-  lip: { position: "absolute", left: 0, borderRadius: radius.card, borderWidth: 1 },
-  face: { borderRadius: radius.card, borderWidth: 1, overflow: "hidden", justifyContent: "center" },
+  face: { borderRadius: radius.control, borderWidth: 1, overflow: "hidden", justifyContent: "center" },
   fillOrigin: { transformOrigin: "left center" },
-  highlight: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 1,
-  },
   content: {
     flexDirection: "row",
     alignItems: "center",
