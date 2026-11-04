@@ -486,13 +486,6 @@
   overflow-wrap: anywhere;
 }
 
-@container (max-width: 319px) {
-  .fsr-log__time {
-    grid-column: 1;
-    grid-row: auto;
-  }
-}
-
 .fsr-log__detail {
   grid-column: 1;
   color: var(--fs-ink-3);
@@ -568,5 +561,12 @@
 
   .fsr-log__lanes {
     grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@container (max-width: 319px) {
+  .fsr-log__time {
+    grid-column: 1;
+    grid-row: auto;
   }
 }

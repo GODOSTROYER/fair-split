@@ -19,6 +19,7 @@ export interface CssRule {
 
 export interface Medium {
   readonly width: number;
+  readonly height?: number;
   readonly motion: "full" | "reduced";
 }
 
@@ -100,6 +101,10 @@ function featureMatches(feature: string, medium: Medium): boolean {
       return medium.width >= px();
     case "max-width":
       return medium.width <= px();
+    case "min-height":
+      return (medium.height ?? 1080) >= px();
+    case "max-height":
+      return (medium.height ?? 1080) <= px();
     case "prefers-reduced-motion":
       return (value === "reduce") === (medium.motion === "reduced");
     case "prefers-color-scheme":

@@ -74,7 +74,17 @@ describe("the phone's panel on the tab layout (stage.css)", () => {
 it.each([1024, 1470, 1679])("inv.i8.phone panel contains its figure at %s px", (width) => {
   const panel = panelIn("user");
   expect(cascaded(rules, panel, "overflow-x", { width, motion: "full" })).toBe("hidden");
-  expect(cascaded(rules, panel, "min-width", { width, motion: "full" })).toBe("max-content");
+  expect(cascaded(rules, panel, "min-width", { width, motion: "full" })).toBe("0");
+});
+
+it("a short-screen phone lane stays one line and retains its full words as a tooltip", () => {
+  const lane = document.createElement("button");
+  lane.className = "fsc-ribbon__phone";
+  const words = document.createElement("span");
+  words.className = "fsc-ribbon__words";
+  lane.append(words);
+  document.body.append(lane);
+  expect(cascaded(rules, words, "white-space", { width: 1280, height: 800, motion: "full" })).toBe("nowrap");
 });
 
 it("inv.i8.phone tab never clips its replay and simulated labels", () => {

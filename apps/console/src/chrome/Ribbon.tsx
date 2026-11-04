@@ -145,6 +145,7 @@ export function Ribbon({ view, seeded, phone = null, caption }: RibbonProps) {
           aria-controls="fsc-phone-panel"
           onClick={phone.onToggle}
           data-testid="W-JG-01.phoneTab"
+          title={phone.words}
         >
           <span className="fsc-ribbon__name fs-t-caption">
             <span className="fsc-ribbon__mark" aria-hidden />

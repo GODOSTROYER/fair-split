@@ -1432,6 +1432,12 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
+  .fsc-ribbon__phone .fsc-ribbon__words {
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
   .fsc-ribbon__detail,
   .fsc-ribbon__time,
   .fsc-ribbon__action {
