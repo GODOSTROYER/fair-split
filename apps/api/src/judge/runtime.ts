@@ -17,7 +17,7 @@ export const JUDGE_RATE_RULES = {
   /** Every 6-digit claim attempt, all clients together: guessing a live code stays hopeless. */
   pairingCode6Global: { name: "pairingCode6Global", limit: 60, windowMs: 60_000, global: true },
   /** The real guard against guessing: 5 a minute per hashed IP (a scrypt check each). */
-  opsLoginPerIp: { name: "opsLoginPerIp", limit: 5, windowMs: 60_000 },
+  opsLoginPerIp: { name: "opsLoginPerIp", limit: 5, windowMs: 60_000, critical: true },
   /**
    * Only a backstop on scrypt work (about 5 checks a second at most): far above what a crowd of guessers
    * at 5 a minute each can use up quickly, so they cannot lock the operator out of /ops.
@@ -28,8 +28,8 @@ export const JUDGE_RATE_RULES = {
    * rule holds however many networks one session uses; the global rule bounds every session and network together
    * (a judge types the code once or twice, so guessing stays hopeless while a lockout lasts a minute at most).
    */
-  judgeCodePerIp: { name: "judgeCodePerIp", limit: 5, windowMs: 60_000 },
-  judgeCodePerSession: { name: "judgeCodePerSession", limit: 5, windowMs: 600_000 },
+  judgeCodePerIp: { name: "judgeCodePerIp", limit: 5, windowMs: 60_000, critical: true },
+  judgeCodePerSession: { name: "judgeCodePerSession", limit: 5, windowMs: 600_000, critical: true },
   /** Assumes runbook codes use randomBytes(12), or 96 bits of entropy; keep a global bound without a 30/min lockout. */
   judgeCodeGlobal: { name: "judgeCodeGlobal", limit: 300, windowMs: 60_000, global: true },
   tamper: { name: "judgeTamper", limit: 10, windowMs: 600_000 },

@@ -156,6 +156,15 @@ export async function startJudgeSession(c: AppContext, deps: AppDeps): Promise<S
     [RATE_RULES.judgeSessionPerNetworkDay, ip],
   ];
   if (cookie.status === "ok") startSlots.push([RATE_RULES.judgeSessionPerCookie, sessionId]);
+  // Contended admissions refund their start budgets. Keep a generous network work budget spent so a
+  // lock holder cannot turn those refunds into unlimited fresh judgeRail database reads.
+  const contendedAttempts = deps.rateLimits.take(RATE_RULES.judgeSessionContendedAttempts, ip);
+  if (!contendedAttempts.ok) {
+    throw problem.rateLimited(
+      contendedAttempts.retryAfterMs,
+      "Too many session preparation attempts from this network. Try again shortly.",
+    );
+  }
   // Reserve synchronously before the first await: concurrent starts cannot all pass a peek.
   // A refused rule consumes nothing. Failed work refunds personal/success slots, while the coarse
   // attempt bucket remains spent for expensive failures; a contended try-lock refunds it too.
