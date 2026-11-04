@@ -36,15 +36,19 @@ import { PageTitle, Section } from "../Shell.js";
 import { SlipSheet } from "../slips.js";
 
 const GROUPS: readonly { readonly title: string; readonly names: readonly ColourName[] }[] = [
-  { title: "Surfaces", names: ["ground", "plate", "plate-2", "rule"] },
+  { title: "Surfaces", names: ["ground", "plate", "plate-2", "rule", "rule-strong"] },
   { title: "Ink and pencil", names: ["ink", "ink-2", "ink-3", "pencil", "pencil-faint"] },
-  { title: "Jade: money", names: ["jade", "on-jade", "jade-text", "jade-flush-border", "jade-wash"] },
   {
-    title: "Canary: a person must decide",
+    title: "Jade: money only",
+    names: ["jade", "on-jade", "jade-text", "jade-flush-border", "jade-wash", "jade-halo"],
+  },
+  {
+    title: "Marigold (canary): a person must decide",
     names: ["canary", "on-canary", "canary-text", "canary-wash", "canary-border"],
   },
   { title: "Red: PayPal failures only", names: ["red", "red-face", "on-red-face", "red-wash"] },
-  { title: "Instruments and materials", names: ["pod", "hatch", "steel-line", "steel-face", "pencil-wash"] },
+  { title: "Ballpoint: a person's hand", names: ["pod", "pod-wash"] },
+  { title: "Instruments and materials", names: ["hatch", "steel-line", "steel-face", "pencil-wash"] },
   { title: "Evidence", names: ["copy-white", "copy-pink", "copy-yellow", "paper-ink"] },
   {
     title: "Slabs",
@@ -83,7 +87,7 @@ function ThemePane({ theme, children }: { readonly theme: ThemeName; readonly ch
   return (
     <div className="proto-pane" data-theme={theme} data-testid={`W-DP-01.pane.${theme}`}>
       <p className="proto-pane__name">
-        <span className="fs-t-title-2">{theme === "tablea" ? "Tablea" : "Adlaw"}</span>
+        <span className="fs-t-title-2">{THEME_INFO[theme].display}</span>
         <span className="fs-t-caption">{THEME_INFO[theme].use}</span>
       </p>
       {children}
@@ -190,12 +194,14 @@ function ContrastMatrix({
 }
 
 const SPECIMENS: Readonly<Record<TypeRoleName, string>> = {
+  display: "A cacao co-op pays 64 farmers from one brand invoice",
   "amount-hero": "US$368.39",
   "amount-l": "US$17.94",
   "title-1": "Season 2026-A is ready to pay.",
   "title-2": "Slip 0457 counted twice",
   body: "Counting both moves US$17.94 from 63 members to Nong Dioning and puts shrink at 2.05%.",
   figure: "148.0 kg   43.69   21.85   −1.09   64.45",
+  lede: "Code computes every amount. People settle three holds, two officers sign, PayPal pays.",
   label: "Count it once",
   caption: "Read by Claude (claude-opus-5-5), replay of a recorded run from 29 Oct.",
   hash: "",
@@ -203,6 +209,7 @@ const SPECIMENS: Readonly<Record<TypeRoleName, string>> = {
   stamp: "AS",
   "statement-lead": "Maayong adlaw, Nang Celing. Salamat sa inyong paghago.",
   "statement-body": "Nagdala mo og 148.0 kg nga uga nga cacao, tanan Grade 1.",
+  "statement-status": "Bayad na",
   mark: "LB-PH-2026-03",
 };
 
@@ -219,7 +226,7 @@ function TypeSpecimen({ role }: { readonly role: TypeRoleName }) {
           {family}
           {r.family === "ui" ? `, width ${r.stretch}` : ""}, weight {r.weight}, {r.size}/{r.line}
           {"app" in r && r.app ? `; app ${r.app.size}/${r.app.line} sp` : ""}
-          {r.figures ? ", tabular" : ""}
+          {"numerals" in r && r.numerals ? `, ${r.numerals} figures` : ""}
         </span>
       </p>
       <p className={role === "stamp" ? "tok-type__sample tok-stamp-sample" : `tok-type__sample fs-t-${role}`}>
@@ -275,15 +282,17 @@ export function TokensPage() {
           <>
             One hand-edited source, <code>packages/tokens/src/tokens.ts</code>, generates{" "}
             <code>theme.web.css</code> (the <code>--fs-*</code> variables under <code>[data-theme]</code>) and{" "}
-            <code>tokens.native.ts</code> for the app. Colours are OKLCH with hex fallbacks; Tablea is the
-            console’s lacquer, Adlaw the daylight theme of the app and Proof.
+            <code>tokens.native.ts</code> for the app. Colours are OKLCH with hex fallbacks. Hayag (day, the{" "}
+            <code>adlaw</code> slot) is the default for the console, the stage, Proof and the app; Gabii
+            (night, the <code>tablea</code> slot) is for the film’s cards and an opt-in night console
+            (ADR-0016).
           </>
         }
       />
 
       <Section
         title="Colour"
-        brief="Restrained: neutrals cover about 90% of every screen, and each hue has exactly one job. Jade means money, canary means a person must decide, red is only for PayPal failures, pod is the focus ring and the needle."
+        brief="One job per colour. Jade is money (flush only when the simulated PayPal confirms), marigold means a person must decide, ballpoint indigo is a person’s hand, graphite pencil is the machine, ink is a checked fact, red is only PayPal saying no."
         testId="W-DP-01.colour"
       >
         <div className="proto-panes">
@@ -343,16 +352,22 @@ export function TokensPage() {
 
       <Section
         title="The zero and the peso"
-        brief="Pick one zero for money, kilos and hashes. Tabular figures alone give Mona’s slashed zero; the S2 suggestion (ss08) gives a straight bar. Check both at 13 px. The peso sign comes from Noto Sans, joined to FS Sans for that glyph alone."
+        brief="Amounts read as money: proportional lining figures with a plain zero, and the US$ prefix at half size, raised. Tabular figures (Mona’s slashed zero) stay only for hashes and grid columns that align on the decimal. The peso sign comes from Noto Sans, joined to FS Sans for that glyph alone."
         testId="W-DP-01.zero"
       >
         <div className="tok-zero">
           <div>
-            <p className="fs-t-caption tok-muted">Slashed (tabular figures), the default</p>
+            <p className="fs-t-caption tok-muted">Hashes and aligned columns: tabular, slashed zero</p>
             <p className="fs-t-hash">
               {SEASON.invoiceNumber} {hashPrefix(RATE_CARD_SHA256, 4)} 0403 0457 1,600 ms
             </p>
-            <p className="fs-t-amount-l">US$4,333.50 ₱270,844</p>
+            <p className="fs-t-amount-l fs-figures">US$4,333.50 ₱270,844</p>
+          </div>
+          <div>
+            <p className="fs-t-caption tok-muted">Amounts: proportional, US$ raised (the default)</p>
+            <p className="fs-t-amount-l">
+              <span className="fs-cur">US$</span>4,333.50 ₱270,844
+            </p>
           </div>
           <div>
             <p className="fs-t-caption tok-muted">Straight bar (ss08)</p>
@@ -374,7 +389,7 @@ export function TokensPage() {
 
       <Section
         title="Space, radii and depth"
-        brief="A 4-based space scale. Corners are 0 (slabs, tiles, evidence, the statement) or 2 (plates, chips, inputs). Depth comes from value steps; slab edges are 3, 5 and 8 px, and only paper casts a shadow."
+        brief="A 4-based space scale. Corners: 0 for evidence paper, 6 for cells and chips, 10 for controls, 14 for slabs and cards, 22 for panels, pills for chips and segmented controls. Slab lips are 3, 5 and 8 px (depth equals consequence); chips lift on e1, panels on e2, drawers and dialogs on e3, and paper keeps the strongest shadow."
         testId="W-DP-01.space"
       >
         <div className="tok-space">
@@ -389,7 +404,7 @@ export function TokensPage() {
           {(Object.keys(DEPTH) as (keyof typeof DEPTH)[]).map((d) => (
             <div key={d} className="proto-state">
               <p className="proto-state__name fs-t-caption">
-                <code>{d}</code> {DEPTH[d]} px edges
+                <code>{d}</code> {DEPTH[d]} px lip
               </p>
               <Slab
                 label={d === "d1" ? "Request rescan" : d === "d2" ? "Count it once" : "Approve 8 payouts"}
@@ -403,16 +418,23 @@ export function TokensPage() {
             </div>
           ))}
           <div className="proto-state">
-            <p className="proto-state__name fs-t-caption">Radii {Object.values(RADII).join(" and ")}</p>
-            <span className="tok-radius" data-r="0">
-              0
-            </span>
-            <span className="tok-radius" data-r="2">
-              2
-            </span>
+            <p className="proto-state__name fs-t-caption">Radii {Object.values(RADII).join(", ")}</p>
+            {(Object.keys(RADII) as (keyof typeof RADII)[]).map((r) => (
+              <span key={r} className="tok-radius" style={{ borderRadius: `var(--fs-radius-${r})` }}>
+                {r}
+              </span>
+            ))}
           </div>
+          {(["e1", "e2", "e3", "halo"] as const).map((e) => (
+            <div key={e} className="proto-state" data-testid={`W-DP-01.shadow.${e}`}>
+              <p className="proto-state__name fs-t-caption">
+                <code>--fs-shadow-{e}</code>
+              </p>
+              <span className="tok-elevation" style={{ boxShadow: `var(--fs-shadow-${e})` }} />
+            </div>
+          ))}
           <div className="proto-state">
-            <p className="proto-state__name fs-t-caption">Paper, the only shadow</p>
+            <p className="proto-state__name fs-t-caption">Paper, the strongest shadow</p>
             <Paper alt={`Weigh slip ${HERO_SLIPS[0]}`}>
               <SlipSheet serial={HERO_SLIPS[0]} copy="white" width={180} />
             </Paper>

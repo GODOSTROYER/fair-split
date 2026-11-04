@@ -30,8 +30,9 @@ export function OverviewPage() {
             <Link to="/prototype/tokens" search={(prev) => prev} className="fs-link">
               Token sheet
             </Link>{" "}
-            in Tablea and Adlaw: colour, type, space, depth and motion. {contrast.length} declared colour
-            pairs, {failing === 0 ? "all at or above their floor" : `${failing} below their floor`}.
+            in Hayag (day) and Gabii (night): colour, type, space, radii, elevation and motion.{" "}
+            {contrast.length} declared colour pairs,{" "}
+            {failing === 0 ? "all at or above their floor" : `${failing} below their floor`}.
           </dd>
           <dt>Primitives</dt>
           <dd>
@@ -148,9 +149,7 @@ export function OverviewPage() {
             the day the real sandbox is switched on.
           </dd>
           <dt>Red on its wash</dt>
-          <dd>
-            In Tablea the red wash mixes at 10%, not 14%, so red copy on it measures 4.56:1 instead of 4.29:1.
-          </dd>
+          <dd>In Gabii (the night slot) the red wash mixes at 12%, so red copy on it stays above 4.5:1.</dd>
           <dt>Moment phases</dt>
           <dd>
             Phase names follow S2 §2.9 where S1 §1.9 differs; the supporting beat takes the register’s ID,

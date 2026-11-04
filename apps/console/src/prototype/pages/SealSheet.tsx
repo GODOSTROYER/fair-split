@@ -28,7 +28,7 @@ export function SealSheetPage() {
   const search = useProtoSearch();
   const navigate = useNavigate();
   const size: SheetSize = search.px ?? 200;
-  const theme = search.theme ?? "tablea";
+  const theme = search.theme ?? "adlaw";
   const colours = RESOLVED[theme];
   const selected = search.seal;
   const set = (patch: { px?: SheetSize; seal?: number }) =>
