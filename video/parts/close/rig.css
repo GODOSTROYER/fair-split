@@ -1,0 +1,242 @@
+/* The close's shared look (video/proto/STYLE.md), copied into each composition by build.mjs; edit it here. */
+@font-face {
+  font-family: "FS Sans";
+  src: url("../assets/fonts/FSSans-VF.woff2") format("woff2");
+  font-weight: 200 900;
+  font-stretch: 75% 125%;
+}
+/* the day field (STYLE §1): Hayag ground, the morning wash, three large soft lights, leaf shadows */
+.cf-field {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: #f3f5f8;
+}
+.cf-wash {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(
+      56% 74% at 0% 0%,
+      rgb(20 204 144 / 0.15),
+      rgb(20 204 144 / 0.1) 20%,
+      rgb(20 204 144 / 0.055) 42%,
+      rgb(20 204 144 / 0.02) 66%,
+      transparent 90%
+    ),
+    radial-gradient(
+      44% 60% at 64% 0%,
+      rgb(74 47 214 / 0.09),
+      rgb(74 47 214 / 0.06) 22%,
+      rgb(74 47 214 / 0.03) 46%,
+      rgb(74 47 214 / 0.01) 70%,
+      transparent 92%
+    );
+}
+.cf-light {
+  position: absolute;
+  left: 0;
+  top: 0;
+  border-radius: 50%;
+  will-change: transform;
+}
+.cf-lightA {
+  width: 1900px;
+  height: 1500px;
+  background: radial-gradient(
+    closest-side,
+    rgb(20 204 144 / 0.16),
+    rgb(20 204 144 / 0.11) 25%,
+    rgb(20 204 144 / 0.06) 50%,
+    rgb(20 204 144 / 0.02) 75%,
+    transparent
+  );
+}
+.cf-lightB {
+  width: 1700px;
+  height: 1300px;
+  background: radial-gradient(
+    closest-side,
+    rgb(255 255 255 / 0.92),
+    rgb(255 255 255 / 0.62) 30%,
+    rgb(255 255 255 / 0.28) 60%,
+    rgb(255 255 255 / 0.07) 84%,
+    transparent
+  );
+}
+.cf-lightC {
+  width: 1800px;
+  height: 1500px;
+  background: radial-gradient(
+    closest-side,
+    rgb(74 47 214 / 0.09),
+    rgb(74 47 214 / 0.06) 30%,
+    rgb(74 47 214 / 0.025) 62%,
+    transparent
+  );
+}
+.cf-dapple {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 3200px;
+  height: 1800px;
+  opacity: 0.85;
+  background: url("../assets/dapple.png") 0 0 / 100% 100% no-repeat;
+  will-change: transform;
+}
+.cf-world {
+  position: absolute;
+  inset: 0;
+}
+.cf-grain {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1920px;
+  height: 1080px;
+  pointer-events: none;
+  mix-blend-mode: overlay;
+  opacity: 0.2;
+}
+.cf-defs {
+  position: absolute;
+  width: 0;
+  height: 0;
+}
+
+/* world objects: placed by the rig each frame, centred on their own middle */
+.cf-obj {
+  position: absolute;
+  left: 0;
+  top: 0;
+  opacity: 0;
+  transform-origin: 50% 50%;
+  will-change: transform, filter;
+}
+.cf-in {
+  position: absolute;
+  inset: 0;
+}
+.cf-in img {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+/* a figure and its quiet words (STYLE §2) */
+.cf-stat {
+  width: 1600px;
+  height: 400px;
+  margin: -200px 0 0 -800px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  white-space: nowrap;
+}
+.cf-fig {
+  font-stretch: 75%;
+  font-weight: 800;
+  font-size: 240px;
+  line-height: 240px;
+  letter-spacing: -0.01em;
+  color: #0b1220;
+}
+.cf-quiet {
+  font-stretch: 100%;
+  font-weight: 560;
+  font-size: 46px;
+  line-height: 56px;
+  letter-spacing: 0.02em;
+  color: #5a6476;
+}
+.cf-stat .cf-quiet {
+  margin-top: 22px;
+}
+/* the handwritten weigh-slip (quiet: 50% saturation) and the box round its handwritten figure */
+.cf-slip {
+  width: 600px;
+  height: 732px;
+  margin: -366px 0 0 -300px;
+}
+.cf-slip img {
+  border-radius: 3px;
+  filter: saturate(0.5);
+  box-shadow:
+    0 2px 3px rgb(11 18 32 / 0.1),
+    0 30px 60px -22px rgb(11 18 32 / 0.4),
+    0 0 0 1px rgb(11 18 32 / 0.06);
+}
+.cf-hl {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 600px;
+  height: 732px;
+  overflow: visible;
+}
+.cf-hl rect {
+  fill: none;
+  stroke: #4a2fd6;
+  stroke-width: 4;
+  stroke-linecap: round;
+}
+
+/* the day keyword (STYLE §2): one anchor, x 140, top 150; a mask wipe up */
+.cf-kw {
+  position: absolute;
+  left: 140px;
+  top: 150px;
+  overflow: hidden;
+  padding: 0 20px 26px 10px;
+}
+.cf-kw span {
+  display: block;
+  font-stretch: 112.5%;
+  font-weight: 700;
+  font-size: 176px;
+  line-height: 176px;
+  letter-spacing: -0.035em;
+  color: #0b1220;
+  white-space: nowrap;
+}
+.cf-centre {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 472px;
+  text-align: center;
+  opacity: 0;
+}
+
+/* the one honesty tag (STYLE §7): dashed steel, 28 px words in a 56 px pill, bottom right */
+.cf-tag {
+  position: absolute;
+  right: 64px;
+  top: 968px;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  height: 56px;
+  padding: 0 24px 0 20px;
+  border-radius: 999px;
+  border: 2px dashed #7e8898;
+  background: rgb(255 255 255 / 0.9);
+  color: #3a4456;
+  font-stretch: 100%;
+  font-weight: 600;
+  font-size: 28px;
+  line-height: 1;
+  white-space: nowrap;
+  opacity: 0;
+}
+.cf-tag--nodot {
+  padding-left: 24px;
+}
+.cf-tag svg {
+  width: 26px;
+  height: 26px;
+  flex: none;
+  color: #5a6476;
+}

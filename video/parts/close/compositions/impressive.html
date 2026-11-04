@@ -2,572 +2,546 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <!-- Script v4 beat "impressive", film 143-154 s (local 0-11 s). Night film card (Gabii). -->
+    <!-- Script v4 beat "impressive", film 143-154 s (close time 0-11 s). Daylight, on the reel's own field: the
+         camera glides along one line from "5,000+ automated tests" to "3 kill switches" to the handwritten
+         weigh-slip, whose handwritten figure gets the box of a person's hand. No PayPal value is on screen, so no tag. -->
   </head>
   <body>
     <template>
       <style>
+        /* style:begin (rig.css, copied by build.mjs) */
+        /* The close's shared look (video/proto/STYLE.md), copied into each composition by build.mjs; edit it here. */
         @font-face {
           font-family: "FS Sans";
-          src: url("assets/fonts/FSSans-VF.woff2") format("woff2");
+          src: url("../assets/fonts/FSSans-VF.woff2") format("woff2");
           font-weight: 200 900;
           font-stretch: 75% 125%;
         }
-        #root {
+        /* the day field (STYLE §1): Hayag ground, the morning wash, three large soft lights, leaf shadows */
+        .cf-field {
           position: absolute;
           inset: 0;
           overflow: hidden;
-          background: #090d18;
-          color: #f4f6fa;
-          font-family: "FS Sans", sans-serif;
-          font-variant-numeric: lining-nums proportional-nums;
+          background: #f3f5f8;
         }
-        #imp-glow-a,
-        #imp-glow-b {
+        .cf-wash {
           position: absolute;
+          inset: 0;
+          background:
+            radial-gradient(
+              56% 74% at 0% 0%,
+              rgb(20 204 144 / 0.15),
+              rgb(20 204 144 / 0.1) 20%,
+              rgb(20 204 144 / 0.055) 42%,
+              rgb(20 204 144 / 0.02) 66%,
+              transparent 90%
+            ),
+            radial-gradient(
+              44% 60% at 64% 0%,
+              rgb(74 47 214 / 0.09),
+              rgb(74 47 214 / 0.06) 22%,
+              rgb(74 47 214 / 0.03) 46%,
+              rgb(74 47 214 / 0.01) 70%,
+              transparent 92%
+            );
+        }
+        .cf-light {
+          position: absolute;
+          left: 0;
+          top: 0;
           border-radius: 50%;
-          pointer-events: none;
+          will-change: transform;
         }
-        #imp-glow-a {
-          left: -520px;
-          top: 420px;
-          width: 1500px;
-          height: 1100px;
-          background: radial-gradient(closest-side, rgb(61 230 174 / 0.16), rgb(61 230 174 / 0) 100%);
+        .cf-lightA {
+          width: 1900px;
+          height: 1500px;
+          background: radial-gradient(
+            closest-side,
+            rgb(20 204 144 / 0.16),
+            rgb(20 204 144 / 0.11) 25%,
+            rgb(20 204 144 / 0.06) 50%,
+            rgb(20 204 144 / 0.02) 75%,
+            transparent
+          );
         }
-        #imp-glow-b {
-          left: 520px;
-          top: -640px;
-          width: 1400px;
-          height: 1100px;
-          background: radial-gradient(closest-side, rgb(91 67 234 / 0.32), rgb(91 67 234 / 0) 100%);
+        .cf-lightB {
+          width: 1700px;
+          height: 1300px;
+          background: radial-gradient(
+            closest-side,
+            rgb(255 255 255 / 0.92),
+            rgb(255 255 255 / 0.62) 30%,
+            rgb(255 255 255 / 0.28) 60%,
+            rgb(255 255 255 / 0.07) 84%,
+            transparent
+          );
         }
-        #imp-cam {
+        .cf-lightC {
+          width: 1800px;
+          height: 1500px;
+          background: radial-gradient(
+            closest-side,
+            rgb(74 47 214 / 0.09),
+            rgb(74 47 214 / 0.06) 30%,
+            rgb(74 47 214 / 0.025) 62%,
+            transparent
+          );
+        }
+        .cf-dapple {
+          position: absolute;
+          left: 0;
+          top: 0;
+          width: 3200px;
+          height: 1800px;
+          opacity: 0.85;
+          background: url("../assets/dapple.png") 0 0 / 100% 100% no-repeat;
+          will-change: transform;
+        }
+        .cf-world {
           position: absolute;
           inset: 0;
         }
-        .imp-frame {
-          position: absolute;
-          inset: 0;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-        }
-        .imp-disp {
-          font-stretch: 112.5%;
-          font-weight: 690;
-          letter-spacing: -0.028em;
-        }
-        .imp-amt {
-          font-stretch: 75%;
-          font-weight: 800;
-          letter-spacing: -0.01em;
-        }
-        .imp-mask {
-          overflow: hidden;
-          padding: 0 0.04em;
-        }
-        .imp-acc {
-          position: relative;
-          display: inline-block;
-          padding: 0 0.14em;
-          margin: 0 0.02em;
-        }
-        .imp-slab {
-          position: absolute;
-          left: 0;
-          right: 0;
-          top: 0.06em;
-          bottom: -0.02em;
-          border-radius: 14px;
-          background: #5b43ea;
-          transform-origin: 0% 50%;
-          box-shadow: 0 18px 40px -16px rgb(91 67 234 / 0.9);
-        }
-        .imp-acc > b {
-          position: relative;
-          font-weight: inherit;
-        }
-        #imp-hair {
-          position: absolute;
-          left: 0;
-          right: 0;
-          top: 539px;
-          height: 2px;
-          background: linear-gradient(90deg, rgb(195 201 214 / 0), rgb(195 201 214 / 0.55) 50%, rgb(195 201 214 / 0));
-        }
-
-        /* Frame A: 5,016 dots, one per Vitest case, light up as the run passes. */
-        .imp-field {
-          position: absolute;
-          left: 48px;
-          top: 188px;
-          width: 1824px;
-          height: 704px;
-        }
-        #imp-a {
-          --p: -10%;
-        }
-        #imp-field-lit {
-          -webkit-mask-image: linear-gradient(100deg, #000 calc(var(--p) - 14%), transparent var(--p));
-          mask-image: linear-gradient(100deg, #000 calc(var(--p) - 14%), transparent var(--p));
-        }
-        /* the run's leading edge: a narrow band of brighter dots */
-        #imp-field-front {
-          -webkit-mask-image: linear-gradient(100deg, transparent calc(var(--p) - 9%), #000 calc(var(--p) - 1.5%), transparent var(--p));
-          mask-image: linear-gradient(100deg, transparent calc(var(--p) - 9%), #000 calc(var(--p) - 1.5%), transparent var(--p));
-        }
-        #imp-a-veil {
-          position: absolute;
-          left: 260px;
-          top: 170px;
-          width: 1400px;
-          height: 740px;
-          background: radial-gradient(closest-side, rgb(9 13 24 / 0.94), rgb(9 13 24 / 0.7) 55%, rgb(9 13 24 / 0));
-        }
-        #imp-a-num {
-          font-size: 300px;
-          line-height: 0.92;
-          color: #f4f6fa;
-        }
-        #imp-a-line {
-          margin-top: 18px;
-          font-size: 76px;
-          line-height: 1.1;
-          color: #c3c9d6;
-        }
-        #imp-a-detail,
-        #imp-c-detail {
-          position: absolute;
-          left: 0;
-          right: 0;
-          bottom: 132px;
-          text-align: center;
-          font-size: 24px;
-          font-stretch: 87.5%;
-          font-weight: 520;
-          letter-spacing: 0.01em;
-          color: #8e98ae;
-        }
-
-        /* Frame B: three kill switches flip off; replays carry a label. */
-        #imp-b-head {
-          display: flex;
-          align-items: baseline;
-          gap: 0.22em;
-          font-size: 96px;
-          color: #f4f6fa;
-        }
-        #imp-b-three {
-          font-size: 250px;
-          line-height: 0.9;
-        }
-        #imp-b-row {
-          display: flex;
-          gap: 120px;
-          margin-top: 64px;
-        }
-        .imp-sw {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          gap: 22px;
-        }
-        .imp-track {
-          position: relative;
-          width: 200px;
-          height: 104px;
-          border-radius: 52px;
-          border: 3px solid #f4f6fa;
-          background-color: #f4f6fa;
-        }
-        .imp-knob {
-          position: absolute;
-          left: 9px;
-          top: 9px;
-          width: 80px;
-          height: 80px;
-          border-radius: 50%;
-          background: #090d18;
-        }
-        .imp-sw span {
-          font-size: 26px;
-          font-stretch: 87.5%;
-          font-weight: 520;
-          color: #8e98ae;
-        }
-        #imp-b-replay {
-          display: flex;
-          align-items: center;
-          gap: 16px;
-          margin-top: 64px;
-          font-size: 32px;
-          font-weight: 520;
-          color: #c3c9d6;
-        }
-        .imp-dash {
-          display: inline-flex;
-          align-items: center;
-          height: 52px;
-          padding: 0 22px;
-          border: 2px dashed #8996b4;
-          border-radius: 999px;
-        }
-
-        /* Frame C: others share parts, never the whole ring. */
-        #imp-arcs-far,
-        #imp-arcs-near {
+        .cf-grain {
           position: absolute;
           left: 0;
           top: 0;
           width: 1920px;
           height: 1080px;
-          overflow: visible;
+          pointer-events: none;
+          mix-blend-mode: overlay;
+          opacity: 0.2;
         }
-        #imp-arcs-far {
-          filter: blur(3px);
-        }
-        #imp-c-text {
-          font-size: 104px;
-          line-height: 1.08;
-          color: #f4f6fa;
-          text-align: center;
-        }
-        #imp-c-text span {
-          display: inline-block;
+        .cf-defs {
+          position: absolute;
+          width: 0;
+          height: 0;
         }
 
-        /* Frame D: one kinetic line, the camera rides along it. */
-        #imp-d-track {
+        /* world objects: placed by the rig each frame, centred on their own middle */
+        .cf-obj {
           position: absolute;
           left: 0;
-          top: 540px;
-          white-space: nowrap;
-          font-size: 116px;
-          font-stretch: 100%;
-          font-weight: 690;
-          letter-spacing: -0.024em;
-          line-height: 1.2;
-          color: #f4f6fa;
+          top: 0;
+          opacity: 0;
+          transform-origin: 50% 50%;
+          will-change: transform, filter;
         }
-        #imp-d-track .w {
-          display: inline-block;
-          margin-right: 0.24em;
-        }
-        #imp-bloom {
-          position: absolute;
-          left: 920px;
-          top: 500px;
-          width: 80px;
-          height: 80px;
-          border-radius: 50%;
-          background: radial-gradient(
-            circle closest-side,
-            #f3f5f8 0%,
-            #f3f5f8 66%,
-            rgb(214 208 255 / 0.6) 82%,
-            rgb(91 67 234 / 0) 100%
-          );
-        }
-        #imp-grain {
+        .cf-in {
           position: absolute;
           inset: 0;
-          width: 1920px;
-          height: 1080px;
-          opacity: 0.07;
-          mix-blend-mode: overlay;
-          pointer-events: none;
         }
-        #imp-sim {
-          position: absolute;
-          left: 64px;
-          top: 48px;
-          height: 40px;
-          padding: 0 18px;
+        .cf-in img {
+          display: block;
+          width: 100%;
+          height: 100%;
+        }
+        /* a figure and its quiet words (STYLE §2) */
+        .cf-stat {
+          width: 1600px;
+          height: 400px;
+          margin: -200px 0 0 -800px;
           display: flex;
+          flex-direction: column;
           align-items: center;
-          border: 1.5px dashed #8996b4;
-          border-radius: 999px;
-          background: rgb(16 23 42 / 0.6);
-          color: #c3c9d6;
-          font-size: 19px;
-          font-stretch: 87.5%;
-          font-weight: 520;
+          justify-content: center;
+          text-align: center;
           white-space: nowrap;
         }
+        .cf-fig {
+          font-stretch: 75%;
+          font-weight: 800;
+          font-size: 240px;
+          line-height: 240px;
+          letter-spacing: -0.01em;
+          color: #0b1220;
+        }
+        .cf-quiet {
+          font-stretch: 100%;
+          font-weight: 560;
+          font-size: 46px;
+          line-height: 56px;
+          letter-spacing: 0.02em;
+          color: #5a6476;
+        }
+        .cf-stat .cf-quiet {
+          margin-top: 22px;
+        }
+        /* the handwritten weigh-slip (quiet: 50% saturation) and the box round its handwritten figure */
+        .cf-slip {
+          width: 600px;
+          height: 732px;
+          margin: -366px 0 0 -300px;
+        }
+        .cf-slip img {
+          border-radius: 3px;
+          filter: saturate(0.5);
+          box-shadow:
+            0 2px 3px rgb(11 18 32 / 0.1),
+            0 30px 60px -22px rgb(11 18 32 / 0.4),
+            0 0 0 1px rgb(11 18 32 / 0.06);
+        }
+        .cf-hl {
+          position: absolute;
+          left: 0;
+          top: 0;
+          width: 600px;
+          height: 732px;
+          overflow: visible;
+        }
+        .cf-hl rect {
+          fill: none;
+          stroke: #4a2fd6;
+          stroke-width: 4;
+          stroke-linecap: round;
+        }
+
+        /* the day keyword (STYLE §2): one anchor, x 140, top 150; a mask wipe up */
+        .cf-kw {
+          position: absolute;
+          left: 140px;
+          top: 150px;
+          overflow: hidden;
+          padding: 0 20px 26px 10px;
+        }
+        .cf-kw span {
+          display: block;
+          font-stretch: 112.5%;
+          font-weight: 700;
+          font-size: 176px;
+          line-height: 176px;
+          letter-spacing: -0.035em;
+          color: #0b1220;
+          white-space: nowrap;
+        }
+        .cf-centre {
+          position: absolute;
+          left: 0;
+          right: 0;
+          top: 472px;
+          text-align: center;
+          opacity: 0;
+        }
+
+        /* the one honesty tag (STYLE §7): dashed steel, 28 px words in a 56 px pill, bottom right */
+        .cf-tag {
+          position: absolute;
+          right: 64px;
+          top: 968px;
+          display: inline-flex;
+          align-items: center;
+          gap: 12px;
+          height: 56px;
+          padding: 0 24px 0 20px;
+          border-radius: 999px;
+          border: 2px dashed #7e8898;
+          background: rgb(255 255 255 / 0.9);
+          color: #3a4456;
+          font-stretch: 100%;
+          font-weight: 600;
+          font-size: 28px;
+          line-height: 1;
+          white-space: nowrap;
+          opacity: 0;
+        }
+        .cf-tag--nodot {
+          padding-left: 24px;
+        }
+        .cf-tag svg {
+          width: 26px;
+          height: 26px;
+          flex: none;
+          color: #5a6476;
+        }
+        /* style:end */
+        #root {
+          position: absolute;
+          inset: 0;
+          overflow: hidden;
+          background: #f3f5f8;
+          font-family: "FS Sans", system-ui, sans-serif;
+          -webkit-font-smoothing: antialiased;
+          font-kerning: normal;
+          font-variant-numeric: lining-nums proportional-nums;
+        }
       </style>
-
       <div id="root" data-composition-id="close-impressive" data-width="1920" data-height="1080" data-duration="11">
-        <div id="imp-glow-a" data-layout-allow-overlap data-layout-allow-overflow></div>
-        <div id="imp-glow-b" data-layout-allow-overlap data-layout-allow-overflow></div>
-
-        <div id="imp-cam" data-layout-allow-overlap data-layout-allow-overflow>
-          <div id="imp-hair"></div>
-
-          <!-- A · over five thousand automated tests -->
-          <div id="imp-a" data-layout-allow-overlap data-layout-allow-overflow class="imp-frame">
-            <svg id="imp-field-dim" class="imp-field" viewBox="0 0 1824 704" aria-hidden="true">
-              <defs>
-                <pattern id="imp-dot-dim" width="16" height="16" patternUnits="userSpaceOnUse">
-                  <circle cx="8" cy="8" r="2.2" fill="#25304a" />
-                </pattern>
-              </defs>
-              <rect width="1824" height="704" fill="url(#imp-dot-dim)" />
-            </svg>
-            <svg id="imp-field-lit" class="imp-field" viewBox="0 0 1824 704" aria-hidden="true">
-              <defs>
-                <pattern id="imp-dot-lit" width="16" height="16" patternUnits="userSpaceOnUse">
-                  <circle cx="8" cy="8" r="2.6" fill="#a7b4cb" />
-                </pattern>
-              </defs>
-              <rect width="1824" height="704" fill="url(#imp-dot-lit)" />
-            </svg>
-            <svg id="imp-field-front" class="imp-field" viewBox="0 0 1824 704" aria-hidden="true">
-              <defs>
-                <pattern id="imp-dot-front" width="16" height="16" patternUnits="userSpaceOnUse">
-                  <circle cx="8" cy="8" r="3.4" fill="#f4f6fa" />
-                </pattern>
-              </defs>
-              <rect width="1824" height="704" fill="url(#imp-dot-front)" />
-            </svg>
-            <div id="imp-a-veil"></div>
-            <div class="imp-mask" style="position: relative">
-              <div id="imp-a-num" class="imp-amt">5,000+</div>
+        <div id="ci-field" class="cf-field">
+          <div id="ci-lightA" class="cf-light cf-lightA" data-layout-allow-overflow></div>
+          <div id="ci-lightC" class="cf-light cf-lightC" data-layout-allow-overflow></div>
+          <div id="ci-lightB" class="cf-light cf-lightB" data-layout-allow-overflow></div>
+          <div class="cf-wash"></div>
+          <div id="ci-dapple" class="cf-dapple" data-layout-allow-overflow></div>
+        </div>
+        <div id="ci-world" class="cf-world">
+          <div id="ci-worldMb" class="cf-world">
+            <div id="ci-tests" class="cf-obj cf-stat" data-layout-allow-overflow>
+              <div id="ci-tests-fig" class="cf-fig">5,000+</div>
+              <div id="ci-tests-words" class="cf-quiet">automated tests</div>
             </div>
-            <div id="imp-a-line" class="imp-disp" style="position: relative">
-              automated
-              <span class="imp-acc"><i id="imp-a-slab" class="imp-slab"></i><b id="imp-a-acc">tests</b></span>
+            <div id="ci-kill" class="cf-obj cf-stat" data-layout-allow-overflow>
+              <div class="cf-fig">3</div>
+              <div class="cf-quiet">kill switches</div>
             </div>
-            <div id="imp-a-detail">5,016 Vitest cases, 4 Nov 2026 · plus Playwright end-to-end specs</div>
-          </div>
-
-          <!-- B · three kill switches, labelled replays -->
-          <div id="imp-b" data-layout-allow-overlap data-layout-allow-overflow class="imp-frame">
-            <div id="imp-b-head" class="imp-disp">
-              <div class="imp-mask"><div id="imp-b-three" class="imp-amt">3</div></div>
-              <div id="imp-b-words">
-                <span class="imp-acc"><i id="imp-b-slab" class="imp-slab"></i><b id="imp-b-acc">kill</b></span>
-                switches
+            <div id="ci-slip" class="cf-obj cf-slip" data-layout-allow-overflow>
+              <div class="cf-in">
+                <img src="../assets/slip-0403.jpg" alt="Weigh slip 0403, synthetic specimen" />
+                <svg class="cf-hl" viewBox="0 0 600 732" aria-hidden="true">
+                  <rect id="ci-hl" x="240" y="337" width="98" height="55" rx="11" />
+                </svg>
               </div>
             </div>
-            <div id="imp-b-row">
-              <div class="imp-sw" id="imp-sw1">
-                <div class="imp-track"><div class="imp-knob"></div></div>
-                <span>payouts</span>
-              </div>
-              <div class="imp-sw" id="imp-sw2">
-                <div class="imp-track"><div class="imp-knob"></div></div>
-                <span>simulated PayPal calls</span>
-              </div>
-              <div class="imp-sw" id="imp-sw3">
-                <div class="imp-track"><div class="imp-knob"></div></div>
-                <span>slip reading</span>
-              </div>
-            </div>
-            <div id="imp-b-replay">
-              <svg id="imp-b-loop" width="40" height="40" viewBox="0 0 40 40" aria-hidden="true">
-                <path
-                  d="M31 13.5A13 13 0 1 0 33 22"
-                  fill="none"
-                  stroke="#c3c9d6"
-                  stroke-width="2.6"
-                  stroke-linecap="round"
-                />
-                <path d="M32.5 5.5v8.5H24" fill="none" stroke="#c3c9d6" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" />
-              </svg>
-              <span>every replay</span>
-              <span class="imp-dash">labelled</span>
-            </div>
-          </div>
-
-          <!-- C · others we found share parts -->
-          <div id="imp-c" data-layout-allow-overlap data-layout-allow-overflow class="imp-frame">
-            <svg id="imp-arcs-far" viewBox="0 0 1920 1080" aria-hidden="true">
-              <g fill="none" stroke="#5d6a80" stroke-width="5" stroke-linecap="round">
-                <path class="imp-arc-f" d="M10.9 -65.1A200 200 0 0 1 -31.5 58" />
-                <path class="imp-arc-f" d="M10.9 -65.1A200 200 0 0 1 -31.5 58" />
-                <path class="imp-arc-f" d="M10.9 -65.1A200 200 0 0 1 -31.5 58" />
-                <path class="imp-arc-f" d="M10.9 -65.1A200 200 0 0 1 -31.5 58" />
-              </g>
-            </svg>
-            <svg id="imp-arcs-near" viewBox="0 0 1920 1080" aria-hidden="true">
-              <g fill="none" stroke="#a7b4cb" stroke-width="4" stroke-linecap="round">
-                <path class="imp-arc-n" d="M10.9 -65.1A200 200 0 0 1 -31.5 58" />
-                <path class="imp-arc-n" d="M10.9 -65.1A200 200 0 0 1 -31.5 58" />
-                <path class="imp-arc-n" d="M10.9 -65.1A200 200 0 0 1 -31.5 58" />
-                <path class="imp-arc-n" d="M10.9 -65.1A200 200 0 0 1 -31.5 58" />
-                <path class="imp-arc-n" d="M10.9 -65.1A200 200 0 0 1 -31.5 58" />
-              </g>
-            </svg>
-            <div id="imp-c-text" class="imp-disp">
-              <div><span>Others</span> <span>we</span> <span>found</span></div>
-              <div><span>share</span> <span>parts.</span></div>
-            </div>
-            <div id="imp-c-detail">Prior-art scan, 4 Nov 2026 · parts, not the combination</div>
-          </div>
-
-          <!-- D · none we found starts from a handwritten weigh-slip -->
-          <div id="imp-d-track" data-layout-allow-overlap data-layout-allow-overflow>
-            <span class="w">None</span><span class="w">we</span><span class="w">found</span><span class="w">starts</span><span class="w">from</span><span class="w">a</span><span class="w">handwritten</span><span class="w imp-acc" id="imp-d-acc"><i id="imp-d-slab" class="imp-slab"></i><b id="imp-d-word">weigh-slip</b></span>
           </div>
         </div>
-
-        <svg id="imp-grain" viewBox="0 0 1920 1080" aria-hidden="true">
-          <filter id="imp-noise">
-            <feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="2" seed="7" stitchTiles="stitch" />
-            <feColorMatrix type="saturate" values="0" />
+        <div
+          id="ci-kw"
+          class="cf-kw"
+          data-layout-allow-overlap
+          data-layout-allow-occlusion
+          data-layout-allow-overflow
+        >
+          <span data-layout-allow-occlusion>handwritten.</span>
+        </div>
+        <canvas id="ci-grain" class="cf-grain" width="960" height="540" data-layout-allow-overflow></canvas>
+        <svg class="cf-defs" aria-hidden="true">
+          <filter id="ci-mblur" x="-10%" y="-10%" width="120%" height="120%" color-interpolation-filters="sRGB">
+            <feGaussianBlur id="ci-mblurG" stdDeviation="0 0" />
           </filter>
-          <rect width="1920" height="1080" filter="url(#imp-noise)" />
         </svg>
-        <div id="imp-bloom"></div>
-        <div id="imp-sim">Simulated PayPal sandbox</div>
       </div>
-
       <script>
         (() => {
-          const tl = gsap.timeline({ paused: true });
-          const q = (s) => document.querySelector(s);
-          const qa = (s) => Array.from(document.querySelectorAll(s));
+          // rig:begin (rig.js, copied by build.mjs)
+          // The close's one camera over one day field (video/proto/STYLE.md §1, §4, §5, §10), shared by the three
+          // compositions. `node build.mjs` copies this file into each composition between the rig markers; edit it here.
+          // Close time `tc` runs 0-32 s (film 143-175); every pixel is computed from it alone (seeded noise only), so any
+          // frame renders on its own and the three compositions meet without a seam at 11 s and 24 s.
+          const CloseRig = (() => {
+            const gsap = window.gsap;
+            const PE = (name) => gsap.parseEase(name);
+            const E = {
+              p2o: PE("power2.out"),
+              p2i: PE("power2.in"),
+              p2io: PE("power2.inOut"),
+              p3o: PE("power3.out"),
+              eo: PE("expo.out"),
+              sio: PE("sine.inOut"),
+            };
+            const TAU = 2 * Math.PI;
+            const FILM0 = 143;
+            const clamp01 = (v) => Math.min(1, Math.max(0, v));
+            const prog = (t, a, b) => (b <= a ? (t >= a ? 1 : 0) : clamp01((t - a) / (b - a)));
+            const lerp = (a, b, u) => a + (b - a) * u;
+            const bez = (p0, p1, p2, p3, u) => {
+              const v = 1 - u;
+              return {
+                x: v * v * v * p0.x + 3 * v * v * u * p1.x + 3 * v * u * u * p2.x + u * u * u * p3.x,
+                y: v * v * v * p0.y + 3 * v * v * u * p1.y + 3 * v * u * u * p2.y + u * u * u * p3.y,
+              };
+            };
+            function mulberry32(seed) {
+              let a = seed;
+              return () => {
+                a |= 0;
+                a = (a + 0x6d2b79f5) | 0;
+                let t = Math.imul(a ^ (a >>> 15), 1 | a);
+                t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+                return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+              };
+            }
 
-          function build() {
-            // ---------- ambient: glows drift, camera breathes ----------
-            tl.fromTo("#imp-glow-a", { x: 0, y: 0 }, { x: 160, y: -70, duration: 11, ease: "sine.inOut" }, 0);
-            tl.fromTo("#imp-glow-b", { x: 0, y: 0 }, { x: -220, y: 40, duration: 11, ease: "sine.inOut" }, 0);
-            tl.fromTo("#imp-cam", { scale: 1 }, { scale: 1.035, duration: 7.4, ease: "sine.inOut" }, 0);
-
-            // ---------- A: 5,000+ tests (0.15-3.4) ----------
-            tl.fromTo("#imp-hair", { scaleX: 0, opacity: 1 }, { scaleX: 1, duration: 0.8, ease: "expo.inOut" }, 0.12);
-            tl.to("#imp-hair", { opacity: 0, duration: 0.5, ease: "power1.out" }, 1.0);
-            tl.fromTo("#imp-field-dim", { opacity: 0 }, { opacity: 1, duration: 0.6, ease: "power1.out" }, 0.4);
-            tl.fromTo("#imp-a", { "--p": "-10%" }, { "--p": "118%", duration: 2.2, ease: "power2.inOut" }, 0.5);
-            tl.fromTo("#imp-a-veil", { opacity: 0 }, { opacity: 1, duration: 0.5 }, 0.45);
-            tl.fromTo("#imp-a-num", { yPercent: 105 }, { yPercent: 0, duration: 0.8, ease: "expo.out" }, 0.5);
-            tl.fromTo(
-              "#imp-a-line",
-              { opacity: 0, x: -60 },
-              { opacity: 1, x: 0, duration: 0.9, ease: "power3.out" },
-              1.0,
-            );
-            tl.fromTo("#imp-a-slab", { scaleX: 0 }, { scaleX: 1, duration: 0.42, ease: "power4.out" }, 1.55);
-            tl.fromTo("#imp-a-acc", { color: "#c3c9d6" }, { color: "#ffffff", duration: 0.2 }, 1.6);
-            tl.fromTo("#imp-a-detail", { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.6, ease: "sine.out" }, 2.0);
-            // exit: the field folds into the centre; type lifts away
-            tl.to(["#imp-a-num", "#imp-a-line", "#imp-a-detail"], { opacity: 0, y: -36, duration: 0.28, ease: "power2.in" }, 3.12);
-            tl.to([".imp-field", "#imp-a-veil"], { scale: 0.18, opacity: 0, duration: 0.42, ease: "power3.in" }, 3.0);
-
-            // ---------- B: 3 kill switches + labelled replays (3.4-5.45) ----------
-            tl.fromTo("#imp-b-three", { yPercent: 105 }, { yPercent: 0, duration: 0.55, ease: "expo.out" }, 3.4);
-            tl.fromTo("#imp-b-words", { opacity: 0, x: 40 }, { opacity: 1, x: 0, duration: 0.5, ease: "power3.out" }, 3.52);
-            tl.fromTo("#imp-b-slab", { scaleX: 0 }, { scaleX: 1, duration: 0.36, ease: "power4.out" }, 3.78);
-            tl.fromTo("#imp-b-acc", { color: "#f4f6fa" }, { color: "#ffffff", duration: 0.2 }, 3.8);
-            tl.fromTo(
-              ".imp-sw",
-              { opacity: 0, scale: 0.6 },
-              { opacity: 1, scale: 1, duration: 0.45, ease: "back.out(1.7)", stagger: 0.07 },
-              3.48,
-            );
-            ["#imp-sw1", "#imp-sw2", "#imp-sw3"].forEach((sw, i) => {
-              const at = 3.95 + i * 0.2;
-              tl.fromTo(`${sw} .imp-knob`, { x: 96, backgroundColor: "#090d18" }, { x: 0, backgroundColor: "#8e98ae", duration: 0.34, ease: "power3.inOut" }, at);
-              tl.fromTo(
-                `${sw} .imp-track`,
-                { backgroundColor: "rgba(244,246,250,1)", borderColor: "rgba(244,246,250,1)" },
-                { backgroundColor: "rgba(244,246,250,0)", borderColor: "rgba(62,74,99,1)", duration: 0.3, ease: "power2.inOut" },
-                at + 0.04,
-              );
-            });
-            tl.fromTo("#imp-b-replay", { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.5, ease: "power2.out" }, 4.5);
-            tl.fromTo("#imp-b-loop", { rotation: -200 }, { rotation: 0, duration: 0.8, ease: "expo.out", transformOrigin: "50% 50%" }, 4.5);
-            tl.to("#imp-b", { opacity: 0, scale: 0.97, duration: 0.26, ease: "power2.in" }, 5.26);
-
-            // ---------- C: others we found share parts (5.45-7.6) ----------
-            const far = [
-              [-640, -250, 10, 40, -20, 18],
-              [-170, -360, 200, -30, 20, -14],
-              [690, 210, 160, -50, 10, 22],
-              [-760, 160, 250, 30, 30, -12],
+            // The camera, in close time. Stations sit on one line in world space (2000 px apart); glides take 2.05 s with a
+            // 0.3 zoom-out dip at mid-move; holds never stop dead (a slow push of at most 2.5%).
+            const CAM = [
+              { t: 0, x: 0, y: 0, s: 1 },
+              { t: 2.35, x: 6, y: 0, s: 1.018 }, // 5,000+ automated tests
+              { t: 4.4, x: 2000, y: 0, s: 1, dip: 0.3 }, // glide
+              { t: 5.45, x: 2006, y: 0, s: 1.012 }, // 3 kill switches
+              { t: 7.5, x: 4000, y: 0, s: 1, dip: 0.3 }, // glide
+              { t: 10.65, x: 4012, y: 0, s: 1.02 }, // the handwritten weigh-slip
+              { t: 12.7, x: 6000, y: 0, s: 1, dip: 0.3 }, // glide on into the open field (the limits)
+              { t: 24.0, x: 6060, y: -8, s: 1.025 }, // the limits, one at a time: a slow drift
+              { t: 26.05, x: 8000, y: 0, s: 1, dip: 0.3 }, // glide into the overview
+              { t: 32.0, x: 8008, y: 0, s: 1.025 }, // the trace, the end line, the name
             ];
-            const near = [
-              [-430, 270, 120, 50, -24, 16],
-              [300, 320, 300, -40, -16, -18],
-              [560, -250, 60, 30, 26, 14],
-              [140, -420, 20, -20, 30, 20],
-              [-560, -40, 330, 26, -20, -16],
-            ];
-            const drift = (sel, list, delay) =>
-              qa(sel).forEach((el, i) => {
-                const [dx, dy, r, mx, my, mr] = list[i];
-                tl.fromTo(
-                  el,
-                  { x: 960 + dx, y: 540 + dy, rotation: r, opacity: 0, transformOrigin: "50% 50%" },
-                  { x: 960 + dx + mx, y: 540 + dy + my, rotation: r + mr, opacity: 1, duration: 2.5, ease: "sine.inOut" },
-                  5.42 + delay + i * 0.06,
-                );
+            function camAt(tc) {
+              if (tc <= CAM[0].t) return CAM[0];
+              for (let i = 1; i < CAM.length; i++) {
+                const a = CAM[i - 1];
+                const b = CAM[i];
+                if (tc <= b.t) {
+                  const u = (tc - a.t) / (b.t - a.t);
+                  const e = E.sio(u);
+                  const dip = b.dip ? 1 - b.dip * Math.sin(Math.PI * e) : 1;
+                  return { x: lerp(a.x, b.x, e), y: lerp(a.y, b.y, e), s: lerp(a.s, b.s, e) * dip };
+                }
+              }
+              return CAM[CAM.length - 1];
+            }
+
+            // grain: four seeded grey tiles, one per frame at a seeded offset, as in film-slots.js (STYLE §10)
+            function grainPatterns(context) {
+              const rng = mulberry32(1104);
+              return [0, 1, 2, 3].map(() => {
+                const canvas = document.createElement("canvas");
+                canvas.width = 256;
+                canvas.height = 256;
+                const tile = canvas.getContext("2d");
+                const image = tile.createImageData(256, 256);
+                for (let i = 0; i < 256 * 256; i++) {
+                  const v = Math.round((255 * (rng() + rng())) / 2);
+                  image.data[4 * i] = v;
+                  image.data[4 * i + 1] = v;
+                  image.data[4 * i + 2] = v;
+                  image.data[4 * i + 3] = 255;
+                }
+                tile.putImageData(image, 0, 0);
+                return context.createPattern(canvas, "repeat");
               });
-            drift(".imp-arc-f", far, 0);
-            drift(".imp-arc-n", near, 0.1);
-            tl.fromTo(
-              "#imp-c-text span",
-              { opacity: 0, y: 30, filter: "blur(10px)" },
-              { opacity: 1, y: 0, filter: "blur(0px)", duration: 0.7, ease: "power3.out", stagger: 0.09 },
-              5.48,
-            );
-            tl.fromTo("#imp-c-detail", { opacity: 0 }, { opacity: 1, duration: 0.6, ease: "sine.out" }, 6.1);
-            tl.to(["#imp-c-text", "#imp-c-detail"], { opacity: 0, y: -24, duration: 0.24, ease: "power2.in" }, 7.38);
-            tl.to("#imp-arcs-near", { opacity: 0, scale: 1.25, duration: 0.5, ease: "power2.in", transformOrigin: "50% 50%" }, 7.3);
-            tl.to("#imp-arcs-far", { opacity: 0, scale: 1.15, duration: 0.6, ease: "power1.in", transformOrigin: "50% 50%" }, 7.3);
+            }
 
-            // ---------- D: one kinetic line (7.6-11) ----------
-            const words = qa("#imp-d-track .w");
-            const lens = words.map((w) => w.textContent.trim().length + 1);
-            const total = lens.reduce((a, b) => a + b, 0);
-            let acc = 0;
-            const T0 = 7.6;
-            const RIDE = 1.85;
-            const track = q("#imp-d-track");
-            const measured = track.offsetWidth;
-            const W = measured > 400 ? measured : 3340;
-            const fit = Math.min(1, 1700 / W);
-            tl.fromTo(
-              track,
-              { x: 820, xPercent: 0, yPercent: -50, scale: 1, transformOrigin: "50% 50%" },
-              { x: 1300, xPercent: -100, duration: RIDE, ease: "none" },
-              T0,
-            );
-            words.forEach((w, i) => {
-              const at = T0 + RIDE * (acc / total) - 0.12;
-              acc += lens[i];
-              tl.fromTo(
-                w,
-                { opacity: 0, y: 46, filter: "blur(12px)" },
-                { opacity: 1, y: 0, filter: "blur(0px)", duration: 0.46, ease: "expo.out" },
-                Math.max(T0 - 0.05, at),
-              );
-            });
-            tl.fromTo("#imp-d-slab", { scaleX: 0 }, { scaleX: 1, duration: 0.4, ease: "power4.out" }, 9.42);
-            // camera pulls back until the whole sentence sits in frame
-            tl.to(track, { x: 960, xPercent: -50, scale: fit, duration: 0.8, ease: "power3.inOut" }, 9.62);
-            // the weigh-slip opens into daylight: black, then bright
-            tl.fromTo("#imp-bloom", { scale: 0 }, { scale: 62, duration: 0.62, ease: "power2.in" }, 10.36);
-            // the honesty tag takes its daylight colours with the bloom, ready for the limits card
-            tl.fromTo(
-              "#imp-sim",
-              { backgroundColor: "rgba(16,23,42,0.6)", color: "#c3c9d6", borderColor: "#8996b4" },
-              { backgroundColor: "rgba(255,255,255,0.7)", color: "#5a6476", borderColor: "#7e8898", duration: 0.3, ease: "power1.inOut" },
-              10.68,
-            );
-          }
+            /**
+             * cfg.id: the id prefix; cfg.t0: the composition's start in close time; cfg.objects: world objects
+             * { key, x, y, w, h, sc, A, ry, rx, rot, ph, on: [from, to] (close time), noDof }.
+             */
+            function create(cfg) {
+              const $ = (key) => document.getElementById(`${cfg.id}-${key}`);
+              // the field: the same light shapes, wash, leaf shadows and drift as the capture-slot beats (film-slots.js),
+              // so the cut in from 142.9 s is invisible; the camera adds a gentle parallax on top
+              const lights = [
+                { el: $("lightA"), x: -700, y: -620, k: 0.5, dx: 60, dy: 40, f: 0.05, p: 0.03 },
+                { el: $("lightC"), x: 900, y: -560, k: 0.8, dx: -50, dy: 50, f: 0.04, p: 0.045 },
+                { el: $("lightB"), x: 160, y: 120, k: 1.1, dx: 70, dy: -40, f: 0.035, p: 0.06 },
+              ];
+              const dapple = $("dapple");
+              const world = $("worldMb");
+              const mblur = $("mblurG");
+              const grain = $("grain");
+              const gctx = grain.getContext("2d");
+              const patterns = grainPatterns(gctx);
+              const objs = {};
+              for (const o of cfg.objects) objs[o.key] = { A: 0, ry: 0, rx: 0, rot: 0, ph: 0, ...o, el: $(o.key) };
 
-          Promise.all([
-            document.fonts.load('690 116px "FS Sans"'),
-            document.fonts.load('800 300px "FS Sans"'),
-          ])
-            .catch(() => null)
-            .then(() => {
-              build();
-              window.__timelines["close-impressive"] = tl;
-            });
+              function place(o, tc, T, c) {
+                const S = o.sc * c.s;
+                const sx = 960 + (o.x - c.x) * c.s;
+                const sy = 540 + (o.y - c.y) * c.s;
+                o.st = {
+                  sx,
+                  sy,
+                  S,
+                  bob: o.A * Math.sin((TAU * T) / 5.6 + o.ph),
+                  ry: o.ry * Math.sin((TAU * T) / 8 + o.ph),
+                  rx: o.rx,
+                  rot: o.rot,
+                };
+                const halfW = (o.w * S) / 2;
+                const halfH = (o.h * S) / 2;
+                const inFrame = sx + halfW > -40 && sx - halfW < 1960 && sy + halfH > -40 && sy - halfH < 1120;
+                const live = inFrame && (!o.on || (tc >= o.on[0] && tc <= o.on[1]));
+                // windows that have left the frame are switched off, so none lingers at an edge (STYLE §4)
+                o.el.style.opacity = live ? "1" : "0";
+                if (!live) return;
+                const st = o.st;
+                o.el.style.transform = `translate(${sx.toFixed(2)}px, ${sy.toFixed(2)}px) scale(${S.toFixed(4)}) perspective(2200px) rotateY(${st.ry.toFixed(2)}deg) rotateX(${st.rx.toFixed(2)}deg) rotate(${st.rot.toFixed(2)}deg) translateY(${st.bob.toFixed(2)}px)`;
+                if (o.noDof) return;
+                // depth of field: sharp within 220 px of the centre, up to 10 px further out, less when pulled back
+                const edge = Math.max(Math.abs(sx - 960) - halfW, Math.abs(sy - 540) - halfH);
+                const blur = clamp01((edge - 220) / 480) * 10 * clamp01((c.s - 0.62) / 0.3);
+                o.el.style.filter = blur > 0.15 ? `blur(${blur.toFixed(2)}px)` : "none";
+              }
+
+              /** A point given in an object's own px -> screen (2D: position, scale, rotation and float). */
+              function toScreen(key, px, py) {
+                const o = objs[key];
+                const st = o.st;
+                const qx = px - o.w / 2;
+                const qy = py - o.h / 2 + st.bob;
+                const r = (st.rot * Math.PI) / 180;
+                const cs = Math.cos(r);
+                const sn = Math.sin(r);
+                return { x: st.sx + st.S * (qx * cs - qy * sn), y: st.sy + st.S * (qx * sn + qy * cs) };
+              }
+
+              function draw(t) {
+                const tc = cfg.t0 + t;
+                const T = FILM0 + tc;
+                const c = camAt(tc);
+                const cp = camAt(tc - 1 / 30);
+                const cx = 260 * Math.sin((TAU * T) / 96);
+                const cy = 70 * Math.sin((TAU * T) / 71 + 0.6);
+                for (const L of lights) {
+                  const px = L.x - cx * L.k + L.dx * Math.sin(TAU * L.f * T) - c.x * L.p;
+                  const py = L.y - cy * L.k + L.dy * Math.cos(TAU * L.f * 0.8 * T) - c.y * L.p;
+                  L.el.style.transform = `translate(${px.toFixed(1)}px, ${py.toFixed(1)}px)`;
+                }
+                const dx = -640 - cx * 0.3 + 26 * Math.sin(TAU * 0.09 * T) - c.x * 0.08;
+                const dy = -360 - cy * 0.3 + 14 * Math.sin(TAU * 0.07 * T + 1) - c.y * 0.08;
+                dapple.style.transform = `translate(${dx.toFixed(1)}px, ${dy.toFixed(1)}px)`;
+                // directional motion blur keyed to the camera's speed, on a container of its own (STYLE §5)
+                const bx = Math.min(10, 0.2 * Math.abs(c.x - cp.x) * c.s);
+                const by = Math.min(6, 0.2 * Math.abs(c.y - cp.y) * c.s);
+                if (bx > 0.6 || by > 0.6) {
+                  mblur.setAttribute("stdDeviation", `${bx.toFixed(2)} ${by.toFixed(2)}`);
+                  world.style.filter = `url(#${cfg.id}-mblur)`;
+                } else world.style.filter = "none";
+                for (const o of Object.values(objs)) place(o, tc, T, c);
+                const frame = Math.round(T * 30);
+                const r = mulberry32(frame * 7919 + 13);
+                const ox = Math.floor(r() * 256);
+                const oy = Math.floor(r() * 256);
+                gctx.setTransform(1, 0, 0, 1, -ox, -oy);
+                gctx.fillStyle = patterns[frame % 4];
+                gctx.fillRect(ox, oy, 960, 540);
+                if (cfg.after) cfg.after(t, tc, c);
+              }
+
+              return { draw, toScreen, objs };
+            }
+
+            return { create, E, prog, lerp, clamp01, bez, TAU };
+          })();
+          // rig:end
+          const rig = CloseRig.create({
+            id: "ci",
+            t0: 0,
+            objects: [
+              { key: "tests", x: 0, y: -20, w: 1600, h: 400, sc: 1 },
+              { key: "kill", x: 2000, y: -20, w: 1600, h: 400, sc: 1 },
+              // the weigh-slip sits right of the keyword, clear of the tag corner (x > 1396 and y > 960)
+              { key: "slip", x: 4440, y: 92, w: 600, h: 732, sc: 0.82, A: 5, ry: 4, rx: 1.5, rot: -1.2, ph: 0.4 },
+            ],
+          });
+          const tl = gsap.timeline({ paused: true });
+          const clock = { t: 0 };
+          tl.to(clock, { t: 11, duration: 11, ease: "none", onUpdate: () => rig.draw(clock.t) }, 0);
+
+          // over five thousand automated tests: the figure lifts in, the quiet words settle under it
+          tl.fromTo(
+            "#ci-tests-fig",
+            { opacity: 0, scale: 0.94, filter: "blur(12px)" },
+            { opacity: 1, scale: 1, filter: "blur(0px)", duration: 0.7, ease: "expo.out" },
+            0.3,
+          );
+          tl.fromTo(
+            "#ci-tests-words",
+            { opacity: 0, scale: 1.12, filter: "blur(10px)" },
+            { opacity: 1, scale: 1, filter: "blur(0px)", duration: 0.9, ease: "power3.out" },
+            0.7,
+          );
+          // three kill switches arrive by the glide (2.35-4.4 s); none starts from a handwritten weigh-slip:
+          // the slip arrives by the next glide (5.45-7.5 s), then its keyword, then the hand's box round its figure
+          tl.fromTo("#ci-kw span", { yPercent: 108 }, { yPercent: 0, duration: 0.75, ease: "expo.out" }, 7.75);
+          const L = 2 * (98 + 55) + 10;
+          tl.fromTo(
+            "#ci-hl",
+            { strokeDasharray: `${L} ${L + 40}`, strokeDashoffset: L + 20 },
+            { strokeDashoffset: 0, duration: 0.5, ease: "power2.inOut" },
+            9.6,
+          );
+          tl.to("#ci-kw span", { yPercent: -108, duration: 0.32, ease: "power3.in" }, 10.6);
+
+          rig.draw(0);
+          window.__timelines["close-impressive"] = tl;
         })();
       </script>
     </template>

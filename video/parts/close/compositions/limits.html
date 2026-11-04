@@ -2,308 +2,579 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <!-- Script v4 beat "limits", film 154-167 s (local 0-13 s). Hayag daylight; every disclosure on screen while it is said. -->
+    <!-- Script v4 beat "limits", film 154-167 s (close time 11-24 s). Daylight: the camera glides on from the
+         weigh-slip into the open field ("the limits."), then one limit at a time while it is said, each a day
+         keyword with its one tag in the bottom-right corner: simulated. / synthetic. / generated. / replayed. /
+         synthesized. The full disclosures are in the narration, the closed captions and the upload's description. -->
   </head>
   <body>
     <template>
       <style>
+        /* style:begin (rig.css, copied by build.mjs) */
+        /* The close's shared look (video/proto/STYLE.md), copied into each composition by build.mjs; edit it here. */
         @font-face {
           font-family: "FS Sans";
-          src: url("assets/fonts/FSSans-VF.woff2") format("woff2");
+          src: url("../assets/fonts/FSSans-VF.woff2") format("woff2");
           font-weight: 200 900;
           font-stretch: 75% 125%;
         }
+        /* the day field (STYLE §1): Hayag ground, the morning wash, three large soft lights, leaf shadows */
+        .cf-field {
+          position: absolute;
+          inset: 0;
+          overflow: hidden;
+          background: #f3f5f8;
+        }
+        .cf-wash {
+          position: absolute;
+          inset: 0;
+          background:
+            radial-gradient(
+              56% 74% at 0% 0%,
+              rgb(20 204 144 / 0.15),
+              rgb(20 204 144 / 0.1) 20%,
+              rgb(20 204 144 / 0.055) 42%,
+              rgb(20 204 144 / 0.02) 66%,
+              transparent 90%
+            ),
+            radial-gradient(
+              44% 60% at 64% 0%,
+              rgb(74 47 214 / 0.09),
+              rgb(74 47 214 / 0.06) 22%,
+              rgb(74 47 214 / 0.03) 46%,
+              rgb(74 47 214 / 0.01) 70%,
+              transparent 92%
+            );
+        }
+        .cf-light {
+          position: absolute;
+          left: 0;
+          top: 0;
+          border-radius: 50%;
+          will-change: transform;
+        }
+        .cf-lightA {
+          width: 1900px;
+          height: 1500px;
+          background: radial-gradient(
+            closest-side,
+            rgb(20 204 144 / 0.16),
+            rgb(20 204 144 / 0.11) 25%,
+            rgb(20 204 144 / 0.06) 50%,
+            rgb(20 204 144 / 0.02) 75%,
+            transparent
+          );
+        }
+        .cf-lightB {
+          width: 1700px;
+          height: 1300px;
+          background: radial-gradient(
+            closest-side,
+            rgb(255 255 255 / 0.92),
+            rgb(255 255 255 / 0.62) 30%,
+            rgb(255 255 255 / 0.28) 60%,
+            rgb(255 255 255 / 0.07) 84%,
+            transparent
+          );
+        }
+        .cf-lightC {
+          width: 1800px;
+          height: 1500px;
+          background: radial-gradient(
+            closest-side,
+            rgb(74 47 214 / 0.09),
+            rgb(74 47 214 / 0.06) 30%,
+            rgb(74 47 214 / 0.025) 62%,
+            transparent
+          );
+        }
+        .cf-dapple {
+          position: absolute;
+          left: 0;
+          top: 0;
+          width: 3200px;
+          height: 1800px;
+          opacity: 0.85;
+          background: url("../assets/dapple.png") 0 0 / 100% 100% no-repeat;
+          will-change: transform;
+        }
+        .cf-world {
+          position: absolute;
+          inset: 0;
+        }
+        .cf-grain {
+          position: absolute;
+          left: 0;
+          top: 0;
+          width: 1920px;
+          height: 1080px;
+          pointer-events: none;
+          mix-blend-mode: overlay;
+          opacity: 0.2;
+        }
+        .cf-defs {
+          position: absolute;
+          width: 0;
+          height: 0;
+        }
+
+        /* world objects: placed by the rig each frame, centred on their own middle */
+        .cf-obj {
+          position: absolute;
+          left: 0;
+          top: 0;
+          opacity: 0;
+          transform-origin: 50% 50%;
+          will-change: transform, filter;
+        }
+        .cf-in {
+          position: absolute;
+          inset: 0;
+        }
+        .cf-in img {
+          display: block;
+          width: 100%;
+          height: 100%;
+        }
+        /* a figure and its quiet words (STYLE §2) */
+        .cf-stat {
+          width: 1600px;
+          height: 400px;
+          margin: -200px 0 0 -800px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          text-align: center;
+          white-space: nowrap;
+        }
+        .cf-fig {
+          font-stretch: 75%;
+          font-weight: 800;
+          font-size: 240px;
+          line-height: 240px;
+          letter-spacing: -0.01em;
+          color: #0b1220;
+        }
+        .cf-quiet {
+          font-stretch: 100%;
+          font-weight: 560;
+          font-size: 46px;
+          line-height: 56px;
+          letter-spacing: 0.02em;
+          color: #5a6476;
+        }
+        .cf-stat .cf-quiet {
+          margin-top: 22px;
+        }
+        /* the handwritten weigh-slip (quiet: 50% saturation) and the box round its handwritten figure */
+        .cf-slip {
+          width: 600px;
+          height: 732px;
+          margin: -366px 0 0 -300px;
+        }
+        .cf-slip img {
+          border-radius: 3px;
+          filter: saturate(0.5);
+          box-shadow:
+            0 2px 3px rgb(11 18 32 / 0.1),
+            0 30px 60px -22px rgb(11 18 32 / 0.4),
+            0 0 0 1px rgb(11 18 32 / 0.06);
+        }
+        .cf-hl {
+          position: absolute;
+          left: 0;
+          top: 0;
+          width: 600px;
+          height: 732px;
+          overflow: visible;
+        }
+        .cf-hl rect {
+          fill: none;
+          stroke: #4a2fd6;
+          stroke-width: 4;
+          stroke-linecap: round;
+        }
+
+        /* the day keyword (STYLE §2): one anchor, x 140, top 150; a mask wipe up */
+        .cf-kw {
+          position: absolute;
+          left: 140px;
+          top: 150px;
+          overflow: hidden;
+          padding: 0 20px 26px 10px;
+        }
+        .cf-kw span {
+          display: block;
+          font-stretch: 112.5%;
+          font-weight: 700;
+          font-size: 176px;
+          line-height: 176px;
+          letter-spacing: -0.035em;
+          color: #0b1220;
+          white-space: nowrap;
+        }
+        .cf-centre {
+          position: absolute;
+          left: 0;
+          right: 0;
+          top: 472px;
+          text-align: center;
+          opacity: 0;
+        }
+
+        /* the one honesty tag (STYLE §7): dashed steel, 28 px words in a 56 px pill, bottom right */
+        .cf-tag {
+          position: absolute;
+          right: 64px;
+          top: 968px;
+          display: inline-flex;
+          align-items: center;
+          gap: 12px;
+          height: 56px;
+          padding: 0 24px 0 20px;
+          border-radius: 999px;
+          border: 2px dashed #7e8898;
+          background: rgb(255 255 255 / 0.9);
+          color: #3a4456;
+          font-stretch: 100%;
+          font-weight: 600;
+          font-size: 28px;
+          line-height: 1;
+          white-space: nowrap;
+          opacity: 0;
+        }
+        .cf-tag--nodot {
+          padding-left: 24px;
+        }
+        .cf-tag svg {
+          width: 26px;
+          height: 26px;
+          flex: none;
+          color: #5a6476;
+        }
+        /* style:end */
         #root {
           position: absolute;
           inset: 0;
           overflow: hidden;
           background: #f3f5f8;
-          color: #0b1220;
-          font-family: "FS Sans", sans-serif;
+          font-family: "FS Sans", system-ui, sans-serif;
+          -webkit-font-smoothing: antialiased;
+          font-kerning: normal;
           font-variant-numeric: lining-nums proportional-nums;
         }
-        #lim-wash {
-          position: absolute;
-          left: -80px;
-          top: -60px;
-          width: 2080px;
-          height: 1200px;
-          background:
-            radial-gradient(52% 70% at 0% 0%, rgb(20 204 144 / 0.16), transparent 72%),
-            radial-gradient(42% 58% at 62% 0%, rgb(74 47 214 / 0.1), transparent 72%);
-        }
-        .lim-orb {
-          position: absolute;
-          border-radius: 50%;
-        }
-        #lim-orb-a {
-          left: 460px;
-          top: 560px;
-          width: 1000px;
-          height: 760px;
-          background: radial-gradient(closest-side, rgb(255 255 255 / 0.95), rgb(255 255 255 / 0));
-        }
-        #lim-orb-b {
-          left: 1380px;
-          top: 520px;
-          width: 820px;
-          height: 820px;
-          background: radial-gradient(closest-side, rgb(20 204 144 / 0.09), rgb(20 204 144 / 0));
-        }
-        #lim-orb-c {
-          left: -260px;
-          top: 640px;
-          width: 900px;
-          height: 700px;
-          background: radial-gradient(closest-side, rgb(74 47 214 / 0.07), rgb(74 47 214 / 0));
-        }
-        #lim-cam {
-          position: absolute;
-          inset: 0;
-        }
-        #lim-intro {
-          position: absolute;
-          left: 0;
-          right: 0;
-          top: 500px;
-          text-align: center;
-          font-size: 48px;
-          font-stretch: 112.5%;
-          font-weight: 600;
-          letter-spacing: -0.02em;
-          color: #5a6476;
-        }
-        .lim-item {
-          position: absolute;
-          inset: 0;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          padding-bottom: 30px;
-        }
-        .lim-head {
-          font-size: 120px;
-          line-height: 1.12;
-          font-stretch: 112.5%;
-          font-weight: 690;
-          letter-spacing: -0.028em;
-          white-space: nowrap;
-        }
-        .lim-m {
-          display: inline-block;
-          overflow: hidden;
-          vertical-align: bottom;
-          padding: 0 0.03em 0.06em;
-        }
-        .lim-w {
-          display: inline-block;
-        }
-        .lim-acc {
-          position: relative;
-          color: #4a2fd6;
-        }
-        .lim-ul {
-          position: absolute;
-          left: 0.04em;
-          right: 0.04em;
-          bottom: 0.02em;
-          height: 0;
-          border-top: 6px dashed #7e8898;
-          transform-origin: 0% 50%;
-        }
-        .lim-tags {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          gap: 16px;
-          margin-top: 44px;
-        }
-        .lim-tag {
-          display: inline-flex;
-          align-items: center;
-          height: 64px;
-          padding: 0 30px;
-          border: 2px dashed #7e8898;
-          border-radius: 999px;
-          background: rgb(255 255 255 / 0.78);
-          box-shadow:
-            0 1px 2px rgb(11 18 32 / 0.05),
-            0 12px 32px -12px rgb(11 18 32 / 0.16);
-          font-size: 28px;
-          font-weight: 500;
-          color: #3a4456;
-          white-space: nowrap;
-        }
-        #lim-ledger {
-          position: absolute;
-          left: 64px;
-          top: 48px;
-          display: flex;
-          gap: 12px;
-        }
-        .lim-chip {
-          height: 40px;
-          padding: 0 18px;
-          display: flex;
-          align-items: center;
-          border: 1.5px dashed #7e8898;
-          border-radius: 999px;
-          background: rgb(255 255 255 / 0.7);
-          color: #5a6476;
-          font-size: 19px;
-          font-stretch: 87.5%;
-          font-weight: 520;
-          white-space: nowrap;
-        }
-        #lim-grain {
-          position: absolute;
-          inset: 0;
-          width: 1920px;
-          height: 1080px;
-          opacity: 0.05;
-          mix-blend-mode: multiply;
-          pointer-events: none;
-        }
       </style>
-
       <div id="root" data-composition-id="close-limits" data-width="1920" data-height="1080" data-duration="13">
-        <div id="lim-wash" data-layout-allow-overlap data-layout-allow-overflow></div>
-        <div id="lim-orb-a" data-layout-allow-overlap data-layout-allow-overflow class="lim-orb"></div>
-        <div id="lim-orb-b" data-layout-allow-overlap data-layout-allow-overflow class="lim-orb"></div>
-        <div id="lim-orb-c" data-layout-allow-overlap data-layout-allow-overflow class="lim-orb"></div>
-
-        <div id="lim-cam" data-layout-allow-overlap data-layout-allow-overflow>
-          <div id="lim-intro" data-layout-allow-overlap data-layout-allow-overflow>the limits.</div>
-
-          <!-- 1 · "PayPal runs on a simulated sandbox" -->
-          <div id="lim-i1" data-layout-allow-overlap data-layout-allow-overflow class="lim-item">
-            <div class="lim-head">
-              <span class="lim-m"><span class="lim-w lim-acc">Simulated<i class="lim-ul"></i></span></span>
-              <span class="lim-m"><span class="lim-w">PayPal.</span></span>
-            </div>
-            <div class="lim-tags"><span class="lim-tag">Simulated PayPal sandbox; untested against PayPal's own sandbox</span></div>
-          </div>
-
-          <!-- 2 · "People and data are synthetic" -->
-          <div id="lim-i2" data-layout-allow-overlap data-layout-allow-overflow class="lim-item">
-            <div class="lim-head">
-              <span class="lim-w lim-acc">Synthetic<i class="lim-ul"></i></span>
-              <span class="lim-w">people.</span>
-            </div>
-            <div class="lim-tags"><span class="lim-tag">Synthetic people and data; no money moves</span></div>
-          </div>
-
-          <!-- 3 · slip images -->
-          <div id="lim-i3" data-layout-allow-overlap data-layout-allow-overflow class="lim-item">
-            <div class="lim-head">
-              <span class="lim-w lim-acc">Generated<i class="lim-ul"></i></span>
-              <span class="lim-w">slips.</span>
-            </div>
-            <div class="lim-tags">
-              <span class="lim-tag">Slip images: Codex-made hero flats (OpenAI's image model); photos A–L composed in code</span>
-            </div>
-          </div>
-
-          <!-- 4 · "Your demo replays a labelled reading stand-in" -->
-          <div id="lim-i4" data-layout-allow-overlap data-layout-allow-overflow class="lim-item">
-            <div class="lim-head">
-              <span class="lim-w">A</span>
-              <span class="lim-w lim-acc">labelled<i class="lim-ul"></i></span>
-              <span class="lim-w">stand-in.</span>
-            </div>
-            <div class="lim-tags">
-              <span class="lim-tag">Your demo replays a labelled stand-in; Claude's real readings: ten hero slips, 1 Nov 2026</span>
-            </div>
-          </div>
-
-          <!-- 5 · "Voices are Gemini TTS" -->
-          <div id="lim-i5" data-layout-allow-overlap data-layout-allow-overflow class="lim-item">
-            <div class="lim-head">
-              <span class="lim-m"><span class="lim-w lim-acc">Synthetic<i class="lim-ul"></i></span></span>
-              <span class="lim-m"><span class="lim-w">voices.</span></span>
-            </div>
-            <div class="lim-tags">
-              <span class="lim-tag">Narration and member audio: Gemini TTS (synthetic voices)</span>
-              <span class="lim-tag">Cebuano and Filipino machine-translated, pending native review</span>
+        <div id="cl-field" class="cf-field">
+          <div id="cl-lightA" class="cf-light cf-lightA" data-layout-allow-overflow></div>
+          <div id="cl-lightC" class="cf-light cf-lightC" data-layout-allow-overflow></div>
+          <div id="cl-lightB" class="cf-light cf-lightB" data-layout-allow-overflow></div>
+          <div class="cf-wash"></div>
+          <div id="cl-dapple" class="cf-dapple" data-layout-allow-overflow></div>
+        </div>
+        <div id="cl-world" class="cf-world">
+          <div id="cl-worldMb" class="cf-world">
+            <!-- the weigh-slip from the close's first beat, carried on by the camera until it leaves the frame -->
+            <div id="cl-slip" class="cf-obj cf-slip" data-layout-allow-overflow>
+              <div class="cf-in">
+                <img src="../assets/slip-0403.jpg" alt="" />
+                <svg class="cf-hl" viewBox="0 0 600 732" aria-hidden="true">
+                  <rect x="240" y="337" width="98" height="55" rx="11" />
+                </svg>
+              </div>
             </div>
           </div>
         </div>
-
-        <svg id="lim-grain" viewBox="0 0 1920 1080" aria-hidden="true">
-          <filter id="lim-noise">
-            <feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="2" seed="11" stitchTiles="stitch" />
-            <feColorMatrix type="saturate" values="0" />
+        <div id="cl-limits" class="cf-centre cf-quiet">the limits.</div>
+        <div id="cl-kw1" class="cf-kw" data-layout-allow-overlap data-layout-allow-occlusion data-layout-allow-overflow>
+          <span data-layout-allow-occlusion>simulated.</span>
+        </div>
+        <div id="cl-kw2" class="cf-kw" data-layout-allow-overlap data-layout-allow-occlusion data-layout-allow-overflow>
+          <span data-layout-allow-occlusion>synthetic.</span>
+        </div>
+        <div id="cl-kw3" class="cf-kw" data-layout-allow-overlap data-layout-allow-occlusion data-layout-allow-overflow>
+          <span data-layout-allow-occlusion>generated.</span>
+        </div>
+        <div id="cl-kw4" class="cf-kw" data-layout-allow-overlap data-layout-allow-occlusion data-layout-allow-overflow>
+          <span data-layout-allow-occlusion>replayed.</span>
+        </div>
+        <div id="cl-kw5" class="cf-kw" data-layout-allow-overlap data-layout-allow-occlusion data-layout-allow-overflow>
+          <span data-layout-allow-occlusion>synthesized.</span>
+        </div>
+        <div id="cl-tag1" class="cf-tag" data-layout-allow-occlusion>
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path
+              d="M9 3.5h6M10 3.5v5.2L4.8 17.6A2 2 0 0 0 6.5 20.5h11a2 2 0 0 0 1.7-2.9L14 8.7V3.5"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linejoin="round"
+              stroke-linecap="round"
+            />
+            <path d="M7.4 14.5h9.2" stroke="currentColor" stroke-width="2" />
+          </svg>
+          Simulated PayPal sandbox
+        </div>
+        <div id="cl-tag2" class="cf-tag cf-tag--nodot" data-layout-allow-occlusion>Synthetic co-op</div>
+        <div id="cl-tag3" class="cf-tag cf-tag--nodot" data-layout-allow-occlusion>Generated slip images</div>
+        <div id="cl-tag4" class="cf-tag cf-tag--nodot" data-layout-allow-occlusion>Seed stand-in reading</div>
+        <div id="cl-tag5" class="cf-tag cf-tag--nodot" data-layout-allow-occlusion>Gemini TTS · machine-translated</div>
+        <canvas id="cl-grain" class="cf-grain" width="960" height="540" data-layout-allow-overflow></canvas>
+        <svg class="cf-defs" aria-hidden="true">
+          <filter id="cl-mblur" x="-10%" y="-10%" width="120%" height="120%" color-interpolation-filters="sRGB">
+            <feGaussianBlur id="cl-mblurG" stdDeviation="0 0" />
           </filter>
-          <rect width="1920" height="1080" filter="url(#lim-noise)" />
         </svg>
-
-        <!-- The honesty ledger: one small consistent tag per disclosure, filed as each is said. -->
-        <div id="lim-ledger">
-          <span class="lim-chip" id="lim-c1">Simulated PayPal sandbox</span>
-          <span class="lim-chip" id="lim-c2">Synthetic people and data</span>
-          <span class="lim-chip" id="lim-c3">Generated slip images</span>
-          <span class="lim-chip" id="lim-c4">Seed reading stand-in</span>
-          <span class="lim-chip" id="lim-c5">Narration and member audio: Gemini TTS (synthetic voices)</span>
-        </div>
       </div>
-
       <script>
         (() => {
+          // rig:begin (rig.js, copied by build.mjs)
+          // The close's one camera over one day field (video/proto/STYLE.md §1, §4, §5, §10), shared by the three
+          // compositions. `node build.mjs` copies this file into each composition between the rig markers; edit it here.
+          // Close time `tc` runs 0-32 s (film 143-175); every pixel is computed from it alone (seeded noise only), so any
+          // frame renders on its own and the three compositions meet without a seam at 11 s and 24 s.
+          const CloseRig = (() => {
+            const gsap = window.gsap;
+            const PE = (name) => gsap.parseEase(name);
+            const E = {
+              p2o: PE("power2.out"),
+              p2i: PE("power2.in"),
+              p2io: PE("power2.inOut"),
+              p3o: PE("power3.out"),
+              eo: PE("expo.out"),
+              sio: PE("sine.inOut"),
+            };
+            const TAU = 2 * Math.PI;
+            const FILM0 = 143;
+            const clamp01 = (v) => Math.min(1, Math.max(0, v));
+            const prog = (t, a, b) => (b <= a ? (t >= a ? 1 : 0) : clamp01((t - a) / (b - a)));
+            const lerp = (a, b, u) => a + (b - a) * u;
+            const bez = (p0, p1, p2, p3, u) => {
+              const v = 1 - u;
+              return {
+                x: v * v * v * p0.x + 3 * v * v * u * p1.x + 3 * v * u * u * p2.x + u * u * u * p3.x,
+                y: v * v * v * p0.y + 3 * v * v * u * p1.y + 3 * v * u * u * p2.y + u * u * u * p3.y,
+              };
+            };
+            function mulberry32(seed) {
+              let a = seed;
+              return () => {
+                a |= 0;
+                a = (a + 0x6d2b79f5) | 0;
+                let t = Math.imul(a ^ (a >>> 15), 1 | a);
+                t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+                return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+              };
+            }
+
+            // The camera, in close time. Stations sit on one line in world space (2000 px apart); glides take 2.05 s with a
+            // 0.3 zoom-out dip at mid-move; holds never stop dead (a slow push of at most 2.5%).
+            const CAM = [
+              { t: 0, x: 0, y: 0, s: 1 },
+              { t: 2.35, x: 6, y: 0, s: 1.018 }, // 5,000+ automated tests
+              { t: 4.4, x: 2000, y: 0, s: 1, dip: 0.3 }, // glide
+              { t: 5.45, x: 2006, y: 0, s: 1.012 }, // 3 kill switches
+              { t: 7.5, x: 4000, y: 0, s: 1, dip: 0.3 }, // glide
+              { t: 10.65, x: 4012, y: 0, s: 1.02 }, // the handwritten weigh-slip
+              { t: 12.7, x: 6000, y: 0, s: 1, dip: 0.3 }, // glide on into the open field (the limits)
+              { t: 24.0, x: 6060, y: -8, s: 1.025 }, // the limits, one at a time: a slow drift
+              { t: 26.05, x: 8000, y: 0, s: 1, dip: 0.3 }, // glide into the overview
+              { t: 32.0, x: 8008, y: 0, s: 1.025 }, // the trace, the end line, the name
+            ];
+            function camAt(tc) {
+              if (tc <= CAM[0].t) return CAM[0];
+              for (let i = 1; i < CAM.length; i++) {
+                const a = CAM[i - 1];
+                const b = CAM[i];
+                if (tc <= b.t) {
+                  const u = (tc - a.t) / (b.t - a.t);
+                  const e = E.sio(u);
+                  const dip = b.dip ? 1 - b.dip * Math.sin(Math.PI * e) : 1;
+                  return { x: lerp(a.x, b.x, e), y: lerp(a.y, b.y, e), s: lerp(a.s, b.s, e) * dip };
+                }
+              }
+              return CAM[CAM.length - 1];
+            }
+
+            // grain: four seeded grey tiles, one per frame at a seeded offset, as in film-slots.js (STYLE §10)
+            function grainPatterns(context) {
+              const rng = mulberry32(1104);
+              return [0, 1, 2, 3].map(() => {
+                const canvas = document.createElement("canvas");
+                canvas.width = 256;
+                canvas.height = 256;
+                const tile = canvas.getContext("2d");
+                const image = tile.createImageData(256, 256);
+                for (let i = 0; i < 256 * 256; i++) {
+                  const v = Math.round((255 * (rng() + rng())) / 2);
+                  image.data[4 * i] = v;
+                  image.data[4 * i + 1] = v;
+                  image.data[4 * i + 2] = v;
+                  image.data[4 * i + 3] = 255;
+                }
+                tile.putImageData(image, 0, 0);
+                return context.createPattern(canvas, "repeat");
+              });
+            }
+
+            /**
+             * cfg.id: the id prefix; cfg.t0: the composition's start in close time; cfg.objects: world objects
+             * { key, x, y, w, h, sc, A, ry, rx, rot, ph, on: [from, to] (close time), noDof }.
+             */
+            function create(cfg) {
+              const $ = (key) => document.getElementById(`${cfg.id}-${key}`);
+              // the field: the same light shapes, wash, leaf shadows and drift as the capture-slot beats (film-slots.js),
+              // so the cut in from 142.9 s is invisible; the camera adds a gentle parallax on top
+              const lights = [
+                { el: $("lightA"), x: -700, y: -620, k: 0.5, dx: 60, dy: 40, f: 0.05, p: 0.03 },
+                { el: $("lightC"), x: 900, y: -560, k: 0.8, dx: -50, dy: 50, f: 0.04, p: 0.045 },
+                { el: $("lightB"), x: 160, y: 120, k: 1.1, dx: 70, dy: -40, f: 0.035, p: 0.06 },
+              ];
+              const dapple = $("dapple");
+              const world = $("worldMb");
+              const mblur = $("mblurG");
+              const grain = $("grain");
+              const gctx = grain.getContext("2d");
+              const patterns = grainPatterns(gctx);
+              const objs = {};
+              for (const o of cfg.objects) objs[o.key] = { A: 0, ry: 0, rx: 0, rot: 0, ph: 0, ...o, el: $(o.key) };
+
+              function place(o, tc, T, c) {
+                const S = o.sc * c.s;
+                const sx = 960 + (o.x - c.x) * c.s;
+                const sy = 540 + (o.y - c.y) * c.s;
+                o.st = {
+                  sx,
+                  sy,
+                  S,
+                  bob: o.A * Math.sin((TAU * T) / 5.6 + o.ph),
+                  ry: o.ry * Math.sin((TAU * T) / 8 + o.ph),
+                  rx: o.rx,
+                  rot: o.rot,
+                };
+                const halfW = (o.w * S) / 2;
+                const halfH = (o.h * S) / 2;
+                const inFrame = sx + halfW > -40 && sx - halfW < 1960 && sy + halfH > -40 && sy - halfH < 1120;
+                const live = inFrame && (!o.on || (tc >= o.on[0] && tc <= o.on[1]));
+                // windows that have left the frame are switched off, so none lingers at an edge (STYLE §4)
+                o.el.style.opacity = live ? "1" : "0";
+                if (!live) return;
+                const st = o.st;
+                o.el.style.transform = `translate(${sx.toFixed(2)}px, ${sy.toFixed(2)}px) scale(${S.toFixed(4)}) perspective(2200px) rotateY(${st.ry.toFixed(2)}deg) rotateX(${st.rx.toFixed(2)}deg) rotate(${st.rot.toFixed(2)}deg) translateY(${st.bob.toFixed(2)}px)`;
+                if (o.noDof) return;
+                // depth of field: sharp within 220 px of the centre, up to 10 px further out, less when pulled back
+                const edge = Math.max(Math.abs(sx - 960) - halfW, Math.abs(sy - 540) - halfH);
+                const blur = clamp01((edge - 220) / 480) * 10 * clamp01((c.s - 0.62) / 0.3);
+                o.el.style.filter = blur > 0.15 ? `blur(${blur.toFixed(2)}px)` : "none";
+              }
+
+              /** A point given in an object's own px -> screen (2D: position, scale, rotation and float). */
+              function toScreen(key, px, py) {
+                const o = objs[key];
+                const st = o.st;
+                const qx = px - o.w / 2;
+                const qy = py - o.h / 2 + st.bob;
+                const r = (st.rot * Math.PI) / 180;
+                const cs = Math.cos(r);
+                const sn = Math.sin(r);
+                return { x: st.sx + st.S * (qx * cs - qy * sn), y: st.sy + st.S * (qx * sn + qy * cs) };
+              }
+
+              function draw(t) {
+                const tc = cfg.t0 + t;
+                const T = FILM0 + tc;
+                const c = camAt(tc);
+                const cp = camAt(tc - 1 / 30);
+                const cx = 260 * Math.sin((TAU * T) / 96);
+                const cy = 70 * Math.sin((TAU * T) / 71 + 0.6);
+                for (const L of lights) {
+                  const px = L.x - cx * L.k + L.dx * Math.sin(TAU * L.f * T) - c.x * L.p;
+                  const py = L.y - cy * L.k + L.dy * Math.cos(TAU * L.f * 0.8 * T) - c.y * L.p;
+                  L.el.style.transform = `translate(${px.toFixed(1)}px, ${py.toFixed(1)}px)`;
+                }
+                const dx = -640 - cx * 0.3 + 26 * Math.sin(TAU * 0.09 * T) - c.x * 0.08;
+                const dy = -360 - cy * 0.3 + 14 * Math.sin(TAU * 0.07 * T + 1) - c.y * 0.08;
+                dapple.style.transform = `translate(${dx.toFixed(1)}px, ${dy.toFixed(1)}px)`;
+                // directional motion blur keyed to the camera's speed, on a container of its own (STYLE §5)
+                const bx = Math.min(10, 0.2 * Math.abs(c.x - cp.x) * c.s);
+                const by = Math.min(6, 0.2 * Math.abs(c.y - cp.y) * c.s);
+                if (bx > 0.6 || by > 0.6) {
+                  mblur.setAttribute("stdDeviation", `${bx.toFixed(2)} ${by.toFixed(2)}`);
+                  world.style.filter = `url(#${cfg.id}-mblur)`;
+                } else world.style.filter = "none";
+                for (const o of Object.values(objs)) place(o, tc, T, c);
+                const frame = Math.round(T * 30);
+                const r = mulberry32(frame * 7919 + 13);
+                const ox = Math.floor(r() * 256);
+                const oy = Math.floor(r() * 256);
+                gctx.setTransform(1, 0, 0, 1, -ox, -oy);
+                gctx.fillStyle = patterns[frame % 4];
+                gctx.fillRect(ox, oy, 960, 540);
+                if (cfg.after) cfg.after(t, tc, c);
+              }
+
+              return { draw, toScreen, objs };
+            }
+
+            return { create, E, prog, lerp, clamp01, bez, TAU };
+          })();
+          // rig:end
+          const rig = CloseRig.create({
+            id: "cl",
+            t0: 11,
+            objects: [
+              {
+                key: "slip",
+                x: 4440,
+                y: 92,
+                w: 600,
+                h: 732,
+                sc: 0.82,
+                A: 5,
+                ry: 4,
+                rx: 1.5,
+                rot: -1.2,
+                ph: 0.4,
+                on: [11, 13.1],
+              },
+            ],
+          });
           const tl = gsap.timeline({ paused: true });
-          const sel = (id, s) => `#${id} ${s}`;
+          const clock = { t: 0 };
+          tl.to(clock, { t: 13, duration: 13, ease: "none", onUpdate: () => rig.draw(clock.t) }, 0);
 
-          // ---------- ambient: daylight arrives, the light field drifts ----------
-          tl.fromTo("#lim-wash", { opacity: 0, x: 0 }, { opacity: 1, x: 70, duration: 13, ease: "sine.out" }, 0);
-          tl.fromTo("#lim-orb-a", { x: 0, y: 30, opacity: 0.4 }, { x: -120, y: -20, opacity: 1, duration: 13, ease: "sine.inOut" }, 0);
-          tl.fromTo("#lim-orb-b", { x: 0, y: 0 }, { x: -160, y: -60, duration: 13, ease: "sine.inOut" }, 0);
-          tl.fromTo("#lim-orb-c", { x: 0, y: 0 }, { x: 180, y: -40, duration: 13, ease: "sine.inOut" }, 0);
-          tl.fromTo("#lim-cam", { scale: 1, y: 0 }, { scale: 1.03, y: -8, duration: 13, ease: "sine.inOut" }, 0);
+          // "The limits:" a quiet word once the slip has glided clear of the centre (the glide runs -0.35-1.7 s)
+          tl.fromTo(
+            "#cl-limits",
+            { opacity: 0, scale: 1.12, filter: "blur(10px)" },
+            { opacity: 1, scale: 1, filter: "blur(0px)", duration: 0.75, ease: "power3.out" },
+            0.6,
+          );
+          tl.to("#cl-limits", { opacity: 0, y: -12, filter: "blur(6px)", duration: 0.3, ease: "power2.in" }, 1.35);
 
-          // "the limits." small and grey, like the reference's first bright frame
-          tl.fromTo("#lim-intro", { opacity: 0, scale: 1.14 }, { opacity: 1, scale: 1, duration: 0.6, ease: "power2.out" }, 0.08);
-          tl.to("#lim-intro", { opacity: 0, y: -30, duration: 0.25, ease: "power2.in" }, 0.72);
-
-          // later chips wait for their disclosure
-          tl.fromTo(["#lim-c2", "#lim-c3", "#lim-c4", "#lim-c5"], { opacity: 0, scale: 0.8 }, { opacity: 0, scale: 0.8, duration: 0.01 }, 0);
-
-          const ITEMS = [
-            { id: "lim-i1", in: 0.9, out: 3.3, chip: "#lim-c1", dx: -765 },
-            { id: "lim-i2", in: 3.55, out: 5.12, chip: "#lim-c2", dx: -487 },
-            { id: "lim-i3", in: 5.35, out: 7.8, chip: "#lim-c3", dx: -222 },
-            { id: "lim-i4", in: 8.05, out: 10.95, chip: "#lim-c4", dx: 24 },
-            { id: "lim-i5", in: 11.2, out: 12.6, chip: "#lim-c5", dx: 438 },
+          // one limit at a time, while it is said: a keyword (wipe in 0.75 s, out 0.32 s) and its one tag
+          const LIMITS = [
+            [1.45, 3.3], // PayPal runs on a simulated sandbox.
+            [3.6, 5.6], // People and data are synthetic; no real farmer was paid.
+            [5.95, 7.75], // the slip images are generated (Codex-made flats, composed in code)
+            [8.1, 10.75], // Your demo replays a labelled reading stand-in.
+            [11.2, 12.6], // Voices are Gemini TTS.
           ];
-
-          ITEMS.forEach((it, n) => {
-            const head = `#${it.id} .lim-head`;
-            const words = sel(it.id, ".lim-w");
-            const tags = sel(it.id, ".lim-tag");
-            const ul = sel(it.id, ".lim-ul");
-            // entrance: a different verb per disclosure, the same calm resolve
-            if (n === 0 || n === 4) {
-              tl.fromTo(words, { yPercent: 112 }, { yPercent: 0, duration: 0.8, ease: n === 0 ? "expo.out" : "circ.out", stagger: 0.08 }, it.in);
-            } else if (n === 1) {
-              tl.fromTo(words, { opacity: 0, y: -70 }, { opacity: 1, y: 0, duration: 0.9, ease: "power3.out", stagger: 0.1 }, it.in);
-            } else if (n === 2) {
-              tl.fromTo(words, { opacity: 0, x: 80 }, { opacity: 1, x: 0, duration: 0.7, ease: "power4.out", stagger: 0.07 }, it.in);
-            } else {
-              tl.fromTo(head, { opacity: 0, scale: 1.12, filter: "blur(14px)" }, { opacity: 1, scale: 1, filter: "blur(0px)", duration: 1.0, ease: "expo.out" }, it.in);
-            }
-            tl.fromTo(ul, { scaleX: 0 }, { scaleX: 1, duration: 0.55, ease: "power2.inOut" }, it.in + 0.38);
-            tl.fromTo(tags, { opacity: 0, y: 18 }, { opacity: 1, y: 0, duration: 0.6, ease: "power2.out", stagger: 0.12 }, it.in + 0.46);
-
-            // resolve: the headline lifts away and the tag files itself into the ledger
-            tl.to(head, { opacity: 0, y: -44, duration: 0.3, ease: "power2.in" }, it.out);
-            tl.to(tags, { opacity: 0, x: it.dx, y: -540, scale: 0.32, duration: 0.44, ease: "power3.in" }, it.out + 0.02);
-            if (n === 0) {
-              tl.to(it.chip, { scale: 1.1, duration: 0.16, ease: "power2.out" }, it.out + 0.42);
-              tl.to(it.chip, { scale: 1, duration: 0.3, ease: "power2.inOut" }, it.out + 0.58);
-            } else {
-              tl.to(it.chip, { opacity: 1, scale: 1, duration: 0.42, ease: "back.out(2)" }, it.out + 0.3);
-            }
+          LIMITS.forEach(([from, to], i) => {
+            const n = i + 1;
+            tl.fromTo(`#cl-kw${n} span`, { yPercent: 108 }, { yPercent: 0, duration: 0.75, ease: "expo.out" }, from);
+            tl.to(`#cl-kw${n} span`, { yPercent: -108, duration: 0.32, ease: "power3.in" }, to);
+            tl.fromTo(
+              `#cl-tag${n}`,
+              { opacity: 0, x: 14 },
+              { opacity: 1, x: 0, duration: 0.4, ease: "power2.out" },
+              from + (i === 0 ? 0 : 0.05),
+            );
+            tl.to(`#cl-tag${n}`, { opacity: 0, duration: i === 4 ? 0.12 : 0.2, ease: "power2.in" }, to + 0.05);
           });
 
+          rig.draw(0);
           window.__timelines["close-limits"] = tl;
         })();
       </script>
