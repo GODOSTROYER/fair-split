@@ -153,8 +153,10 @@ describe("inv.i8.mobile replay status sweep", () => {
     expect(source("./bayad-screen.tsx")).toContain("view.replayed ? null : st.paid");
     expect(source("./bayad-screen.tsx")).toContain("railLabel.chip");
     expect(source("../clerk/cash-plate.tsx")).toContain("payoutStatus(");
+    expect(source("../clerk/cash-plate.tsx")).not.toContain('from "../statement/');
     for (const screen of ["../board/cosign-screen.tsx", "../board/sign-screen.tsx"]) {
       expect(source(screen)).toContain("railLabel(");
+      expect(source(screen)).not.toContain('from "../statement/');
     }
   });
 });

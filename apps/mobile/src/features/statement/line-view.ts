@@ -21,8 +21,8 @@ import type { MessageArgs } from "../../_shims/i18n";
 import type { MomentPhase } from "../../_shims/moments";
 import { type HeroFigures, heroFigures, lineConservation, type PayKind, payKindOf } from "../../lib/figures";
 import { CAPSULE_WORD, type CapsuleState, type ItemTrack, type StatusTone } from "../../lib/item-status";
+import { payoutStatus } from "../../lib/payout-status";
 import { amountStateFor, lineApproved } from "../../lib/statement";
-import { payoutStatus } from "./live";
 import type { StatementKey } from "./messages";
 
 /** A message key with its arguments; the screen translates it in the member's language. */

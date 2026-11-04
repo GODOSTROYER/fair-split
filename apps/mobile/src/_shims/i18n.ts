@@ -38,6 +38,42 @@ export function defineMessages<const C extends Record<string, Entry>>(catalog: C
 export const messages = defineMessages({
   "app.name": same("Fair Split"),
   "app.lockup": same("Fair Split: co-op payroll"),
+  "common.payoutSimulatedLabel": same("Simulated PayPal sandbox"),
+  "common.payoutSimulatedCopy": {
+    ceb: "Kini nga bayad pinaagi sa simulated PayPal sandbox. Walay tinuod nga kuwarta nga molihok.",
+    fil: "Ang bayad na ito ay sa simulated PayPal sandbox. Walang totoong perang gagalaw.",
+    en: "This payment uses the simulated PayPal sandbox. No real money moves.",
+  },
+  "common.payoutReplayChip": {
+    ceb: "Gi-replay · Simulated PayPal sandbox",
+    fil: "Ni-replay · Simulated PayPal sandbox",
+    en: "Replayed · Simulated PayPal sandbox",
+  },
+  "common.payoutReplayCopy": {
+    ceb: "Gi-replay nga bayad sa simulated PayPal sandbox.",
+    fil: "Ni-replay na bayad sa simulated PayPal sandbox.",
+    en: "Replayed payment from the simulated PayPal sandbox.",
+  },
+  "common.payoutUnknown": {
+    ceb: "Wala mailhi ang gigikanan sa bayad.",
+    fil: "Hindi alam ang pinagmulan ng bayad.",
+    en: "Payment rail unknown.",
+  },
+  "common.payoutPlannedChip": {
+    ceb: "Giplano nga replay (labelled) · Simulated PayPal sandbox",
+    fil: "Planadong replay (labelled) · Simulated PayPal sandbox",
+    en: "Planned replay (labelled) · Simulated PayPal sandbox",
+  },
+  "common.payoutPlannedCopy": {
+    ceb: "Giplano ang labelled replay sa simulated PayPal sandbox. Wala pay payout item; ang kahimtang sa linya iya niini nga run.",
+    fil: "Planado ang labelled replay sa simulated PayPal sandbox. Wala pang payout item; ang status ng linya ay para sa run na ito.",
+    en: "This run plans a labelled replay of the simulated PayPal sandbox payout step. No payout item exists yet; the line status belongs to this run.",
+  },
+  "common.payoutReplayStatus": {
+    ceb: "Gi-replay: {status}",
+    fil: "Ni-replay: {status}",
+    en: "Replayed: {status}",
+  },
   "common.demoData": {
     ceb: "Demo data, walay server",
     fil: "Demo data, walang server",

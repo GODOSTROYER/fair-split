@@ -13,6 +13,7 @@ import { format } from "../../_shims/domain";
 import { fontFamily } from "../../_shims/fonts";
 import { people } from "../../_shims/seed";
 import { radius, space, target } from "../../_shims/tokens.native";
+import { railLabel } from "../../lib/payout-status";
 import { feedback } from "../../platform/feedback";
 import { signHref } from "../../services/session";
 import { useApp } from "../../state/app";
@@ -26,7 +27,6 @@ import { SealView } from "../../ui/seal-view";
 import { figures, Sentence } from "../../ui/sentence";
 import { EmptyState, Skeleton } from "../../ui/states";
 import { Txt } from "../../ui/text";
-import { railLabel } from "../statement/live";
 import { useCosign } from "./cosign-context";
 import { changedCue, presenceView, type RequestStatus, whyKey } from "./cosign-model";
 import {

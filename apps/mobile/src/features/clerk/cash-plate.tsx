@@ -12,13 +12,13 @@ import { amountStateOf, MEMBER_STATUS_WORDS, type MemberStatus } from "../../_sh
 import { format } from "../../_shims/domain";
 import { radius, space, target } from "../../_shims/tokens.native";
 import { STATUS_GLYPH, type StatusTone } from "../../lib/item-status";
+import { payoutStatus } from "../../lib/payout-status";
 import { useApp } from "../../state/app";
 import { useFs } from "../../theme/theme";
 import { AmountDisplay } from "../../ui/amount";
 import { Glyph } from "../../ui/glyph";
 import { Banner, Button, Hatch, InkStamp, Rule } from "../../ui/primitives";
 import { Txt } from "../../ui/text";
-import { payoutStatus } from "../statement/live";
 import { type LocalReceipt, memberStatusOf, type RosterEntry, rosterCounts, searchRoster } from "./cash-day";
 import type { CashHandle } from "./cash-provider";
 import type { ClerkKey } from "./messages";
