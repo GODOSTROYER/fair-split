@@ -14,9 +14,6 @@
   :root {
     caret-color: var(--fs-ink);
     accent-color: var(--fs-ink);
-    /* The hollow outline of a hero amount (72 px): S2.2.1's 2 px member stroke, which a 1.25 px outline at
-       that size loses at a glance. Reported to WS-DS for @fairsplit/tokens; the console carries it until then. */
-    --fsc-hollow-stroke-hero: calc(var(--fs-hollow-stroke) * 1.6);
   }
 
   /* Programmatic focus targets (the screen, a drawer, a sheet) don't ring on click; keyboard focus still does. */

@@ -1,15 +1,15 @@
-// The Judge stage's top bar (S1.6): one row. On the left, how PayPal runs here (ADR-0002) in one line, after
-// the mock-data chip when the build answers from a mock (I8); in the centre, the run pill (it replaces the rail's
-// row in Judge Mode, so the screens keep their height); on the right What's real, Sound, Reset and the Proof
-// counter. The story ("A cacao co-op pays 64 farmers…") heads the rail under the lockup; when the rail folds to
-// glyphs the lockup and the story sit here instead, the story on its own row.
+// The Judge stage's top bar (S1.6; UI gate round 2): one row. On the left only what must lead (the mock-data chip
+// when the build answers from a mock, I8; the lockup and the story when the rail is folded); in the centre, the
+// run pill, the one element that says what to do next, which never truncates; on the right the utilities (What's
+// real, Sound, Reset) as one quiet cluster, the short Proof counter, and the honesty tag beside it, once. The
+// tag replaces the sentence the bar used to open on ("Simulated PayPal sandbox. Anything replayed says so.").
 
-import { Glyph, HonestyChip, useT } from "@fairsplit/ui-web";
+import { Glyph, HonestyTag, useT } from "@fairsplit/ui-web";
 import { type ReactNode, useRef } from "react";
 import type { PaypalRail } from "../lib/env.js";
 import { useFocusOnLeave } from "../lib/focus.js";
 import { AppLink } from "./AppLink.js";
-import { MOCK_DATA, railNotice, STAGE, story } from "./copy.js";
+import { MOCK_DATA, railTag, STAGE, story } from "./copy.js";
 import { SoundToggle } from "./SoundToggle.js";
 import { Wordmark } from "./Wordmark.js";
 
@@ -44,6 +44,7 @@ function ResetButton({ resetting, onReset }: { readonly resetting: boolean; read
       ref={ref}
       type="button"
       className="fsc-barlink fsc-barlink--fold"
+      title={STAGE.reset}
       onClick={() => {
         if (!resetting) onReset();
       }}
@@ -55,6 +56,30 @@ function ResetButton({ resetting, onReset }: { readonly resetting: boolean; read
       <span className="fs-t-label">{STAGE.reset}</span>
     </button>
   );
+}
+
+/**
+ * What the Proof counter says to assistive technology and to anyone reading the page's text: the whole
+ * sentence. On screen it reads "Proof 0/8" (or "Proof replayed"); the honesty tag beside it says where.
+ */
+export function proofChipLabel(
+  t: ReturnType<typeof useT>,
+  {
+    confirmed,
+    total,
+    replayed,
+    rail,
+  }: { confirmed: number; total: number; replayed: boolean; rail: PaypalRail },
+): { readonly spoken: string; readonly count: string } {
+  if (replayed)
+    return {
+      spoken: `Proof: ${total} statuses replayed (labelled, simulated), ${confirmed} successful in the source run`,
+      count: STAGE.proofReplayed,
+    };
+  return {
+    spoken: `${t("W-JG-01.proofChip", { confirmed, total })}${rail === "simulator" ? " in the simulated sandbox" : ""}`,
+    count: `${confirmed}/${total}`,
+  };
 }
 
 export function StageBar({
@@ -73,7 +98,7 @@ export function StageBar({
   onReset,
 }: StageBarProps) {
   const t = useT();
-  const notice = railNotice(rail);
+  const proof = proofChipLabel(t, { confirmed, total, replayed, rail });
   return (
     <header className="fsc-bar" data-testid="W-JG-01.bar" data-lockup={lockup ? "" : undefined}>
       {lockup && <Wordmark compact />}
@@ -88,26 +113,24 @@ export function StageBar({
             <span className="fs-t-label">{MOCK_DATA.chip}</span>
           </span>
         )}
-        <p className="fsc-bar__story" data-testid="W-JG-01.notice">
-          {lockup && <span className="fsc-bar__lead">{story(members)} </span>}
-          <span className="fsc-bar__rail">
-            <HonestyChip className="fsc-bar__rail-lead">{notice.lead}</HonestyChip> {notice.rest}
-          </span>
-        </p>
+        {lockup && <p className="fsc-bar__story">{story(members)}</p>}
       </div>
       {pill && <div className="fsc-bar__pill">{pill}</div>}
       <nav className="fsc-bar__actions" aria-label="Stage">
-        <button
-          type="button"
-          className="fsc-barlink"
-          onClick={onWhatsReal}
-          data-testid="W-JG-01.whatsRealOpen"
-        >
-          <Glyph name="ms:visibility" size={16} />
-          <span className="fs-t-label">{STAGE.whatsReal}</span>
-        </button>
-        <SoundToggle testId="W-JG-01.sound" className="fsc-barlink--fold" />
-        {canReset && <ResetButton resetting={resetting} onReset={onReset} />}
+        <div className="fsc-bar__utils">
+          <button
+            type="button"
+            className="fsc-barlink fsc-barlink--real"
+            title={STAGE.whatsReal}
+            onClick={onWhatsReal}
+            data-testid="W-JG-01.whatsRealOpen"
+          >
+            <Glyph name="ms:visibility" size={16} />
+            <span className="fs-t-label">{STAGE.whatsReal}</span>
+          </button>
+          <SoundToggle testId="W-JG-01.sound" className="fsc-barlink--fold" />
+          {canReset && <ResetButton resetting={resetting} onReset={onReset} />}
+        </div>
         {proofHref && (
           <AppLink
             href={proofHref}
@@ -116,13 +139,18 @@ export function StageBar({
             data-complete={total > 0 && confirmed === total ? "" : undefined}
           >
             <Glyph name={confirmed > 0 ? "seal-fill" : "seal"} size={16} />
-            <span className="fs-t-label">
-              {replayed
-                ? `Proof: ${total} statuses replayed (labelled, simulated), ${confirmed} successful in the source run`
-                : `${t("W-JG-01.proofChip", { confirmed, total })}${rail === "simulator" ? " in the simulated sandbox" : ""}`}
+            <span className="fs-sr">{proof.spoken}</span>
+            <span className="fs-t-label" aria-hidden>
+              {STAGE.proof}
+            </span>
+            <span className="fsc-proofchip__count fs-t-micro" aria-hidden>
+              {proof.count}
             </span>
           </AppLink>
         )}
+        <span className="fsc-bar__tag" data-testid="W-JG-01.notice">
+          <HonestyTag>{railTag(rail)}</HonestyTag>
+        </span>
       </nav>
     </header>
   );

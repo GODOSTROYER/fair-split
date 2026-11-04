@@ -22,6 +22,14 @@ export function railNotice(rail: PaypalRail): { readonly lead: string; readonly 
     : { lead: "PayPal sandbox (untested in this build).", rest: "Anything replayed says so." };
 }
 
+/**
+ * The honesty tag's words in the top bar, beside the Proof counter (UI gate round 2): the label alone, never a
+ * sentence. Under the simulator it is the pinned "Simulated PayPal sandbox".
+ */
+export function railTag(rail: PaypalRail): string {
+  return rail === "simulator" ? "Simulated PayPal sandbox" : "PayPal sandbox, untested in this build";
+}
+
 export function railLine(rail: PaypalRail): string {
   const { lead, rest } = railNotice(rail);
   return `${lead} ${rest}`;
@@ -49,6 +57,9 @@ export const STAGE = {
   soundOn: "Sound on",
   soundOff: "Sound off",
   reset: "Reset",
+  /** The top bar's short Proof counter: "Proof 0/8", or "Proof replayed" on a replayed run. */
+  proof: "Proof",
+  proofReplayed: "replayed",
   resetting: "Starting a fresh run. About 10 s.",
   skip: "Skip to the screen",
   phoneVisitTitle: "Open on a laptop for the full stage",

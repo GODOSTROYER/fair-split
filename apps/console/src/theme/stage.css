@@ -1,8 +1,9 @@
-/* The Judge stage (S1.6, design §6 J1) in Hayag, the light default (ADR-0016): one bar (the honesty chip, the
-   run pill in its centre, the stage's links) at 72% plate over the morning wash, then white panels set on the
-   ground at radius 22 on e2: the console (rail, screen), the docked phone and the ribbon (three log lanes, the
-   phone's lane, the honesty caption). The screens get every pixel the chrome does not need. Layout follows
-   S1.6's table: phone docked from 1680 px, a ribbon lane that rises from 1024, a phone visit below. */
+/* The Judge stage (S1.6, design §6 J1) in Hayag, the light default (ADR-0016): one bar (the run pill in its
+   centre, the utilities, the short Proof counter and the honesty tag on the right) on plate, then white panels set
+   on the ground at the panel radius on e2: the console (rail, screen), the docked phone and the ribbon (three log
+   lanes, the phone's lane, the honesty caption). No wash behind the stage (UI gate round 2: colour only where it
+   means something). The screens get every pixel the chrome does not need. Layout follows S1.6's table: phone
+   docked from 1680 px, a ribbon lane that rises from 1024, a phone visit below. */
 
 /* ---------------------------------------------------------------- frame */
 
@@ -20,8 +21,8 @@
   padding: var(--fsc-gutter);
   /* clip, not hidden: a hidden box is still a scroller that script and fragment links can scroll. */
   overflow: clip;
-  /* The stage hero sits on the one morning wash; the panels on it are plate. */
-  background: var(--fs-wash), var(--fs-ground);
+  /* A calm ground; the panels on it are plate. */
+  background: var(--fs-ground);
   color: var(--fs-ink);
 }
 
@@ -40,80 +41,79 @@
 
 /* ---------------------------------------------------------------- top bar */
 
-/* One row: the honesty line (left), the run pill (centre), the stage's links (right). The pill's column is
-   sized to the pill; the two outer columns share what is left, so the pill sits on the bar's centre line
-   whenever both sides fit, and the honesty line wraps before anything is cut. */
+/* One row (UI gate round 2): the left column (a mock chip, or the folded rail's lockup story) gives way first;
+   the run pill in the centre keeps its full width and never truncates; the right holds the utilities, the short
+   Proof counter and the honesty tag. */
 .fsc-bar {
   display: grid;
   flex: none;
-  grid-template-columns: minmax(max-content, 1fr) minmax(0, max-content) minmax(max-content, 1fr);
+  grid-template-columns: minmax(0, 1fr) max-content minmax(max-content, 1fr);
   align-items: center;
-  gap: 8px 20px;
-  min-height: 52px;
-  padding: 7px 10px 7px 18px;
+  gap: 8px 16px;
+  min-height: 56px;
+  padding: 8px 12px 8px 20px;
   border-radius: var(--fs-radius-panel);
-  background: color-mix(in srgb, var(--fs-plate) 72%, transparent);
+  background: var(--fs-plate);
   box-shadow: var(--fs-shadow-e1);
 }
 
 .fsc-bar .fsc-wordmark {
-  padding-right: 20px;
+  padding-right: 16px;
   border-right: 1px solid var(--fs-rule);
-}
-
-/* The honesty line opens on its dashed chip: "Simulated PayPal sandbox", then the rest of the sentence. */
-.fsc-bar__rail-lead.fs-honesty {
-  margin-right: 6px;
-  font-size: 0.8125rem;
 }
 
 .fsc-bar__honest {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   min-width: 0;
 }
 
-/* The honesty line keeps one line: the run pill beside it gives way first (its next step ellipsizes). */
 .fsc-bar__story {
   min-width: 0;
+  overflow: hidden;
   color: var(--fs-ink-2);
   font-size: 0.8125rem;
   line-height: 1.125rem;
+  text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.fsc-bar__lead,
-.fsc-bar__rail-lead {
-  color: var(--fs-ink);
-  font-weight: 560;
 }
 
 .fsc-bar__pill {
   display: flex;
   justify-content: center;
-  min-width: 0;
-}
-
-.fsc-bar__pill > * {
-  min-width: 0;
+  min-width: max-content;
 }
 
 .fsc-bar__actions {
   display: flex;
   justify-content: flex-end;
   align-items: center;
-  gap: 4px;
+  gap: 8px;
+}
+
+/* What's real, Sound and Reset: one quiet cluster of line icons, set off from Proof by a rule. */
+.fsc-bar__utils {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding-right: 8px;
+  border-right: 1px solid var(--fs-rule);
+}
+
+.fsc-bar__tag {
+  display: inline-flex;
+  flex: none;
 }
 
 .fsc-bar__mock {
   flex: none;
 }
 
-/* Where the lockup sits in the bar (the rail folded below 1280 px), the story joins the honesty line on a
-   second row, under the lockup, the pill and the links. */
+/* Where the lockup sits in the bar (the rail folded below 1280 px), the story sits on a second row, under the
+   lockup, the pill and the links. */
 .fsc-bar[data-lockup] {
-  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  grid-template-columns: auto max-content minmax(0, 1fr) auto;
 }
 
 .fsc-bar[data-lockup] > .fsc-wordmark {
@@ -136,15 +136,21 @@
   grid-column: 1 / -1;
 }
 
+.fsc-bar__honest:empty {
+  display: none;
+}
+
 .fsc-barlink {
   appearance: none;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  min-height: 34px;
-  padding: 0 12px;
+  gap: 8px;
+  min-width: 36px;
+  min-height: 36px;
+  justify-content: center;
+  padding: 0 10px;
   border: 0;
-  border-radius: var(--fs-radius-pill);
+  border-radius: var(--fs-radius-control);
   background: transparent;
   color: var(--fs-ink-2);
   white-space: nowrap;
@@ -152,7 +158,7 @@
 
 .fsc-barlink:hover,
 .fsc-barlink[aria-pressed="true"] {
-  background: var(--fs-plate);
+  background: var(--fs-plate-2);
   color: var(--fs-ink);
 }
 
@@ -160,27 +166,49 @@
   color: var(--fs-ink-3);
 }
 
-/* The Proof chip: an ink pill, a checked fact (decision.md §4). */
+/* Sound and Reset are line icons at every width; each keeps its word for assistive technology (and a title). */
+.fsc-barlink--fold {
+  padding: 0;
+}
+
+.fsc-barlink--fold .fs-t-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* The Proof counter: "Proof 0/8", a seal and a count in an outline pill (a checked fact, never a fill). Its
+   whole sentence is the accessible name. */
 .fsc-proofchip {
   display: inline-flex;
-  max-width: 100%;
+  flex: none;
   align-items: center;
   gap: 8px;
   min-height: 36px;
-  margin-left: 8px;
-  padding: 0 16px 0 12px;
-  border: 0;
+  padding: 0 14px 0 12px;
+  border: 1px solid var(--fs-rule-strong);
   border-radius: var(--fs-radius-pill);
-  background: var(--fs-ink);
-  box-shadow: var(--fs-shadow-e1);
-  color: var(--fs-plate);
+  background: var(--fs-plate);
+  color: var(--fs-ink);
   text-decoration: none;
-  white-space: normal;
+  white-space: nowrap;
   font-variant-numeric: lining-nums proportional-nums;
 }
 
 .fsc-proofchip:hover {
-  background: var(--fs-ink-2);
+  border-color: var(--fs-steel-line);
+  background: var(--fs-plate-2);
+}
+
+.fsc-proofchip__count {
+  color: var(--fs-ink-2);
+}
+
+.fsc-proofchip[data-complete] .fsc-proofchip__count {
+  color: var(--fs-ink);
 }
 
 /* The stage's own state (queued, resetting, start-failed, autoplay, paused, a switch that is off). */
@@ -469,12 +497,13 @@
 
 /* ---------------------------------------------------------------- run pill */
 
-/* The run pill: a pill on e1; its dot is marigold when a person acts next. */
+/* The run pill: a pill on e1; its dot is marigold when a person acts next. It is the bar's protected element:
+   it keeps its full width and its next step is never cut (UI gate round 2). */
 .fsc-pill {
   display: inline-flex;
+  flex: none;
   align-items: stretch;
-  max-width: 100%;
-  min-height: 38px;
+  min-height: 40px;
   overflow: hidden;
   border: 1px solid var(--fs-rule);
   border-radius: var(--fs-radius-pill);
@@ -503,8 +532,6 @@
 }
 
 .fsc-pill__next > span:last-child {
-  overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -774,19 +801,22 @@
   color: var(--fs-ink);
 }
 
+/* "Use the phone" never sits on the member's statement (UI gate round 2): the words show only while a pointer or
+   the keyboard is on the dimmed phone; at rest the button keeps them as its name. */
 .fsc-dock__scrim-label {
   padding: 8px 16px;
-  border: 1px solid var(--fs-rule);
+  border: 1px solid var(--fs-ink-3);
   border-radius: var(--fs-radius-pill);
   background: var(--fs-plate);
   box-shadow: var(--fs-shadow-e2);
   color: var(--fs-ink);
-  transition: border-color var(--fs-dur-tooltip) var(--fs-ease-out);
+  opacity: 0;
+  transition: opacity var(--fs-dur-tooltip) var(--fs-ease-out);
 }
 
 .fsc-dock__scrim:hover .fsc-dock__scrim-label,
 .fsc-dock__scrim:focus-visible .fsc-dock__scrim-label {
-  border-color: var(--fs-ink-3);
+  opacity: 1;
 }
 
 .fsc-dock__scrim:focus-visible {
@@ -982,14 +1012,16 @@
   color: var(--fs-ink);
 }
 
+/* The phone preview's amount: the one hero numeral, solid ink (UI gate round 2). */
 .fsc-poster__amount {
   margin: 0;
-  color: var(--fs-pencil);
+  color: var(--fs-ink);
   font-family: var(--fs-font-ui);
-  font-stretch: 75%;
-  font-weight: 800;
+  font-stretch: 87.5%;
+  font-weight: 500;
   font-size: 3rem;
   line-height: 3.25rem;
+  letter-spacing: -0.02em;
   font-variant-numeric: lining-nums proportional-nums;
 }
 
@@ -1321,7 +1353,7 @@
   height: auto;
   min-height: 100dvh;
   overflow: visible;
-  background: var(--fs-wash), var(--fs-ground);
+  background: var(--fs-ground);
 }
 
 .fsc-stage[data-layout="phone-visit"] .fsc-stage__body {
@@ -1408,14 +1440,18 @@
   z-index: calc(var(--fs-z-drawer) + 1);
 }
 
-/* 1280-1679 px: one row still. The honesty line keeps its words; the pill gives way (its next step ellipsizes),
-   and Sound and Reset fold to their glyphs, each keeping its word for assistive technology. */
-@media (min-width: 1280px) and (max-width: 1679px) {
+/* Below 1680 px What's real folds to its line icon too (its word stays for assistive technology and in a
+   title): the run pill keeps its whole next step, and Proof and the honesty tag keep theirs. */
+@media (max-width: 1679px) {
   .fsc-bar {
-    gap: 8px 14px;
+    gap: 8px 12px;
   }
 
-  .fsc-bar .fsc-barlink--fold .fs-t-label {
+  .fsc-barlink--real {
+    padding: 0;
+  }
+
+  .fsc-barlink--real .fs-t-label {
     position: absolute;
     width: 1px;
     height: 1px;
@@ -1425,10 +1461,10 @@
   }
 }
 
-/* Keep the rail label and every action inside the viewport when the labelled Proof chip grows. */
+/* 1024-1279 px: the pill on the left, the links on the right; anything on the left column moves to row 2. */
 @media (min-width: 1024px) and (max-width: 1279px) {
   .fsc-bar {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-columns: max-content minmax(0, 1fr);
   }
 
   .fsc-bar > .fsc-bar__honest {
@@ -1445,12 +1481,12 @@
   .fsc-bar > .fsc-bar__actions {
     grid-row: 1;
     grid-column: 2;
-    flex-wrap: wrap;
     min-width: 0;
   }
 
+  /* With the lockup in the bar, the pill keeps row 1 beside it; the links take row 2, the story row 3. */
   .fsc-bar[data-lockup] {
-    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-columns: auto minmax(max-content, 1fr);
   }
 
   .fsc-bar[data-lockup] > .fsc-bar__pill {
@@ -1483,16 +1519,6 @@
   .fsc-bar .fsc-wordmark {
     padding-right: 0;
     border-right: 0;
-  }
-
-  /* Sound and Reset fold to their glyphs; each keeps its word for assistive technology and the pill its room. */
-  .fsc-barlink--fold .fs-t-label {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
   }
 
   .fsc-ribbon__lane,

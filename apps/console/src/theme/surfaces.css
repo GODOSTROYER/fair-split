@@ -51,7 +51,7 @@
   --fs-font-ui: "FS Sans Proof", system-ui, sans-serif;
   --fs-font-statement: "Atkinson Hyperlegible Next", "FS Sans Proof", system-ui, sans-serif;
   --fs-font-mark: "FS Stencil", "FS Sans Proof", system-ui, sans-serif;
-  --fs-font-hollow: "FS Numerals Hollow", "FS Sans Proof", system-ui, sans-serif;
+  --fs-font-hollow: "FS Sans Proof", system-ui, sans-serif;
 }
 
 .fsc-surface--proof {

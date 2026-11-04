@@ -288,7 +288,7 @@
 }
 
 .fsr-fan__amount[data-amount-state="hollow"] {
-  color: var(--fs-ink-2);
+  color: var(--fs-ink);
   text-decoration: underline dashed 1.5px;
   text-underline-offset: 4px;
 }

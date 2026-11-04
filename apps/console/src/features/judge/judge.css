@@ -11,12 +11,12 @@
   max-width: 1320px;
 }
 
-/* The first view is the stage's hero: its screen sits on the morning wash, and it fits the first screen at
+/* The first view is the stage's hero, on plate (no wash, UI gate round 2), and it fits the first screen at
    1920 × 1080 (the story tiles and What's real in view on arrival), so its top and foot room are tighter. */
 .fsc-console__screen:has(> .fsc-first) {
   padding-top: 20px;
   padding-bottom: 24px;
-  background: var(--fs-wash), var(--fs-plate);
+  background: var(--fs-plate);
 }
 
 .fsc-first__head {
@@ -327,13 +327,13 @@
   width: 100%;
 }
 
-/* The first press: one confident line with its glyph and an Enter keycap; its accessible name keeps the honesty
-   words, and the note under it says them. */
+/* The first press: one confident line with its glyph, the one primary button (no keycap inside it, round 2); its
+   accessible name keeps the honesty words, and the note under it says them. */
 .fsc-first__slab > .fs-slab {
   flex: 1 1 100%;
 }
 
-/* The short action sits left with its glyph; the keycap (from 1600 px) takes the far edge. */
+/* The short action sits left with its glyph. */
 .fsc-first__slab .fs-slab__face {
   justify-content: flex-start;
 }
@@ -353,17 +353,6 @@
   .fsc-first__slab .fs-slab__words > :first-child {
     white-space: nowrap;
   }
-}
-
-.fsc-first__key {
-  border-color: color-mix(in srgb, var(--fs-slab-chalk-label) 40%, transparent);
-  background: color-mix(in srgb, var(--fs-slab-chalk-label) 16%, transparent);
-  color: var(--fs-slab-chalk-label);
-}
-
-/* The funded press rests flush in plate (ui-web's committed state): its keycap goes with the press. */
-.fs-slab[data-state="committed"] .fsc-first__key {
-  display: none;
 }
 
 .fsc-first__stamp {

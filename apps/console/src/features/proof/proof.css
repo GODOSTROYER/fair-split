@@ -4,16 +4,11 @@
    colour is a token, every timing a --fs-dur-* or --fs-ease-* variable. Jade appears only where the simulated
    PayPal confirmed money; a check that matches is ink; red only where a check failed or PayPal failed. */
 
-/* Proof's ground is plate (decision.md §5), with the one morning wash behind the hero only. --fs-wash is two
-   gradients, so the size, place and repeat are longhands (one value repeats for every layer): a shorthand would
-   size only the last layer and let the jade one run down the whole page, behind data (decision.md §8). */
+/* Proof's ground is plate (decision.md §5). No wash behind the hero (UI gate round 2: a check result never
+   glows, and colour only where it means something). */
 .fsc-surface--proof {
   --fs-ground: var(--fs-plate);
   background-color: var(--fs-plate);
-  background-image: var(--fs-wash);
-  background-size: 100% 960px;
-  background-position: top center;
-  background-repeat: no-repeat;
 }
 
 /* Proof's own face, "FS Sans Proof" (theme/surfaces.css): the column reads in it wherever it renders, and the
@@ -22,7 +17,7 @@
   --fs-font-ui: "FS Sans Proof", system-ui, sans-serif;
   --fs-font-statement: "Atkinson Hyperlegible Next", "FS Sans Proof", system-ui, sans-serif;
   --fs-font-mark: "FS Stencil", "FS Sans Proof", system-ui, sans-serif;
-  --fs-font-hollow: "FS Numerals Hollow", "FS Sans Proof", system-ui, sans-serif;
+  --fs-font-hollow: "FS Sans Proof", system-ui, sans-serif;
   display: block;
   color: var(--fs-ink);
   font-family: var(--fs-font-ui);
@@ -52,7 +47,7 @@
 }
 
 .pf [data-amount-state="hollow"] {
-  color: var(--fs-ink-2);
+  color: var(--fs-ink);
   text-decoration-line: underline;
   text-decoration-style: dashed;
   text-decoration-thickness: 1.5px;
@@ -125,9 +120,9 @@
   display: block;
   margin: 4px 0;
   color: var(--fs-ink);
-  font-stretch: 75%;
-  font-weight: 800;
-  letter-spacing: 0;
+  font-stretch: 87.5%;
+  font-weight: 500;
+  letter-spacing: -0.02em;
   white-space: nowrap;
 }
 
@@ -342,14 +337,7 @@
   color: var(--fs-ink);
 }
 
-/* Verify in your browser / Check again: an ink slab, a checked fact (decision.md §4), on an ink lip. */
-.pf-verify .fs-slab[data-tone="chalk"] {
-  --face: var(--fs-ink);
-  --edge-r: var(--fs-ink);
-  --edge-b: var(--fs-pencil);
-  --label: var(--fs-plate);
-  --glow: color-mix(in srgb, var(--fs-ink) 35%, transparent);
-}
+/* Verify in your browser / Check again: the one primary button (UI gate round 2), like every other press. */
 
 /* The signed-by line: the officers' indigo stamps (AS, EC) before the words. */
 .pf-verify__signed {
@@ -1053,8 +1041,8 @@
 }
 
 .pf-receipt__row--net dd {
-  font-stretch: 75%;
-  font-weight: 760;
+  font-stretch: 87.5%;
+  font-weight: 500;
   font-size: 1.5rem;
   line-height: 2rem;
 }

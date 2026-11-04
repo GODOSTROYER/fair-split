@@ -232,7 +232,6 @@ function Desk() {
         label={label}
         glyph="thumbmark"
         width="100%"
-        trailing={<kbd className="fsc-kbd fsc-first__key">Enter</kbd>}
         srLabel={
           movedOn
             ? recordText

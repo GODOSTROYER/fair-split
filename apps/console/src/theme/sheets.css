@@ -185,6 +185,11 @@
   right: 8px;
 }
 
+/* Round 2: no bolt heads or corner dots on any plate; its rule and the steel glyphs say "bolted". */
+.fsc-bolted__bolt {
+  display: none;
+}
+
 /* ---------------------------------------------------------------- ledgers (term on the left, items beside) */
 
 .fsc-ledger {

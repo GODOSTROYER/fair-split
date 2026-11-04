@@ -18,6 +18,12 @@
   color: var(--fs-ink);
 }
 
+/* Round 2: no bolt heads or corner dots; the plate's rule and lock glyph say "bolted". */
+.fsc-bolted-plate__bolt,
+.fsc-rc__refusal-bolt {
+  display: none;
+}
+
 .fsc-bolted-plate__bolt {
   position: absolute;
   top: 8px;
