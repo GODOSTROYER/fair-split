@@ -80,6 +80,13 @@ describe("Print", () => {
 });
 
 describe("Seal", () => {
+  it("exposes the full digest and the same comparison text as the Chair phone", () => {
+    const hash = `3f1c1ce6${"0123456789abcdef".repeat(3)}c8fa1722`;
+    render(wrap(<Seal batchSha256={hash} size={200} keys={2} showHash testId="seal" />));
+    expect(screen.getByTestId("seal").getAttribute("data-digest")).toBe(hash);
+    expect(screen.getByTestId("seal.hash").textContent).toBe("3f1c 1ce6 … c8fa 1722");
+  });
+
   it("is an image labelled with the hash in groups of four and the keys signed", () => {
     render(wrap(<Seal batchSha256={digest} size={200} keys={1} testId="seal" />));
     const svg = screen.getByRole("img", { name: /Batch seal [0-9a-f]{4} [0-9a-f]{4}\. 1 of 2/ });
@@ -145,10 +152,10 @@ describe("Seal", () => {
     expect(screen.getByTestId("s").dataset.variant).toBe("five");
   });
 
-  it("prints the first 16 hex digits in groups of four under the seal, for matching by eye", () => {
+  it("prints both ends of the digest in groups of four under the seal, for matching by eye", () => {
     render(wrap(<Seal batchSha256={digest} size={96} keys={1} showHash testId="s" />));
     expect(screen.getByTestId("s.hash").textContent).toBe(
-      `${digest.slice(0, 4)} ${digest.slice(4, 8)} ${digest.slice(8, 12)} ${digest.slice(12, 16)}`,
+      `${digest.slice(0, 4)} ${digest.slice(4, 8)} … ${digest.slice(-8, -4)} ${digest.slice(-4)}`,
     );
     expect(screen.getByTestId("s").closest("figure")).not.toBeNull();
   });

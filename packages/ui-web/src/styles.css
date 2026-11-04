@@ -197,7 +197,14 @@
   }
 
   .fs-slab[data-state="committed"] .fs-slab__face {
+    background: var(--fs-plate-2);
+    box-shadow: none;
+    color: var(--fs-ink);
     cursor: default;
+  }
+
+  .fs-slab[data-state="committed"] .fs-slab__label {
+    white-space: normal;
   }
 
   /* A commit in flight (S2 §2.7 onCommit's promise): the slab waits where the commit left it. */
@@ -690,14 +697,17 @@
   }
 
   .fs-hold__voice {
-    display: grid;
-    grid-template-columns: 76px minmax(0, 1fr);
-    gap: 12px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 12px;
     align-items: baseline;
   }
 
   .fs-hold__voice dt {
     display: inline-flex;
+    flex: 1 0 76px;
+    min-width: max-content;
+    max-width: 100%;
     align-items: center;
     gap: 4px;
     color: var(--fs-ink-3);
@@ -708,6 +718,8 @@
   }
 
   .fs-hold__voice dd {
+    flex: 1 0 calc(100% - 88px);
+    min-width: 0;
     max-width: 62ch;
     margin: 0;
   }

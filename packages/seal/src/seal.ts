@@ -3,7 +3,7 @@
 // and the sharp-rendered PNG for push notifications and the 80 mm print, so every surface draws the same seal
 // for the same batch. The inner rings belong to key 1 (the treasurer), the outer ones to key 2 (the Chair): a
 // person can compare the console and the phone by eye. It is a recognizer, not a check: the phone recomputes
-// batchSha256 from the items it shows, and the seal plus the first 16 hex digits let a person cross-check.
+// batchSha256 from the items it shows, and the seal plus both ends of its digest let a person cross-check.
 //
 // The ranges come from S2's coverage simulation (1 px stroke, 200 px seal): the old ones covered 40% of a band
 // at the median and 66% at the 95th percentile, which reads as grey moiré; these keep each band at 12–40%
@@ -327,9 +327,10 @@ export function hashGroups(hex: string, groups = 2): string {
   return parts.join(" ");
 }
 
-/** What a person compares by eye next to the seal: the first 16 hex digits in groups of four (S2 §2.7). */
+/** Cross-surface comparison: the first and last eight hex digits in groups of four. */
 export function sealHash(batchSha256: string): string {
-  return hashGroups(batchSha256, 4);
+  const clean = batchSha256.trim().toLowerCase();
+  return `${hashGroups(clean)} … ${hashGroups(clean.slice(-8))}`;
 }
 
 export interface SealSvgOptions {

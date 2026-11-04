@@ -124,6 +124,15 @@ describe("catalogs", () => {
     }
   });
 
+  it("offers a short visible invoice action and keeps the full accessible consequence", () => {
+    expect(translate("en", "W-JG-01.markPaidLabel")).toBe("Mark the invoice paid");
+    expect(translate("en", "W-JG-01.markPaid")).toMatch(/^Mark Lantern Bay’s invoice paid/);
+    expect(translate("en", "W-JG-01.markPaid")).toMatch(/simulated PayPal sandbox/);
+    expect(translate("en", "W-JG-01.pill.recording")).toBe(
+      "Recording the payment in the simulated PayPal sandbox…",
+    );
+  });
+
   it("says simulated wherever it names the sandbox or PayPal confirming, and moves no real money (E-19)", () => {
     for (const key of [
       "money.sandbox",
