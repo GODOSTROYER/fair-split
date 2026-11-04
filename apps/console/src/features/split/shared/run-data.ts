@@ -50,6 +50,7 @@ export interface RunData {
   readonly live: boolean;
   /** ADR-0002: which PayPal rail labels every PayPal-derived value (I8). */
   readonly rail: PaypalRail;
+  readonly startFresh: (() => Promise<void>) | undefined;
   retry(): void;
 }
 
@@ -76,6 +77,7 @@ export function useRunData(runSlug: string): RunData {
     error: snapshot.error ?? run.error ?? null,
     live,
     rail,
+    startFresh: session.session ? session.reset : undefined,
     retry,
   };
 }

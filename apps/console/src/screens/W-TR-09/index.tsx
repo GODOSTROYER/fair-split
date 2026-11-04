@@ -31,7 +31,7 @@ export function Screen({ runSlug, memberNo }: MemberLineProps) {
   const row = snapshot && view ? findRow(snapshot, view, memberNo) : undefined;
   const label = member ? `${member.displayName}'s line` : `Line ${memberNo}`;
 
-  if (data.access !== "allowed") return <RunRouteGate data={data} />;
+  if (data.access === "missing") return <RunRouteGate data={data} />;
 
   let body: ReactNode;
   if (data.error && !view) {
@@ -104,7 +104,7 @@ export function PrintScreen({ runSlug, memberNo }: PrintScreenProps) {
   const member = snapshot?.members.find((m) => m.memberNo === memberNo);
   const row = snapshot && view ? findRow(snapshot, view, memberNo) : undefined;
 
-  if (data.access !== "allowed") return <RunRouteGate data={data} />;
+  if (data.access === "missing") return <RunRouteGate data={data} />;
 
   const tools = (
     <nav className="fsr-print__tools" aria-label={LINE.printTitle}>

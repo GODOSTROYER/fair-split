@@ -160,7 +160,7 @@ export function Screen({ runSlug, holdId }: HoldDrawerProps) {
       ? HOLDS.slipMeta(seeded.serials[0])
       : null;
 
-  if (data.access !== "allowed") return <RunRouteGate data={data} />;
+  if (data.access === "missing") return <RunRouteGate data={data} />;
 
   const body = (() => {
     if (data.error && !view) {

@@ -137,7 +137,7 @@ export function Screen({ runSlug, hold, member }: SplitScreenProps) {
     return found?.memberNo ?? null;
   }, [hold, member, view]);
 
-  if (data.access !== "allowed") return <RunRouteGate data={data} />;
+  if (data.access === "missing") return <RunRouteGate data={data} />;
 
   let state: ScreenState<"W-TR-05">;
   if (data.error && !view) state = "error";

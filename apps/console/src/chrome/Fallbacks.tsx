@@ -3,7 +3,7 @@
 
 import { Glyph } from "@fairsplit/ui-web";
 import { type ErrorComponentProps, Link, useRouter } from "@tanstack/react-router";
-import { type ReactNode, useEffect } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { requestIdOf } from "../data/errors.js";
 import type { RunAccess } from "../features/split/shared/run-data.js";
 import { PrintBed } from "./PrintBed.js";
@@ -14,9 +14,10 @@ export function RunRouteGate({
   data,
   children,
 }: {
-  readonly data: { readonly access: RunAccess };
+  readonly data: { readonly access: RunAccess; readonly startFresh?: (() => Promise<void>) | undefined };
   readonly children?: ReactNode;
 }) {
+  const [resetFailed, setResetFailed] = useState(false);
   if (data.access === "allowed") return children;
   if (data.access === "pending")
     return (
@@ -30,13 +31,26 @@ export function RunRouteGate({
     <section className="fsc-fallback" data-testid="run-visit.missing">
       <h1 className="fs-t-title-2">This run belongs to another visit.</h1>
       <p className="fsc-fallback__links">
-        <a className="fs-flat" href="/judge">
+        <a
+          className="fs-flat"
+          href="/judge"
+          onClick={(event) => {
+            if (!data.startFresh) return;
+            event.preventDefault();
+            setResetFailed(false);
+            void data
+              .startFresh()
+              .then(() => window.location.assign("/judge"))
+              .catch(() => setResetFailed(true));
+          }}
+        >
           Start a fresh run
         </a>
         <a className="fs-link fs-t-label" href="/prototype">
           Open the showcase
         </a>
       </p>
+      {resetFailed && <p role="alert">This visit could not be reset. Try again.</p>}
     </section>
   );
 }

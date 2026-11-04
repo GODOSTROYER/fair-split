@@ -1,5 +1,6 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
+import { createTestRuntime } from "../test/world.js";
 import { RunRouteGate } from "./Fallbacks.js";
 
 describe("run visit gate", () => {
@@ -23,5 +24,24 @@ describe("run visit gate", () => {
     expect(screen.getByRole("link", { name: "Start a fresh run" }).getAttribute("href")).toBe("/judge");
     expect(screen.getByRole("link", { name: "Open the showcase" })).toBeTruthy();
     expect(view.container.textContent).not.toContain("US$");
+  });
+  it("ends the existing visit before starting a fresh run", async () => {
+    const { runtime } = createTestRuntime();
+    await runtime.session.start();
+    render(
+      <RunRouteGate
+        data={{
+          access: "missing",
+          startFresh: async () => {
+            await runtime.session.reset();
+            // Hold navigation so this test checks the real Reset without leaving jsdom.
+            await new Promise<void>(() => undefined);
+          },
+        }}
+      />,
+    );
+    fireEvent.click(screen.getByRole("link", { name: "Start a fresh run" }));
+    await expect.poll(() => runtime.session.getState().status).toBe("none");
+    expect(sessionStorage.getItem("fs.judge.tab")).toBeNull();
   });
 });
