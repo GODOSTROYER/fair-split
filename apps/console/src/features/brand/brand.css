@@ -1,6 +1,7 @@
-/* W-BR-01's header strip, above the same Proof column (Adlaw; UI gate round 2). One white card on a hairline ring,
-   like Proof's own cards: who it is for, the invoice and the payouts as two facts, and the export. Tokens only,
-   weights from the type roles (titles 560, labels 520), the 4 px spacing scale. */
+/* W-BR-01's header strip, above the same Proof column (Adlaw; UI gate rounds 2 and 3). One white card on a hairline
+   ring, like Proof's own cards: who it is for, the invoice and the payouts as two facts, and the export. Tokens
+   only, weights from the type roles (titles 560, labels 520), the 4 px spacing scale; words at 13 px or more, ids
+   at 13 px; no dashed line (dashed means simulated only). */
 
 .br-strip {
   display: grid;
@@ -100,20 +101,23 @@
   gap: 8px;
 }
 
+/* Nothing to export yet: a quiet solid outline (dashed means simulated only, UI gate round 3). */
 .br-strip__buttons .fs-flat:disabled {
-  border-style: dashed;
+  border-color: var(--fs-rule);
+  background: var(--fs-plate);
   color: var(--fs-ink-3);
   cursor: default;
 }
 
-.br-strip__note {
+.br-strip__note,
+.br-strip__showcase {
   color: var(--fs-ink-3);
 }
 
 .br-strip__saved {
   color: var(--fs-ink-2);
-  font-size: 0.75rem;
-  line-height: 1rem;
+  font-size: 0.8125rem;
+  line-height: 1.25rem;
 }
 
 .br-strip__saved:empty {

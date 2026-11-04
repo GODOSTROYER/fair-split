@@ -6,6 +6,7 @@ import type { InvoiceStatus, ProofBundle, SeasonSnapshot } from "@fairsplit/cont
 import { Glyph, HonestyTag } from "@fairsplit/ui-web";
 import { useState } from "react";
 import { payoutReplaySummary } from "../../data/payout-replay.js";
+import { SHOWCASE_LABEL } from "../../lib/display.js";
 import type { PaypalRail } from "../../lib/env.js";
 import { invoiceWords, railShort, STATE_COPY } from "../proof/copy.js";
 import { isSettled, type ProgressCounts } from "../proof/model.js";
@@ -67,6 +68,8 @@ export interface BrandHeaderProps {
   readonly rail: PaypalRail;
   readonly provenance: string | null;
   readonly payoutReplayed?: boolean;
+  /** The seeded showcase run's Proof, not a judge's own: its invoice id is labelled as the showcase's. */
+  readonly showcase?: boolean;
 }
 
 export function BrandHeader({
@@ -81,6 +84,7 @@ export function BrandHeader({
   rail,
   provenance,
   payoutReplayed = false,
+  showcase = false,
 }: BrandHeaderProps) {
   const [saved, setSaved] = useState<string | null>(null);
   const payer = snapshot?.payer;
@@ -108,7 +112,9 @@ export function BrandHeader({
           {BRAND_COPY.title(payer?.name ?? "the brand")}
         </h1>
         {payer && (
-          <p className="br-strip__for fs-t-micro">{BRAND_COPY.for(payer.contactName, payer.contactTitle)}</p>
+          <p className="br-strip__for fs-t-caption">
+            {BRAND_COPY.for(payer.contactName, payer.contactTitle)}
+          </p>
         )}
       </div>
       <dl className="br-strip__facts">
@@ -119,11 +125,17 @@ export function BrandHeader({
         >
           <dt>{BRAND_COPY.invoice}</dt>
           <dd>
-            {invoiceNumber && <span className="fs-t-hash">{invoiceNumber}</span>}{" "}
+            {invoiceNumber && <span className="fs-t-hash">{invoiceNumber}</span>}
+            {invoiceNumber && showcase && (
+              <span className="br-strip__showcase fs-t-caption" data-testid="W-BR-01.invoice.showcase">
+                {SHOWCASE_LABEL}
+              </span>
+            )}{" "}
             <span className="br-strip__status">
               {state === "unpaid" || !invoiceStatus ? BRAND_COPY.unpaid : invoiceWords(invoiceStatus)}
             </span>
-            {state === "unpaid" && <HonestyTag>{railShort(rail)}</HonestyTag>}
+            {/* Before payment no Proof column sits under the strip, so its quiet indicator is the page's one. */}
+            {state === "unpaid" && <HonestyTag quiet>{railShort(rail)}</HonestyTag>}
           </dd>
         </div>
         <div
@@ -145,7 +157,7 @@ export function BrandHeader({
       </dl>
       <div className="br-strip__export" data-testid="W-BR-01.export">
         <p className="br-strip__label">
-          {BRAND_COPY.export} <span className="br-strip__what fs-t-micro">{BRAND_COPY.exportWhat}</span>
+          {BRAND_COPY.export} <span className="br-strip__what fs-t-caption">{BRAND_COPY.exportWhat}</span>
         </p>
         {withheld ? (
           <p className="br-strip__withheld" data-testid="W-BR-01.export.withheld">
@@ -176,7 +188,7 @@ export function BrandHeader({
             </button>
           </div>
         )}
-        <p className="br-strip__note fs-t-micro">{BRAND_COPY.exportNote}</p>
+        <p className="br-strip__note fs-t-caption">{BRAND_COPY.exportNote}</p>
         <p className="br-strip__saved" role="status" data-testid="W-BR-01.export.saved">
           {saved ?? ""}
         </p>

@@ -1,18 +1,22 @@
-// Proof's hero (S1.8 P1, design §6; UI gate round 2). A factual header first: the stencilled lot mark, then the
-// invoice as one money figure with its context in grey and the honesty tags. Then the verdict leads, beside the
-// seal grown from the batch hash: the six checks' count as the page's one hero numeral in FS Sans ("0/6", then
-// "6/6"), "Sample keys, never Verified" paired with it, and "Verify in your browser" as the one primary. Where
-// every dollar went sits beside it (the money slot), and the six checks run under both, so all six are in view on
-// a laptop's first screen. A check that matches is ink, never jade (jade means money); only a mismatch is red, and
-// it names its plate. In Data mode the seal reads as its hash (S1.7).
+// Proof's hero (S1.8 P1, design §6; UI gate rounds 2 and 3). A factual header first: the lot's id, then the
+// invoice as one money figure with its context in grey, the page's one quiet "Simulated PayPal sandbox" indicator
+// and the synthetic glyph. Then the verdict leads, beside the 180 px seal grown from the batch hash: the six
+// checks' count as the page's one hero numeral in FS Sans ("0/6", then "6/6"), the explicit result under it ("6 of 6
+// integrity checks match", seen and heard the same way), the sample-keys qualification beside it as a neutral key
+// chip (never a check mark), and "Verify in your browser" as the one primary. Where every dollar went sits beside
+// it (the money slot), and the six checks run under both, so all six are in view on a laptop's first screen. A
+// check that matches is ink, never jade (jade means money); only a mismatch is red, and it names its plate. In
+// Data mode the seal reads as its hash (S1.7).
 
 import type { PlateName, ProofBundle } from "@fairsplit/contracts";
 import {
   CurrencyFigure,
   Glyph,
   type GlyphName,
+  HONESTY,
   HonestyTag,
   InkStamp,
+  LegendGlyph,
   Numeral,
   Seal,
   Slab,
@@ -101,11 +105,13 @@ export function ProofHero({
               {where && <span className="fs-sr">{where}</span>}
             </span>
           </Title>
+          {/* The page's one quiet indicator (Proof has no top bar), and the synthetic glyph: a bare mark whose
+              words are its tooltip and its name. The full legend lives in What's real. */}
           <p className="pf-head__tags">
             <span className="pf-head__rail" data-testid="W-PF-01.rail" data-rail={rail}>
-              <HonestyTag>{railShort(rail)}</HonestyTag>
+              <HonestyTag quiet>{railShort(rail)}</HonestyTag>
             </span>
-            <HonestyTag>Synthetic sample</HonestyTag>
+            <LegendGlyph {...HONESTY.syntheticSample} testId="W-PF-01.synthetic" />
           </p>
         </div>
       </header>
@@ -250,14 +256,19 @@ export function VerifyPanel({
     const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
     verdictRef.current?.scrollIntoView({ block: "nearest", behavior: reduced ? "auto" : "smooth" });
   }, [landedAt]);
-  const countWords =
+  // The explicit result once a check lands ("6 of 6 integrity checks match"); before it, what state the check is in.
+  const resultWords =
     state.kind === "done"
-      ? VERIFY_COPY.count.done
+      ? VERIFY_COPY.result(matched, PLATES.length)
       : state.kind === "checking"
         ? VERIFY_COPY.count.checking
         : state.kind === "error"
           ? VERIFY_COPY.count.error
           : VERIFY_COPY.count.idle;
+  // Signed with sample keys: the qualification sits beside the result as a neutral key chip. When the verdict is
+  // "Sample" the chip carries the verdict word itself, so "Sample" is said once.
+  const sampleKeys = outcome && !outcome.failure && outcome.sampleKeys.length > 0;
+  const wordInChip = Boolean(sampleKeys && outcome?.verdict === "sample");
   const failurePlace = outcome?.failure
     ? outcome.failure.where === "chain" || outcome.failure.where === "checkpoint"
       ? FAILURE_PLACE[outcome.failure.where]
@@ -269,12 +280,19 @@ export function VerifyPanel({
         {seal}
         <div className="pf-verify__body">
           <div className="pf-verify__status" role="status" aria-atomic="true" ref={verdictRef}>
-            <p className="pf-verify__count" data-state={status}>
-              <Numeral value={`${matched}/${PLATES.length}`} tone={done ? "ink" : "dim"} decorative />
-              <span className="pf-verify__countword" aria-hidden>
-                {countWords}
-              </span>
-            </p>
+            <div className="pf-verify__count" data-state={status}>
+              {/* The page's one hero count, FS Sans tabular figures. The result under it says it in words, so the
+                  numeral is hidden from a screen reader. */}
+              <Numeral
+                value={`${matched}/${PLATES.length}`}
+                tone={done ? "ink" : "dim"}
+                decorative
+                testId="W-PF-01.verdict.count"
+              />
+              <p className="pf-verify__result" data-testid="W-PF-01.verdict.result">
+                {resultWords}
+              </p>
+            </div>
             {state.kind === "idle" && (
               <p className="pf-verify__line">{state.stale ? VERIFY_COPY.stale : VERIFY_COPY.idle}</p>
             )}
@@ -282,34 +300,51 @@ export function VerifyPanel({
             {state.kind === "error" && <p className="pf-verify__line">{VERIFY_COPY.keysFailed}</p>}
             {done && outcome && (
               <>
-                <p className="fs-sr">
-                  {VERIFY_COPY.matches(matched)} {VERIFY_COPY.checkedAt(format.time(done.at))}
-                </p>
+                <p className="fs-sr">{VERIFY_COPY.checkedAt(format.time(done.at))}</p>
                 <div className="pf-verify__verdict">
-                  <span
-                    className="pf-verdict"
-                    data-verdict={outcome.verdict}
-                    data-testid="W-PF-01.verdict.word"
-                    title={outcome.verdict === "sample" ? VERIFY_COPY.sampleTitle : undefined}
-                  >
-                    <Glyph
-                      name={
-                        outcome.verdict === "failed"
-                          ? "ms:close"
-                          : outcome.verdict === "replay"
-                            ? "rail"
-                            : "ms:check"
-                      }
-                      size={16}
-                    />
-                    {verdictWord(outcome.verdict)}
-                  </span>
-                  {!outcome.failure && outcome.sampleKeys.length > 0 && signers.length > 0 && (
-                    <span className="pf-verify__stamps" data-testid="W-PF-01.verdict.stamps">
-                      {signers.map((stamp) => (
-                        <InkStamp key={stamp.initials} stamp={stamp} />
-                      ))}
+                  {!wordInChip && (
+                    <span
+                      className="pf-verdict"
+                      data-verdict={outcome.verdict}
+                      data-testid="W-PF-01.verdict.word"
+                    >
+                      <Glyph
+                        name={
+                          outcome.verdict === "failed"
+                            ? "ms:close"
+                            : outcome.verdict === "replay"
+                              ? "rail"
+                              : "ms:check"
+                        }
+                        size={16}
+                      />
+                      {verdictWord(outcome.verdict)}
                     </span>
+                  )}
+                  {sampleKeys && (
+                    <p className="pf-verify__sample" data-testid="W-PF-01.verdict.sample">
+                      <span className="pf-keychip" title={VERIFY_COPY.sampleTitle}>
+                        <KeyGlyph />
+                        <span className="pf-keychip__words">
+                          {wordInChip ? (
+                            <span data-verdict="sample" data-testid="W-PF-01.verdict.word">
+                              {verdictWord("sample")}
+                            </span>
+                          ) : (
+                            verdictWord("sample")
+                          )}
+                          <KeepLastWord text={VERIFY_COPY.sampleRest} />
+                          <span className="fs-sr">. {VERIFY_COPY.sampleTitle}</span>
+                        </span>
+                      </span>
+                      {signers.length > 0 && (
+                        <span className="pf-verify__stamps" data-testid="W-PF-01.verdict.stamps">
+                          {signers.map((stamp) => (
+                            <InkStamp key={stamp.initials} stamp={stamp} />
+                          ))}
+                        </span>
+                      )}
+                    </p>
                   )}
                 </div>
                 {failurePlace && outcome.failure && (
@@ -317,12 +352,9 @@ export function VerifyPanel({
                     <strong>{failurePlace}:</strong> {outcome.failure.reason}
                   </p>
                 )}
-                {!outcome.failure && outcome.sampleKeys.length > 0 && (
-                  <p className="pf-verify__sample" data-testid="W-PF-01.verdict.sample">
-                    <span>{VERIFY_COPY.sample}</span>
-                    <span className="pf-verify__keys fs-t-micro">
-                      {VERIFY_COPY.sampleKeys(outcome.sampleKeys)}
-                    </span>
+                {sampleKeys && (
+                  <p className="pf-verify__keys fs-t-micro" data-testid="W-PF-01.verdict.keys">
+                    {VERIFY_COPY.sampleKeys(outcome.sampleKeys)}
                   </p>
                 )}
                 {outcome.verdict === "partial" && <p className="pf-verify__note">{VERIFY_COPY.partial}</p>}
@@ -362,8 +394,8 @@ export function VerifyPanel({
                 <summary className="fs-t-label">{VERIFY_COPY.ids}</summary>
                 <div className="pf-verify__anchors" data-testid="W-PF-01.verdict.anchors">
                   <p className="pf-verify__anchors-head">
-                    <HonestyTag>{railShort(rail)}</HonestyTag>
-                    <span className="fs-t-micro">{VERIFY_COPY.anchorsLead(rail)}</span>
+                    <LegendGlyph kind="simulated" label={railShort(rail)} />
+                    <span className="fs-t-caption">{VERIFY_COPY.anchorsLead(rail)}</span>
                   </p>
                   <dl className="pf-kv">
                     <div>
@@ -436,5 +468,39 @@ export function VerifyPanel({
         })}
       </ol>
     </div>
+  );
+}
+
+/** Words that may wrap, with the last one kept whole ("PayPal-verified" never breaks at its hyphen). */
+function KeepLastWord({ text }: { readonly text: string }) {
+  const at = text.lastIndexOf(" ");
+  if (at < 0) return <span className="pf-nowrap">{text}</span>;
+  return (
+    <>
+      {text.slice(0, at + 1)}
+      <span className="pf-nowrap">{text.slice(at + 1)}</span>
+    </>
+  );
+}
+
+/**
+ * A key in the glyph set's line style (square caps, currentColor): the sample-keys chip's mark. The token glyph set
+ * has no key yet (reported to WS-DS); the chip's words carry the meaning, so the drawing is hidden.
+ */
+function KeyGlyph({ size = 16 }: { readonly size?: number }) {
+  return (
+    <svg
+      className="fs-glyph pf-keychip__glyph"
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      aria-hidden
+      focusable="false"
+    >
+      <g fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="square" strokeLinejoin="miter">
+        <circle cx={8} cy={12} r={4} />
+        <path d="M12 12h9M18 12v3.5M21 12v2.5" />
+      </g>
+    </svg>
   );
 }

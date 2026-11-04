@@ -5,7 +5,7 @@ import { PAYOUT_REPLAY_NOTE, payoutReplayed, payoutReplaySummary } from "../../d
 // state is drawn: loading (print beds at their final size), error, none, progress, verified and failed.
 
 import type { SeasonSnapshot } from "@fairsplit/contracts";
-import { Glyph, HonestyTag, type StampView } from "@fairsplit/ui-web";
+import { Glyph, type StampView } from "@fairsplit/ui-web";
 import { useEffect, useMemo, useRef } from "react";
 import { AppLink } from "../../chrome/AppLink.js";
 import { CommandNotice } from "../../chrome/CommandNotice.js";
@@ -14,16 +14,7 @@ import { useAnnounce } from "../../lib/announce.js";
 import type { PaypalRail } from "../../lib/env.js";
 import { format } from "../../lib/format.js";
 import { Chain } from "./Chain.js";
-import {
-  FAILURE_PLACE,
-  FOOTER_COPY,
-  PLATE_TITLE,
-  provenanceWords,
-  railName,
-  railShort,
-  STATE_COPY,
-  t,
-} from "./copy.js";
+import { FAILURE_PLACE, FOOTER_COPY, PLATE_TITLE, provenanceWords, railName, STATE_COPY, t } from "./copy.js";
 import { Distribution } from "./Distribution.js";
 import { Figures } from "./Figures.js";
 import { ProofHero } from "./Hero.js";
@@ -193,11 +184,11 @@ export function ProofView({ page, verification, rail, names = null, level = "h1"
         signers={signersOf(snapshot, bundle)}
         money={
           <section className="pf-card pf-money" aria-labelledby="W-PF-01-money" data-testid="W-PF-01.money">
+            {/* The card's PayPal money carries the micro-tag beside its own figure (Distribution), not a pill here. */}
             <header className="pf-card__head">
               <SubHeading id="W-PF-01-money" className="pf-card__title">
                 {MONEY_TITLE}
               </SubHeading>
-              <HonestyTag>{railShort(rail)}</HonestyTag>
             </header>
             {/* The run's line: counts on screen (the tag names the rail), the whole sentence for a screen reader.
                 A replay says so in full, in view: its statuses are not money anyone confirmed. */}
@@ -245,6 +236,7 @@ export function ProofView({ page, verification, rail, names = null, level = "h1"
         ruleNames={ruleNames}
         markNames={markNames}
         names={names}
+        showcase={isShowcase(page)}
       />
       {state === "failed" ? (
         <section className="pf-figures" data-testid="W-PF-01.figures.withheld">
@@ -275,6 +267,15 @@ export function ProofView({ page, verification, rail, names = null, level = "h1"
 
 /** The card beside the verdict. The page's own section below keeps "Where the money went". */
 const MONEY_TITLE = "Where every dollar went";
+
+/**
+ * This Proof is the seeded showcase run's (the one the first view shows before a session), not a judge's own run:
+ * its invoice id is labelled as the showcase's, so FS-2026A-r37 here and a session's FS-2026A-r1 never read as one
+ * run with two ids (UI gate round 3).
+ */
+export function isShowcase(page: Pick<ProofPage, "live" | "runSlug" | "snapshot">): boolean {
+  return !page.live && page.snapshot !== undefined && page.snapshot.run.runSlug === page.runSlug;
+}
 
 function ProofLoading() {
   return (
@@ -313,7 +314,7 @@ function ProofFooter({
         <summary className="pf-footer__summary">
           <Glyph name="ms:expand-more" size={16} className="pf-summary__chevron" />
           <span className="fs-t-label">{FOOTER_COPY.details}</span>
-          <span className="pf-footer__line fs-t-micro">{FOOTER_COPY.prototype}</span>
+          <span className="pf-footer__line fs-t-caption">{FOOTER_COPY.prototype}</span>
         </summary>
         <dl className="pf-kv pf-footer__list">
           <div>

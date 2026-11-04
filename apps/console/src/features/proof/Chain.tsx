@@ -10,9 +10,10 @@ import type {
   Provenance,
   SnapshotSlip,
 } from "@fairsplit/contracts";
-import { Chip, type ChipTone, Glyph, type GlyphName, HonestyTag } from "@fairsplit/ui-web";
-import { type CSSProperties, type ReactNode, useEffect, useId, useState } from "react";
+import { Chip, type ChipTone, Glyph, type GlyphName, LegendGlyph } from "@fairsplit/ui-web";
+import { type CSSProperties, Fragment, type ReactNode, useEffect, useId, useState } from "react";
 import { ScrollRegion } from "../../chrome/ScrollRegion.js";
+import { SHOWCASE_LABEL } from "../../lib/display.js";
 import type { PaypalRail } from "../../lib/env.js";
 import { format } from "../../lib/format.js";
 import { signingKeyKind } from "../../lib/keys.js";
@@ -29,7 +30,7 @@ import {
 } from "./copy.js";
 import { davaoDateTime } from "./davao.js";
 import { SLOT_GLYPH, slotOf, slotWords } from "./Hero.js";
-import { Lines, type MemberLabel } from "./Lines.js";
+import { Lines, type MemberLabel, RailWord } from "./Lines.js";
 import {
   isSettled,
   type LedgerFacts,
@@ -56,6 +57,8 @@ export interface ChainProps {
   readonly markNames: ReadonlyMap<string, string>;
   /** The brand's view only: names and masked receivers under the data-sharing agreement (C-23). */
   readonly names: ReadonlyMap<string, MemberLabel> | null;
+  /** This is the seeded showcase run's Proof, not a judge's own run: its invoice id says so (UI gate round 3). */
+  readonly showcase?: boolean;
 }
 
 const ITEM_TONE: Readonly<Record<PayoutItemStatus, { tone: ChipTone; glyph: GlyphName }>> = {
@@ -96,43 +99,120 @@ function photoGroups(bundle: ProofBundle) {
   };
 }
 
-/** One line of data per plate, joined by " · ", every figure computed from the bundle. */
-export function plateFact(
-  plate: PlateName,
-  p: Pick<ChainProps, "bundle" | "facts" | "progress" | "items" | "lineStates" | "replayed">,
-): string {
-  const { bundle, facts, progress } = p;
+/**
+ * The slips the chain accepted, with their scope said (UI gate round 3, one truth for counts): this run read the
+ * slips on its imaged photos A-L (48), and the season's record holds every slip in its 66 photos (264), the 54
+ * earlier manifest-only photos included. Both are counted from the bundle's own ledger.
+ */
+export function slipScope(bundle: Pick<ProofBundle, "ledger">): {
+  readonly run: number;
+  readonly season: number;
+} {
+  let run = 0;
+  let season = 0;
+  for (const entry of bundle.ledger) {
+    if (entry.kind !== "rows.accepted") continue;
+    const payload = entry.payload as { photoId?: string | null; serials?: readonly string[] };
+    const n = payload.serials?.length ?? 0;
+    season += n;
+    if (payload.photoId && /^[A-L]$/.test(payload.photoId)) run += n;
+  }
+  return { run, season };
+}
+
+/** One piece of a plate's fact line: words, an id (the id role's code-like figures) or money (the money role). */
+export interface FactPart {
+  readonly text: string;
+  readonly role?: "id" | "money";
+  /** Words before or after the piece, in the line's own face ("card", "net"). */
+  readonly before?: string;
+  readonly after?: string;
+}
+
+type FactProps = Pick<ChainProps, "bundle" | "facts" | "progress" | "items" | "lineStates" | "replayed"> & {
+  readonly showcase?: boolean;
+};
+
+/** A plate's fact as pieces, so ids and money each keep their numeral role on screen. */
+export function plateParts(plate: PlateName, p: FactProps): readonly FactPart[] {
+  const { bundle, progress } = p;
   switch (plate) {
     case "paid": {
       const words = invoiceWords(bundle.invoice.status);
-      return `${bundle.invoice.invoiceNumber} · ${words.charAt(0).toLowerCase()}${words.slice(1)} · ${format.money(bundle.invoice.amountCents)}`;
+      return [
+        { text: bundle.invoice.invoiceNumber, role: "id" },
+        ...(p.showcase ? [{ text: SHOWCASE_LABEL }] : []),
+        { text: `${words.charAt(0).toLowerCase()}${words.slice(1)}` },
+        { text: format.money(bundle.invoice.amountCents), role: "money" },
+      ];
     }
     case "ratified":
-      return `card ${format.hashGroups(bundle.rateCard.sha256)} · ratified ${format.date(bundle.rateCard.ratifiedAt)} · first slip ${format.date(bundle.firstSlipDate)}`;
+      return [
+        { text: format.hashGroups(bundle.rateCard.sha256), role: "id", before: "card " },
+        { text: `ratified ${format.date(bundle.rateCard.ratifiedAt)}` },
+        { text: `first slip ${format.date(bundle.firstSlipDate)}` },
+      ];
     case "read": {
-      const photos = photoGroups(bundle);
-      return `${facts.slipsAccepted} slips · ${photos.images.length} photos + ${photos.manifest.length} earlier`;
+      const slips = slipScope(bundle);
+      // A record with no imaged photos has no "this run" to say: the season's count stands alone.
+      return slips.run > 0
+        ? [{ text: `${slips.run} this run` }, { text: `${slips.season} season` }]
+        : [{ text: `${slips.season} slips` }];
     }
     case "computed":
-      return `${bundle.lines.length} line hashes · ${format.money(sumCents(bundle.lines.map((l) => l.netCents)))} net`;
+      return [
+        { text: `${bundle.lines.length} line hashes` },
+        { text: format.money(sumCents(bundle.lines.map((l) => l.netCents))), role: "money", after: " net" },
+      ];
     case "twoKeys":
-      return `${bundle.approvals.map((a) => a.keyId).join(" · ")} · batch ${format.hashGroups(bundle.batch.batchSha256)}`;
+      return [
+        ...bundle.approvals.map((a): FactPart => ({ text: a.keyId, role: "id" })),
+        { text: format.hashGroups(bundle.batch.batchSha256), role: "id", before: "batch " },
+      ];
     case "payoutItems": {
       if (p.replayed || payoutReplayed(undefined, bundle))
-        return payoutReplaySummary(progress.confirmed, progress.total);
-      if (!isSettled(progress)) return STATE_COPY.progress(progress.confirmed, progress.total);
-      const parts = [STATE_COPY.settled(progress.confirmed, progress.total)];
+        return [{ text: payoutReplaySummary(progress.confirmed, progress.total) }];
+      if (!isSettled(progress)) return [{ text: STATE_COPY.progress(progress.confirmed, progress.total) }];
+      const parts: FactPart[] = [{ text: STATE_COPY.settled(progress.confirmed, progress.total) }];
       if (progress.returned > 0)
-        parts.push(STATE_COPY.returned(progress.returned, returnedCashPaid(p.items, p.lineStates)));
-      if (progress.failed > 0) parts.push(`${progress.failed} not completed by PayPal`);
-      if (progress.reversed > 0) parts.push(`${progress.reversed} reversed`);
-      return parts.join(" · ");
+        parts.push({ text: STATE_COPY.returned(progress.returned, returnedCashPaid(p.items, p.lineStates)) });
+      if (progress.failed > 0) parts.push({ text: `${progress.failed} not completed by PayPal` });
+      if (progress.reversed > 0) parts.push({ text: `${progress.reversed} reversed` });
+      return parts;
     }
   }
 }
 
-/** The plate whose fact is PayPal's counts (plate 1's status already names the simulated sandbox): it carries the
- * honesty tag beside its title. */
+/** One line of data per plate, joined by " · ", every figure computed from the bundle. */
+export function plateFact(plate: PlateName, p: FactProps): string {
+  return plateParts(plate, p)
+    .map((part) => `${part.before ?? ""}${part.text}${part.after ?? ""}`)
+    .join(" · ");
+}
+
+function FactLine({ parts }: { readonly parts: readonly FactPart[] }) {
+  return (
+    <>
+      {parts.map((part, i) => (
+        <Fragment key={`${i}-${part.text}`}>
+          {i > 0 && " · "}
+          {part.before}
+          {part.role === "id" ? (
+            <span className="fs-t-hash">{part.text}</span>
+          ) : part.role === "money" ? (
+            <span className="pf-fact__money">{part.text}</span>
+          ) : (
+            part.text
+          )}
+          {part.after}
+        </Fragment>
+      ))}
+    </>
+  );
+}
+
+/** The plates whose fact is PayPal's (plate 1's status already names the simulated sandbox in words): each carries
+ * the simulated legend glyph beside its title, its words as tooltip and name. */
 const PAYPAL_PLATES: ReadonlySet<PlateName> = new Set(["payoutItems"]);
 
 export function Chain(props: ChainProps) {
@@ -193,10 +273,16 @@ export function Chain(props: ChainProps) {
                 >
                   <span className="pf-plate__title">
                     {t(PLATE_TITLE[plate])}
-                    {PAYPAL_PLATES.has(plate) && <HonestyTag>{railShort(props.rail)}</HonestyTag>}
+                    {PAYPAL_PLATES.has(plate) && (
+                      <LegendGlyph
+                        kind="simulated"
+                        label={railShort(props.rail)}
+                        testId={`W-PF-01.plate.${plate}.rail`}
+                      />
+                    )}
                   </span>
                   <span className="pf-plate__fact" data-testid={`W-PF-01.plate.${plate}.fact`}>
-                    {plateFact(plate, props)}
+                    <FactLine parts={plateParts(plate, props)} />
                   </span>
                   <Glyph
                     name={isOpen ? "ms:expand-less" : "ms:expand-more"}
@@ -323,7 +409,7 @@ function PlateBody({ plate, ...p }: ChainProps & { readonly plate: PlateName }) 
         <>
           <Facts
             rows={[
-              ["Slips", String(facts.slipsAccepted)],
+              ["Slips", plateFact("read", p)],
               [
                 "In the chain",
                 `${facts.photosAccepted} image or manifest hashes accepted before the lines were computed`,
@@ -346,7 +432,7 @@ function PlateBody({ plate, ...p }: ChainProps & { readonly plate: PlateName }) 
           ).map(([kind, label, testId]) => (
             <div key={kind}>
               <p className="pf-plate__lead">
-                {label} <span className="fs-t-micro">· SHA-256, first 8</span>
+                {label} <span className="fs-t-hash">· SHA-256, first 8</span>
               </p>
               <ol className="pf-hashes" data-testid={testId}>
                 {photoGroups(bundle)[kind].map((d) => (
@@ -503,7 +589,7 @@ function Items({ bundle, items, names, rail, replayed = payoutReplayed(undefined
                   </td>
                   <td>
                     <Chip tone={presentation.tone} glyph={presentation.replayed ? "rail" : tone.glyph}>
-                      {presentation.statusWord}
+                      <RailWord presentation={presentation} />
                     </Chip>
                   </td>
                   <td className="fs-t-hash">{item.payoutItemId ?? "Not yet"}</td>

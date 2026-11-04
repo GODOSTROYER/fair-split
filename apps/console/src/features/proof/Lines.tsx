@@ -15,7 +15,7 @@ import { payoutStatus } from "../../data/payout-replay.js";
 import type { MemberLineState, ProofBundle, ProofLine, SnapshotSlip } from "@fairsplit/contracts";
 import { translate } from "@fairsplit/i18n";
 import { spring } from "@fairsplit/motion/web";
-import { Chip, Glyph, HonestyTag, StatusChip } from "@fairsplit/ui-web";
+import { Chip, Glyph, HONESTY, LegendGlyph, MicroTag, StatusChip } from "@fairsplit/ui-web";
 import { animate, type MotionValue, motion, useMotionValue, useTransform } from "motion/react";
 import {
   type KeyboardEvent,
@@ -206,9 +206,10 @@ export function Lines({ bundle, items, lineStates, slips, ruleNames, markNames, 
         }
       }}
     >
+      {/* The table's PayPal money is named simulated once, by the micro-tag, never per row. */}
       <p className="pf-lines__bar">
-        <span className="pf-lines__hint fs-t-micro">{LINES_COPY.hint}</span>
-        <HonestyTag>Simulated PayPal sandbox</HonestyTag>
+        <span className="pf-lines__hint fs-t-caption">{LINES_COPY.hint}</span>
+        <MicroTag testId="W-PF-01.lines.tag" />
       </p>
       <div className="pf-table-wrap" data-testid="W-PF-01.lines.scroller">
         <table
@@ -459,7 +460,7 @@ interface CropPanelProps {
 }
 
 /**
- * The slip: evidence, so it is paper with the only shadow and the "Synthetic sample" tag. The zoom buttons carry
+ * The slip: evidence, so it is paper with the only shadow and the synthetic glyph. The zoom buttons carry
  * the keys too: with one focused, the arrow keys pan and plus and minus zoom, so nothing needs a drag (WCAG 2.5.7).
  */
 function CropPanel({ serial, slip, zoom, tiles, panX, panY, onKey, onZoom }: CropPanelProps) {
@@ -477,7 +478,9 @@ function CropPanel({ serial, slip, zoom, tiles, panX, panY, onKey, onZoom }: Cro
               testId="W-PF-01.trace.slip"
             />
           </div>
-          <figcaption className="fs-paper__tag fs-t-caption">Synthetic sample</figcaption>
+          <figcaption className="fs-paper__tag">
+            <LegendGlyph {...HONESTY.syntheticSample} />
+          </figcaption>
         </figure>
       ) : (
         <p className="pf-crop__missing">{LINES_COPY.cropMissing(serial)}</p>
@@ -518,6 +521,26 @@ function breakAfterAt(receiver: string): ReactNode {
       {receiver.slice(0, at + 1)}
       <wbr />
       {receiver.slice(at + 1)}
+    </>
+  );
+}
+
+/**
+ * A PayPal status in a table row: the bare word on screen ("Paid"), since the table's micro-tag names the simulated
+ * sandbox once (UI gate round 3: never per row); a screen reader still hears the rail on every row, so the text
+ * is the whole status ("Paid (Simulated PayPal sandbox)"). A replay keeps its own label in view.
+ */
+export function RailWord({
+  presentation,
+}: {
+  readonly presentation: Pick<ReturnType<typeof payoutStatus>, "word" | "replayed" | "simulatedLabel">;
+}) {
+  return (
+    <>
+      {presentation.word}
+      {!presentation.replayed && presentation.simulatedLabel && (
+        <span className="fs-sr"> ({presentation.simulatedLabel})</span>
+      )}
     </>
   );
 }
@@ -584,7 +607,7 @@ function LineRows({
       tone={presentation.tone}
       glyph={presentation.replayed ? "rail" : presentation.amountState === "landed" ? "ms:check" : "rail"}
     >
-      {presentation.statusWord}
+      <RailWord presentation={presentation} />
     </Chip>
   ) : (
     <StatusChip state={state} surface="console" />
@@ -615,7 +638,7 @@ function LineRows({
         {fold ? (
           <th scope="row">
             <div className="pf-line__who">
-              <span className="fs-t-figure">{line.memberNo}</span>
+              <span className="fs-t-hash">{line.memberNo}</span>
               {names && <span className="pf-line__name">{label?.name ?? ""}</span>}
               {names && label?.receiverMasked && (
                 <span className="pf-table__receiver pf-line__receiver">
@@ -626,7 +649,7 @@ function LineRows({
             </div>
           </th>
         ) : (
-          <th scope="row" className="fs-t-figure">
+          <th scope="row" className="fs-t-hash">
             {line.memberNo}
           </th>
         )}

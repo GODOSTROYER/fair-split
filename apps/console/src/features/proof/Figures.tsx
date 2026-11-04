@@ -6,7 +6,7 @@ import { payoutStatus } from "../../data/payout-replay.js";
 // on the event's ID, and history never animates.
 
 import type { ProofBundle } from "@fairsplit/contracts";
-import { Glyph, HonestyTag } from "@fairsplit/ui-web";
+import { Glyph, LegendGlyph } from "@fairsplit/ui-web";
 import { type CSSProperties, useId, useRef } from "react";
 import { DataTable, Mirrored } from "../../chrome/DataTable.js";
 import type { PaypalRail } from "../../lib/env.js";
@@ -201,7 +201,7 @@ export function Figures({
                 <span className="pf-tier__swatch" aria-hidden />
                 <span className="pf-tier__words">
                   {FIGURE_COPY.tierDue}
-                  <span className={replayed ? "pf-tier__sub" : "pf-tier__sub fs-t-micro"}>
+                  <span className="pf-tier__sub">
                     {replayed
                       ? "The payout statuses are replayed from an earlier simulated run. No new payout notice is claimed."
                       : FIGURE_COPY.dueNote(tiers.due.cash.members, tiers.due.paypal.members)}
@@ -243,7 +243,7 @@ export function Figures({
                   </span>
                 </span>
                 {figures.holds.duplicateCents !== null && figures.holds.creditCents !== null && (
-                  <span className="pf-ledger__note fs-t-micro">
+                  <span className="pf-ledger__note">
                     {FIGURE_COPY.holdsNote(
                       format.money(figures.holds.duplicateCents),
                       format.money(figures.holds.creditCents),
@@ -259,7 +259,7 @@ export function Figures({
 
         <div className="pf-ledger__row pf-ledger__row--rails" data-testid="W-PF-01.metric.rails">
           <dt>
-            {FIGURE_COPY.rails()} <HonestyTag>{railShort(rail)}</HonestyTag>
+            {FIGURE_COPY.rails()} <LegendGlyph kind="simulated" label={railShort(rail)} />
           </dt>
           <dd>
             <span className="pf-ledger__value" data-testid="W-PF-01.metric.onPaypal">
@@ -331,7 +331,7 @@ export function Figures({
           <span className="pf-fees__lede">
             {replayed ? "Replayed simulated payout fees and this run’s invoice" : FEES_COPY.summary}
           </span>
-          {!replayed && <HonestyTag>{railShort(rail)}</HonestyTag>}
+          {!replayed && <LegendGlyph kind="simulated" label={railShort(rail)} />}
         </summary>
         <ul className="pf-fees__list">
           <li>

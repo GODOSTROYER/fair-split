@@ -1,7 +1,7 @@
 // The plot field (S1.8, design §2.6): one abstract dot per member, its area by verified kilos, placed by a hash-
 // seeded layout with no basemap and no coordinates. A picture of how the season's kilos spread across the co-op,
 // never a map. Each dot wears its line's tier (ADR-0016): flush jade only where the simulated PayPal confirmed the
-// payment, the dashed jade outline while it is on its way, hatch for cash at the bodega, marigold for a line a hold
+// payment, a hollow neutral ring while it is on its way (never dashed), hatch for cash, marigold for a line a hold
 // reserved. A replay confirms nothing, so it draws no jade. Hidden from screen readers and mirrored in a table
 // (S1.12); in Data mode the table replaces it.
 
@@ -110,7 +110,7 @@ export function PlotField({
           />
         }
       />
-      <p className="pf-plots__caption fs-t-micro" title={PLOT_COPY.captionTitle()}>
+      <p className="pf-plots__caption fs-t-caption" title={PLOT_COPY.captionTitle()}>
         <Glyph name="ms:lock" size={14} />
         <span>{PLOT_COPY.caption}</span>
       </p>

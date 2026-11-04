@@ -16,7 +16,7 @@ import { useBrandBundle } from "../../features/brand/useBrandProof.js";
 import { provenanceWords } from "../../features/proof/copy.js";
 import type { MemberLabel } from "../../features/proof/Lines.js";
 import { returnedCashPaid } from "../../features/proof/model.js";
-import { ProofView, verifyAttr } from "../../features/proof/ProofView.js";
+import { isShowcase, ProofView, verifyAttr } from "../../features/proof/ProofView.js";
 import { isPosted, useProofPage } from "../../features/proof/useProof.js";
 import { useVerification } from "../../features/proof/useVerification.js";
 import type { BrandEntryProps } from "../contract.js";
@@ -91,6 +91,7 @@ export function Screen({ token }: BrandEntryProps) {
               rail={rail}
               payoutReplayed={payoutReplayed(page.runView, page.bundle)}
               provenance={page.provenance ? provenanceWords(page.provenance) : null}
+              showcase={isShowcase(page)}
             />
             <ProofView page={page} verification={verification} rail={rail} names={names} level="h2" />
           </>

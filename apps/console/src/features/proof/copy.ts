@@ -16,6 +16,9 @@ import { type MessageKey, translate, type Values } from "@fairsplit/i18n";
 import type { PaypalRail } from "../../lib/env.js";
 import type { Verdict } from "./verify.js";
 
+/** The way back from a judge's own Proof to the console (UI gate round 3: never "the stage", which is jargon). */
+export const NAV_COPY = { console: "Fair Split console" } as const;
+
 /** The console's language is English (CONSOLE_LANG); Proof reads in it too. */
 export function t(key: MessageKey, values?: Values): string {
   return translate("en", key, values);
@@ -107,8 +110,6 @@ export function verdictWord(verdict: Verdict): string {
   return pickLabel(PROOF_STATUS_LABELS[verdict], "en");
 }
 
-const NUMBER_WORDS = ["None", "One", "Two", "Three", "Four", "Five", "Six"] as const;
-
 export const VERIFY_COPY = {
   slab: () => t("W-PF-01.verify"),
   again: "Check again",
@@ -117,19 +118,20 @@ export const VERIFY_COPY = {
   idle: "Runs in this browser. Nothing is sent.",
   stale: "The record moved on. Check again.",
   checking: "Checking the chain and six plates.",
-  matches: (n: number) => `${NUMBER_WORDS[n] ?? String(n)} of six match.`,
+  /** The explicit result under the hero count (UI gate round 3): seen and heard the same way. */
+  result: (n: number, of: number) => `${n} of ${of} integrity checks match`,
   checkedAt: (time: string) => `Checked in this browser at ${time}, Davao time.`,
-  /** The words beside the hero count, by the panel's state. */
+  /** The words under the hero count before a result. */
   count: {
     idle: "not checked yet",
     checking: "checking",
-    done: "checks match",
     error: "not checked",
   },
   /** The verdict's time, as a micro label: Davao is on Philippine time. */
   at: (time: string) => `${time} PHT · in this browser`,
-  sample: "Sample keys, never Verified",
-  sampleTitle: "Sample keys. Never Verified.",
+  /** The sample-keys chip: a neutral key glyph and these words after the verdict word ("Sample"), never a check. */
+  sampleRest: " keys · not PayPal-verified",
+  sampleTitle: "Signed with sample keys, so this Proof reads Sample, never Verified.",
   sampleKeys: (keys: readonly string[]) => keys.join(" · "),
   partial: "Plate 6 needs the receivers, which the public Proof withholds.",
   keysPublished: "keys.json",
@@ -293,8 +295,7 @@ export const LINES_COPY = {
   netOf: "Net",
   traceOpen: (memberNo: string) => `Line ${memberNo} open, with its receipt and slips.`,
   slipOpen: (serial: string) => `Slip ${serial} open.`,
-  cropNote:
-    "Drawn from the slip's recorded boxes until its photo tile lands. Payable kilos are the money's source. With a zoom button focused, the arrow keys pan.",
+  cropNote: "Drawn from the slip's boxes · arrow keys pan",
   cropMissing: (serial: string) => `Slip ${serial} isn't in this browser's copy of the season.`,
   zoomIn: "Zoom in",
   zoomOut: "Zoom out",

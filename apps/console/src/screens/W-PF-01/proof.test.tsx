@@ -6,6 +6,7 @@
 
 import { getSnapshot } from "@fairsplit/api-client/seed";
 import { type ProofBundle, webRoutes } from "@fairsplit/contracts";
+import { tagBudget } from "@fairsplit/ui-web";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { HttpResponse, http } from "msw";
 import { describe, expect, it, vi } from "vitest";
@@ -81,7 +82,8 @@ describe("Proof replay and simulation labels", () => {
       "five of six match; one replayed, labelled",
     );
     expect(screen.getByTestId("W-PF-01.verdict").textContent).toContain(reason);
-    expect(screen.getByTestId("W-PF-01.verdict").textContent).not.toContain("Six of six match");
+    expect(screen.getByTestId("W-PF-01.verdict").textContent).not.toContain("6 of 6 integrity checks match");
+    expect(screen.getByTestId("W-PF-01.verdict.result").textContent).toBe("5 of 6 integrity checks match");
     expect(screen.getByTestId("W-PF-01.verdict.anchors").textContent).toContain("Simulated PayPal sandbox");
     expect(screen.getByTestId("W-PF-01.verdict.anchors").textContent).not.toContain("Match it in PayPal");
   });
@@ -144,15 +146,20 @@ describe("W-PF-01 loads without waiting on the seed", () => {
     }
   });
 
-  it("reserves the lot mark's line box at its settled height: 2.5rem, and 2rem up to 560 px", () => {
+  it("reserves the lot's line box at its settled height: one 1.25rem id line, laptop and phone alike", () => {
     const rules = readRules("src/features/proof/proof.css");
     const lot = document.createElement("p");
     lot.className = "pf-hero__lot";
     document.body.append(lot);
     try {
+      // Round 3: the lot is an id (13 px, the code-like figures), no longer the retired stencil display face.
+      expect(cascaded(rules, lot, "font-size", { width: 1470, motion: "full" })).toBe("0.8125rem");
+      expect(cascaded(rules, lot, "font-variant-numeric", { width: 1470, motion: "full" })).toContain(
+        "tabular-nums",
+      );
       for (const [width, size] of [
-        [1470, "2.5rem"],
-        [390, "2rem"],
+        [1470, "1.25rem"],
+        [390, "1.25rem"],
       ] as const) {
         const medium = { width, motion: "full" } as const;
         expect(cascaded(rules, lot, "line-height", medium)).toBe(size);
@@ -287,22 +294,42 @@ describe("W-PF-01 Proof: the season's settled run", () => {
     expect(screen.getByTestId("W-PF-01.metric.kept").textContent).toContain("US$21.14");
     expect(screen.getByTestId("W-PF-01.metric.holds").textContent).toContain("3 caught");
     expect(screen.getByTestId("W-PF-01.metric.onPaypal").textContent).toBe("7 of 64 members, 8.1% of value");
-    // Each PayPal-derived container names the rail with the one honesty tag, not in its sentence (I8).
-    expect(screen.getByTestId("W-PF-01.metric.rails").querySelector(".fs-honesty")?.textContent).toBe(
-      "Simulated PayPal sandbox",
-    );
+    // Each PayPal-derived container still names the rail (I8), now within the tag budget (UI gate round 3): the
+    // page's one quiet indicator, one micro-tag on the money card's PayPal money, and bare glyphs elsewhere, whose
+    // words are their tooltip and what a screen reader hears.
+    const simulatedGlyph = (testId: string) => {
+      const glyph = screen.getByTestId(testId).querySelector(".fs-legend-glyph");
+      expect(glyph?.getAttribute("data-kind"), testId).toBe("simulated");
+      expect(glyph?.getAttribute("title"), testId).toBe("Simulated PayPal sandbox");
+      expect(glyph?.textContent, testId).toBe("Simulated PayPal sandbox");
+    };
+    simulatedGlyph("W-PF-01.metric.rails");
+    simulatedGlyph("W-PF-01.plate.payoutItems");
+    simulatedGlyph("W-PF-01.fees");
     expect(screen.getByTestId("W-PF-01.plate.payoutItems.fact").textContent).toBe(
       "7 of 8 confirmed · 1 returned, cash due",
     );
-    expect(screen.getByTestId("W-PF-01.plate.payoutItems").querySelector(".fs-honesty")?.textContent).toBe(
-      "Simulated PayPal sandbox",
-    );
-    expect(screen.getByTestId("W-PF-01.money").querySelector(".fs-honesty")?.textContent).toBe(
-      "Simulated PayPal sandbox",
-    );
+    const micro = screen.getByTestId("W-PF-01.money.tag");
+    expect(screen.getByTestId("W-PF-01.money").contains(micro)).toBe(true);
+    expect(screen.getByTestId("proof-distribution.paypal").contains(micro)).toBe(true);
+    expect(micro.getAttribute("title")).toBe("Simulated PayPal sandbox");
+    expect(micro.textContent).toContain("Simulated PayPal sandbox");
+    expect(screen.getByTestId("W-PF-01.money").querySelector(".fs-honesty")).toBeNull();
     expect(screen.getByTestId("W-PF-01.progress").dataset.state).toBe("settled");
-    // Nothing PayPal is unlabelled (I8): the simulated rail is named on the page.
+    // Nothing PayPal is unlabelled (I8): the simulated rail is named on the page, by its one quiet indicator.
     expect(screen.getByTestId("W-PF-01.rail").textContent).toContain("Simulated PayPal sandbox");
+    expect(screen.getByTestId("W-PF-01.rail").querySelector("[data-quiet]")).not.toBeNull();
+    expect(screen.getByTestId("W-PF-01.synthetic").getAttribute("title")).toBe("Synthetic sample");
+    expect(tagBudget(document.body)).toMatchObject({ tags: 2, micro: 1, ok: true });
+    // One truth for counts and ids: the slips say which count is which, and the showcase run's invoice says so.
+    expect(screen.getByTestId("W-PF-01.plate.read.fact").textContent).toBe("48 this run · 264 season");
+    expect(screen.getByTestId("W-PF-01.plate.paid.fact").textContent).toMatch(
+      /^FS-2026A-r37 · showcase run · marked as paid in the simulated PayPal sandbox · US\$4,333\.50$/,
+    );
+    // Ids keep the id role's code-like figures; money keeps the grotesk's plain ones.
+    const paid = screen.getByTestId("W-PF-01.plate.paid.fact");
+    expect(paid.querySelector(".fs-t-hash")?.textContent).toBe("FS-2026A-r37");
+    expect(paid.querySelector(".pf-fact__money")?.textContent).toBe("US$4,333.50");
     // The header names the thing: the invoice, its context in grey, and in words for a screen reader that it was
     // marked paid in a simulated sandbox (the tag beside it says so on screen).
     expect(document.getElementById("W-PF-01-title")?.textContent).toBe(
@@ -372,7 +399,11 @@ describe("W-PF-01 Proof: the season's settled run", () => {
       expect(scrolled.some((el) => el.contains(screen.getByTestId("W-PF-01.verdict.sample")))).toBe(true),
     );
     scrollIntoView.mockRestore();
-    expect(screen.getByTestId("W-PF-01.verdict.sample").textContent).toContain("fs-analyn-s1");
+    expect(screen.getByTestId("W-PF-01.verdict.keys").textContent).toContain("fs-analyn-s1");
+    expect(screen.getByTestId("W-PF-01.verdict.result").textContent).toBe("6 of 6 integrity checks match");
+    expect(screen.getByTestId("W-PF-01.verdict.sample").textContent).toContain(
+      "Sample keys · not PayPal-verified",
+    );
     // The mock publishes no keys document, so the seed's published sample keys stand in, and the page says so.
     expect(screen.getByTestId("W-PF-01.verdict.trust").dataset.trust).toBe("seed");
     expect(root.querySelector("[data-verify]")?.getAttribute("data-verify")).toBe("sample");
@@ -635,12 +666,18 @@ describe("W-PF-01 on a 375 px phone", () => {
     expect(cells).toHaveLength(3);
     // The rail sits under the member, the status under the net: nothing is left in a column off to the side.
     expect(cells[0]?.textContent).toBe("M-014PayPal");
-    // The table names PayPal as the simulated sandbox once, above its rows.
-    expect(screen.getByTestId("W-PF-01.lines").querySelector(".pf-lines__bar .fs-honesty")?.textContent).toBe(
-      "Simulated PayPal sandbox",
-    );
+    // The table names PayPal as the simulated sandbox once, above its rows: the page's second micro-tag, so the
+    // page holds its budget with the lines open (the quiet indicator and two micro-tags).
+    const tag = screen.getByTestId("W-PF-01.lines.tag");
+    expect(tag.closest(".pf-lines__bar")).not.toBeNull();
+    expect(tag.getAttribute("title")).toBe("Simulated PayPal sandbox");
+    expect(tagBudget(document.body)).toMatchObject({ tags: 3, micro: 2, ok: true });
     expect(cells[2]?.querySelector('[data-testid="W-PF-01.peso.M-014"]')).toBeTruthy();
     expect(cells[2]?.querySelector(".fs-chip")).toBeTruthy();
+    // Each PayPal row shows its bare status; the rail is said once by the tag, and to a screen reader on every row.
+    const chip = cells[2]?.querySelector(".fs-chip");
+    expect(chip?.textContent).toBe("Paid (Simulated PayPal sandbox)");
+    expect(chip?.querySelector(".fs-sr")?.textContent).toBe(" (Simulated PayPal sandbox)");
 
     fireEvent.click(screen.getByTestId("W-PF-01.peso.M-014"));
     const trace = await screen.findByTestId("W-PF-01.trace");

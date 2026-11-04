@@ -232,9 +232,11 @@ describe("Proof's actual public, member and brand bundles", () => {
       expect(screen.getByTestId("W-PF-01.check.payoutItems").textContent).toBe(REPLAY_REASON);
       fireEvent.click(screen.getByTestId("W-PF-01.plate.payoutItems.toggle"));
       expect(screen.getByTestId("W-PF-01.plate.payoutItems.reason").textContent).toBe(REPLAY_REASON);
-      expect(screen.getByTestId("W-PF-01.verdict").textContent).not.toContain("Six of six match");
+      expect(screen.getByTestId("W-PF-01.verdict").textContent).not.toContain(
+        "6 of 6 integrity checks match",
+      );
     } else {
-      expect(screen.getByTestId("W-PF-01.verdict").textContent).toContain("Six of six match");
+      expect(screen.getByTestId("W-PF-01.verdict").textContent).toContain("6 of 6 integrity checks match");
     }
     runtime.client.clear();
   });

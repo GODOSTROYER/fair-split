@@ -1,13 +1,15 @@
 // "Where every dollar went" (ADR-0016, decision.md §3, unslop spec §1.9 money bar): one stacked bar on a real
 // axis that adds up to Lantern Bay's invoice, cent for cent, with a legend row per segment (swatch · name · count ·
 // amount). The members' share in the tiers Proof already derives (a jade segment for what the simulated PayPal
-// confirmed, a dashed jade one for PayPal items still on their way, hatch for cash at the bodega, marigold for a
-// line reserved by a hold), then what the invoice paid beside it: the rate card's ruled deductions (net of the
-// credits it returned) and the disbursement costs. What the holds kept for members is already inside the members'
-// share, so it is one line under the legend, never a segment of its own. Every figure is the bundle's own; nothing
-// is typed. Jade appears only once the simulated PayPal confirms, so Proof opens at "0 of 8" with no jade in it.
+// confirmed, a hollow neutral one for PayPal items still on their way, since dashed means simulated only; hatch
+// for cash at the bodega, marigold for a line reserved by a hold), then what the invoice paid beside it: the rate
+// card's ruled deductions (net of the credits it returned) and the disbursement costs. What the holds kept for
+// members is already inside the members' share, so it is one line under the legend, never a segment of its own.
+// Every figure is the bundle's own; nothing is typed. Jade appears only once the simulated PayPal confirms, so
+// Proof opens at "0 of 8" with no jade in it. The card's PayPal money carries its one micro-tag (UI gate round 3).
 
 import type { ProofBundle } from "@fairsplit/contracts";
+import { MicroTag } from "@fairsplit/ui-web";
 import { format } from "../../lib/format.js";
 import type { ProofFigures } from "./metrics.js";
 
@@ -89,6 +91,8 @@ export function Distribution({
   const { max, ticks } = axisOf(total);
   const holds = figures.holds;
   const kept = holds?.keptCents ?? 0;
+  // The card's one micro-tag sits on its PayPal money: the confirmed row, or the sending row before any confirm.
+  const tagged = segments.find((s) => s.kind === "paypal" || s.kind === "flight")?.kind ?? null;
   return (
     <figure className="pf-dist" data-testid="proof-distribution" aria-label={`Where ${amount} went`}>
       <div className="pf-dist__plot" aria-hidden>
@@ -102,7 +106,7 @@ export function Distribution({
             />
           ))}
         </div>
-        <div className="pf-dist__axis fs-t-micro">
+        <div className="pf-dist__axis">
           {ticks.map((v) => (
             <span key={v} className="pf-dist__tick" style={{ left: `${((v * 100) / max).toFixed(3)}%` }}>
               {tickLabel(v)}
@@ -120,14 +124,17 @@ export function Distribution({
             data-testid={`proof-distribution.${s.kind}`}
           >
             <span className="pf-dist__swatch" aria-hidden />
-            <span className="pf-dist__label">{s.label}</span>
-            <span className="pf-dist__count fs-t-micro">{s.members ?? ""}</span>
-            <span className="pf-dist__value fs-t-figure">{format.money(s.cents)}</span>
+            <span className="pf-dist__label">
+              {s.label}
+              {s.kind === tagged && <MicroTag testId="W-PF-01.money.tag" />}
+            </span>
+            <span className="pf-dist__count">{s.members ?? ""}</span>
+            <span className="pf-dist__value">{format.money(s.cents)}</span>
           </li>
         ))}
       </ul>
       {kept > 0 && (
-        <p className="pf-dist__note fs-t-micro" data-testid="proof-distribution.holds">
+        <p className="pf-dist__note" data-testid="proof-distribution.holds">
           {holds ? `${holds.caught} ${holds.caught === 1 ? "hold" : "holds"} kept ` : "Holds kept "}
           <span className="pf-dist__kept">{format.money(kept)}</span> for members, inside their share
         </p>
