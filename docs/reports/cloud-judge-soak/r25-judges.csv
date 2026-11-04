@@ -1,0 +1,26 @@
+judge,ip,outcome,failedAt,detail,rail,railReason,payoutRail,payoutReason,pressStatus,pressMs,invoicedMs,fundedMs,inReviewMs,keysMs,postingMs,postedMs,settledMs,proofMs,resetMs,markPaidQueued,cashPaced,proofStatus,payoutPlate,paypalVerified,labelViolations,labelNotes,lines,events,streamRefusals,streamReconnects
+11,127.21.0.12,settled,,,replay,hourly_cap,replay,hourly_cap,201,287,1192,1507,32039,33480,37151,37324,62974,63083,15,0,,replay,replay,0,0,,OFF_RAIL_DUE:57 PAID:7,1449,0,0
+2,127.21.0.3,settled,,,replay,hourly_cap,replay,hourly_cap,201,346,1391,1687,33367,34507,38276,38464,64163,64234,8,0,,replay,replay,0,0,,PAID:7 OFF_RAIL_DUE:57,1449,0,0
+16,127.21.0.17,settled,,,replay,hourly_cap,replay,hourly_cap,201,1118,2149,2306,34740,35652,38834,38985,64346,64413,11,0,,replay,replay,0,0,,OFF_RAIL_DUE:57 PAID:7,1449,0,0
+14,127.21.0.15,settled,,,replay,hourly_cap,replay,hourly_cap,201,303,2034,2155,35208,36432,39473,39555,65145,65209,14,0,,replay,replay,0,0,,PAID:7 OFF_RAIL_DUE:57,1449,0,0
+9,127.21.0.10,settled,,,replay,hourly_cap,replay,hourly_cap,201,1998,2507,2691,37244,38201,40435,40507,66241,66421,9,0,,replay,replay,0,0,,PAID:7 OFF_RAIL_DUE:57,1449,0,0
+12,127.21.0.13,settled,,,replay,hourly_cap,replay,hourly_cap,201,3485,4718,4849,41082,41830,46005,46080,72311,72428,25,0,,replay,replay,0,0,,PAID:7 OFF_RAIL_DUE:57,1449,0,0
+1,127.21.0.2,settled,,,replay,hourly_cap,replay,hourly_cap,201,3548,5083,5225,42259,42919,46606,46703,72337,72467,26,0,,replay,replay,0,0,,PAID:7 OFF_RAIL_DUE:57,1449,0,0
+15,127.21.0.16,settled,,,replay,hourly_cap,replay,hourly_cap,201,3519,5082,5204,43104,44597,46937,47138,72594,72674,13,0,,replay,replay,0,0,,PAID:7 OFF_RAIL_DUE:57,1449,0,0
+24,127.21.0.25,settled,,,replay,hourly_cap,replay,hourly_cap,201,4738,5407,5552,43084,44937,47246,47298,72767,72842,11,0,,replay,replay,0,0,,OFF_RAIL_DUE:57 PAID:7,1449,0,0
+13,127.21.0.14,settled,,,replay,hourly_cap,replay,hourly_cap,201,4667,5505,5672,44407,45820,47961,48045,74184,74252,12,0,,replay,replay,0,0,,OFF_RAIL_DUE:57 PAID:7,1449,0,0
+22,127.21.0.23,settled,,,replay,hourly_cap,replay,hourly_cap,201,6774,9022,9169,48159,49223,51826,52066,78205,78270,21,0,,replay,replay,0,0,,OFF_RAIL_DUE:57 PAID:7,1449,0,0
+21,127.21.0.22,settled,,,replay,hourly_cap,replay,hourly_cap,201,7185,9032,9159,49314,50706,53434,53547,79182,79293,20,0,,replay,replay,0,0,,OFF_RAIL_DUE:57 PAID:7,1449,0,0
+6,127.21.0.7,settled,,,replay,hourly_cap,replay,hourly_cap,201,8300,9353,9466,49132,51090,53597,53696,79222,79331,9,0,,replay,replay,0,0,,OFF_RAIL_DUE:57 PAID:7,1449,0,0
+17,127.21.0.18,settled,,,replay,hourly_cap,replay,hourly_cap,201,7202,9349,9543,49874,51499,54792,54969,80256,80321,12,0,,replay,replay,0,0,,OFF_RAIL_DUE:57 PAID:7,1449,0,0
+23,127.21.0.24,settled,,,replay,hourly_cap,replay,hourly_cap,201,7906,9751,9906,50445,51938,56845,56985,82288,82466,14,0,,replay,replay,0,0,,OFF_RAIL_DUE:57 PAID:7,1449,0,0
+10,127.21.0.11,settled,,,replay,hourly_cap,replay,hourly_cap,201,10451,13466,13658,52257,53342,57419,57524,83258,83370,19,0,,replay,replay,0,0,,OFF_RAIL_DUE:57 PAID:7,1449,0,0
+19,127.21.0.20,settled,,,replay,hourly_cap,replay,hourly_cap,201,10524,13804,13974,54011,55000,58588,58818,84273,84346,11,0,,replay,replay,0,0,,PAID:7 OFF_RAIL_DUE:57,1449,0,0
+4,127.21.0.5,settled,,,replay,hourly_cap,replay,hourly_cap,201,10522,14052,14162,55258,55855,59610,59895,85222,85293,10,0,,replay,replay,0,0,,OFF_RAIL_DUE:57 PAID:7,1449,0,0
+3,127.21.0.4,settled,,,replay,hourly_cap,replay,hourly_cap,201,11498,14572,14898,56819,57699,60749,60893,86320,86559,23,0,,replay,replay,0,0,,PAID:7 OFF_RAIL_DUE:57,1449,0,0
+18,127.21.0.19,settled,,,replay,hourly_cap,replay,hourly_cap,201,10875,14299,14602,56028,56600,60676,60810,86313,86552,27,0,,replay,replay,0,0,,PAID:7 OFF_RAIL_DUE:57,1449,0,0
+0,127.21.0.1,settled,,,replay,hourly_cap,replay,hourly_cap,201,13742,16059,16190,57880,59043,61205,61282,86840,86966,18,0,,replay,replay,0,0,,PAID:7 OFF_RAIL_DUE:57,1449,0,0
+8,127.21.0.9,settled,,,replay,hourly_cap,replay,hourly_cap,201,13784,16060,16143,57750,58909,61259,61342,86834,86975,19,0,,replay,replay,0,0,,PAID:7 OFF_RAIL_DUE:57,1449,0,0
+20,127.21.0.21,settled,,,replay,hourly_cap,replay,hourly_cap,201,14914,16321,16453,58280,59627,61588,61810,87362,87585,31,0,,replay,replay,0,0,,PAID:7 OFF_RAIL_DUE:57,1449,0,0
+5,127.21.0.6,settled,,,replay,hourly_cap,replay,hourly_cap,201,13932,16343,16454,59042,60137,62157,62226,87788,88038,25,0,,replay,replay,0,0,,PAID:7 OFF_RAIL_DUE:57,1449,0,0
+7,127.21.0.8,settled,,,replay,hourly_cap,replay,hourly_cap,201,15254,16665,16762,60081,60915,62320,62450,88099,88280,28,0,,replay,replay,0,0,,PAID:7 OFF_RAIL_DUE:57,1449,0,0
