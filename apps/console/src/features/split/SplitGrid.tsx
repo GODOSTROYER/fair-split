@@ -193,11 +193,12 @@ const DEFAULT: readonly GridColumn[] = ALL.filter((c) => c !== "confidence");
 
 /**
  * In the five-column set Verified kg and Kaltas keep fixed widths, so Member, Net and Status take the slack and no
- * empty band opens between Verified kg and Kaltas (1,470 px).
+ * empty band opens between Verified kg and Kaltas (1,470 px). `flex: null` clears the default set's flex: AG Grid
+ * keeps a stateful attribute that a new definition leaves undefined.
  */
-const NARROW_FIXED: Partial<Record<GridColumn, ColDef<GridRow>>> = {
-  kg: { width: 150, flex: undefined, minWidth: undefined },
-  kaltas: { width: 168, flex: undefined, minWidth: undefined },
+export const NARROW_FIXED: Partial<Record<GridColumn, ColDef<GridRow>>> = {
+  kg: { width: 150, flex: null, minWidth: undefined },
+  kaltas: { width: 168, flex: null, minWidth: undefined },
 };
 
 const SETS: Readonly<Record<ColumnSet, readonly GridColumn[]>> = {
