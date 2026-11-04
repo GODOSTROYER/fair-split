@@ -24,6 +24,11 @@ export interface MassBalanceDialProps {
    * the previous reading as the ghost for 1.2 s (decision.md §9).
    */
   readonly ghost?: number;
+  /**
+   * The reading's type: the small figure (a drawer's dial) or amount-l, the bench's hero reading (32/36,
+   * condensed, proportional). While a ghost shows, the old reading stands before the new one: "2.05% → 1.62%".
+   */
+  readonly valueRole?: "figure" | "amount-l";
 }
 
 /** How long the previous reading stays as a ghost after a live change. */
@@ -55,6 +60,7 @@ export function MassBalanceDial({
   testId,
   animateNeedle = false,
   ghost,
+  valueRole = "figure",
 }: MassBalanceDialProps) {
   const mode = useMotionMode();
   const id = useId().replaceAll(":", "");
@@ -66,18 +72,28 @@ export function MassBalanceDial({
   const cy = w / 2 + 4;
   const r = w / 2 - 10;
   const previous = useRef(value);
+  const previousDisplay = useRef(display);
   const [trail, setTrail] = useState<number | null>(null);
+  const [trailDisplay, setTrailDisplay] = useState<string | null>(null);
   useEffect(() => {
     const target = angleOf(value);
     if (animateNeedle && mode === "full") animate(angle, target, spring("needle", "unitless"));
     else angle.set(target);
     const was = previous.current;
+    const wasDisplay = previousDisplay.current;
     previous.current = value;
     if (!animateNeedle || was === value) return;
     setTrail(was);
-    const timer = setTimeout(() => setTrail(null), GHOST_MS);
+    setTrailDisplay(wasDisplay);
+    const timer = setTimeout(() => {
+      setTrail(null);
+      setTrailDisplay(null);
+    }, GHOST_MS);
     return () => clearTimeout(timer);
   }, [value, animateNeedle, mode, angle]);
+  useEffect(() => {
+    previousDisplay.current = display;
+  }, [display]);
   const ghostValue = ghost ?? trail;
   const ticks = Array.from({ length: MAX * 2 + 1 }, (_, i) => i / 2);
   const over = value > limit;
@@ -129,8 +145,16 @@ export function MassBalanceDial({
         </motion.g>
         <circle cx={cx} cy={cy} r={3.5} className="fs-dial__hub" />
       </svg>
-      <figcaption className="fs-dial__caption">
-        <span className="fs-dial__value fs-t-figure">{display}</span>
+      <figcaption className="fs-dial__caption" data-role={valueRole}>
+        <span className="fs-dial__reading">
+          {trailDisplay !== null && trail !== null && (
+            <span className="fs-dial__was" data-testid={testId ? `${testId}.was` : undefined} aria-hidden>
+              <span className={`fs-t-${valueRole}`}>{trailDisplay}</span>
+              <span className="fs-dial__arrow">→</span>
+            </span>
+          )}
+          <span className={`fs-dial__value fs-t-${valueRole}`}>{display}</span>
+        </span>
         <span className="fs-dial__label fs-t-caption">{label}</span>
         <span className="fs-dial__limit fs-t-caption">{limitDisplay}</span>
       </figcaption>

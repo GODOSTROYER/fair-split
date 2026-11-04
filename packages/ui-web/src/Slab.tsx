@@ -73,6 +73,13 @@ export interface WebSlabOptions {
   readonly size?: "m" | "l";
   readonly width?: number | string;
   readonly glyph?: GlyphName;
+  /**
+   * A second line under the label, smaller (the first press's "(simulated PayPal sandbox)"). The face's text stays
+   * the label, a space and the detail, so the words read as one string; the label then sits left with its glyph.
+   */
+  readonly detail?: string;
+  /** Decoration at the trailing edge, hidden from assistive tech (a keycap such as "Enter"). */
+  readonly trailing?: ReactNode;
   /** Pressing a bolted slab refuses: called after the shake. */
   readonly onRefuse?: () => void;
   readonly onReasonClick?: () => void;
@@ -126,6 +133,8 @@ export function Slab(props: WebSlabProps) {
     size = "m",
     width,
     glyph,
+    detail,
+    trailing,
     confirm,
     onHoldChange,
     onRefuse,
@@ -693,6 +702,8 @@ export function Slab(props: WebSlabProps) {
   };
 
   const shownStep = frame?.step ?? stepValue;
+  // A spent slab is a neutral record: its record replaces the label, glyph, detail and keycap.
+  const recorded = state === "committed" && record != null;
   const percent = Math.round(shownStep * 100);
   const holdProgress: HoldProgress = frame
     ? frame.state === "armed"
@@ -777,13 +788,23 @@ export function Slab(props: WebSlabProps) {
               <span className="fs-slab__bolt fs-slab__bolt--r" aria-hidden />
             </>
           )}
-          <span className="fs-slab__label">
-            {glyph && !(state === "committed" && record) && (
-              <Glyph name={glyph} size={size === "l" ? 24 : 20} />
-            )}
-            <span>
-              {state === "committed" ? (record ?? label) : state === "armed" ? t("slab.release") : label}
+          <span className="fs-slab__label" data-detail={detail && !recorded ? "" : undefined}>
+            {glyph && !recorded && <Glyph name={glyph} size={size === "l" ? 24 : 20} />}
+            <span className="fs-slab__words">
+              {recorded ? (
+                <span>{record}</span>
+              ) : (
+                <>
+                  <span>{state === "armed" ? t("slab.release") : label}</span>
+                  {detail && state !== "armed" && <span className="fs-slab__detail">{` ${detail}`}</span>}
+                </>
+              )}
             </span>
+            {trailing && !recorded && (
+              <span className="fs-slab__trailing" aria-hidden>
+                {trailing}
+              </span>
+            )}
           </span>
         </motion.button>
       </div>

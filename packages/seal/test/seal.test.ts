@@ -56,6 +56,14 @@ describe("seal determinism", () => {
     }
   });
 
+  it("draws in Hayag ink and rule unless told otherwise, never the v1 cacao (ADR-0016)", () => {
+    const one = sealSvg(A, 200, { keys: 1 });
+    expect(one).toContain('stroke="#0B1220"');
+    expect(one).toContain('stroke="#E3E7EE"');
+    expect(one).not.toMatch(/#1C1511|#D8D4CD/i);
+    expect(sealSvg(A, 200, { ink: "#000000" })).toContain('stroke="#000000"');
+  });
+
   it("is case- and whitespace-insensitive about the digest", () => {
     expect(seal(` ${A.toUpperCase()} `, 200).rings).toEqual(seal(A, 200).rings);
   });
@@ -121,13 +129,19 @@ describe("seal determinism", () => {
     // N = 6 has no coprime M in 2–3, so it steps to 7.
     expect(ringParameters(zero, 0, "two")).toMatchObject({ lobes: 7, turns: 2 });
     expect(ringParameters(digestBytes(A), 3)).toMatchObject({ lobes: 10, turns: 3 });
-    // Any change to the drawing algorithm changes every seal in the world: these hashes pin it.
-    expect(createHash("sha256").update(sealSvg(A, 200)).digest("hex")).toBe(
-      "57d0988d3846724b8300ad5874b6880c8604424b221b5ddae5660e5314d339e2",
-    );
-    expect(createHash("sha256").update(sealSvg(A, 64)).digest("hex")).toBe(
-      "a6412af333e1fc925833269ffd2fee038afe079307c29118745be9c9ff124d8f",
-    );
+    // Any change to the drawing algorithm changes every seal in the world: these hashes pin it. They pin the
+    // geometry, so they draw in the v1 colours they were taken with (ADR-0016 moved only the default colours).
+    const v1 = { ink: "#1C1511", rule: "#D8D4CD" } as const;
+    expect(
+      createHash("sha256")
+        .update(sealSvg(A, 200, v1))
+        .digest("hex"),
+    ).toBe("57d0988d3846724b8300ad5874b6880c8604424b221b5ddae5660e5314d339e2");
+    expect(
+      createHash("sha256")
+        .update(sealSvg(A, 64, v1))
+        .digest("hex"),
+    ).toBe("a6412af333e1fc925833269ffd2fee038afe079307c29118745be9c9ff124d8f");
   });
 });
 

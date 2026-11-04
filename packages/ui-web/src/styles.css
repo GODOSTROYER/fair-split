@@ -199,6 +199,45 @@
     white-space: nowrap;
   }
 
+  .fs-slab__words {
+    display: contents;
+  }
+
+  /* A label with a second line (the first press's honesty words): left-aligned with its glyph, the detail under
+     it at caption size, anything trailing (a keycap) at the far edge. */
+  .fs-slab__face:has(> .fs-slab__label[data-detail]) {
+    justify-content: flex-start;
+    min-height: 60px;
+    padding-block: 9px;
+  }
+
+  .fs-slab__label[data-detail] {
+    flex: 1 1 auto;
+    min-width: 0;
+    text-align: left;
+  }
+
+  .fs-slab__label[data-detail] .fs-slab__words {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .fs-slab__detail {
+    font-stretch: 100%;
+    font-weight: 500;
+    font-size: 0.8125rem;
+    line-height: 1rem;
+    opacity: 0.85;
+  }
+
+  .fs-slab__trailing {
+    display: inline-flex;
+    flex: none;
+    margin-left: auto;
+    padding-left: 6px;
+  }
+
   /* The d3 hold fills the face left to right in the lip's shade. */
   .fs-slab__fill {
     position: absolute;
@@ -254,9 +293,18 @@
   .fs-slab[data-tone="jade"][data-state="committed"] .fs-slab__face {
     background: var(--fs-plate);
     box-shadow: none;
-    outline: 1.5px dashed var(--fs-jade-flush-border);
-    outline-offset: -1.5px;
     color: var(--fs-ink);
+  }
+
+  /* The dashed outline is drawn inside the face, never as its outline: the face stays focusable (aria-disabled)
+     and keeps the pod focus ring (WCAG 2.4.7). */
+  .fs-slab[data-tone="jade"][data-state="committed"] .fs-slab__face::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border: 1.5px dashed var(--fs-jade-flush-border);
+    border-radius: inherit;
+    pointer-events: none;
   }
 
   .fs-slab[data-tone="jade"][data-state="committed"] .fs-slab__fill {
@@ -494,10 +542,10 @@
     border-radius: var(--fs-radius-cell);
   }
 
+  /* Selected: an inset pod ring on the pod wash, so the focus ring (an outline) still shows over it. */
   .fs-receipt__seg[data-active] {
-    outline: 1.5px solid var(--fs-pod);
-    outline-offset: -1.5px;
     background: var(--fs-pod-wash);
+    box-shadow: inset 0 0 0 1.5px var(--fs-pod);
   }
 
   .fs-receipt__item[data-kind="net"] .fs-receipt__seg {
@@ -614,6 +662,11 @@
     border-color: var(--fs-jade-flush-border);
     background: var(--fs-jade);
     color: var(--fs-on-jade);
+  }
+
+  /* The halo is one beat at the moment the simulated PayPal confirms (data-flip: the tone turned jade while
+     mounted), never on every render of a past confirmation (a Proof load, a row scrolling in). */
+  .fs-chip[data-tone="jade"][data-flip] {
     animation: fs-halo var(--fs-dur-halo) var(--fs-ease-out) both;
   }
 
@@ -710,13 +763,14 @@
     display: block;
   }
 
+  /* "Synthetic sample": the yellow carbon copy's tag, evidence colour on evidence paper. */
   .fs-paper__tag {
     position: absolute;
     top: 8px;
     right: 8px;
     padding: 1px 6px;
-    background: var(--fs-copy-white);
-    box-shadow: inset 0 0 0 1px var(--fs-paper-ink);
+    border-radius: 4px;
+    background: var(--fs-copy-yellow);
     color: var(--fs-paper-ink);
   }
 
@@ -816,6 +870,17 @@
     color: var(--fs-pencil);
   }
 
+  /* The reading's provenance ("Seed stand-in, not a Claude recording") is a sentence, not a label: a full-width
+     caption row with its pencil, the reading under it. */
+  .fs-hold__voice:not([data-voice="engine"]) {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+
+  .fs-hold__voice:not([data-voice="engine"]) dt {
+    gap: 6px;
+  }
+
   .fs-hold__voice dd {
     flex: 1 0 calc(100% - 88px);
     min-width: 0;
@@ -907,6 +972,17 @@
   .fs-amount__solid {
     position: absolute;
     inset: 0;
+  }
+
+  /* While the outline shows (hollow, filling), the solid layer takes the hollow cut's tabular advances, so the
+     fill lands exactly on its outline. Once solid, the outline paints nothing (its box keeps the layout still) and
+     the amount reads in proportional figures alone, never printed twice (ADR-0016). */
+  .fs-amount:is([data-state="hollow"], [data-state="filling"]) .fs-amount__solid {
+    font-variant-numeric: lining-nums tabular-nums;
+  }
+
+  .fs-amount[data-state="solid"] .fs-amount__hollow {
+    -webkit-text-stroke-color: transparent;
   }
 
   .fs-amount[data-state="pencil"] .fs-amount__hollow {
@@ -1004,7 +1080,6 @@
 
   .fs-capsule[data-state="paid"] .fs-capsule__face {
     border-color: var(--fs-jade-flush-border);
-    animation: fs-halo var(--fs-dur-halo) var(--fs-ease-out) both;
   }
 
   .fs-capsule[data-state="paid"] .fs-capsule__label {
@@ -1025,6 +1100,11 @@
   .fs-capsule[data-state="cash-due"] .fs-capsule__label {
     padding: 2px 6px;
     background: var(--fs-plate);
+  }
+
+  /* One beat of halo when the simulated PayPal confirms in view (data-flip), never on a capsule mounted paid. */
+  .fs-capsule[data-state="paid"][data-flip] .fs-capsule__face {
+    animation: fs-halo var(--fs-dur-halo) var(--fs-ease-out) both;
   }
 
   /* ------------------------------------------------------------------ instruments */
@@ -1086,12 +1166,36 @@
     margin-top: -14px;
   }
 
+  .fs-dial__reading {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 8px;
+  }
+
   .fs-dial__value {
     color: var(--fs-ink);
   }
 
   .fs-dial[data-over] .fs-dial__value {
     color: var(--fs-canary-text);
+  }
+
+  /* The bench's hero reading sits a little lower under the hub, clear of the needle. */
+  .fs-dial__caption[data-role="amount-l"] {
+    margin-top: -6px;
+  }
+
+  /* The old reading, for the ghost needle's beat: marigold-text, then an arrow to the new one. */
+  .fs-dial__was {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 8px;
+    color: var(--fs-canary-text);
+  }
+
+  .fs-dial__arrow {
+    color: var(--fs-ink-3);
+    font-size: 0.875rem;
   }
 
   .fs-dial__label,
@@ -1296,13 +1400,14 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .fs-chip[data-tone="jade"],
-  .fs-capsule[data-state="paid"] .fs-capsule__face {
+  .fs-chip[data-tone="jade"][data-flip],
+  .fs-capsule[data-state="paid"][data-flip] .fs-capsule__face {
     animation: fs-halo-reduced var(--fs-dur-reduced) linear both;
   }
 }
 
-[data-motion="reduced"] :is(.fs-chip[data-tone="jade"], .fs-capsule[data-state="paid"] .fs-capsule__face) {
+[data-motion="reduced"]
+  :is(.fs-chip[data-tone="jade"][data-flip], .fs-capsule[data-state="paid"][data-flip] .fs-capsule__face) {
   animation: fs-halo-reduced var(--fs-dur-reduced) linear both;
 }
 

@@ -5,6 +5,7 @@ import type { LineState } from "@fairsplit/i18n";
 import type { ReactNode } from "react";
 import { useLang, useT } from "./context.js";
 import { AUTO_ACCEPT, type StampView } from "./contract.js";
+import { useFlip } from "./flip.js";
 import { Glyph, type GlyphName } from "./Glyph.js";
 
 export interface InkStampProps {
@@ -65,11 +66,13 @@ export function StatusChip({ state, surface = "member", text, testId }: StatusCh
   const t = useT();
   const lang = useLang();
   const { tone, glyph } = LINE_STATE_CHIP[state];
+  const flip = useFlip(tone === "jade");
   const word = text ?? (surface === "console" ? t(`console.status.${state}`) : t(`status.${state}`));
   return (
     <span
       className="fs-chip"
       data-tone={tone}
+      data-flip={flip ? "" : undefined}
       data-state={state}
       data-testid={testId}
       lang={surface === "member" ? lang : undefined}
@@ -88,8 +91,9 @@ export interface ChipProps {
 }
 
 export function Chip({ tone, glyph, children, testId }: ChipProps) {
+  const flip = useFlip(tone === "jade");
   return (
-    <span className="fs-chip" data-tone={tone} data-testid={testId}>
+    <span className="fs-chip" data-tone={tone} data-flip={flip ? "" : undefined} data-testid={testId}>
       {glyph && <Glyph name={glyph} size={16} />}
       <span className="fs-t-label">{children}</span>
     </span>

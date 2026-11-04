@@ -116,16 +116,24 @@ describe("colour source", () => {
     }
   });
 
-  it("keeps every face a viewer could press clear of PayPal's blues (#003087, #0070E0, #009CDE)", () => {
-    const faces = ["jade", "canary", "pod", "slab-chalk-face", "slab-jade-face", "red-face"] as const;
+  it("keeps every colour role clear of PayPal's blues (#003087, #0070E0, #009CDE), the indigo slab's lip excepted", () => {
+    // The indigo slab's lip (-right) and 1 px under-edge (-bottom) are the face's own shadow: a sliver, never a
+    // surface, text or a face anyone presses, so they may darken toward navy (decision.md §6, §8: ballpoint
+    // #4A2FD6 itself stays 13.6 from PayPal blue). Every other role keeps the 0.1 OKLab distance.
+    const exceptions = new Set([
+      "adlaw slab-chalk-right", // #3722B0, 0.087 from #003087
+      "adlaw slab-chalk-bottom", // #29188A, 0.054 from #003087
+      "tablea slab-chalk-bottom", // #2E1E94, 0.055 from #003087
+    ]);
+    const near: string[] = [];
     for (const theme of THEMES) {
-      for (const name of faces) {
+      for (const name of COLOUR_NAMES) {
         for (const brand of ["#003087", "#0070E0", "#009CDE"]) {
-          const d = distance(RESOLVED[theme][name].hex, brand);
-          expect(d, `${theme} ${name} vs ${brand}`).toBeGreaterThan(0.1);
+          if (distance(RESOLVED[theme][name].hex, brand) <= 0.1) near.push(`${theme} ${name}`);
         }
       }
     }
+    expect(near.sort()).toEqual([...exceptions].sort());
   });
 
   it("keeps marigold 15° of hue from PayPal's button yellow at 84 (decision.md §3)", () => {

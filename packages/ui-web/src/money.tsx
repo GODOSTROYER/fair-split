@@ -8,6 +8,7 @@ import type { ReactNode } from "react";
 
 import { useMotionMode } from "./context.js";
 import type { MoneyView } from "./contract.js";
+import { useFlip } from "./flip.js";
 import { Glyph, type GlyphName } from "./Glyph.js";
 
 /** The currency prefixes a display string can start with ("US$" first, so "$" never splits it). */
@@ -130,6 +131,8 @@ export interface StatusCapsuleProps {
 export function StatusCapsule({ state, text, nextText, frame, testId, lang }: StatusCapsuleProps) {
   const mode = useMotionMode();
   const paid = state === "paid";
+  // The halo's one beat: paid while the viewer watched, never a capsule that mounted paid (or a gallery frame).
+  const flip = useFlip(paid) && frame === undefined;
   const inset = frame?.inset ?? (paid ? 0 : state === "sent" ? 5 : 0);
   const flood = frame?.flood ?? (paid ? 1 : 0);
   const floodOpacity = frame?.floodOpacity ?? (paid ? 1 : 0);
@@ -140,6 +143,7 @@ export function StatusCapsule({ state, text, nextText, frame, testId, lang }: St
     <div
       className="fs-capsule"
       data-state={state}
+      data-flip={flip ? "" : undefined}
       data-testid={testId}
       data-raised={inset > 0 ? "" : undefined}
       style={{ ["--cap-t" as string]: `${5 - inset}px`, ["--cap-k" as string]: String(inset / 5) }}
