@@ -5,7 +5,8 @@ import { appendEvent, schema } from "@fairsplit/db";
 import { format, senderItemId } from "@fairsplit/domain";
 import { getFigures, getLines, getRun } from "@fairsplit/seed";
 import { and, eq } from "drizzle-orm";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import * as bundles from "../../proof/bundle.js";
 import type { ProofMetrics } from "../../proof/metrics.js";
 import { foldProgress, PROOF_PROGRESS_EVENT, ProofProgress } from "../../proof/stream.js";
 import { attestCash, loadShowcase, must, type ShowcaseWorld } from "../../proof/testing/world.js";
@@ -77,9 +78,13 @@ describe("GET /v1/proof/:runSlug/metrics", () => {
       .update(schema.holds)
       .set({ engineParams: stored.params })
       .where(eq(schema.holds.id, must(dup).id));
+    const build = vi.spyOn(bundles, "buildProofBundle");
     try {
+      t.clock.advance(2_001);
       expect((await kept()).cents).toBe(getFigures().redirectedCents);
+      expect(build).toHaveBeenCalledOnce();
     } finally {
+      build.mockRestore();
       await t.deps.db
         .update(schema.holds)
         .set({ engineParams: stored })
