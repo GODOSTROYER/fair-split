@@ -40,6 +40,8 @@ export interface LaneOptions {
   burstMs: number;
   /** Longest queue (default 50); joining a full lane is refused, and the caller replays. */
   maxQueue: number;
+  /** Distinct workspaces from one hashed network, across all live steps. */
+  maxPerNetwork: number;
 }
 
 export const LANE_DEFAULTS: LaneOptions = {
@@ -47,6 +49,7 @@ export const LANE_DEFAULTS: LaneOptions = {
   reserveMs: 60_000,
   burstMs: 40_000,
   maxQueue: 50,
+  maxPerNetwork: 2,
 };
 
 export type LaneGrant =
@@ -74,6 +77,9 @@ export class LiveLane {
   readonly #clock: Clock;
   readonly #o: LaneOptions;
   #entries: Entry[] = [];
+  // Session admission supplies this once; queued worker steps have no HTTP request to resolve again.
+  // Bound retained mappings even after expired reservations; Reset explicitly forgets its workspace.
+  readonly #networks = new Map<string, string>();
 
   constructor(clock: Clock, opts: Partial<LaneOptions> = {}) {
     this.#clock = clock;
@@ -114,8 +120,27 @@ export class LiveLane {
     const key = laneKey(e);
     const at = this.#index(key);
     if (at >= 0) return at;
+    const networkKey = e.networkKey ?? this.#networks.get(e.workspaceId);
+    if (networkKey) {
+      this.#networks.delete(e.workspaceId);
+      if (this.#networks.size >= 4_096) {
+        const oldest = this.#networks.keys().next().value;
+        if (oldest !== undefined) this.#networks.delete(oldest);
+      }
+      this.#networks.set(e.workspaceId, networkKey);
+      const alreadyPresent = this.#entries.some((entry) => entry.workspaceId === e.workspaceId);
+      if (!alreadyPresent && this.networkDepth(networkKey) >= this.#o.maxPerNetwork) return null;
+    }
     if (this.#entries.length >= this.#o.maxQueue) return null;
-    this.#entries.push({ ...e, key, joinedAt: now, headSince: null, until: null, leased: false });
+    this.#entries.push({
+      ...e,
+      ...(networkKey ? { networkKey } : {}),
+      key,
+      joinedAt: now,
+      headSince: null,
+      until: null,
+      leased: false,
+    });
     this.#sweep(now);
     return this.#index(key);
   }
@@ -157,6 +182,7 @@ export class LiveLane {
 
   /** Leaves every burst of a workspace (judge Reset). */
   releaseWorkspace(workspaceId: string): void {
+    this.#networks.delete(workspaceId);
     this.#entries = this.#entries.filter((e) => e.workspaceId !== workspaceId);
     this.#sweep(this.#clock.nowMs());
   }

@@ -107,7 +107,7 @@ export function judgeRuntime(deps: AppDeps): JudgeRuntime {
   let clones = 0;
   const views = new Map<string, { at: number; value: Promise<unknown> }>();
   rt = {
-    lane: new LiveLane(deps.clock),
+    lane: new LiveLane(deps.clock, { maxPerNetwork: deps.env.judgeHourlyMax ?? 2 }),
     presence: new PresenceTracker(),
     cachedView<T>(key: string, nowMs: number, compute: () => Promise<T>): Promise<T> {
       const hit = views.get(key);
