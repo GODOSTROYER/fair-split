@@ -101,6 +101,23 @@
   gap: 8px;
 }
 
+/* Each part keeps its column even while the honesty slot is empty (and hidden): auto-placement would move the
+   pill into the shrinking first column, where a long next step runs under the links. */
+.fsc-bar > .fsc-bar__honest {
+  grid-row: 1;
+  grid-column: 1;
+}
+
+.fsc-bar > .fsc-bar__pill {
+  grid-row: 1;
+  grid-column: 2;
+}
+
+.fsc-bar > .fsc-bar__actions {
+  grid-row: 1;
+  grid-column: 3;
+}
+
 /* What's real, Sound and Reset: one quiet cluster of line icons, set off from Proof by a rule. */
 .fsc-bar__utils {
   display: flex;
