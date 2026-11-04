@@ -1,5 +1,5 @@
 import { schema } from "@fairsplit/db";
-import { approvalBytes, ed25519Sign } from "@fairsplit/domain";
+import { approvalBytes, ed25519Sign, linesDigest } from "@fairsplit/domain";
 import { and, desc, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { type RunsHarness, resolveAll, runQueued, signBoth, startRuns } from "../runs/test/app.js";
@@ -38,14 +38,26 @@ describe("HD6-7 cash waits until the approved batch leaves for posting", () => {
         code: "INVALID_TRANSITION",
         status: 409,
       });
+      const stored = await db
+        .select({ memberNo: schema.members.memberNo, lineSha256: schema.memberLines.lineSha256 })
+        .from(schema.memberLines)
+        .innerJoin(schema.members, eq(schema.members.id, schema.memberLines.memberId))
+        .where(eq(schema.memberLines.runId, h.world.runId));
+      // Even a valid signature over the now-stored stale root must not authorize it.
+      const stalePayload = {
+        ...payload,
+        linesDigest: linesDigest(
+          stored.map((l) => ({ memberNo: l.memberNo, lineSha256: l.lineSha256 ?? "" })),
+        ),
+      };
       await expect(
         api.submitApproval({
           params,
           body: {
             role: "treasurer",
             keyId: "fs-analyn-a1",
-            payload,
-            signature: ed25519Sign(key.privateKey, approvalBytes(payload)),
+            payload: stalePayload,
+            signature: ed25519Sign(key.privateKey, approvalBytes(stalePayload)),
           },
         }),
       ).rejects.toMatchObject({ code: "INVALID_TRANSITION", status: 409 });
