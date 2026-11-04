@@ -16,7 +16,9 @@ export function createConsoleRouter(runtime: DataRuntime, history?: RouterHistor
     context: { runtime },
     history,
     defaultPreload: "intent",
-    scrollRestoration: true,
+    // Stage owns its scroller: pathname changes open at the top; hold-only searches keep their offset.
+    // Router restoration otherwise copies the last screen's nested scroll position after Stage resets it.
+    scrollRestoration: ({ location }) => !/^\/(judge|season|runs)(\/|$)/.test(location.pathname),
     defaultNotFoundComponent: NotFound,
     defaultErrorComponent: RouteError,
   });

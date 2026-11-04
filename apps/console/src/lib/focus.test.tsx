@@ -97,6 +97,26 @@ it("a screen's mount pre-focus leaves its scroller at the top", () => {
   expect(scroll).not.toHaveBeenCalled();
 });
 
+it("the router never restores a prior screen's scroll over the stage's pathname reset", async () => {
+  const { renderConsole } = await import("../test/render.js");
+  const view = await renderConsole({ path: "/season/2026-A/rate-card" });
+  const main = document.getElementById("fsc-main");
+  if (!main) throw new Error("the stage scroller is missing");
+  // A real scroll event makes the router cache this nested scroller before navigation.
+  main.scrollTop = 400;
+  main.dispatchEvent(new Event("scroll"));
+  await view.navigate("/runs/2026A-r37/approve");
+  await frames(2);
+  expect(main.scrollTop).toBe(0);
+
+  await view.navigate("/runs/2026A-r37/split?hold=H1");
+  main.scrollTop = 345;
+  main.dispatchEvent(new Event("scroll"));
+  await view.navigate("/runs/2026A-r37/split?hold=H2");
+  await frames(2);
+  expect(main.scrollTop).toBe(345);
+});
+
 /** A stage: a screen with two controls, a drawer beside it, the ribbon's lane. */
 function stage() {
   document.body.innerHTML = `
