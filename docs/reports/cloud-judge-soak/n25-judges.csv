@@ -1,0 +1,26 @@
+judge,ip,outcome,failedAt,detail,rail,railReason,payoutRail,payoutReason,pressStatus,pressMs,invoicedMs,fundedMs,inReviewMs,keysMs,postingMs,postedMs,settledMs,proofMs,resetMs,markPaidQueued,cashPaced,proofStatus,payoutPlate,paypalVerified,labelViolations,labelNotes,lines,events,streamRefusals,streamReconnects
+4,127.12.0.5,stuck,invoiced,not INVOICED after 900000 ms (last DRAFT),live,,,,201,14641,,,,,,,,,52,0,,,,-1,0,,,0,0,0
+5,127.12.0.6,stuck,invoiced,not INVOICED after 900000 ms (last DRAFT),live,,,,201,14649,,,,,,,,,49,0,,,,-1,0,,,0,0,0
+16,127.12.0.17,stuck,posting,not POSTING after 900000 ms (last APPROVED),live,,live,,201,271,1338,162130,174298,175131,,,,,10,2,,,,-1,0,,,1347,0,0
+15,127.12.0.16,stuck,posting,not POSTING after 900000 ms (last APPROVED),live,,live,,201,283,41046,942187,953499,955304,,,,,11,1,,,,-1,0,,,1347,0,0
+0,127.12.0.1,stuck,posting,not POSTING after 900000 ms (last APPROVED),live,,live,,201,297,82091,982910,995510,996858,,,,,22,1,,,,-1,0,,,1347,0,0
+11,127.12.0.12,stuck,posting,not POSTING after 900000 ms (last APPROVED),live,,live,,201,1070,122349,1023088,1035185,1035757,,,,,25,1,,,,-1,0,,,1347,0,0
+2,127.12.0.3,stuck,posting,not POSTING after 900000 ms (last APPROVED),live,,live,,201,1582,202488,1103428,1115578,1116215,,,,,62,1,,,,-1,0,,,1347,0,0
+19,127.12.0.20,stuck,posting,not POSTING after 900000 ms (last APPROVED),live,,live,,201,3500,204541,1105357,1117504,1118263,,,,,14,1,,,,-1,0,,,1347,0,0
+7,127.12.0.8,stuck,posting,not POSTING after 900000 ms (last APPROVED),live,,live,,201,3590,244520,1145475,1157627,1158150,,,,,11,2,,,,-1,0,,,1347,0,0
+13,127.12.0.14,stuck,posting,not POSTING after 900000 ms (last APPROVED),live,,live,,201,3612,284547,1185594,1197767,1198292,,,,,11,2,,,,-1,0,,,1347,0,0
+20,127.12.0.21,stuck,posting,not POSTING after 900000 ms (last APPROVED),live,,live,,201,4416,325613,1226712,1238909,1240541,,,,,20,2,,,,-1,0,,,1347,0,0
+3,127.12.0.4,stuck,posting,not POSTING after 900000 ms (last APPROVED),live,,live,,201,4663,365843,1267078,1279206,1279883,,,,,10,2,,,,-1,0,,,1347,0,0
+14,127.12.0.15,stuck,posting,not POSTING after 900000 ms (last APPROVED),live,,live,,201,7033,407819,1308272,1320426,1320974,,,,,14,1,,,,-1,0,,,1347,0,0
+17,127.12.0.18,stuck,posting,not POSTING after 900000 ms (last APPROVED),live,,live,,201,7098,447915,1348412,1360594,1361411,,,,,15,1,,,,-1,0,,,1347,0,0
+12,127.12.0.13,stuck,posting,not POSTING after 900000 ms (last APPROVED),live,,live,,201,7183,488173,1388700,1400709,1401936,,,,,14,1,,,,-1,0,,,1347,0,0
+8,127.12.0.9,stuck,posting,not POSTING after 900000 ms (last APPROVED),live,,live,,201,8147,529311,1429905,1442023,1442723,,,,,20,1,,,,-1,0,,,1347,0,0
+6,127.12.0.7,stuck,posting,not POSTING after 900000 ms (last APPROVED),live,,live,,201,8180,568531,1468970,1481117,1481639,,,,,61,1,,,,-1,0,,,1347,0,0
+10,127.12.0.11,stuck,posting,not POSTING after 900000 ms (last APPROVED),live,,live,,201,10461,611647,1512083,1524181,1524617,,,,,20,1,,,,-1,0,,,1347,0,0
+1,127.12.0.2,stuck,posting,not POSTING after 900000 ms (last APPROVED),live,,live,,201,10492,651341,1552168,1564537,1565335,,,,,10,2,,,,-1,0,,,1347,0,0
+18,127.12.0.19,stuck,posting,not POSTING after 900000 ms (last APPROVED),live,,live,,201,10506,691219,1592322,1604513,1605044,,,,,19,2,,,,-1,0,,,1347,0,0
+23,127.12.0.24,stuck,posting,not POSTING after 900000 ms (last APPROVED),live,,live,,201,11387,733280,1634671,1646901,1648534,,,,,8,2,,,,-1,0,,,1347,0,0
+21,127.12.0.22,stuck,posting,not POSTING after 900000 ms (last APPROVED),live,,live,,201,11412,772610,1673830,1686153,1687380,,,,,45,2,,,,-1,0,,,1347,0,0
+24,127.12.0.25,stuck,posting,not POSTING after 900000 ms (last APPROVED),live,,live,,201,13733,814769,1715861,1728208,1728811,,,,,83,2,,,,-1,0,,,1347,0,0
+9,127.12.0.10,stuck,posting,not POSTING after 900000 ms (last APPROVED),live,,live,,201,13783,855112,1756319,1768805,1774023,,,,,14,2,,,,-1,0,,,1347,0,0
+22,127.12.0.23,stuck,posting,not POSTING after 900000 ms (last APPROVED),live,,live,,201,13882,895105,1795677,1808040,1811023,,,,,19,1,,,,-1,0,,,1347,0,0

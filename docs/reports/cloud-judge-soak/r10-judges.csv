@@ -1,0 +1,11 @@
+judge,ip,outcome,failedAt,detail,rail,railReason,payoutRail,payoutReason,pressStatus,pressMs,invoicedMs,fundedMs,inReviewMs,keysMs,postingMs,postedMs,settledMs,proofMs,resetMs,markPaidQueued,cashPaced,proofStatus,payoutPlate,paypalVerified,labelViolations,labelNotes,lines,events,streamRefusals,streamReconnects
+1,127.20.0.2,settled,,,replay,hourly_cap,replay,hourly_cap,201,332,1197,1452,18991,20426,22943,23188,48847,48946,16,0,,replay,replay,0,0,,PAID:7 OFF_RAIL_DUE:57,1449,0,0
+5,127.20.0.6,settled,,,replay,hourly_cap,replay,hourly_cap,201,920,2085,2450,20941,22334,24387,24528,49923,50006,10,0,,replay,replay,0,0,,PAID:7 OFF_RAIL_DUE:57,1449,0,0
+0,127.20.0.1,settled,,,replay,hourly_cap,replay,hourly_cap,201,307,1298,1505,20347,22082,23904,24550,49949,50048,11,0,,replay,replay,0,0,,OFF_RAIL_DUE:57 PAID:7,1449,0,0
+3,127.20.0.4,settled,,,replay,hourly_cap,replay,hourly_cap,201,395,2279,2566,22246,23446,26368,26427,51873,51931,8,0,,replay,replay,0,0,,PAID:7 OFF_RAIL_DUE:57,1449,0,0
+7,127.20.0.8,settled,,,replay,hourly_cap,replay,hourly_cap,201,2160,3406,3751,22035,23527,27343,27515,52858,52913,8,0,,replay,replay,0,0,,PAID:7 OFF_RAIL_DUE:57,1449,0,0
+2,127.20.0.3,settled,,,replay,hourly_cap,replay,hourly_cap,201,3698,6650,6963,24774,26573,28257,28426,53836,53909,42,0,,replay,replay,0,0,,OFF_RAIL_DUE:57 PAID:7,1449,0,0
+4,127.20.0.5,settled,,,replay,hourly_cap,replay,hourly_cap,201,3670,5989,6213,24853,26812,28254,28422,53956,54042,20,0,,replay,replay,0,0,,PAID:7 OFF_RAIL_DUE:57,1449,0,0
+8,127.20.0.9,settled,,,replay,hourly_cap,replay,hourly_cap,201,4412,7378,7714,26063,27340,28781,28922,54154,54199,8,0,,replay,replay,0,0,,OFF_RAIL_DUE:57 PAID:7,1449,0,0
+9,127.20.0.10,settled,,,replay,hourly_cap,replay,hourly_cap,201,3629,6652,6973,26812,28038,29118,29204,54373,54424,8,0,,replay,replay,0,0,,OFF_RAIL_DUE:57 PAID:7,1449,0,0
+6,127.20.0.7,settled,,,replay,hourly_cap,replay,hourly_cap,201,5484,7403,7719,27520,28691,29803,30227,55846,55892,11,0,,replay,replay,0,0,,OFF_RAIL_DUE:57 PAID:7,1449,0,0

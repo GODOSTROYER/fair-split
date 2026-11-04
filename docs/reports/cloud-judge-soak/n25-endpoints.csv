@@ -1,0 +1,15 @@
+name,n,p50Ms,p95Ms,maxMs,s2xx,s4xx,s429,s5xx,netErr,codes
+approval-payload,46,14,91,135,46,0,0,0,0,
+approve,46,54,282,339,46,0,0,0,0,
+chair-frame,23,9,48,50,23,0,0,0,0,
+field-enter,23,138,753,2199,23,0,0,0,0,
+hold-resolve,69,101,735,1312,69,0,0,0,0,
+holds,23,9,29,136,23,0,0,0,0,
+mark-paid,37,37,144,440,0,3,34,0,0,409/INVALID_TRANSITION:3 429/QUEUED:34
+press,75,258,1203,1582,25,0,50,0,0,429/QUEUED:50
+register-key,46,12,70,148,46,0,0,0,0,
+reset,25,19,62,83,25,0,0,0,0,
+run,6545,20,116,7871,6528,0,0,0,17,
+run-after-reset,25,5,51,88,0,25,0,0,0,401/UNAUTHENTICATED:25
+session,48,51,221,288,48,0,0,0,0,
+slip,23,11,43,103,23,0,0,0,0,
