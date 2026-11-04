@@ -1,5 +1,5 @@
-// "Where every dollar went" (ADR-0016): the bar's segments are the run's own figures, jade only for what the
-// simulated PayPal confirmed, and nothing is typed.
+// "Where every dollar went" (ADR-0016): the bar's segments are the run's own figures and they add up to Lantern
+// Bay's invoice, cent for cent; jade only for what the simulated PayPal confirmed, and nothing is typed.
 import { getSnapshot } from "@fairsplit/api-client/seed";
 import type { MemberLineState } from "@fairsplit/contracts";
 import { render, screen } from "@testing-library/react";
@@ -19,26 +19,48 @@ const figures = deriveFigures({
   holds: snapshot.holds,
   seeded: snapshot.figures,
 });
+const sum = (segments: readonly { readonly cents: number }[]) => segments.reduce((n, s) => n + s.cents, 0);
 
 describe("Proof's distribution bar", () => {
-  it("reads PayPal-confirmed, cash and kept-for-members from the run's own figures", () => {
-    const segments = distribution(figures);
-    expect(segments.map((s) => s.kind)).toEqual(["paypal", "cash", "kept"]);
-    expect(segments.map((s) => format.money(s.cents))).toEqual(["US$341.74", "US$3,876.43", "US$21.14"]);
+  it("reconciles to the invoice: PayPal-confirmed, cash, ruled deductions and disbursement costs", () => {
+    const segments = distribution(bundle, figures);
+    expect(segments.map((s) => s.kind)).toEqual(["paypal", "cash", "deductions", "disbursement"]);
+    expect(segments.map((s) => format.money(s.cents))).toEqual([
+      "US$341.74",
+      "US$3,876.43",
+      "US$55.33",
+      "US$60.00",
+    ]);
+    expect(sum(segments)).toBe(bundle.invoice.amountCents);
     expect(segments[0]?.members).toBe(snapshot.figures.endPaidMembers);
     expect(segments[1]?.members).toBe(snapshot.figures.endCashMembers);
+    // Deductions are the rate card's, net of the credits it returned; disbursement is the invoice beyond the pool.
+    expect(segments[2]?.cents).toBe(snapshot.figures.deductionsCents - snapshot.figures.creditsCents);
+    expect(segments[3]?.cents).toBe(snapshot.figures.disbursementCents);
   });
 
-  it("has no jade before the simulated PayPal confirms anything (Proof opens at 0 of 8)", () => {
-    const none = { ...figures.tiers, paypal: { members: 0, cents: 0 } };
-    expect(distribution({ tiers: none, holds: figures.holds }).some((s) => s.kind === "paypal")).toBe(false);
+  it("still adds up to the invoice with nothing confirmed yet, and has no jade (Proof opens at 0 of 8)", () => {
+    const tiers = {
+      ...figures.tiers,
+      paypal: { members: 0, cents: 0 },
+      due: {
+        ...figures.tiers.due,
+        paypal: { members: figures.tiers.paypal.members, cents: figures.tiers.paypal.cents },
+      },
+    };
+    const segments = distribution(bundle, { tiers });
+    expect(segments.some((s) => s.kind === "paypal")).toBe(false);
+    expect(segments.map((s) => s.kind)).toContain("flight");
+    expect(sum(segments)).toBe(bundle.invoice.amountCents);
   });
 
-  it("renders the bar and its legend, each amount as money", () => {
-    render(<Distribution figures={figures} amount="US$4,333.50" />);
+  it("renders the bar, its legend and the holds as a note inside the members' share, never as a segment", () => {
+    render(<Distribution bundle={bundle} figures={figures} amount="US$4,333.50" />);
     const bar = screen.getByTestId("proof-distribution");
     expect(bar.textContent).toContain("Lantern Bay's US$4,333.50, and where every dollar went");
     expect(screen.getByTestId("proof-distribution.paypal").textContent).toContain("simulated sandbox");
-    expect(screen.getByTestId("proof-distribution.kept").textContent).toContain("US$21.14");
+    expect(screen.getByTestId("proof-distribution.disbursement").textContent).toContain("US$60.00");
+    expect(screen.queryByTestId("proof-distribution.kept")).toBeNull();
+    expect(screen.getByTestId("proof-distribution.holds").textContent).toContain("US$21.14");
   });
 });

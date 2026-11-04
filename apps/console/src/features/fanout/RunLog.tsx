@@ -112,8 +112,16 @@ export function RunLog({ rows, isLive, seeded }: RunLogProps) {
   );
 }
 
+/** The track's span: 5 s either side of the fastest and slowest confirmation, so the dots spread out. */
+export function latencyScale(ms: readonly number[]): { readonly lo: number; readonly hi: number } {
+  if (ms.length === 0) return { lo: 0, hi: 0 };
+  return { lo: Math.max(0, Math.min(...ms) - 5000), hi: Math.max(...ms) + 5000 };
+}
+
 export function LatencyDots({ latency }: { readonly latency: Latency }) {
   const max = latency.max ?? 0;
+  const { lo, hi } = latencyScale(latency.dots.map((d) => d.ms));
+  const at = (ms: number) => `${hi > lo ? ((ms - lo) / (hi - lo)) * 100 : 0}%`;
   return (
     <figure className="fsr-latency" data-testid="W-TR-08.latency">
       <figcaption className="fs-t-label">{FANOUT.latency}</figcaption>
@@ -126,13 +134,19 @@ export function LatencyDots({ latency }: { readonly latency: Latency }) {
               <span
                 key={d.memberNo}
                 className="fsr-latency__dot"
-                style={{ left: `${max > 0 ? (d.ms / max) * 100 : 0}%` }}
+                style={{ left: at(d.ms) }}
                 title={`${d.name}, ${format.elapsedWords(d.ms)}`}
               />
             ))}
             {latency.p50 !== null && max > 0 && (
-              <span className="fsr-latency__p50" style={{ left: `${(latency.p50 / max) * 100}%` }} />
+              <span className="fsr-latency__p50" style={{ left: at(latency.p50) }} />
             )}
+            <span className="fsr-latency__tick fs-t-caption" data-end="start">
+              {format.elapsedWords(lo)}
+            </span>
+            <span className="fsr-latency__tick fs-t-caption" data-end="end">
+              {format.elapsedWords(hi)}
+            </span>
           </div>
           <p className="fs-t-caption" data-testid="W-TR-08.latency.summary">
             {FANOUT.latencySummary(format.elapsedWords(latency.p50 ?? 0), format.elapsedWords(max))}

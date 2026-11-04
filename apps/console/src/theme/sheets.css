@@ -75,7 +75,7 @@
   min-height: 34px;
   padding: 0 10px;
   border: 1px solid transparent;
-  border-radius: var(--fs-radius-2);
+  border-radius: var(--fs-radius-control);
   background: transparent;
   color: var(--fs-ink-2);
 }
@@ -133,15 +133,17 @@
   color: var(--fs-steel-line);
 }
 
-/* "Try to break it" sits on a bolted plate: plate-2 face, steel-hatched edges and two bolt heads, because
-   every attempt in it meets a rule that will not move (design §2.5 "Bolted"). */
+/* "Try to break it" sits on a bolted plate: a plate-2 card with two bolt heads, because every attempt in it meets
+   a rule that will not move (design §2.5 "Bolted"). v2: no hatched edge or lip (hatch means cash or
+   unavailable). */
 .fsc-bolted {
   position: relative;
   margin: 0 0 8px 0;
   padding: 20px 22px 18px;
-  border: 1px solid var(--fs-steel-line);
+  border: 1px solid var(--fs-rule-strong);
   border-radius: var(--fs-radius-card);
-  background: var(--fs-plate);
+  background: var(--fs-plate-2);
+  box-shadow: var(--fs-shadow-e1);
 }
 
 .fsc-bolted::before,
@@ -162,11 +164,7 @@
 }
 
 .fsc-bolted::after {
-  top: calc(100% + 1px);
-  left: 10px;
-  width: calc(100% - 20px);
-  height: 5px;
-  border-radius: 0 0 var(--fs-radius-cell) var(--fs-radius-cell);
+  display: none;
 }
 
 .fsc-bolted__bolt {
@@ -321,7 +319,7 @@
   gap: 12px;
   min-height: 36px;
   padding: 0 10px;
-  border-radius: var(--fs-radius-2);
+  border-radius: var(--fs-radius-cell);
   color: var(--fs-ink-2);
   font-weight: 500;
   font-size: 0.875rem;
@@ -360,7 +358,7 @@
   gap: 12px;
   padding: 12px 14px;
   border: 1px solid var(--fs-rule);
-  border-radius: var(--fs-radius-2);
+  border-radius: var(--fs-radius-card);
   background: var(--fs-plate-2);
   color: var(--fs-ink);
 }

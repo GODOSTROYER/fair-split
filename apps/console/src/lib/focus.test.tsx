@@ -450,6 +450,22 @@ describe("returnFocus reveals what it focuses", () => {
     expect(scrollTop).toBe(400 + 26);
   });
 
+  it("a chip floating at the top of the screen (the offer from 1280 px) covers nothing at its foot", () => {
+    const { drawer } = stage();
+    const next = document.createElement("a");
+    next.href = "#next";
+    drawer.append(next);
+    const offer = document.createElement("section");
+    offer.className = "fsc-offer";
+    document.body.append(offer);
+    vi.spyOn(window, "innerHeight", "get").mockReturnValue(956);
+    box(drawer, { top: 85, height: 758, width: 1036, left: 64 });
+    box(offer, { top: 97, height: 48, width: 320, left: 600 });
+    box(next, { top: 770, height: 16, width: 86, left: 604 });
+    next.scrollIntoView = vi.fn();
+    expect(outOfView(next)).toBe(false);
+  });
+
   it("leaves a target in view where it is", () => {
     const { slab } = stage();
     const scroll = vi.fn();

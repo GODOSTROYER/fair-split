@@ -4,61 +4,37 @@
 
 /* ---------------------------------------------------------------- bolted plates (also on the first view) */
 
+/* v2 (ADR-0016): a card (radius 14, a strong rule, e1) with two steel bolt heads in its top corners. The v1
+   steel-hatched edges are gone: hatch now means cash or unavailable, and a sealed card is neither. */
 .fsc-bolted-plate {
   position: relative;
   display: grid;
   gap: 8px;
-  margin: 0 5px 5px 0;
   padding: 18px 22px 16px;
+  border: 1px solid var(--fs-rule-strong);
+  border-radius: var(--fs-radius-card);
   background: var(--fs-plate-2);
+  box-shadow: var(--fs-shadow-e1);
   color: var(--fs-ink);
-}
-
-/* Steel-hatched edges and two bolt heads: the plate's depth is its frame; it has no travel. */
-.fsc-bolted-plate::before,
-.fsc-bolted-plate::after {
-  content: "";
-  position: absolute;
-  background: repeating-linear-gradient(
-    -45deg,
-    var(--fs-steel-line) 0 1.5px,
-    var(--fs-steel-face) 1.5px var(--fs-steel-gap)
-  );
-}
-
-.fsc-bolted-plate::before {
-  top: 5px;
-  left: 100%;
-  width: 5px;
-  height: 100%;
-}
-
-.fsc-bolted-plate::after {
-  top: 100%;
-  left: 5px;
-  width: 100%;
-  height: 5px;
 }
 
 .fsc-bolted-plate__bolt {
   position: absolute;
-  top: 6px;
-  width: 4px;
-  height: 4px;
+  top: 8px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   background: var(--fs-steel-line);
 }
 
 .fsc-bolted-plate__bolt--l {
-  left: 6px;
+  left: 8px;
 }
 
 .fsc-bolted-plate__bolt--r {
-  right: 6px;
+  right: 8px;
 }
 
-.fsc-bolted-plate[data-bright]::before,
-.fsc-bolted-plate[data-bright]::after,
 .fsc-bolted-plate[data-bright] .fsc-bolted-plate__bolt {
   animation: fs-brighten var(--fs-dur-brighten) var(--fs-ease-out);
 }
@@ -333,8 +309,8 @@
   width: 100%;
   min-height: 40px;
   padding: 0 12px;
-  border: 1px solid var(--fs-rule);
-  border-radius: var(--fs-radius-2);
+  border: 1px solid var(--fs-steel-line);
+  border-radius: var(--fs-radius-control);
   background: var(--fs-plate);
   color: var(--fs-ink);
   font-family: var(--fs-font-ui);
@@ -367,51 +343,28 @@
   position: relative;
   display: grid;
   gap: 14px;
-  margin: 0 5px 5px 0;
   padding: 20px 22px 18px;
+  border: 1px solid var(--fs-rule-strong);
+  border-radius: var(--fs-radius-card);
   background: var(--fs-plate-2);
-}
-
-.fsc-rc__refusal::before,
-.fsc-rc__refusal::after {
-  content: "";
-  position: absolute;
-  background: repeating-linear-gradient(
-    -45deg,
-    var(--fs-steel-line) 0 1.5px,
-    var(--fs-steel-face) 1.5px var(--fs-steel-gap)
-  );
-}
-
-.fsc-rc__refusal::before {
-  top: 5px;
-  left: 100%;
-  width: 5px;
-  height: 100%;
-}
-
-.fsc-rc__refusal::after {
-  top: 100%;
-  left: 5px;
-  width: 100%;
-  height: 5px;
+  box-shadow: var(--fs-shadow-e1);
 }
 
 .fsc-rc__refusal-bolt {
   position: absolute;
-  top: 6px;
-  width: 4px;
-  height: 4px;
+  top: 8px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   background: var(--fs-steel-line);
 }
 
 .fsc-rc__refusal-bolt--l {
-  left: 6px;
+  left: 8px;
 }
 
 .fsc-rc__refusal-bolt--r {
-  right: 6px;
+  right: 8px;
 }
 
 .fsc-rc__refusal-word {
@@ -452,7 +405,7 @@
   gap: 12px;
   padding: 18px 20px;
   border: 1px dashed var(--fs-ink-3);
-  border-radius: var(--fs-radius-2);
+  border-radius: var(--fs-radius-card);
 }
 
 .fsc-rc__proposal-head {

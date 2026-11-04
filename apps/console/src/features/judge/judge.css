@@ -7,12 +7,15 @@
 .fsc-first {
   display: grid;
   align-content: start;
-  gap: 28px;
+  gap: 20px;
   max-width: 1320px;
 }
 
-/* The first view is the stage's hero: its screen sits on the morning wash. */
+/* The first view is the stage's hero: its screen sits on the morning wash, and it fits the first screen at
+   1920 × 1080 (the story tiles and What's real in view on arrival), so its top and foot room are tighter. */
 .fsc-console__screen:has(> .fsc-first) {
+  padding-top: 20px;
+  padding-bottom: 24px;
   background: var(--fs-wash), var(--fs-plate);
 }
 
@@ -79,9 +82,14 @@
   gap: 12px;
 }
 
+/* Prints at about 84 px: still four slips each, and two rows of six leave the tiles and the strip in view. */
 .fsc-first__sheet > .fsc-contact {
-  width: 100%;
-  gap: 16px 14px;
+  grid-template-columns: repeat(6, minmax(0, 84px));
+  gap: 10px;
+}
+
+.fsc-first__sheet .fsc-contact__link {
+  gap: 4px;
 }
 
 /* The sheet's own label: a synthetic sample is "not real", so it wears the dashed honesty outline. */
@@ -194,6 +202,26 @@
     gap: 10px;
     padding: 12px;
   }
+
+  /* Half the desk is narrow: four prints a row (three rows) keep each one large enough to read as four slips. */
+  .fsc-first__sheet > .fsc-contact {
+    grid-template-columns: repeat(4, minmax(0, 84px));
+  }
+
+  /* Below 1600 px the keycap gives the press's words the room. */
+  .fsc-first__key {
+    display: none;
+  }
+
+  /* What's real as one band under the tiles: the three parts side by side, their bodies at caption size. */
+  .fsc-real {
+    padding: 10px 14px;
+    gap: 8px 16px;
+  }
+
+  .fsc-real__list {
+    gap: 8px 16px;
+  }
 }
 
 @media (max-width: 1199px) {
@@ -296,6 +324,34 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 12px 16px;
+  width: 100%;
+}
+
+/* The first press: one confident line with its glyph and an Enter keycap, the honesty words under it. */
+.fsc-first__slab > .fs-slab {
+  flex: 1 1 100%;
+}
+
+/* One line from 1600 px; narrower, the words wrap inside the invoice's column (never past it). */
+.fsc-first__slab .fs-slab__words > * {
+  white-space: normal;
+}
+
+@media (min-width: 1600px) {
+  .fsc-first__slab .fs-slab__words > :first-child {
+    white-space: nowrap;
+  }
+}
+
+.fsc-first__key {
+  border-color: color-mix(in srgb, var(--fs-slab-chalk-label) 40%, transparent);
+  background: color-mix(in srgb, var(--fs-slab-chalk-label) 16%, transparent);
+  color: var(--fs-slab-chalk-label);
+}
+
+/* The funded press rests flush in plate (ui-web's committed state): its keycap goes with the press. */
+.fs-slab[data-state="committed"] .fsc-first__key {
+  display: none;
 }
 
 .fsc-first__stamp {
@@ -310,16 +366,28 @@
   color: var(--fs-ink-2);
 }
 
+/* The status: its glyph, then the words beside it (they wrap under themselves, never under the glyph), then the
+   link under the words. */
 .fsc-first__status {
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 10px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 4px 10px;
   color: var(--fs-ink);
 }
 
-.fsc-first__status .fs-glyph {
+.fsc-first__status > .fs-glyph {
+  margin-top: 2px;
   color: var(--fs-ink-2);
+}
+
+.fsc-first__status > a {
+  grid-column: 2;
+  justify-self: start;
+}
+
+.fsc-nowrap {
+  white-space: nowrap;
 }
 
 .fsc-first__action[data-state="funded"] .fsc-first__status .fs-glyph {

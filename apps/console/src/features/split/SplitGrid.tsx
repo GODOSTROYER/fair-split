@@ -191,6 +191,15 @@ const ALL: readonly GridColumn[] = [
 /** Minimum confidence waits behind "All columns": 60 of 64 lines were read earlier and show none. */
 const DEFAULT: readonly GridColumn[] = ALL.filter((c) => c !== "confidence");
 
+/**
+ * In the five-column set Verified kg and Kaltas keep fixed widths, so Member, Net and Status take the slack and no
+ * empty band opens between Verified kg and Kaltas (1,470 px).
+ */
+const NARROW_FIXED: Partial<Record<GridColumn, ColDef<GridRow>>> = {
+  kg: { width: 150, flex: undefined, minWidth: undefined },
+  kaltas: { width: 168, flex: undefined, minWidth: undefined },
+};
+
 const SETS: Readonly<Record<ColumnSet, readonly GridColumn[]>> = {
   all: ALL,
   default: DEFAULT,
@@ -231,7 +240,10 @@ export function SplitGrid({
   const measured = width > 0;
   const set: ColumnSet = columns ?? columnSetFor(width, showAll);
   const defs = useMemo(() => columnDefs(context.premiumRate), [context.premiumRate]);
-  const colDefs = useMemo(() => SETS[set].map((c) => defs[c]), [defs, set]);
+  const colDefs = useMemo(
+    () => SETS[set].map((c) => (set === "narrow" ? { ...defs[c], ...NARROW_FIXED[c] } : defs[c])),
+    [defs, set],
+  );
   // One grid row per line object: an unchanged line keeps its row, so AG Grid refreshes only the lines that moved.
   const wrapped = useRef(new WeakMap<SplitRow, GridRow>());
   const wrap1 = useCallback((r: SplitRow): GridRow => {

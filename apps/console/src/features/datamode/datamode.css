@@ -12,7 +12,7 @@
   max-width: calc(100vw - 32px);
   padding: 6px 10px;
   border: 1px solid var(--fs-rule);
-  border-radius: var(--fs-radius-2);
+  border-radius: var(--fs-radius-pill);
   background: var(--fs-plate-2);
   color: var(--fs-ink);
   font-family: var(--fs-font-ui);

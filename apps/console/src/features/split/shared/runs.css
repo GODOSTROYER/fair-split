@@ -32,8 +32,9 @@
   margin: 0;
   padding: var(--fs-space-12) var(--fs-space-16);
   border: 1px solid var(--fs-rule);
-  border-radius: var(--fs-radius-2);
+  border-radius: var(--fs-radius-card);
   background: var(--fs-plate-2);
+  box-shadow: var(--fs-shadow-e1);
   color: var(--fs-ink);
 }
 
@@ -227,8 +228,8 @@
 .fsr-input {
   min-height: 40px;
   padding: 0 var(--fs-space-12);
-  border: 1px solid var(--fs-rule);
-  border-radius: var(--fs-radius-2);
+  border: 1px solid var(--fs-steel-line);
+  border-radius: var(--fs-radius-control);
   background: var(--fs-plate);
   color: var(--fs-ink);
   font: inherit;

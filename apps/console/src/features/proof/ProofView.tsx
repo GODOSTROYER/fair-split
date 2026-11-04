@@ -19,7 +19,7 @@ import { Figures } from "./Figures.js";
 import { ProofHero } from "./Hero.js";
 import { type MemberLabel, shortRuleName } from "./Lines.js";
 import { isSettled } from "./model.js";
-import { PlotField } from "./PlotField.js";
+import { PlotField, plotTiers } from "./PlotField.js";
 import type { ProofPage } from "./useProof.js";
 import type { Verification } from "./useVerification.js";
 import { PLATES } from "./verify.js";
@@ -201,7 +201,11 @@ export function ProofView({ page, verification, rail, names = null, level = "h1"
             </p>
             {/* Where every dollar went: replayed statuses are not money anyone confirmed, so a replay shows no bar. */}
             {!replayed && state !== "failed" && (
-              <Distribution figures={figures} amount={format.money(bundle.invoice.amountCents)} />
+              <Distribution
+                bundle={bundle}
+                figures={figures}
+                amount={format.money(bundle.invoice.amountCents)}
+              />
             )}
           </>
         }
@@ -238,7 +242,7 @@ export function ProofView({ page, verification, rail, names = null, level = "h1"
           fees={page.fees}
         />
       )}
-      <PlotField bundle={bundle} />
+      <PlotField bundle={bundle} tiers={plotTiers(bundle.lines, page.items, page.lineStates, replayed)} />
       <ProofFooter
         rail={rail}
         provenance={replayed ? PAYOUT_REPLAY_NOTE : page.provenance ? provenanceWords(page.provenance) : null}

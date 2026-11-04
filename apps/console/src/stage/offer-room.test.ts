@@ -47,6 +47,18 @@ describe("room under the sound offer (stage.css)", () => {
     expect(px(cascaded(rules, drawerBody, "padding-bottom", MEDIUM))).toBeGreaterThanOrEqual(112);
   });
 
+  it("from 1280 px it floats at the top right of the screen, clear of the story tiles, and needs no foot room", () => {
+    const { screen } = stage(true);
+    const offer = document.querySelector(".fsc-offer");
+    if (!offer) throw new Error("no offer");
+    for (const width of [1470, 1920]) {
+      const wide = { width, motion: "full" } as const;
+      expect(cascaded(rules, offer, "top", wide)).toBe("84px");
+      expect(cascaded(rules, offer, "bottom", wide)).toBeUndefined();
+      expect(px(cascaded(rules, screen, "padding-bottom", wide))).toBeLessThan(112);
+    }
+  });
+
   it("without it, they keep their own padding", () => {
     const { drawerBody } = stage(false);
     expect(px(cascaded(rules, drawerBody, "padding-bottom", MEDIUM))).toBeLessThan(112);

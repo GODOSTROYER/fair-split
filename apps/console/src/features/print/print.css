@@ -161,7 +161,7 @@
 .fsr-sms__chip {
   padding: 0 6px;
   border: 1px solid var(--fs-rule);
-  border-radius: var(--fs-radius-2);
+  border-radius: var(--fs-radius-cell);
   color: var(--fs-ink-2);
 }
 

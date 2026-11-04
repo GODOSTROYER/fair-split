@@ -209,7 +209,8 @@ const STICKY_EDGES =
   ".fsc-drawer__head, .ag-grid-pinned-top-rows, .ag-grid-pinned-bottom-rows, [data-sticky-edge]";
 
 /**
- * What floats over the lower part of the stage, above whatever scrolls beneath it: the one-time sound offer. A
+ * What floats over the lower part of the stage, above whatever scrolls beneath it: the one-time sound offer (below
+ * 1280 px; wider, it floats at the top of the screen, over the headline's empty right, and covers no foot). A
  * control under one is covered; the scrollport it floats over scrolls it clear.
  */
 const FLOATING = ".fsc-offer, [data-floating-chip]";
@@ -222,7 +223,8 @@ function floatingInset(top: number, bottom: number, box: DOMRect, el: Element): 
     const r = chip.getBoundingClientRect();
     if (r.width === 0 || r.height === 0) continue;
     if (r.right <= box.left || r.left >= box.right) continue;
-    if (r.top <= top || r.top >= bottom) continue;
+    // Only a chip over the frame's lower half covers its foot; one floating at its top covers no foot.
+    if (r.top <= top + (bottom - top) / 2 || r.top >= bottom) continue;
     inset = Math.max(inset, bottom - r.top);
   }
   return inset;

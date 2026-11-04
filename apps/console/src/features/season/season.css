@@ -233,6 +233,14 @@
   min-width: 0;
 }
 
+/* Below 1600 px the invoice keeps half the desk, so its press and its amount never squeeze under 340 px. */
+@media (max-width: 1599px) {
+  .fsc-fund[data-layout="desk"] {
+    grid-template-columns: minmax(0, 6fr) minmax(0, 6fr);
+    column-gap: 32px;
+  }
+}
+
 /* The pool as a strip: its total and its three parts on one line. */
 .fsc-fund__pool[data-variant="strip"] {
   container-type: inline-size;
@@ -332,8 +340,9 @@
   gap: 20px;
   min-width: 0;
   padding: 22px 26px 24px;
-  border-radius: var(--fs-radius-2);
+  border-radius: var(--fs-radius-card);
   background: var(--fs-plate);
+  box-shadow: var(--fs-shadow-e1);
 }
 
 .fsc-fund__head {
@@ -408,6 +417,24 @@
   color: var(--fs-ink);
 }
 
+/* The hollow cut's two layers move as one; once the amount has landed and filled, they give way to the ink layer:
+   FS Sans with proportional lining figures, so a landed amount reads as money, never as code (decision §7). */
+.fsc-figure__cut {
+  position: relative;
+  display: inline-block;
+  transition: opacity var(--fs-dur-crossfade) var(--fs-ease-out);
+}
+
+.fsc-figure__ink {
+  position: absolute;
+  inset: 0;
+  color: var(--fs-ink);
+  font-family: var(--fs-font-ui);
+  font-variant-numeric: lining-nums proportional-nums;
+  transition: opacity var(--fs-dur-crossfade) var(--fs-ease-out);
+  pointer-events: none;
+}
+
 /* An inline amount in flight is ink-2 with a dashed underline; landed is plain ink (S2.2.1). */
 .fsc-inline-amount {
   color: var(--fs-ink);
@@ -433,6 +460,31 @@
   align-items: center;
   gap: 8px;
   color: var(--fs-pencil);
+}
+
+/* The first view folds the draft's lines under its provenance, which stays in view. */
+summary.fsc-fund__draft-head {
+  width: fit-content;
+  border-radius: var(--fs-radius-cell);
+  list-style: none;
+  cursor: pointer;
+}
+
+summary.fsc-fund__draft-head::-webkit-details-marker {
+  display: none;
+}
+
+summary.fsc-fund__draft-head:focus-visible {
+  outline: var(--fs-focus-width) solid var(--fs-pod);
+  outline-offset: var(--fs-focus-offset);
+}
+
+summary.fsc-fund__draft-head > .fs-glyph:last-child {
+  transition: transform var(--fs-dur-crossfade) var(--fs-ease-out);
+}
+
+details[open] > summary.fsc-fund__draft-head > .fs-glyph:last-child {
+  transform: rotate(180deg);
 }
 
 .fsc-fund__lines {
@@ -576,7 +628,12 @@
 .fsc-funded {
   position: relative;
   display: inline-block;
-  margin: 0 3px 3px 0;
+}
+
+/* v2: "Funded" is a pill; the v1 raised edges stay in the markup for MM-S and draw nothing. */
+.fsc-funded__edge--r,
+.fsc-funded__edge--b {
+  display: none;
 }
 
 .fsc-funded__edge {
@@ -608,8 +665,15 @@
   min-height: 28px;
   padding: 0 12px 0 10px;
   overflow: hidden;
+  border-radius: var(--fs-radius-pill);
   background: var(--fs-plate-2);
+  box-shadow: inset 0 0 0 1px var(--fs-rule-strong);
   color: var(--fs-ink);
+}
+
+.fsc-fund[data-moment-phase="funded"] .fsc-funded__face,
+.fsc-fund__pool[data-state="landed"] .fsc-funded__face {
+  box-shadow: inset 0 0 0 1px var(--fs-jade-flush-border);
 }
 
 .fsc-funded__flood {

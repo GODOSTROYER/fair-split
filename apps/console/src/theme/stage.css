@@ -46,7 +46,7 @@
 .fsc-bar {
   display: grid;
   flex: none;
-  grid-template-columns: minmax(0, 1fr) auto minmax(max-content, 1fr);
+  grid-template-columns: minmax(max-content, 1fr) minmax(0, max-content) minmax(max-content, 1fr);
   align-items: center;
   gap: 8px 20px;
   min-height: 52px;
@@ -74,11 +74,13 @@
   min-width: 0;
 }
 
+/* The honesty line keeps one line: the run pill beside it gives way first (its next step ellipsizes). */
 .fsc-bar__story {
   min-width: 0;
   color: var(--fs-ink-2);
   font-size: 0.8125rem;
   line-height: 1.125rem;
+  white-space: nowrap;
 }
 
 .fsc-bar__lead,
@@ -90,6 +92,10 @@
 .fsc-bar__pill {
   display: flex;
   justify-content: center;
+  min-width: 0;
+}
+
+.fsc-bar__pill > * {
   min-width: 0;
 }
 
@@ -589,6 +595,12 @@
   transition: opacity var(--fs-dur-drawer-in) var(--fs-ease-drawer);
 }
 
+/* In Hayag the drawer's scrim is a light veil (ink at 18%): the held rows under it stay recognisably marigold, never
+   a taupe mud, and the rest of the stage stays light. */
+:root[data-theme="adlaw"] .fsc-drawer-scrim {
+  background: color-mix(in srgb, var(--fs-ink) 18%, transparent);
+}
+
 .fsc-drawer {
   position: absolute;
   top: 0;
@@ -747,7 +759,8 @@
   transition: opacity var(--fs-dur-crossfade) var(--fs-ease-out);
 }
 
-/* Docked at 1680 px and wider: the phone waits under a 56% ground scrim until it is the focus (S1.6). */
+/* Docked at 1680 px and wider: the phone waits under a light plate scrim (28%, so its own honesty chip and
+   disclaimer still read) until it is the focus (S1.6). */
 .fsc-dock__scrim {
   appearance: none;
   position: absolute;
@@ -757,7 +770,7 @@
   place-items: center;
   border: 0;
   border-radius: 44px;
-  background: color-mix(in srgb, var(--fs-plate) 50%, transparent);
+  background: color-mix(in srgb, var(--fs-plate) 28%, transparent);
   color: var(--fs-ink);
 }
 
@@ -1117,8 +1130,9 @@
 
 /* The lane's material: graphite for the machine, ink for people, an open ring for PayPal until a payment
    it confirmed is the newest row, which is jade flush (design §2.2: jade only when PayPal confirms). */
-/* The lane's material: graphite for the machine, ballpoint for people (a person's hand), a dashed jade ring for
-   PayPal until a payment it confirmed is the newest row, which is flush jade (jade only when PayPal confirms). */
+/* The lane's material: graphite for the machine, ballpoint for people (a person's hand), the dashed steel ring
+   for the simulated PayPal (not real; a notice, a cancellation) until a payment it confirmed is the newest row,
+   which is flush jade (jade only when PayPal confirms money; a dashed jade ring would read as money in flight). */
 .fsc-ribbon__mark {
   flex: none;
   width: 9px;
@@ -1132,7 +1146,7 @@
 }
 
 .fsc-ribbon__lane[data-lane="paypal"] .fsc-ribbon__mark {
-  border: 1.5px dashed var(--fs-jade-flush-border);
+  border: 1.5px dashed var(--fs-steel-line);
   background: transparent;
 }
 
@@ -1234,11 +1248,12 @@
   display: none;
 }
 
-/* The one-time sound question, beside the first press (S1.6). */
+/* The one-time sound question (S1.6). From 1280 px it floats at the top right of the console's screen, beside
+   the headline, clear of the story tiles at the foot; below, at the lower left. */
 .fsc-offer {
   position: absolute;
-  bottom: 112px;
-  left: 24px;
+  top: 84px;
+  right: 34px;
   z-index: var(--fs-z-snackbar);
   display: flex;
   align-items: center;
@@ -1265,20 +1280,34 @@
   min-height: 32px;
 }
 
-/* Beside the console's screen, never over the rail. */
-.fsc-stage[data-rail="full"] .fsc-offer {
-  left: calc(var(--fs-console-rail) + 24px);
+/* Docked, it stays over the console's screen, never over the phone. */
+.fsc-stage[data-layout="dock"] .fsc-offer {
+  right: calc(var(--fs-console-dock) + var(--fsc-gutter) + 34px);
 }
 
-.fsc-stage[data-rail="collapsed"] .fsc-offer {
-  left: calc(64px + 24px);
-}
+@media (max-width: 1279px) {
+  .fsc-offer {
+    top: auto;
+    right: auto;
+    bottom: 112px;
+    left: 24px;
+  }
 
-/* While the offer floats over the lower left, the screen and the drawer keep room at their foot, so a control the
-   console focuses there (Next after Count it once, a grid row) can scroll clear of it (lib/focus.ts scrolls it
-   above the chip, WCAG 2.4.11). Room at the foot moves nothing above it. */
-.fsc-stage:has(.fsc-offer) :is(.fsc-console__screen, .fsc-drawer__body) {
-  padding-bottom: 120px;
+  /* Beside the console's screen, never over the rail. */
+  .fsc-stage[data-rail="full"] .fsc-offer {
+    left: calc(var(--fs-console-rail) + 24px);
+  }
+
+  .fsc-stage[data-rail="collapsed"] .fsc-offer {
+    left: calc(64px + 24px);
+  }
+
+  /* While the offer floats over the lower left, the screen and the drawer keep room at their foot, so a control
+     the console focuses there (Next after Count it once, a grid row) can scroll clear of it (lib/focus.ts scrolls
+     it above the chip, WCAG 2.4.11). Room at the foot moves nothing above it. */
+  .fsc-stage:has(.fsc-offer) :is(.fsc-console__screen, .fsc-drawer__body) {
+    padding-bottom: 120px;
+  }
 }
 
 /* ---------------------------------------------------------------- phone visit (under 1024 px) */
@@ -1369,8 +1398,25 @@
   z-index: calc(var(--fs-z-drawer) + 1);
 }
 
+/* 1280-1679 px: one row still. The honesty line keeps its words; the pill gives way (its next step ellipsizes),
+   and Sound and Reset fold to their glyphs, each keeping its word for assistive technology. */
+@media (min-width: 1280px) and (max-width: 1679px) {
+  .fsc-bar {
+    gap: 8px 14px;
+  }
+
+  .fsc-bar .fsc-barlink--fold .fs-t-label {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
 /* Keep the rail label and every action inside the viewport when the labelled Proof chip grows. */
-@media (min-width: 1024px) and (max-width: 1679px) {
+@media (min-width: 1024px) and (max-width: 1279px) {
   .fsc-bar {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   }

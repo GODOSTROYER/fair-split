@@ -118,6 +118,7 @@ function Desk() {
 
   if (!snapshot) return null;
   const season = snapshot.season.label;
+  // The face carries the short action; its accessible name keeps the whole catalog string.
   const label = t("W-JG-01.markPaidLabel");
   const srLabel = t("W-JG-01.markPaid");
   const cents = snapshot.run.invoice.amountCents;
@@ -213,6 +214,8 @@ function Desk() {
     slab = (
       <Slab
         label={label}
+        glyph="thumbmark"
+        width="100%"
         srLabel={`${recordText}. ${FIRST_VIEW_COPY.movedOn}`}
         record={record}
         depth="d2"
@@ -227,6 +230,9 @@ function Desk() {
       <Slab
         key={attempt}
         label={label}
+        glyph="thumbmark"
+        width="100%"
+        trailing={<kbd className="fsc-kbd fsc-first__key">Enter</kbd>}
         srLabel={
           movedOn
             ? recordText

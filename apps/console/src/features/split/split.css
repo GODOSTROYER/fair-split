@@ -151,8 +151,8 @@
 .fsr-chip {
   min-height: 32px;
   padding: 0 var(--fs-space-12);
-  border: 1px solid var(--fs-rule);
-  border-radius: var(--fs-radius-2);
+  border: 1px solid var(--fs-rule-strong);
+  border-radius: var(--fs-radius-pill);
   background: transparent;
   color: var(--fs-ink-2);
   cursor: pointer;
@@ -162,10 +162,22 @@
   color: var(--fs-ink);
 }
 
+/* The chosen filter is an ink-filled pill (a segmented control); the Held chip carries the marigold dot. */
 .fsr-chip[aria-pressed="true"] {
-  border-color: var(--fs-ink-3);
-  background: var(--fs-plate-2);
-  color: var(--fs-ink);
+  border-color: var(--fs-ink);
+  background: var(--fs-ink);
+  color: var(--fs-plate);
+}
+
+.fsr-chip[data-testid="W-TR-05.filter.held"]::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 6px;
+  border-radius: 50%;
+  background: var(--fs-canary);
+  vertical-align: 2px;
 }
 
 /* ------------------------------------------------------------------ the grid */
@@ -519,15 +531,23 @@
   line-height: 1.1;
 }
 
+/* Cash: a hatch swatch and the word in ink-2, the same mark as the cash chip in Status and on Proof (decision §4). */
 .fsr-rail--cash > .fs-t-label {
-  padding: 1px 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--fs-ink-2);
+}
+
+.fsr-rail--cash > .fs-t-label::before {
+  content: "";
+  flex: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
   background:
-    repeating-linear-gradient(-45deg, var(--fs-hatch) 0 1.5px, transparent 1.5px 6px), var(--fs-plate);
-  box-shadow: inset 0 0 0 1px var(--fs-rule);
-  color: var(--fs-ink);
-  text-shadow:
-    0 0 2px var(--fs-plate),
-    0 0 2px var(--fs-plate);
+    repeating-linear-gradient(-45deg, var(--fs-hatch) 0 1.5px, transparent 1.5px 4px), var(--fs-plate);
+  box-shadow: inset 0 0 0 1px var(--fs-rule-strong);
 }
 
 .fsr-rail__moved {
@@ -610,10 +630,12 @@
 }
 
 .fsr-status__hold {
-  padding: 0 4px;
-  border: 1px solid var(--fs-rule);
-  border-radius: var(--fs-radius-2);
-  color: var(--fs-ink-2);
+  padding: 0 5px;
+  border: 1px solid var(--fs-canary-border);
+  border-radius: var(--fs-radius-cell);
+  background: var(--fs-canary);
+  color: var(--fs-on-canary);
+  font-weight: 700;
 }
 
 /* ------------------------------------------------------------------ footer */
@@ -639,7 +661,7 @@
   gap: var(--fs-space-4);
   padding: 0 6px;
   border: 1px solid var(--fs-ink-3);
-  border-radius: var(--fs-radius-2);
+  border-radius: var(--fs-radius-pill);
   color: var(--fs-ink);
 }
 

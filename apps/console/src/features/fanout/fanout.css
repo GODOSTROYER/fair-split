@@ -65,8 +65,13 @@
   overflow: visible;
 }
 
+/* The Run's seal is the same seal as Approve's and Proof's: ink rings, every other one in ballpoint indigo. */
 .fsr-fan .fs-seal__ring {
   stroke: var(--fs-ink-2);
+}
+
+.fsr-fan .fs-seal__ring:nth-of-type(even) {
+  stroke: var(--fs-pod);
 }
 
 .fsr-fan__bar {
@@ -122,6 +127,12 @@
   stroke-dasharray: 1 1;
   stroke-dashoffset: calc(1 - var(--fsr-p, 0));
   stroke-linecap: butt;
+}
+
+/* In flight: money on its way reads as the dashed jade outline (decision §4), faint until PayPal confirms it. */
+.fsr-fan__item[data-tone="sent"] .fsr-fan__thread {
+  stroke: var(--fs-jade-flush-border);
+  opacity: 0.6;
 }
 
 .fsr-fan__item[data-tone="landed"] .fsr-fan__thread {
@@ -288,7 +299,7 @@
   top: var(--fsr-y);
   left: var(--fsr-x);
   padding: 0 var(--fs-space-4);
-  border-radius: var(--fs-radius-2);
+  border-radius: var(--fs-radius-pill);
   background: var(--fs-canary);
   color: var(--fs-on-canary);
   font-weight: 600;
@@ -339,8 +350,9 @@
 }
 
 .fsr-parked__chip {
-  padding: 2px 8px;
+  padding: 2px 10px;
   border: 1px solid var(--fs-canary-border, var(--fs-canary));
+  border-radius: var(--fs-radius-pill);
   background: var(--fs-canary);
   color: var(--fs-on-canary);
 }
@@ -535,16 +547,35 @@
 .fsr-latency__track {
   position: relative;
   height: 24px;
+  margin-bottom: 20px;
   border-bottom: 1px solid var(--fs-ink-3);
 }
 
+/* Each confirmed payment is money: a jade dot on its border (decision §4). */
 .fsr-latency__dot {
   position: absolute;
   top: 9px;
-  width: 8px;
-  height: 8px;
-  margin-left: -4px;
-  background: var(--fs-ink);
+  width: 9px;
+  height: 9px;
+  margin-left: -4.5px;
+  border-radius: 50%;
+  background: var(--fs-jade);
+  box-shadow: 0 0 0 1px var(--fs-jade-flush-border);
+}
+
+.fsr-latency__tick {
+  position: absolute;
+  top: calc(100% + 4px);
+  color: var(--fs-ink-3);
+  white-space: nowrap;
+}
+
+.fsr-latency__tick[data-end="start"] {
+  left: 0;
+}
+
+.fsr-latency__tick[data-end="end"] {
+  right: 0;
 }
 
 .fsr-latency__p50 {
