@@ -1,7 +1,21 @@
 import type { StatementDTO } from "../../_shims/api-client";
-import type { ItemStatus, ItemUpdatedPayload, Lang, RunEvent } from "../../_shims/contracts";
+import type {
+  AmountState,
+  ItemStatus,
+  ItemUpdatedPayload,
+  Lang,
+  MemberStatus,
+  RunEvent,
+} from "../../_shims/contracts";
 import { pendingReview } from "../../_shims/i18n";
-import type { ItemTrack } from "../../lib/item-status";
+import {
+  confirmedPayment,
+  type ItemEffect,
+  type ItemTrack,
+  reduceItemEvent,
+  STATUS_TONE,
+} from "../../lib/item-status";
+import { t } from "./messages";
 
 const COPY = {
   simulated: {
@@ -103,4 +117,67 @@ export function memberEvent(event: RunEvent): RunEvent<"item.updated", ItemUpdat
 
 export function statementRail(dto: StatementDTO, lang: Lang, track?: Pick<ItemTrack, "provenance">) {
   return railLabel(dto.paypalRail, track?.provenance === "replay" ? "replay" : dto.provenance, lang);
+}
+
+const PAYPAL_STATUS: ReadonlySet<MemberStatus> = new Set([
+  "PAYPAL_PENDING",
+  "PAID",
+  "UNCLAIMED",
+  "RETURNED",
+  "REROUTED",
+  "PAYPAL_HELD",
+  "NEEDS_ACTION",
+  "REVERSED",
+]);
+
+/** The sole status projection: co-op decisions and cash attestations are never PayPal replay outcomes. */
+export function payoutStatus(
+  input: {
+    status: MemberStatus;
+    statusWord: string;
+    amountState: AmountState;
+    paypal: boolean;
+    evidence: readonly (string | null | undefined)[];
+  },
+  lang: Lang,
+) {
+  const simulatedLabel = "Simulated PayPal sandbox";
+  const replayed = input.paypal && PAYPAL_STATUS.has(input.status) && input.evidence.includes("replay");
+  return {
+    statusWord: replayed ? t(lang, "M-MB-01.replayStatus", { status: input.statusWord }) : input.statusWord,
+    tone: replayed ? ("neutral" as const) : STATUS_TONE[input.status],
+    amountState:
+      replayed && (input.amountState === "landed" || input.amountState === "attested")
+        ? ("hollow" as const)
+        : input.amountState,
+    replayed,
+    simulatedLabel,
+  };
+}
+
+export interface PaidSignal {
+  eventId: string;
+  at: string;
+  receivedAt: number;
+}
+
+/** The store's complete item event transition, including the only signal allowed to start MM-1. */
+export function applyStatementItemEvent(
+  track: ItemTrack,
+  event: RunEvent,
+  senderItemId: string,
+  receivedAt: number,
+  demo = false,
+): { track: ItemTrack; effect: ItemEffect | "ignored"; paid: PaidSignal | null } {
+  const adapted =
+    demo && event.type === "item.updated"
+      ? (event as RunEvent<"item.updated", ItemUpdatedPayload>)
+      : memberEvent(event);
+  if (!adapted) return { track, effect: "ignored", paid: null };
+  const result = reduceItemEvent(track, adapted, senderItemId);
+  const paid =
+    result.effect === "applied" && track.status !== "SUCCESS" && confirmedPayment(result.track)
+      ? { eventId: event.id, at: event.at, receivedAt }
+      : null;
+  return { ...result, paid };
 }

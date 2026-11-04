@@ -25,6 +25,7 @@ import { SealView } from "../../ui/seal-view";
 import { Slab } from "../../ui/slab";
 import { Skeleton } from "../../ui/states";
 import { Txt } from "../../ui/text";
+import { railLabel } from "../statement/live";
 import { memberOf, presenceView } from "./cosign-model";
 import type { BoardKey } from "./messages";
 import { Gloss, SignedAmount, useCompact, useGloss } from "./parts";
@@ -69,7 +70,7 @@ export function SignScreen() {
     retry,
     newKey,
   } = useSign();
-  const { api, session } = useApp();
+  const { api, session, lang } = useApp();
   const { t } = useFs();
   const tr = useT();
   const insets = useSafeAreaInsets();
@@ -298,7 +299,7 @@ export function SignScreen() {
     >
       {dto.rail === "simulated" ? (
         <Txt kind="caption" testID="M-BD-02.rail">
-          Simulated PayPal sandbox
+          {railLabel(dto.rail, "simulated_rail", lang).chip}
         </Txt>
       ) : null}
       <View {...mm5.rootProps} style={styles.moment} collapsable={false}>

@@ -325,9 +325,9 @@ export const messages = defineMessages({
     en: "Last list, {time}.",
   },
   "M-CL-01.cash.movedFromPayPal": {
-    ceb: "Gikan sa PayPal",
-    fil: "Mula sa PayPal",
-    en: "Moved from PayPal",
+    ceb: "Gikan sa simulated PayPal sandbox",
+    fil: "Mula sa simulated PayPal sandbox",
+    en: "Moved from the simulated PayPal sandbox",
   },
   "M-CL-01.cash.onPhone": {
     ceb: "Natipigan sa telepono",

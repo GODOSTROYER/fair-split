@@ -139,7 +139,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const origin = apiOrigin(inFrame);
   const localDemo = useMemo(() => createDemoApi({ now: () => new Date(), randomBytes }), []);
   const http = useMemo(
-    () => (origin ? createHttpApi({ origin, getBearer: () => bearerRef.current, streamingFetch }) : null),
+    () =>
+      origin
+        ? createHttpApi({ origin, getBearer: () => bearerRef.current, streamingFetch, judgeFrame: inFrame })
+        : null,
     [origin],
   );
   const live = boardApiMode(origin, inFrame, session) === "live";

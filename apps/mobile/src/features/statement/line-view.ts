@@ -20,16 +20,10 @@ import { format } from "../../_shims/domain";
 import type { MessageArgs } from "../../_shims/i18n";
 import type { MomentPhase } from "../../_shims/moments";
 import { type HeroFigures, heroFigures, lineConservation, type PayKind, payKindOf } from "../../lib/figures";
-import {
-  CAPSULE_WORD,
-  type CapsuleState,
-  type ItemTrack,
-  STATUS_TONE,
-  type StatusTone,
-} from "../../lib/item-status";
+import { CAPSULE_WORD, type CapsuleState, type ItemTrack, type StatusTone } from "../../lib/item-status";
 import { amountStateFor, lineApproved } from "../../lib/statement";
-import { statementRail } from "./live";
-import { type StatementKey, t } from "./messages";
+import { payoutStatus } from "./live";
+import type { StatementKey } from "./messages";
 
 /** A message key with its arguments; the screen translates it in the member's language. */
 export interface Copy {
@@ -38,6 +32,8 @@ export interface Copy {
 }
 
 export interface LineView {
+  replayed: boolean;
+  simulatedLabel: string;
   capsule: CapsuleState;
   status: MemberStatus;
   tone: StatusTone;
@@ -87,7 +83,6 @@ export function lineView(dto: StatementDTO, capsule: CapsuleState, track: ItemTr
   const status = CAPSULE_WORD[capsule];
   const word = MEMBER_STATUS_WORDS[status][lang];
   const payKind = payKindOf(dto, capsule);
-  const replayed = payKind === "paypal" && statementRail(dto, lang, track).kind === "replay";
   const hero = heroFigures(dto, lang, payKind);
   const name = dto.treasurer.first;
   const paidAt = paidAtOf(dto, track);
@@ -100,6 +95,17 @@ export function lineView(dto: StatementDTO, capsule: CapsuleState, track: ItemTr
     "cash-received": day(receivedAt ?? dto.cashDay),
   };
   const date = dated[capsule] ?? null;
+  const projection = payoutStatus(
+    {
+      status,
+      statusWord: date ? `${word}, ${date}` : word,
+      amountState: amountStateFor(capsule, lineApproved(dto)),
+      paypal: payKind === "paypal",
+      evidence: [dto.provenance, track.provenance],
+    },
+    lang,
+  );
+  const { replayed } = projection;
   const showAmount = !!hero && capsule !== "checking" && capsule !== "held-line";
   const conserved = lineConservation(dto)?.ok ?? false;
   const inFlight = capsule === "sent" || capsule === "paid";
@@ -154,21 +160,18 @@ export function lineView(dto: StatementDTO, capsule: CapsuleState, track: ItemTr
     }
   })();
 
-  const state = amountStateFor(capsule, lineApproved(dto));
   return {
+    replayed,
+    simulatedLabel: projection.simulatedLabel,
     capsule,
     status,
-    tone: replayed ? "neutral" : STATUS_TONE[status],
-    word: replayed
-      ? t(lang, "M-MB-01.replayStatus", { status: date ? `${word}, ${date}` : word })
-      : date
-        ? `${word}, ${date}`
-        : word,
+    tone: projection.tone,
+    word: projection.statusWord,
     sentWord: inFlight && !replayed ? MEMBER_STATUS_WORDS[CAPSULE_WORD.sent][lang] : null,
     showAmount,
     conserved,
     fillsOnPress: inFlight && conserved && !replayed,
-    amountState: conserved && !replayed ? state : unsettled(state),
+    amountState: conserved ? projection.amountState : unsettled(projection.amountState),
     payKind,
     hero,
     under,
@@ -301,7 +304,16 @@ const HISTORY_ORDER: Readonly<Record<StatementHistoryEntry["kind"], number>> = {
  * server's history caught up is shown too, at the event's time.
  */
 export function historyRows(dto: StatementDTO, track: ItemTrack): HistoryRow[] {
-  const replayed = statementRail(dto, "en", track).kind === "replay";
+  const replayed = payoutStatus(
+    {
+      status: "PAID",
+      statusWord: "",
+      amountState: "landed",
+      paypal: true,
+      evidence: [dto.provenance, track.provenance],
+    },
+    "en",
+  ).replayed;
   const entries: StatementHistoryEntry[] = [...dto.history];
   if (track.status === "SUCCESS" && track.updatedAt && !entries.some((h) => h.kind === "paid")) {
     entries.push({ kind: "paid", at: track.updatedAt });

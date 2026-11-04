@@ -147,7 +147,7 @@ function Statement({
   const tr = useT();
   const st = useStatement();
   const focused = useIsFocused();
-  const mm1 = useBayadNa(view.capsule, st.paid, focused);
+  const mm1 = useBayadNa(view.capsule, view.replayed ? null : st.paid, focused);
   const mm7 = useMoment("MM-7", "rest");
   const [open, setOpen] = useState<{ id: TraceId; state: ExpandState } | null>(null);
   const [zoom, setZoom] = useState<{ serial: string; at: TapPoint } | null>(null);

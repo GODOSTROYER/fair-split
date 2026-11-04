@@ -26,6 +26,7 @@ import { SealView } from "../../ui/seal-view";
 import { figures, Sentence } from "../../ui/sentence";
 import { EmptyState, Skeleton } from "../../ui/states";
 import { Txt } from "../../ui/text";
+import { railLabel } from "../statement/live";
 import { useCosign } from "./cosign-context";
 import { changedCue, presenceView, type RequestStatus, whyKey } from "./cosign-model";
 import {
@@ -189,7 +190,7 @@ export function CosignScreen() {
     <Screen testID="M-BD-01" state={c.status} footer={footer} contentStyle={styles.content}>
       {dto.rail === "simulated" ? (
         <Txt kind="caption" testID="M-BD-01.rail">
-          Simulated PayPal sandbox
+          {railLabel(dto.rail, "simulated_rail", lang).chip}
         </Txt>
       ) : null}
       {showPush ? <SimulatedPush dto={dto} /> : null}
