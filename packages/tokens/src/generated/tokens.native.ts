@@ -4,41 +4,41 @@
 export interface FsColours {
   /** Page background */
   ground: string;
-  /** Content surfaces and the statement card */
+  /** Content surfaces, panels and the statement card */
   plate: string;
-  /** Inspectors, drawers and bolted faces */
+  /** Table headers, inspectors and bolted faces */
   plate2: string;
-  /** 1 px separators */
+  /** 1 px separators between rows */
   rule: string;
-  /** Body text, human decisions, the chalk slab face */
+  /** Body text and checked facts (Matches, the Proof pill, the Sample badge) */
   ink: string;
   /** Secondary text */
   ink2: string;
   /** Metadata and icons only; never statement copy */
   ink3: string;
-  /** Claude's readings and the engine's figures (cool graphite) */
+  /** The machine: Claude's readings and the engine's figures (graphite), until people sign */
   pencil: string;
   /** Low-confidence values in a You cell (replaces pencil at 60%) */
   pencilFaint: string;
-  /** Money. Raised: this will move money. Flush: PayPal confirmed it */
+  /** Money only. Raised: this will move money. Flush: the simulated PayPal confirmed it */
   jade: string;
   /** Text on a jade face */
   onJade: string;
   /** Jade as text */
   jadeText: string;
-  /** 1 px border on flush jade faces */
+  /** Border of flush jade faces; dashed 1.5 px, money in flight */
   jadeFlushBorder: string;
   /** Grid flash for a PayPal-driven change */
   jadeWash: string;
-  /** A person must decide. Never an error, never a button */
+  /** Marigold: a person must decide. Never an error, never a button */
   canary: string;
-  /** Text on a canary face */
+  /** Text on a marigold face */
   onCanary: string;
-  /** Canary as text */
+  /** Marigold as text */
   canaryText: string;
   /** Background of a held row or a You cell */
   canaryWash: string;
-  /** 1 px border on canary faces */
+  /** Border of marigold faces and the held row's 3 px bar */
   canaryBorder: string;
   /** Only PayPal DENIED, FAILED, BLOCKED, an unexpected RETURNED and ERRPYO codes */
   red: string;
@@ -48,11 +48,11 @@ export interface FsColours {
   onRedFace: string;
   /** Background behind red copy */
   redWash: string;
-  /** The focus ring and the dial needle, nothing else */
+  /** A person's hand: focus ring, dial needle, seal linework, selection */
   pod: string;
   /** Cash at the bodega, or unavailable; always with a word */
   hatch: string;
-  /** Hatch lines on the edges of bolted items */
+  /** Dashed honesty outline, input outlines (3:1), bolted edges */
   steelLine: string;
   /** Ground of the steel hatch */
   steelFace: string;
@@ -64,149 +64,196 @@ export interface FsColours {
   copyYellow: string;
   /** Grid flash for an engine recompute */
   pencilWash: string;
-  /** Behind drawers */
+  /** Behind drawers and dialogs */
   scrim: string;
   /** 1 px inner top highlight on slab faces */
   highlight: string;
   /** 1 px top highlight on drawers */
   drawerHighlight: string;
-  /** Chalk slab face (an ink face on Adlaw) */
+  /** The person's decision slab (indigo in both themes); stamps */
   slabChalkFace: string;
-  /** Chalk slab right edge */
+  /** The person's decision slab: its bottom lip */
   slabChalkRight: string;
-  /** Chalk slab bottom edge */
+  /** The person's decision slab: the 1 px under-edge of its lip */
   slabChalkBottom: string;
-  /** Chalk slab label */
+  /** The person's decision slab: its label, and a stamp's initials */
   slabChalkLabel: string;
   /** Jade slab face: the only control that moves money */
   slabJadeFace: string;
-  /** Jade slab right edge */
+  /** Jade slab: its bottom lip */
   slabJadeRight: string;
-  /** Jade slab bottom edge */
+  /** Jade slab: the 1 px under-edge of its lip */
   slabJadeBottom: string;
   /** Jade slab label */
   slabJadeLabel: string;
   /** Words printed on evidence paper (the Synthetic sample tag); paper is light in both themes */
   paperInk: string;
-  /** Phone frames on the Judge stage (chrome, not the app) */
+  /** Phone frames on the Judge stage (graphite chrome, not the app) */
   bezel: string;
+  /** Decorative outlines (chips, slip thumbnails, the dial's inner band); never a control's only boundary */
+  ruleStrong: string;
+  /** A row or cell a person has selected */
+  podWash: string;
+  /** The one earned glow: a 6 to 8 px ring on a Bayad na face, one beat after PayPal confirms */
+  jadeHalo: string;
+}
+
+export interface FsShadows {
+  /** Evidence paper. */
+  paper: string;
+  /** Chips, tiles and inline cards. */
+  e1: string;
+  /** Panels and the statement card. */
+  e2: string;
+  /** Drawers and dialogs. */
+  e3: string;
+  /** The jade halo, one beat after the simulated PayPal confirms. */
+  halo: string;
 }
 
 export interface FsTheme {
   name: "tablea" | "adlaw";
   scheme: "dark" | "light";
+  /** "Hayag (day)" or "Gabii (night)": the slot keys stay, their display names changed (ADR-0016). */
+  display: string;
   colours: FsColours;
-  /** Passed to RN boxShadow (New Architecture). Evidence casts the only shadow. */
+  /** Passed to RN boxShadow (New Architecture). Evidence paper keeps the strongest shadow. */
   shadowPaper: string;
+  /** Elevation e1 to e3, paper and the halo, for RN boxShadow. */
+  shadows: FsShadows;
 }
 
 export const tablea: FsTheme = {
   name: "tablea",
   scheme: "dark",
+  display: "Gabii (night)",
   colours: {
-    ground: "#201712",
-    plate: "#2A1F18",
-    plate2: "#33271F",
-    rule: "#4A392D",
-    ink: "#F4EDE4",
-    ink2: "#BDB1A4",
-    ink3: "#9C9085",
-    pencil: "#A9B1B8",
-    pencilFaint: "#909498",
-    jade: "#2FD3A0",
-    onJade: "#201712",
-    jadeText: "#2FD3A0",
-    jadeFlushBorder: "#2FD3A0",
-    jadeWash: "#2B3F30",
-    canary: "#F2DA4E",
-    onCanary: "#201712",
-    canaryText: "#F2DA4E",
-    canaryWash: "#42351E",
-    canaryBorder: "#F2DA4E",
-    red: "#FF5A47",
-    redFace: "#D63A2C",
+    ground: "#090D18",
+    plate: "#10172A",
+    plate2: "#172036",
+    rule: "#25304A",
+    ink: "#F4F6FA",
+    ink2: "#C3C9D6",
+    ink3: "#8E98AE",
+    pencil: "#A7B4CB",
+    pencilFaint: "#8E9BB4",
+    jade: "#3DE6AE",
+    onJade: "#04170F",
+    jadeText: "#55EDBB",
+    jadeFlushBorder: "#3DE6AE",
+    jadeWash: "#16343C",
+    canary: "#FFA41B",
+    onCanary: "#090D18",
+    canaryText: "#FFB65C",
+    canaryWash: "#312B28",
+    canaryBorder: "#FFA41B",
+    red: "#FF7A72",
+    redFace: "#D2394A",
     onRedFace: "#FFFFFF",
-    redWash: "#3F251D",
-    pod: "#FF8A2A",
-    hatch: "#624E41",
-    steelLine: "#7C8288",
-    steelFace: "#3B3F43",
+    redWash: "#2D2333",
+    pod: "#9C8CFF",
+    hatch: "#46557A",
+    steelLine: "#8996B4",
+    steelFace: "#222C44",
     copyWhite: "#FFFFFF",
     copyPink: "#F4C9D4",
     copyYellow: "#F5E27A",
-    pencilWash: "#39312B",
-    scrim: "rgba(16, 11, 8, 0.64)",
-    highlight: "rgba(255, 255, 255, 0.18)",
+    pencilWash: "#222A3D",
+    scrim: "rgba(4, 6, 12, 0.7)",
+    highlight: "rgba(255, 255, 255, 0.16)",
     drawerHighlight: "rgba(255, 255, 255, 0.08)",
-    slabChalkFace: "#F4EDE4",
-    slabChalkRight: "#B9AFA4",
-    slabChalkBottom: "#8A8178",
-    slabChalkLabel: "#201712",
-    slabJadeFace: "#2FD3A0",
-    slabJadeRight: "#1F9E78",
-    slabJadeBottom: "#12704F",
-    slabJadeLabel: "#201712",
-    paperInk: "#1C1511",
-    bezel: "#0E0A08",
+    slabChalkFace: "#5B43EA",
+    slabChalkRight: "#4630C9",
+    slabChalkBottom: "#2E1E94",
+    slabChalkLabel: "#FFFFFF",
+    slabJadeFace: "#3DE6AE",
+    slabJadeRight: "#26C48F",
+    slabJadeBottom: "#0F8A62",
+    slabJadeLabel: "#04170F",
+    paperInk: "#0B1220",
+    bezel: "#05070C",
+    ruleStrong: "#3A4763",
+    podWash: "#242748",
+    jadeHalo: "rgba(61, 230, 174, 0.22)",
   },
-  shadowPaper: "0 1px 1px rgb(0 0 0 / 0.35), 0 12px 28px -10px rgb(0 0 0 / 0.55)",
+  shadowPaper: "0 1px 1px rgb(0 0 0 / 0.4), 0 14px 30px -12px rgb(0 0 0 / 0.65)",
+  shadows: {
+    paper: "0 1px 1px rgb(0 0 0 / 0.4), 0 14px 30px -12px rgb(0 0 0 / 0.65)",
+    e1: "inset 0 1px 0 rgb(255 255 255 / 0.05), 0 1px 0 rgb(0 0 0 / 0.4), 0 10px 30px -14px rgb(0 0 0 / 0.7)",
+    e2: "inset 0 1px 0 rgb(255 255 255 / 0.07), 0 24px 60px -20px rgb(0 0 0 / 0.8)",
+    e3: "inset 0 1px 0 rgb(255 255 255 / 0.08), 0 40px 90px -30px rgb(0 0 0 / 0.85)",
+    halo: "0 0 0 6px rgb(61 230 174 / 0.22)",
+  },
 };
 
 export const adlaw: FsTheme = {
   name: "adlaw",
   scheme: "light",
+  display: "Hayag (day)",
   colours: {
-    ground: "#EEEEEA",
+    ground: "#F3F5F8",
     plate: "#FFFFFF",
-    plate2: "#F6F6F3",
-    rule: "#D8D4CD",
-    ink: "#1C1511",
-    ink2: "#4E453E",
-    ink3: "#6F665E",
-    pencil: "#4C5761",
-    pencilFaint: "#5E6871",
-    jade: "#2FD3A0",
-    onJade: "#1C1511",
-    jadeText: "#0A7553",
-    jadeFlushBorder: "#0F6F53",
-    jadeWash: "#DEF8F0",
-    canary: "#F2DA4E",
-    onCanary: "#1C1511",
-    canaryText: "#7F6200",
-    canaryWash: "#FFF3BF",
-    canaryBorder: "#7F6200",
-    red: "#BF2A1C",
-    redFace: "#BF2A1C",
+    plate2: "#F7F8FA",
+    rule: "#E3E7EE",
+    ink: "#0B1220",
+    ink2: "#3A4456",
+    ink3: "#5A6476",
+    pencil: "#4A5A73",
+    pencilFaint: "#5D6A80",
+    jade: "#14CC90",
+    onJade: "#0B1220",
+    jadeText: "#06724F",
+    jadeFlushBorder: "#0A9467",
+    jadeWash: "#DEF8EF",
+    canary: "#FFA41B",
+    onCanary: "#0B1220",
+    canaryText: "#8A5300",
+    canaryWash: "#FFF2DF",
+    canaryBorder: "#B56A00",
+    red: "#CF2A27",
+    redFace: "#D42A26",
     onRedFace: "#FFFFFF",
-    redWash: "#FCE6E3",
-    pod: "#C85A00",
-    hatch: "#B7B0A7",
-    steelLine: "#8A9096",
-    steelFace: "#D5D8DB",
+    redWash: "#FDECEB",
+    pod: "#4A2FD6",
+    hatch: "#A4AEBC",
+    steelLine: "#7E8898",
+    steelFace: "#E6EAF0",
     copyWhite: "#FFFFFF",
     copyPink: "#F4C9D4",
     copyYellow: "#F5E27A",
-    pencilWash: "#EDEEEF",
-    scrim: "rgba(28, 21, 17, 0.4)",
-    highlight: "rgba(255, 255, 255, 0.18)",
-    drawerHighlight: "rgba(255, 255, 255, 0.08)",
-    slabChalkFace: "#1C1511",
-    slabChalkRight: "#4A3F38",
-    slabChalkBottom: "#2B2420",
+    pencilWash: "#EDEFF1",
+    scrim: "rgba(11, 18, 32, 0.32)",
+    highlight: "rgba(255, 255, 255, 0.45)",
+    drawerHighlight: "#FFFFFF",
+    slabChalkFace: "#4A2FD6",
+    slabChalkRight: "#3722B0",
+    slabChalkBottom: "#29188A",
     slabChalkLabel: "#FFFFFF",
-    slabJadeFace: "#2FD3A0",
-    slabJadeRight: "#1F9E78",
-    slabJadeBottom: "#12704F",
-    slabJadeLabel: "#1C1511",
-    paperInk: "#1C1511",
-    bezel: "#0E0A08",
+    slabJadeFace: "#14CC90",
+    slabJadeRight: "#0A9467",
+    slabJadeBottom: "#06724F",
+    slabJadeLabel: "#0B1220",
+    paperInk: "#0B1220",
+    bezel: "#141A24",
+    ruleStrong: "#CBD2DC",
+    podWash: "#F1EEFC",
+    jadeHalo: "rgba(20, 204, 144, 0.16)",
   },
-  shadowPaper: "0 1px 1px rgb(28 21 17 / 0.1), 0 10px 24px -10px rgb(28 21 17 / 0.22)",
+  shadowPaper:
+    "0 1px 1px rgb(11 18 32 / 0.08), 0 14px 28px -12px rgb(11 18 32 / 0.28), 0 0 0 1px rgb(11 18 32 / 0.05)",
+  shadows: {
+    paper:
+      "0 1px 1px rgb(11 18 32 / 0.08), 0 14px 28px -12px rgb(11 18 32 / 0.28), 0 0 0 1px rgb(11 18 32 / 0.05)",
+    e1: "0 1px 2px rgb(11 18 32 / 0.05), 0 0 0 1px rgb(11 18 32 / 0.04)",
+    e2: "0 1px 2px rgb(11 18 32 / 0.05), 0 12px 32px -12px rgb(11 18 32 / 0.16)",
+    e3: "0 2px 6px rgb(11 18 32 / 0.06), 0 28px 64px -20px rgb(11 18 32 / 0.3)",
+    halo: "0 0 0 6px rgb(20 204 144 / 0.16)",
+  },
 };
 
 export const themes = { tablea, adlaw } as const;
 
-/** Native defaults to Adlaw; first run offers Tablea. */
+/** Native defaults to Adlaw (Hayag, day); the theme switch offers Tablea (Gabii, night). */
 export const defaultTheme = adlaw;
 
 export const space = {
@@ -225,6 +272,11 @@ export const space = {
 export const radii = {
   r0: 0,
   r2: 2,
+  cell: 6,
+  control: 10,
+  card: 14,
+  panel: 22,
+  pill: 999,
 } as const;
 
 export const depth = {
@@ -245,28 +297,36 @@ export const fonts = {
 
 /** App sizes in sp. Only the hero amount caps font scaling (at 1.5×); everything else scales to 2.0. */
 export const type = {
+  display: {
+    fontFamily: "FSSans-SemiExpBold",
+    fontSize: 40,
+    lineHeight: 43,
+  },
   amountHero: {
     fontFamily: "FSSans-CondXBold",
     fontSize: 48,
     lineHeight: 52,
     maxFontSizeMultiplier: 1.5,
-    tabular: true,
   },
   amountL: {
     fontFamily: "FSSans-CondXBold",
     fontSize: 32,
     lineHeight: 36,
-    tabular: true,
   },
   title1: {
     fontFamily: "FSSans-SemiExpBold",
-    fontSize: 28,
-    lineHeight: 34,
+    fontSize: 26,
+    lineHeight: 30,
   },
   title2: {
     fontFamily: "FSSans-SemiExpBold",
-    fontSize: 20,
+    fontSize: 21,
     lineHeight: 26,
+  },
+  lede: {
+    fontFamily: "FSSans-Regular",
+    fontSize: 16,
+    lineHeight: 23,
   },
   body: {
     fontFamily: "FSSans-Regular",
@@ -299,7 +359,6 @@ export const type = {
     fontFamily: "FSSans-SemiExpBold",
     fontSize: 17,
     lineHeight: 20,
-    tabular: true,
   },
   stamp: {
     fontFamily: "FSSans-SemiExpBold",
@@ -315,6 +374,11 @@ export const type = {
     fontFamily: "AtkinsonNext-Regular",
     fontSize: 19,
     lineHeight: 28,
+  },
+  statementStatus: {
+    fontFamily: "AtkinsonNext-Bold",
+    fontSize: 18,
+    lineHeight: 22,
   },
 } as const;
 

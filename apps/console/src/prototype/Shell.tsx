@@ -50,7 +50,7 @@ export function PrototypeLayout() {
   const search = useProtoSearch();
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const theme: ThemeChoice = search.theme ?? "tablea";
+  const theme: ThemeChoice = search.theme ?? "adlaw";
   const motion: MotionChoice = search.motion ?? "system";
   const lang: LangChoice = search.lang ?? "ceb";
   useApplyTheme(theme);
@@ -72,8 +72,8 @@ export function PrototypeLayout() {
         label="Theme"
         value={theme}
         options={[
-          { value: "tablea", label: "Tablea" },
-          { value: "adlaw", label: "Adlaw" },
+          { value: "adlaw", label: "Hayag" },
+          { value: "tablea", label: "Gabii" },
         ]}
         onChange={(v) => set({ theme: v })}
         testId="W-DP-01.theme"

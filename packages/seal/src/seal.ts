@@ -355,8 +355,9 @@ const escapeXml = (s: string) =>
 export function sealSvg(batchSha256: string, size: number, options: SealSvgOptions = {}): string {
   const geometry = seal(batchSha256, size);
   const keys = options.keys ?? 2;
-  const ink = options.ink ?? "#1C1511";
-  const rule = options.rule ?? "#D8D4CD";
+  // Hayag ink and rule (ADR-0016): the push and print seals match the product, never the v1 cacao.
+  const ink = options.ink ?? "#0B1220";
+  const rule = options.rule ?? "#E3E7EE";
   const stroke = options.strokeWidth ?? geometry.strokeWidth;
   const parts: string[] = [];
   if (options.background) parts.push(`<rect width="${size}" height="${size}" fill="${options.background}"/>`);

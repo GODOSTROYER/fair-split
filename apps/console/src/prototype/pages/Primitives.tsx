@@ -2,6 +2,7 @@
 // each section is live: it responds to pointer and keyboard exactly as the product will.
 
 import { LINE_STATES, type LineState, translate } from "@fairsplit/i18n";
+import { THEME_INFO } from "@fairsplit/tokens";
 import {
   AmountDisplay,
   ConfidenceRing,
@@ -51,10 +52,10 @@ function State({
 function Themed({ children }: { readonly children: (theme: "tablea" | "adlaw") => ReactNode }) {
   return (
     <div className="proto-panes">
-      {(["tablea", "adlaw"] as const).map((theme) => (
+      {(["adlaw", "tablea"] as const).map((theme) => (
         <div key={theme} className="proto-pane" data-theme={theme}>
           <p className="proto-pane__name">
-            <span className="fs-t-label">{theme === "tablea" ? "Tablea" : "Adlaw"}</span>
+            <span className="fs-t-label">{THEME_INFO[theme].display}</span>
           </p>
           {children(theme)}
         </div>

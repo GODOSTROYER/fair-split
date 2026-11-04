@@ -532,8 +532,13 @@
   color: var(--fs-ink-2);
 }
 
-.tok-radius[data-r="2"] {
-  border-radius: var(--fs-radius-2);
+/* Elevation e1 to e3 and the halo (ADR-0016), each on a white card. */
+.tok-elevation {
+  display: block;
+  width: 96px;
+  height: 56px;
+  border-radius: var(--fs-radius-card);
+  background: var(--fs-plate);
 }
 
 .tok-layers {

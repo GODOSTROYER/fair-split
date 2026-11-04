@@ -1,10 +1,11 @@
-// Small marks the primitives are built from: the ink stamp a person leaves on a decision, status chips,
-// rule chips, the confidence ring and evidence paper. Every state carries a glyph and a word.
+// Small marks the primitives are built from: the indigo stamp a person leaves on a decision, status pills,
+// rule chips, the honesty chip, the confidence ring and evidence paper. Every state carries a glyph and a word.
 
 import type { LineState } from "@fairsplit/i18n";
 import type { ReactNode } from "react";
 import { useLang, useT } from "./context.js";
 import { AUTO_ACCEPT, type StampView } from "./contract.js";
+import { useFlip } from "./flip.js";
 import { Glyph, type GlyphName } from "./Glyph.js";
 
 export interface InkStampProps {
@@ -12,7 +13,7 @@ export interface InkStampProps {
   readonly testId?: string;
 }
 
-/** An 18 px ink square with the person's initials; the time shows on hover or focus. */
+/** A 20 px indigo stamp (radius 6) with the person's initials in white; the time shows on hover or focus. */
 export function InkStamp({ stamp, testId }: InkStampProps) {
   return (
     <abbr
@@ -26,8 +27,11 @@ export function InkStamp({ stamp, testId }: InkStampProps) {
   );
 }
 
-/** How a status reads: a tone (which hue is true now), a glyph and the register's word. */
-export type ChipTone = "neutral" | "pencil" | "canary" | "jade" | "hatch" | "red";
+/**
+ * How a status reads: a tone (which material is true now), a glyph and the register's word. "flight" is money on
+ * its way: a dashed jade outline that floods to the flush jade face only when the simulated PayPal confirms.
+ */
+export type ChipTone = "neutral" | "pencil" | "canary" | "flight" | "jade" | "hatch" | "red";
 
 const LINE_STATE_CHIP: Readonly<Record<LineState, { tone: ChipTone; glyph: GlyphName }>> = {
   COMPUTED: { tone: "canary", glyph: "hanging-scale" },
@@ -35,14 +39,14 @@ const LINE_STATE_CHIP: Readonly<Record<LineState, { tone: ChipTone; glyph: Glyph
   HELD: { tone: "canary", glyph: "hanging-scale" },
   EXCLUDED: { tone: "neutral", glyph: "logbook" },
   LOCKED: { tone: "pencil", glyph: "rail" },
-  SUBMITTED: { tone: "pencil", glyph: "rail" },
-  PAYPAL_PENDING: { tone: "pencil", glyph: "rail" },
+  SUBMITTED: { tone: "flight", glyph: "rail" },
+  PAYPAL_PENDING: { tone: "flight", glyph: "rail" },
   PAID: { tone: "jade", glyph: "ms:check" },
   OFF_RAIL_DUE: { tone: "hatch", glyph: "cash" },
   OFF_RAIL_PAID: { tone: "neutral", glyph: "thumbmark" },
   UNCLAIMED: { tone: "canary", glyph: "ms:pause" },
   RETURNED: { tone: "neutral", glyph: "ms:arrow-back" },
-  REROUTED: { tone: "pencil", glyph: "rail" },
+  REROUTED: { tone: "flight", glyph: "rail" },
   PAYPAL_HELD: { tone: "canary", glyph: "ms:pause" },
   NEEDS_ACTION: { tone: "red", glyph: "ms:help" },
   REVERSED: { tone: "red", glyph: "ms:restart-alt" },
@@ -62,11 +66,13 @@ export function StatusChip({ state, surface = "member", text, testId }: StatusCh
   const t = useT();
   const lang = useLang();
   const { tone, glyph } = LINE_STATE_CHIP[state];
+  const flip = useFlip(tone === "jade");
   const word = text ?? (surface === "console" ? t(`console.status.${state}`) : t(`status.${state}`));
   return (
     <span
       className="fs-chip"
       data-tone={tone}
+      data-flip={flip ? "" : undefined}
       data-state={state}
       data-testid={testId}
       lang={surface === "member" ? lang : undefined}
@@ -85,10 +91,40 @@ export interface ChipProps {
 }
 
 export function Chip({ tone, glyph, children, testId }: ChipProps) {
+  const flip = useFlip(tone === "jade");
   return (
-    <span className="fs-chip" data-tone={tone} data-testid={testId}>
+    <span className="fs-chip" data-tone={tone} data-flip={flip ? "" : undefined} data-testid={testId}>
       {glyph && <Glyph name={glyph} size={16} />}
       <span className="fs-t-label">{children}</span>
+    </span>
+  );
+}
+
+export interface HonestyChipProps {
+  /** The label, word for word: "Simulated PayPal sandbox", "Simulated push", "Synthetic sample"... */
+  readonly children: ReactNode;
+  readonly testId?: string;
+  readonly className?: string;
+}
+
+/**
+ * Every simulated or seeded thing carries this chip (I8): a dashed steel outline means "not real, or not yet"
+ * (decision.md §4), a flask in ink-3, the words in ink-2, pill radius.
+ */
+export function HonestyChip({ children, testId, className }: HonestyChipProps) {
+  return (
+    <span className={["fs-honesty fs-t-caption", className].filter(Boolean).join(" ")} data-testid={testId}>
+      <svg className="fs-honesty__flask" width={14} height={14} viewBox="0 0 24 24" aria-hidden>
+        <path
+          d="M9 3h6M10 3v6.2L4.6 18.4A1.7 1.7 0 0 0 6.1 21h11.8a1.7 1.7 0 0 0 1.5-2.6L14 9.2V3M7.2 15h9.6"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={2}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+      <span>{children}</span>
     </span>
   );
 }

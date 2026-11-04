@@ -1,11 +1,39 @@
-// Money on screen (design §2.3, §2.5). Amounts are FS Sans condensed with tabular figures. Approved but not yet
-// in the member's hands, they are hollow outlines; they fill only when PayPal (or the bodega) says so. A peso
-// figure is always an estimate. The status capsule takes PayPal's press: its 5 px inset closes and jade
-// floods it from the corner (MM-1).
+// Money on screen (design §2.3, §2.5; ADR-0016). Amounts are FS Sans condensed with proportional lining figures
+// (a plain zero, a plain one), the "US$" prefix at half size and raised on the large roles; the accessible text
+// keeps the whole string. Approved but not yet in the member's hands, they are hollow outlines; they fill only when
+// PayPal (or the bodega) says so. A peso figure is always an estimate. The status capsule is a pill: dashed jade
+// in flight, flush jade with an ink check (and one beat of halo) once the simulated PayPal confirms (MM-1).
+
+import type { ReactNode } from "react";
 
 import { useMotionMode } from "./context.js";
 import type { MoneyView } from "./contract.js";
+import { useFlip } from "./flip.js";
 import { Glyph, type GlyphName } from "./Glyph.js";
+
+/** The currency prefixes a display string can start with ("US$" first, so "$" never splits it). */
+const CURRENCY = /^(US\$|₱|\$)/;
+
+/** Splits "US$4,333.50" into ["US$", "4,333.50"]; a string with no prefix comes back whole. */
+export function splitCurrency(display: string): readonly [prefix: string, figure: string] {
+  const m = CURRENCY.exec(display);
+  return m ? [m[1] ?? "", display.slice(m[0].length)] : ["", display];
+}
+
+/**
+ * An amount's characters with the prefix set small and raised (`.fs-cur`). The text content is unchanged
+ * ("US$64.45"), so a copy, a search or a test reads the whole string.
+ */
+export function CurrencyFigure({ display }: { readonly display: string }): ReactNode {
+  const [prefix, figure] = splitCurrency(display);
+  if (!prefix) return display;
+  return (
+    <>
+      <span className="fs-cur">{prefix}</span>
+      {figure}
+    </>
+  );
+}
 
 export interface AmountDisplayProps {
   readonly amount: MoneyView;
@@ -44,9 +72,11 @@ export function AmountDisplay({
     >
       <span className="fs-sr">{estimate ? `${amount.spoken}, ${estimate}` : amount.spoken}</span>
       <p className={`fs-amount__figure fs-t-${typeRole}`} aria-hidden>
-        <span className="fs-amount__hollow">{amount.display}</span>
+        <span className="fs-amount__hollow">
+          <CurrencyFigure display={amount.display} />
+        </span>
         <span className="fs-amount__solid" style={{ opacity: solidOpacity }}>
-          {amount.display}
+          <CurrencyFigure display={amount.display} />
         </span>
       </p>
       {estimate && (
@@ -101,6 +131,8 @@ export interface StatusCapsuleProps {
 export function StatusCapsule({ state, text, nextText, frame, testId, lang }: StatusCapsuleProps) {
   const mode = useMotionMode();
   const paid = state === "paid";
+  // The halo's one beat: paid while the viewer watched, never a capsule that mounted paid (or a gallery frame).
+  const flip = useFlip(paid) && frame === undefined;
   const inset = frame?.inset ?? (paid ? 0 : state === "sent" ? 5 : 0);
   const flood = frame?.flood ?? (paid ? 1 : 0);
   const floodOpacity = frame?.floodOpacity ?? (paid ? 1 : 0);
@@ -111,6 +143,7 @@ export function StatusCapsule({ state, text, nextText, frame, testId, lang }: St
     <div
       className="fs-capsule"
       data-state={state}
+      data-flip={flip ? "" : undefined}
       data-testid={testId}
       data-raised={inset > 0 ? "" : undefined}
       style={{ ["--cap-t" as string]: `${5 - inset}px`, ["--cap-k" as string]: String(inset / 5) }}

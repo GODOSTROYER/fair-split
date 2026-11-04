@@ -95,6 +95,15 @@ describe("platform adapters", () => {
     expect(TWEENS.drawerOut.ms).toBeLessThanOrEqual(TWEENS.drawerIn.ms * 0.8);
     expect(TWEENS.digitOut.ms).toBeLessThanOrEqual(TWEENS.digitIn.ms * 0.8);
   });
+
+  it("has one jade halo, 520 ms ease out, one beat after the simulated PayPal confirms (ADR-0016)", () => {
+    expect(TWEENS.halo).toEqual({
+      ms: 520,
+      ease: "out",
+      use: "Jade halo, one beat after the simulated PayPal confirms",
+    });
+    expect(webTween("halo").duration).toBeCloseTo(0.52, 6);
+  });
 });
 
 describe("curves", () => {

@@ -4,10 +4,13 @@ import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 import {
   AmountDisplay,
+  Chip,
+  CurrencyFigure,
   feedback,
   HOLD_CARD_STATES,
   HoldCard,
   type HoldView,
+  HonestyChip,
   isFinalHoldState,
   MassBalanceDial,
   MomentRoot,
@@ -17,6 +20,7 @@ import {
   type StatementLineView,
   StatusCapsule,
   StatusChip,
+  splitCurrency,
   UiProvider,
 } from "../src/index.js";
 
@@ -385,8 +389,8 @@ describe("HoldCard", () => {
     fireEvent.pointerDown(face(), { button: 0, pointerId: 1 });
     fireEvent.pointerUp(face(), { button: 0, pointerId: 1 });
     expect(screen.getByTestId("h1.once").dataset).toMatchObject({ state: "committed", busy: "" });
-    // The press lands flush (d2: 5 px) a frame later.
-    await waitFor(() => expect(face().style.transform).toBe("translate(5px, 5px)"));
+    // The press lands flush on its lip (d2: 5 px straight down) a frame later.
+    await waitFor(() => expect(face().style.transform).toBe("translate(0px, 5px)"));
     // The screen shows the POST in flight, then the hold is still open: the 409 refused it.
     rerender(card("resolving"));
     await act(async () => refuse(new Error("409")));
@@ -456,6 +460,65 @@ describe("status words and money", () => {
     expect(amount.querySelector(".fs-amount__figure")?.getAttribute("aria-hidden")).toBe("true");
   });
 
+  it("sets the US$ prefix small and raised on large amounts, and keeps the whole string as the text (ADR-0016)", () => {
+    render(
+      wrap(
+        <AmountDisplay
+          amount={{ display: "US$64.45", spoken: "sixty-four dollars and forty-five cents" }}
+          testId="amt"
+        />,
+      ),
+    );
+    const amount = screen.getByTestId("amt");
+    const figure = amount.querySelector(".fs-amount__solid");
+    expect(figure?.textContent).toBe("US$64.45");
+    expect(figure?.querySelector(".fs-cur")?.textContent).toBe("US$");
+    expect(amount.querySelector(".fs-amount__hollow .fs-cur")?.textContent).toBe("US$");
+    // The accessible text is the spoken amount, unchanged; the drawn figure stays hidden from it.
+    expect(amount.querySelector(".fs-sr")?.textContent).toBe("sixty-four dollars and forty-five cents");
+    expect(amount.classList.contains("fs-amount")).toBe(true);
+    expect(splitCurrency("US$4,333.50")).toEqual(["US$", "4,333.50"]);
+    expect(splitCurrency("₱270,844")).toEqual(["₱", "270,844"]);
+    expect(splitCurrency("64.45")).toEqual(["", "64.45"]);
+    render(
+      <p data-testid="inline">
+        <CurrencyFigure display="US$368.39" />
+      </p>,
+    );
+    expect(screen.getByTestId("inline").textContent).toBe("US$368.39");
+  });
+
+  it("status pills: in flight is the dashed jade tone, confirmed is flush jade, cash is hatch, held is marigold", () => {
+    render(
+      wrap(
+        <>
+          <StatusChip state="PAYPAL_PENDING" surface="console" testId="pending" />
+          <StatusChip state="SUBMITTED" surface="console" testId="submitted" />
+          <StatusChip state="PAID" surface="console" testId="paid" />
+          <StatusChip state="OFF_RAIL_DUE" surface="console" testId="cash" />
+          <StatusChip state="HELD" surface="console" testId="held" />
+          <Chip tone="flight" glyph="rail" testId="chip">
+            Sending
+          </Chip>
+        </>,
+      ),
+    );
+    expect(screen.getByTestId("pending").dataset.tone).toBe("flight");
+    expect(screen.getByTestId("submitted").dataset.tone).toBe("flight");
+    expect(screen.getByTestId("paid").dataset.tone).toBe("jade");
+    expect(screen.getByTestId("cash").dataset.tone).toBe("hatch");
+    expect(screen.getByTestId("held").dataset.tone).toBe("canary");
+    expect(screen.getByTestId("chip").textContent).toBe("Sending");
+  });
+
+  it("the honesty chip keeps its words and a flask glyph hidden from assistive technology", () => {
+    render(wrap(<HonestyChip testId="hc">Simulated PayPal sandbox</HonestyChip>));
+    const chip = screen.getByTestId("hc");
+    expect(chip.textContent).toBe("Simulated PayPal sandbox");
+    expect(chip.classList.contains("fs-honesty")).toBe(true);
+    expect(chip.querySelector("svg")?.getAttribute("aria-hidden")).toBe("true");
+  });
+
   it("the paid capsule is flush jade; the sent capsule keeps its 5 px inset", () => {
     const { rerender } = render(
       wrap(<StatusCapsule state="sent" text="Gipadala na, naghulat sa PayPal 0:14" testId="cap" />),
@@ -480,6 +543,37 @@ describe("status words and money", () => {
     );
     expect(screen.getByTestId("dial").dataset.over).toBe("");
     expect(screen.getByTestId("dial").textContent).toContain("2.05%");
+    expect(screen.queryByTestId("dial.ghost")).toBeNull();
+  });
+
+  it("the dial keeps an old reading as a dashed ghost needle, given or for 1.2 s after a live change", () => {
+    vi.useFakeTimers();
+    try {
+      const dial = (value: number, ghost?: number) =>
+        wrap(
+          <MassBalanceDial
+            value={value}
+            display={`${value}%`}
+            limitDisplay="Limit ±2.0%"
+            label="Mass balance"
+            animateNeedle
+            testId="dial"
+            {...(ghost === undefined ? {} : { ghost })}
+          />,
+        );
+      const { rerender } = render(dial(2.05));
+      expect(screen.queryByTestId("dial.ghost")).toBeNull();
+      rerender(dial(1.62));
+      expect(screen.getByTestId("dial.ghost")).toBeTruthy();
+      act(() => {
+        vi.advanceTimersByTime(1300);
+      });
+      expect(screen.queryByTestId("dial.ghost")).toBeNull();
+      rerender(dial(1.62, 2.05));
+      expect(screen.getByTestId("dial.ghost")).toBeTruthy();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("moment roots expose data-moment and data-moment-phase", () => {

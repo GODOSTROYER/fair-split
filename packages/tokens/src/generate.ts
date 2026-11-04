@@ -14,6 +14,7 @@ import { type ContrastResult, contrastResults, RESOLVED } from "./resolve.js";
 import {
   COLOUR_NAMES,
   COLOUR_ROLES,
+  EVIDENCE,
   FONT_STACKS,
   HOLLOW,
   LAYERS,
@@ -21,14 +22,15 @@ import {
   M3_ROLES,
   MATERIALS,
   NATIVE_FONTS,
+  PAPER_DROP,
   RADII,
   SHADOWS,
   SPACE,
   THEME_INFO,
-  THEMES,
   type ThemeName,
   TYPE_ROLES,
   type TypeRole,
+  WASH,
 } from "./tokens.js";
 
 const CSS_HEADER =
@@ -46,21 +48,65 @@ const camel = (s: string) => s.replace(/-([a-z0-9])/g, (_, c: string) => c.toUpp
 
 // ------------------------------------------------------------------------------------------------ CSS
 
+/** Biome's line width: the generated files are committed as Biome formats them. */
+const LINE_WIDTH = 110;
+
+/** Splits a CSS value on its top-level commas (not those inside rgb() or radial-gradient()). */
+function topLevelItems(value: string): string[] {
+  const items: string[] = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i < value.length; i++) {
+    const c = value[i];
+    if (c === "(") depth++;
+    else if (c === ")") depth--;
+    else if (c === "," && depth === 0) {
+      items.push(value.slice(start, i).trim());
+      start = i + 1;
+    }
+  }
+  items.push(value.slice(start).trim());
+  return items;
+}
+
+/** One declaration as Biome's CSS formatter lays it out: on one line, after the colon, or one item a line. */
+function cssDecl(name: string, value: string, indent = "  "): string {
+  const flat = `${indent}${name}: ${value};`;
+  if (flat.length <= LINE_WIDTH) return flat;
+  const inner = `${indent}  `;
+  if (`${inner}${value};`.length <= LINE_WIDTH) return `${indent}${name}:\n${inner}${value};`;
+  return `${indent}${name}:\n${topLevelItems(value)
+    .map((item) => `${inner}${item}`)
+    .join(",\n")};`;
+}
+
 function themeBlock(theme: ThemeName, value: "css" | "cssOklch"): string[] {
   const resolved = RESOLVED[theme];
   const lines = COLOUR_NAMES.map((name) => `  --fs-${name}: ${resolved[name][value]};`);
   if (value === "css") {
     lines.unshift(`  color-scheme: ${THEME_INFO[theme].scheme};`);
-    lines.push(`  --fs-shadow-paper: ${SHADOWS[theme].paper};`);
+    for (const [name, shadow] of Object.entries(SHADOWS[theme]))
+      lines.push(cssDecl(`--fs-shadow-${name}`, shadow));
+    lines.push(cssDecl("--fs-wash", WASH[theme]));
+    lines.push(cssDecl("--fs-drop-paper", PAPER_DROP[theme]));
     lines.push("  --fs-flash: var(--fs-pencil-wash);");
   }
   return lines;
 }
 
+/** Hayag (adlaw) is the default everywhere (ADR-0016); Gabii (tablea) is an opt-in slot, emitted after it. */
 const SELECTOR: Readonly<Record<ThemeName, string>> = {
-  tablea: ':root,\n[data-theme="tablea"]',
-  adlaw: '[data-theme="adlaw"]',
+  adlaw: ':root,\n[data-theme="adlaw"]',
+  tablea: '[data-theme="tablea"]',
 };
+const CSS_ORDER: readonly ThemeName[] = ["adlaw", "tablea"];
+
+/** font-variant-numeric per numerals mode. Mona's tnum zero is the slashed zero.tf, kept for hashes on purpose. */
+const NUMERALS_CSS = {
+  proportional: ["  font-variant-numeric: lining-nums proportional-nums;"],
+  tabular: ["  font-variant-numeric: tabular-nums lining-nums;", '  font-feature-settings: "tnum" 1;'],
+  hash: ["  font-variant-numeric: tabular-nums lining-nums;", '  font-feature-settings: "tnum" 1;'],
+} as const;
 
 function typeRoleCss(name: string, role: TypeRole): string {
   const lines = [
@@ -71,15 +117,17 @@ function typeRoleCss(name: string, role: TypeRole): string {
     `  font-size: ${rem(role.size)};`,
     `  line-height: ${rem(role.line)};`,
   ];
-  if (role.figures) lines.push("  font-variant-numeric: tabular-nums lining-nums;");
+  if (role.tracking) lines.push(`  letter-spacing: ${role.tracking}em;`);
+  if (role.numerals) lines.push(...NUMERALS_CSS[role.numerals]);
   lines.push("}");
   return lines.join("\n");
 }
 
 export function renderThemeCss(): string {
   const out: string[] = [CSS_HEADER];
-  for (const theme of THEMES) out.push(`${SELECTOR[theme]} {\n${themeBlock(theme, "css").join("\n")}\n}\n`);
-  const oklch = THEMES.map(
+  for (const theme of CSS_ORDER)
+    out.push(`${SELECTOR[theme]} {\n${themeBlock(theme, "css").join("\n")}\n}\n`);
+  const oklch = CSS_ORDER.map(
     (theme) =>
       `  ${SELECTOR[theme].replace("\n", "\n  ")} {\n${themeBlock(theme, "cssOklch")
         .map((l) => `  ${l}`)
@@ -107,6 +155,8 @@ export function renderThemeCss(): string {
   root.push(`  --fs-stamp-size: ${px(MATERIALS.stamp.size)};`);
   root.push(`  --fs-hollow-stroke: ${px(HOLLOW.stroke)};`);
   root.push(`  --fs-noise-opacity: ${MATERIALS.noise.opacity};`);
+  for (const [name, hex] of Object.entries(EVIDENCE))
+    root.push(`  --fs-evidence-${name}: ${hex.toLowerCase()};`);
   for (const [name, t] of Object.entries(TWEENS)) root.push(`  --fs-dur-${camelToKebab(name)}: ${t.ms}ms;`);
   for (const name of Object.keys(EASE))
     root.push(`  --fs-ease-${name}: ${cssEase(name as keyof typeof EASE)};`);
@@ -141,8 +191,22 @@ export function renderThemeCss(): string {
   for (const [name, role] of Object.entries(TYPE_ROLES)) out.push(`${typeRoleCss(name, role)}\n`);
   out.push(
     [
+      "/* Aligned columns: tabular figures (decision.md §7). */",
       ".fs-figures {",
       "  font-variant-numeric: tabular-nums lining-nums;",
+      "}",
+      "",
+      "/* Money reads as money: proportional lining figures, a plain zero and a plain one. */",
+      ".fs-amount {",
+      "  font-variant-numeric: lining-nums proportional-nums;",
+      "}",
+      "",
+      "/* The US$ prefix of a hero amount: half size, raised (the accessible name keeps the whole string). */",
+      ".fs-cur {",
+      "  position: relative;",
+      "  top: -0.74em;",
+      "  margin-right: 0.04em;",
+      "  font-size: 0.5em;",
       "}",
       "",
       "/* Mona's straight-bar zero (ss08), kept for the G1 comparison with the default slashed zero. */",
@@ -242,7 +306,15 @@ function toTs(value: unknown, indent = ""): string {
   const entries = Object.entries(value as Record<string, unknown>);
   if (entries.length === 0) return "{}";
   const body = entries
-    .map(([k, v]) => `${next}${IDENT.test(k) ? k : quote(k)}: ${toTs(v, next)},`)
+    .map(([k, v]) => {
+      const key = IDENT.test(k) ? k : quote(k);
+      const line = `${next}${key}: ${toTs(v, next)},`;
+      // Biome (as Prettier) moves a string that overflows the line onto its own line, one indent deeper, unless
+      // the key is shorter than 5 characters (too little overlap for the break to help).
+      if (typeof v === "string" && line.length > LINE_WIDTH && key.length >= 5)
+        return `${next}${key}:\n${next}  ${quote(v)},`;
+      return line;
+    })
     .join("\n");
   return `{\n${body}\n${indent}}`;
 }
@@ -257,7 +329,14 @@ function nativeTheme(theme: ThemeName) {
   const colours = Object.fromEntries(
     COLOUR_NAMES.map((n) => [camel(n), nativeColour(RESOLVED[theme][n].hex, RESOLVED[theme][n].alpha)]),
   );
-  return { name: theme, scheme: THEME_INFO[theme].scheme, colours, shadowPaper: SHADOWS[theme].paper };
+  return {
+    name: theme,
+    scheme: THEME_INFO[theme].scheme,
+    display: THEME_INFO[theme].display,
+    colours,
+    shadowPaper: SHADOWS[theme].paper,
+    shadows: { ...SHADOWS[theme] },
+  };
 }
 
 function nativeType() {
@@ -268,7 +347,7 @@ function nativeType() {
     const line = role.app?.line ?? role.line;
     const entry: Record<string, unknown> = { fontFamily: role.native, fontSize: size, lineHeight: line };
     if (role.app?.maxFontSizeMultiplier) entry.maxFontSizeMultiplier = role.app.maxFontSizeMultiplier;
-    if (role.figures) entry.tabular = true;
+    if (role.numerals === "tabular" || role.numerals === "hash") entry.tabular = true;
     out[camel(name)] = entry;
   }
   return out;
@@ -284,12 +363,29 @@ export interface FsColours {
 ${colourFields}
 }
 
+export interface FsShadows {
+  /** Evidence paper. */
+  paper: string;
+  /** Chips, tiles and inline cards. */
+  e1: string;
+  /** Panels and the statement card. */
+  e2: string;
+  /** Drawers and dialogs. */
+  e3: string;
+  /** The jade halo, one beat after the simulated PayPal confirms. */
+  halo: string;
+}
+
 export interface FsTheme {
   name: "tablea" | "adlaw";
   scheme: "dark" | "light";
+  /** "Hayag (day)" or "Gabii (night)": the slot keys stay, their display names changed (ADR-0016). */
+  display: string;
   colours: FsColours;
-  /** Passed to RN boxShadow (New Architecture). Evidence casts the only shadow. */
+  /** Passed to RN boxShadow (New Architecture). Evidence paper keeps the strongest shadow. */
   shadowPaper: string;
+  /** Elevation e1 to e3, paper and the halo, for RN boxShadow. */
+  shadows: FsShadows;
 }
 
 export const tablea: FsTheme = ${toTs(nativeTheme("tablea"))};
@@ -298,12 +394,20 @@ export const adlaw: FsTheme = ${toTs(nativeTheme("adlaw"))};
 
 export const themes = { tablea, adlaw } as const;
 
-/** Native defaults to Adlaw; first run offers Tablea. */
+/** Native defaults to Adlaw (Hayag, day); the theme switch offers Tablea (Gabii, night). */
 export const defaultTheme = adlaw;
 
 export const space = ${toTs(Object.fromEntries(SPACE.map((s) => [`s${s}`, s])))} as const;
 
-export const radii = ${toTs({ r0: RADII[0], r2: RADII[2] })} as const;
+export const radii = ${toTs({
+    r0: RADII[0],
+    r2: RADII[2],
+    cell: RADII.cell,
+    control: RADII.control,
+    card: RADII.card,
+    panel: RADII.panel,
+    pill: RADII.pill,
+  })} as const;
 
 export const depth = ${toTs(DEPTH)} as const;
 
@@ -335,13 +439,13 @@ export function renderAgGridTs(): string {
     fontSize: 14,
     dataFontSize: 14,
     headerFontSize: 13,
-    headerFontWeight: 560,
+    headerFontWeight: 620,
     rowHeight: LAYOUT.console.row,
     headerHeight: LAYOUT.console.header,
     spacing: 4,
     cellHorizontalPadding: 12,
-    wrapperBorderRadius: 0,
-    borderRadius: 2,
+    wrapperBorderRadius: RADII.card,
+    borderRadius: RADII.cell,
     backgroundColor: "var(--fs-plate)",
     foregroundColor: "var(--fs-ink)",
     headerBackgroundColor: "var(--fs-plate-2)",
@@ -349,7 +453,7 @@ export function renderAgGridTs(): string {
     borderColor: "var(--fs-rule)",
     accentColor: "var(--fs-ink)",
     rowHoverColor: "transparent",
-    selectedRowBackgroundColor: "var(--fs-plate-2)",
+    selectedRowBackgroundColor: "var(--fs-pod-wash)",
     rangeSelectionBorderColor: "var(--fs-pod)",
     focusShadow: "0 0 0 2px var(--fs-pod)",
     headerCellHoverBackgroundColor: "transparent",

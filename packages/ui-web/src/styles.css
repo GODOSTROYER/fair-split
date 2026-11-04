@@ -1,6 +1,8 @@
-/* @fairsplit/ui-web materials (design §2.5, S2 §2.5). Every colour, size and timing comes from the --fs-*
-   tokens in @fairsplit/tokens/theme.web.css; Tailwind stays layout only. There is no glass, no glow and no
-   gradient: the only shadow belongs to paper, and depth is slab edges and value steps. */
+/* @fairsplit/ui-web materials (design §2.5, S2 §2.5, ADR-0016). Every colour, size and timing comes from the
+   --fs-* tokens in @fairsplit/tokens/theme.web.css; Tailwind stays layout only. Radii come from the scale (cell,
+   control, card, panel, pill); chips and cards lift on e1, panels on e2, drawers and dialogs on e3, and paper keeps
+   the strongest shadow. Slab depth is a bottom lip whose depth equals consequence. The one glow is the jade halo,
+   one beat after the simulated PayPal confirms. No glass, no gradient text, no noise. */
 
 @layer components {
   /* ------------------------------------------------------------------ shared controls */
@@ -30,19 +32,20 @@
     gap: 8px;
     min-height: 40px;
     padding: 0 16px;
-    border: 1px solid var(--fs-rule);
-    border-radius: var(--fs-radius-2);
-    background: transparent;
+    border: 1px solid var(--fs-steel-line);
+    border-radius: var(--fs-radius-control);
+    background: var(--fs-plate);
+    box-shadow: var(--fs-shadow-e1);
     color: var(--fs-ink);
     font-family: var(--fs-font-ui);
-    font-weight: 560;
+    font-weight: 600;
     font-size: 0.8125rem;
     line-height: 1rem;
     cursor: pointer;
   }
 
   .fs-flat:hover {
-    border-color: var(--fs-ink-3);
+    border-color: var(--fs-ink-2);
   }
 
   :where(.fs-link, .fs-flat, .fs-receipt__seg, .fs-slab__face, .fs-stamp):focus-visible {
@@ -89,57 +92,67 @@
     width: 100%;
   }
 
+  /* The person's decision slab: ballpoint indigo with a white label, in both themes (ADR-0016). */
   .fs-slab[data-tone="chalk"] {
     --face: var(--fs-slab-chalk-face);
     --edge-r: var(--fs-slab-chalk-right);
     --edge-b: var(--fs-slab-chalk-bottom);
     --label: var(--fs-slab-chalk-label);
+    --glow: color-mix(in srgb, var(--fs-slab-chalk-face) 60%, transparent);
   }
 
+  /* The only control that moves the co-op's money: raised jade. */
   .fs-slab[data-tone="jade"] {
     --face: var(--fs-slab-jade-face);
     --edge-r: var(--fs-slab-jade-right);
     --edge-b: var(--fs-slab-jade-bottom);
     --label: var(--fs-slab-jade-label);
+    --glow: color-mix(in srgb, var(--fs-slab-jade-right) 55%, transparent);
   }
 
+  /* Bolted: a plate face on a solid steel lip with its two bolt heads. Never hatched: hatch means cash or
+     unavailable, and a bolted rule is neither (it refuses, ADR-0016). */
   .fs-slab[data-bolted] {
     --face: var(--fs-plate-2);
     --label: var(--fs-ink);
-    --edge-r: repeating-linear-gradient(-45deg, var(--fs-steel-line) 0 1.5px, var(--fs-steel-face) 1.5px 4px);
-    --edge-b: repeating-linear-gradient(-45deg, var(--fs-steel-line) 0 1.5px, var(--fs-steel-face) 1.5px 4px);
+    --edge-r: var(--fs-steel-face);
+    --edge-b: var(--fs-steel-line);
+    --glow: transparent;
   }
 
+  /* The face sits on its lip: a radius-14 card whose bottom lip is d px deep (d1 3, d2 5, d3 8). Pressing moves
+     the face down by its lip; the lip stays where it is, so a flush face has covered it. */
   .fs-slab__body {
     position: relative;
     display: inline-block;
-    margin: 0 var(--d) var(--d) 0;
+    margin: 0 0 var(--d) 0;
+    border-radius: var(--fs-radius-card);
   }
 
   .fs-slab[data-full] .fs-slab__body {
-    width: calc(100% - var(--d));
+    width: 100%;
   }
 
   .fs-slab__edge {
     position: absolute;
-    transform-origin: 0 0;
     pointer-events: none;
   }
 
+  /* The skewed right edge of the v1 slab is gone; the element stays so the edges fade as one in reduced motion. */
   .fs-slab__edge--r {
-    top: 0;
-    left: 100%;
-    width: var(--d);
-    height: 100%;
-    background: var(--edge-r);
+    display: none;
   }
 
   .fs-slab__edge--b {
-    top: 100%;
+    top: var(--d);
     left: 0;
     width: 100%;
-    height: var(--d);
-    background: var(--edge-b);
+    height: 100%;
+    border-radius: var(--fs-radius-card);
+    background: var(--edge-r);
+    box-shadow:
+      0 0 0 1px var(--edge-b),
+      0 18px 30px -12px var(--glow);
   }
 
   .fs-slab__face {
@@ -152,7 +165,7 @@
     padding: 0 24px;
     overflow: hidden;
     border: 0;
-    border-radius: 0;
+    border-radius: var(--fs-radius-card);
     background: var(--face);
     box-shadow: inset 0 1px 0 var(--fs-highlight);
     color: var(--label);
@@ -161,7 +174,7 @@
     font-weight: 700;
     font-size: 1.0625rem;
     line-height: 1.25rem;
-    font-variant-numeric: tabular-nums;
+    font-variant-numeric: lining-nums proportional-nums;
     cursor: pointer;
     /* A long press must stay a hold (S2 §2.7): no panning, text selection, callout or tap flash. */
     touch-action: none;
@@ -188,10 +201,50 @@
     white-space: nowrap;
   }
 
+  .fs-slab__words {
+    display: contents;
+  }
+
+  /* A label with a second line (the first press's honesty words): left-aligned with its glyph, the detail under
+     it at caption size, anything trailing (a keycap) at the far edge. */
+  .fs-slab__face:has(> .fs-slab__label[data-detail]) {
+    justify-content: flex-start;
+    min-height: 60px;
+    padding-block: 9px;
+  }
+
+  .fs-slab__label[data-detail] {
+    flex: 1 1 auto;
+    min-width: 0;
+    text-align: left;
+  }
+
+  .fs-slab__label[data-detail] .fs-slab__words {
+    display: grid;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .fs-slab__detail {
+    font-stretch: 100%;
+    font-weight: 500;
+    font-size: 0.8125rem;
+    line-height: 1rem;
+    opacity: 0.85;
+  }
+
+  .fs-slab__trailing {
+    display: inline-flex;
+    flex: none;
+    margin-left: auto;
+    padding-left: 6px;
+  }
+
+  /* The d3 hold fills the face left to right in the lip's shade. */
   .fs-slab__fill {
     position: absolute;
     inset: 0;
-    background: color-mix(in srgb, var(--label) 14%, transparent);
+    background: var(--edge-r);
     transform-origin: 0 50%;
     pointer-events: none;
   }
@@ -212,17 +265,57 @@
     cursor: progress;
   }
 
+  /* Unavailable: sunk flush, a hatched face, the label kept on a plate. */
   .fs-slab[data-state="unavailable"] .fs-slab__face {
     background:
       repeating-linear-gradient(-45deg, var(--fs-hatch) 0 1.5px, transparent 1.5px 6px), var(--fs-plate);
-    box-shadow: inset 0 0 0 1px var(--fs-rule);
+    box-shadow: inset 0 0 0 1px var(--fs-rule-strong);
     color: var(--fs-ink-2);
     cursor: not-allowed;
   }
 
+  .fs-slab[data-state="unavailable"] .fs-slab__edge--b {
+    background: var(--fs-rule);
+    box-shadow: none;
+  }
+
   .fs-slab[data-state="unavailable"] .fs-slab__label {
     padding: 2px 8px;
+    border-radius: var(--fs-radius-cell);
     background: var(--fs-plate);
+  }
+
+  /* Committed: the face rests flush on its lip, and the glow goes with the press. */
+  .fs-slab[data-state="committed"] .fs-slab__edge--b {
+    box-shadow: 0 0 0 1px var(--edge-b);
+  }
+
+  /* A committed money slab is signed, not paid: flush jade belongs only to what the simulated PayPal confirmed, so
+     the pressed face turns plate with a dashed jade outline (money on its way) and an ink label (ADR-0016). */
+  .fs-slab[data-tone="jade"][data-state="committed"] .fs-slab__face {
+    background: var(--fs-plate);
+    box-shadow: none;
+    color: var(--fs-ink);
+  }
+
+  /* The dashed outline is drawn inside the face, never as its outline: the face stays focusable (aria-disabled)
+     and keeps the pod focus ring (WCAG 2.4.7). */
+  .fs-slab[data-tone="jade"][data-state="committed"] .fs-slab__face::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border: 1.5px dashed var(--fs-jade-flush-border);
+    border-radius: inherit;
+    pointer-events: none;
+  }
+
+  .fs-slab[data-tone="jade"][data-state="committed"] .fs-slab__fill {
+    opacity: 0;
+  }
+
+  .fs-slab[data-tone="jade"][data-state="committed"] .fs-slab__edge--b {
+    background: var(--fs-rule);
+    box-shadow: none;
   }
 
   .fs-slab__bolt {
@@ -337,6 +430,8 @@
     align-items: center;
     gap: 8px;
     padding: 0 0 0 6px;
+    overflow: hidden;
+    border-radius: var(--fs-radius-cell);
     outline: 1.5px solid var(--fs-canary-border);
     outline-offset: -1.5px;
     background: var(--fs-canary-wash);
@@ -370,7 +465,13 @@
     stroke: var(--fs-rule);
   }
 
+  /* The seal's linework is a person's hand and a checked fact: ballpoint and ink rings, never jade. */
   .fs-seal__ring {
+    stroke: var(--fs-pod);
+  }
+
+  .fs-seal > :nth-child(even) .fs-seal__ring,
+  .fs-seal > .fs-seal__ring:nth-child(even) {
     stroke: var(--fs-ink);
   }
 
@@ -439,9 +540,14 @@
     background: var(--fs-plate-2);
   }
 
+  .fs-receipt__seg {
+    border-radius: var(--fs-radius-cell);
+  }
+
+  /* Selected: an inset pod ring on the pod wash, so the focus ring (an outline) still shows over it. */
   .fs-receipt__seg[data-active] {
-    outline: 1px solid var(--fs-ink);
-    outline-offset: -1px;
+    background: var(--fs-pod-wash);
+    box-shadow: inset 0 0 0 1.5px var(--fs-pod);
   }
 
   .fs-receipt__item[data-kind="net"] .fs-receipt__seg {
@@ -511,8 +617,9 @@
     align-items: baseline;
     gap: 6px;
     padding: 1px 6px;
-    border-radius: var(--fs-radius-2);
+    border-radius: var(--fs-radius-cell);
     background: var(--fs-plate-2);
+    box-shadow: inset 0 0 0 1px var(--fs-rule-strong);
     color: var(--fs-ink);
     white-space: nowrap;
   }
@@ -524,14 +631,15 @@
 
   /* ------------------------------------------------------------------ chips, stamp, ring */
 
+  /* Status pills: a glyph and a word always, one material per state (decision.md §4). */
   .fs-chip {
     display: inline-flex;
     align-items: center;
     gap: 6px;
     min-height: 28px;
-    padding: 0 10px;
-    border: 1px solid var(--fs-rule);
-    border-radius: var(--fs-radius-2);
+    padding: 0 12px 0 10px;
+    border: 1px solid var(--fs-rule-strong);
+    border-radius: var(--fs-radius-pill);
     background: var(--fs-plate);
     color: var(--fs-ink);
     white-space: nowrap;
@@ -541,6 +649,7 @@
     color: var(--fs-pencil);
   }
 
+  /* Held: marigold wash, marigold border, the hold glyph. */
   .fs-chip[data-tone="canary"] {
     border-color: var(--fs-canary-border);
     background: var(--fs-canary-wash);
@@ -550,20 +659,41 @@
     color: var(--fs-canary-text);
   }
 
+  /* Confirmed by the simulated PayPal: a flush jade face, an ink check and the word, with one beat of halo. */
   .fs-chip[data-tone="jade"] {
     border-color: var(--fs-jade-flush-border);
     background: var(--fs-jade);
     color: var(--fs-on-jade);
   }
 
-  .fs-chip[data-tone="hatch"] {
-    background:
-      repeating-linear-gradient(-45deg, var(--fs-hatch) 0 1.5px, transparent 1.5px 6px), var(--fs-plate);
+  /* The halo is one beat at the moment the simulated PayPal confirms (data-flip: the tone turned jade while
+     mounted), never on every render of a past confirmation (a Proof load, a row scrolling in). */
+  .fs-chip[data-tone="jade"][data-flip] {
+    animation: fs-halo var(--fs-dur-halo) var(--fs-ease-out) both;
   }
 
-  .fs-chip[data-tone="hatch"] > span {
-    padding: 0 4px;
-    background: var(--fs-plate);
+  /* In flight: a 1.5 px dashed jade outline on a transparent face: not yet money anyone holds. */
+  .fs-chip[data-tone="flight"] {
+    border: 1.5px dashed var(--fs-jade-flush-border);
+    background: transparent;
+    color: var(--fs-ink);
+  }
+
+  .fs-chip[data-tone="flight"] .fs-glyph {
+    color: var(--fs-jade-text);
+  }
+
+  /* Cash at the bodega: a hatch swatch and the word, in ink-2. Never red, never greyed. */
+  .fs-chip[data-tone="hatch"] {
+    color: var(--fs-ink-2);
+  }
+
+  .fs-chip[data-tone="hatch"] > .fs-glyph {
+    border-radius: 4px;
+    background:
+      repeating-linear-gradient(-45deg, var(--fs-hatch) 0 1.5px, transparent 1.5px 4px), var(--fs-plate);
+    box-shadow: inset 0 0 0 1px var(--fs-rule-strong);
+    color: transparent;
   }
 
   .fs-chip[data-tone="red"] {
@@ -572,14 +702,35 @@
     color: var(--fs-red);
   }
 
+  /* Every simulated thing: a dashed steel outline (not real, or not yet), a flask in ink-3, words in ink-2. */
+  .fs-honesty {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 26px;
+    padding: 0 10px 0 8px;
+    border: 1px dashed var(--fs-steel-line);
+    border-radius: var(--fs-radius-pill);
+    background: transparent;
+    color: var(--fs-ink-2);
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .fs-honesty__flask {
+    flex: none;
+    color: var(--fs-ink-3);
+  }
+
   .fs-stamp {
     display: inline-grid;
     place-items: center;
     flex: none;
     width: var(--fs-stamp-size);
     height: var(--fs-stamp-size);
-    background: var(--fs-ink);
-    color: var(--fs-plate);
+    border-radius: var(--fs-radius-cell);
+    background: var(--fs-slab-chalk-face);
+    color: var(--fs-slab-chalk-label);
     text-decoration: none;
     cursor: help;
   }
@@ -614,13 +765,14 @@
     display: block;
   }
 
+  /* "Synthetic sample": the yellow carbon copy's tag, evidence colour on evidence paper. */
   .fs-paper__tag {
     position: absolute;
     top: 8px;
     right: 8px;
     padding: 1px 6px;
-    background: var(--fs-copy-white);
-    box-shadow: inset 0 0 0 1px var(--fs-paper-ink);
+    border-radius: 4px;
+    background: var(--fs-copy-yellow);
     color: var(--fs-paper-ink);
   }
 
@@ -630,7 +782,9 @@
     display: grid;
     gap: 20px;
     padding: 24px;
-    background: var(--fs-plate-2);
+    border-radius: var(--fs-radius-card);
+    background: var(--fs-plate);
+    box-shadow: var(--fs-shadow-e1);
     color: var(--fs-ink);
   }
 
@@ -651,6 +805,7 @@
     width: 36px;
     height: 36px;
     border: 1px solid var(--fs-canary-border);
+    border-radius: var(--fs-radius-control);
     background: var(--fs-canary-wash);
     color: var(--fs-canary-text);
   }
@@ -671,9 +826,9 @@
     align-items: center;
     gap: 8px;
     margin: 0;
-    padding: 6px 10px;
+    padding: 6px 12px;
     border: 1px solid var(--fs-canary-border);
-    border-radius: var(--fs-radius-2);
+    border-radius: var(--fs-radius-pill);
     background: var(--fs-canary-wash);
   }
 
@@ -715,6 +870,17 @@
 
   .fs-hold__voice[data-voice="claude"] dt {
     color: var(--fs-pencil);
+  }
+
+  /* The reading's provenance ("Seed stand-in, not a Claude recording") is a sentence, not a label: a full-width
+     caption row with its pencil, the reading under it. */
+  .fs-hold__voice:not([data-voice="engine"]) {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 4px;
+  }
+
+  .fs-hold__voice:not([data-voice="engine"]) dt {
+    gap: 6px;
   }
 
   .fs-hold__voice dd {
@@ -810,6 +976,17 @@
     inset: 0;
   }
 
+  /* While the outline shows (hollow, filling), the solid layer takes the hollow cut's tabular advances, so the
+     fill lands exactly on its outline. Once solid, the outline paints nothing (its box keeps the layout still) and
+     the amount reads in proportional figures alone, never printed twice (ADR-0016). */
+  .fs-amount:is([data-state="hollow"], [data-state="filling"]) .fs-amount__solid {
+    font-variant-numeric: lining-nums tabular-nums;
+  }
+
+  .fs-amount[data-state="solid"] .fs-amount__hollow {
+    -webkit-text-stroke-color: transparent;
+  }
+
   .fs-amount[data-state="pencil"] .fs-amount__hollow {
     visibility: hidden;
   }
@@ -826,7 +1003,7 @@
   .fs-capsule {
     position: relative;
     display: inline-block;
-    margin: 0 5px 5px 0;
+    margin: 0;
     --cap-r: var(--fs-hatch);
     --cap-b: var(--fs-rule);
   }
@@ -864,11 +1041,22 @@
     display: flex;
     align-items: center;
     min-height: 44px;
-    padding: 0 14px;
+    padding: 0 18px 0 14px;
     overflow: hidden;
-    border: 1px solid var(--fs-rule);
+    border: 1px solid var(--fs-rule-strong);
+    border-radius: var(--fs-radius-pill);
     background: var(--fs-plate);
-    transform: translate(var(--cap-t), var(--cap-t));
+  }
+
+  /* v2: the capsule is a pill; the v1 raised edges stay in the markup for the frames but draw nothing. */
+  .fs-capsule__edge--r,
+  .fs-capsule__edge--b {
+    display: none;
+  }
+
+  .fs-capsule[data-state="sent"] .fs-capsule__face {
+    border: 1.5px dashed var(--fs-jade-flush-border);
+    background: transparent;
   }
 
   .fs-capsule__flood {
@@ -916,6 +1104,11 @@
     background: var(--fs-plate);
   }
 
+  /* One beat of halo when the simulated PayPal confirms in view (data-flip), never on a capsule mounted paid. */
+  .fs-capsule[data-state="paid"][data-flip] .fs-capsule__face {
+    animation: fs-halo var(--fs-dur-halo) var(--fs-ease-out) both;
+  }
+
   /* ------------------------------------------------------------------ instruments */
 
   .fs-dial {
@@ -926,13 +1119,23 @@
 
   .fs-dial__track {
     fill: none;
-    stroke: var(--fs-rule);
-    stroke-width: 2;
+    stroke: var(--fs-rule-strong);
+    stroke-width: 6;
+    stroke-linecap: round;
   }
 
   .fs-dial__over {
     fill: none;
-    stroke-width: 8;
+    stroke: var(--fs-canary);
+    stroke-width: 6;
+    stroke-linecap: round;
+  }
+
+  .fs-dial__ghost {
+    stroke: var(--fs-canary-border);
+    stroke-width: 2;
+    stroke-dasharray: 3 3;
+    stroke-linecap: round;
   }
 
   .fs-dial__hatch-line {
@@ -951,8 +1154,8 @@
 
   .fs-dial__needle {
     stroke: var(--fs-pod);
-    stroke-width: 2;
-    stroke-linecap: square;
+    stroke-width: 2.5;
+    stroke-linecap: round;
   }
 
   .fs-dial__hub {
@@ -965,12 +1168,36 @@
     margin-top: -14px;
   }
 
+  .fs-dial__reading {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 8px;
+  }
+
   .fs-dial__value {
     color: var(--fs-ink);
   }
 
   .fs-dial[data-over] .fs-dial__value {
     color: var(--fs-canary-text);
+  }
+
+  /* The bench's hero reading sits a little lower under the hub, clear of the needle. */
+  .fs-dial__caption[data-role="amount-l"] {
+    margin-top: -6px;
+  }
+
+  /* The old reading, for the ghost needle's beat: marigold-text, then an arrow to the new one. */
+  .fs-dial__was {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 8px;
+    color: var(--fs-canary-text);
+  }
+
+  .fs-dial__arrow {
+    color: var(--fs-ink-3);
+    font-size: 0.875rem;
   }
 
   .fs-dial__label,
@@ -987,11 +1214,14 @@
   .fs-railbar__bar {
     display: flex;
     height: 18px;
+    overflow: hidden;
+    border-radius: var(--fs-radius-pill);
   }
 
   .fs-railbar__paypal {
     flex: none;
-    border: 1.5px solid var(--fs-pencil);
+    border: 1.5px dashed var(--fs-jade-flush-border);
+    border-radius: var(--fs-radius-pill) 0 0 var(--fs-radius-pill);
   }
 
   .fs-railbar[data-confirmed] .fs-railbar__paypal {
@@ -1005,8 +1235,9 @@
     align-items: center;
     justify-content: flex-end;
     padding: 0 6px;
-    border: 1px solid var(--fs-rule);
+    border: 1px solid var(--fs-rule-strong);
     border-left: 0;
+    border-radius: 0 var(--fs-radius-pill) var(--fs-radius-pill) 0;
     background:
       repeating-linear-gradient(-45deg, var(--fs-hatch) 0 1.5px, transparent 1.5px 6px), var(--fs-plate);
   }
@@ -1039,14 +1270,15 @@
   }
 
   .fs-phone__bezel {
-    padding: 10px;
-    border-radius: 34px;
+    padding: 8px;
+    border-radius: 44px;
     background: var(--fs-bezel);
+    box-shadow: var(--fs-shadow-e3);
   }
 
   .fs-phone__screen {
     overflow: hidden auto;
-    border-radius: 24px;
+    border-radius: 36px;
     background: var(--fs-ground);
     color: var(--fs-ink);
     scrollbar-width: none;
@@ -1074,8 +1306,11 @@
     width: min(520px, calc(100vw - 32px));
     padding: 28px;
     border: 1px solid var(--fs-rule);
-    background: var(--fs-plate-2);
-    box-shadow: inset 0 1px 0 var(--fs-drawer-highlight);
+    border-radius: var(--fs-radius-panel);
+    background: var(--fs-plate);
+    box-shadow:
+      inset 0 1px 0 var(--fs-drawer-highlight),
+      var(--fs-shadow-e3);
     color: var(--fs-ink);
     transform: translate(-50%, -50%);
     transition: opacity var(--fs-dur-popover) var(--fs-ease-out);
@@ -1140,6 +1375,42 @@
   to {
     opacity: 1;
   }
+}
+
+@keyframes fs-halo {
+  0% {
+    box-shadow: 0 0 0 0 var(--fs-jade-halo);
+  }
+
+  45% {
+    box-shadow: 0 0 0 8px var(--fs-jade-halo);
+  }
+
+  100% {
+    box-shadow: 0 0 0 8px transparent;
+  }
+}
+
+@keyframes fs-halo-reduced {
+  from {
+    box-shadow: var(--fs-shadow-halo);
+  }
+
+  to {
+    box-shadow: 0 0 0 6px transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fs-chip[data-tone="jade"][data-flip],
+  .fs-capsule[data-state="paid"][data-flip] .fs-capsule__face {
+    animation: fs-halo-reduced var(--fs-dur-reduced) linear both;
+  }
+}
+
+[data-motion="reduced"]
+  :is(.fs-chip[data-tone="jade"][data-flip], .fs-capsule[data-state="paid"][data-flip] .fs-capsule__face) {
+  animation: fs-halo-reduced var(--fs-dur-reduced) linear both;
 }
 
 @keyframes fs-shake {

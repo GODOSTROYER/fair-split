@@ -1,6 +1,7 @@
-// Slab: a human commit (design §2.5, S2 §2.5, §2.7). A solid face with a 1 px inner top highlight and two
-// parallelogram edges whose depth equals the consequence: d1 reversible, d2 changes a line, d3 moves money or
-// signs. Pressing moves the face by (t, t) and collapses the edges, transform-only.
+// Slab: a human commit (design §2.5, S2 §2.5, §2.7; ADR-0016). A radius-14 face with a 1 px inner top highlight
+// on a bottom lip whose depth equals the consequence: d1 3 px reversible, d2 5 px changes a line, d3 8 px moves
+// money or signs. The lip is the tone's `-right` shade with a 1 px `-bottom` under-edge and a soft drop in the
+// face's colour. Pressing moves the face down by its lip (t px), transform-only; the lip stays put underneath.
 //
 // Hold slabs (d3) arm on hold and act on release inside (S2 §2.7, WCAG 2.5.2): the face sinks in four ratchet
 // steps over 1,600 ms (1,200 on the Chair's phone), clunks flush and reads "Release to sign"; releasing inside
@@ -35,7 +36,6 @@ import {
 } from "react";
 import { useMotionMode, useT } from "./context.js";
 import {
-  edgeScale,
   type HoldChange,
   type HoldProgress,
   holdQuarter,
@@ -73,6 +73,13 @@ export interface WebSlabOptions {
   readonly size?: "m" | "l";
   readonly width?: number | string;
   readonly glyph?: GlyphName;
+  /**
+   * A second line under the label, smaller (the first press's "(simulated PayPal sandbox)"). The face's text stays
+   * the label, a space and the detail, so the words read as one string; the label then sits left with its glyph.
+   */
+  readonly detail?: string;
+  /** Decoration at the trailing edge, hidden from assistive tech (a keycap such as "Enter"). */
+  readonly trailing?: ReactNode;
   /** Pressing a bolted slab refuses: called after the shake. */
   readonly onRefuse?: () => void;
   readonly onReasonClick?: () => void;
@@ -95,7 +102,8 @@ type PressSource = "key" | "virtual" | number;
 const STEP_TRAVEL = TIMING.holdStepTravel;
 
 /**
- * Whether a client point is over the slab: the face at rest plus its edges, d px to the right and below. The
+ * Whether a client point is over the slab: the face at rest plus its lip, d px below (and d px of grace to the
+ * right, where the v1 edge was). The
  * face sinks up to d px while held, so a press near its top or left edge must not count as leaving. jsdom
  * lays nothing out (a zero box), so there every point is inside.
  */
@@ -125,6 +133,8 @@ export function Slab(props: WebSlabProps) {
     size = "m",
     width,
     glyph,
+    detail,
+    trailing,
     confirm,
     onHoldChange,
     onRefuse,
@@ -187,15 +197,8 @@ export function Slab(props: WebSlabProps) {
   const fill = useMotionValue(frame?.fill ?? 0);
   const edgeOpacity = useMotionValue(frame?.edgeOpacity ?? (frame?.state === "committed" ? 0 : 1));
   const [stepValue, setStepValue] = useState(frame?.step ?? 0);
-  const faceTransform = useTransform(travel, (v) => `translate(${v}px, ${v}px)`);
-  const edgeR = useTransform(
-    travel,
-    (v) => `translate(${v}px, ${v}px) skewY(45deg) scaleX(${edgeScale(v, d)})`,
-  );
-  const edgeB = useTransform(
-    travel,
-    (v) => `translate(${v}px, ${v}px) skewX(45deg) scaleY(${edgeScale(v, d)})`,
-  );
+  // The face sinks straight down onto its lip; the lip itself never moves, so a flush face has covered it.
+  const faceTransform = useTransform(travel, (v) => `translate(0px, ${v}px)`);
   const fillTransform = useTransform(fill, (v) => `scaleX(${v})`);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   /** A hold is in progress (pointer, touch, pen or Space down). */
@@ -699,6 +702,8 @@ export function Slab(props: WebSlabProps) {
   };
 
   const shownStep = frame?.step ?? stepValue;
+  // A spent slab is a neutral record: its record replaces the label, glyph, detail and keycap.
+  const recorded = state === "committed" && record != null;
   const percent = Math.round(shownStep * 100);
   const holdProgress: HoldProgress = frame
     ? frame.state === "armed"
@@ -750,12 +755,12 @@ export function Slab(props: WebSlabProps) {
         <motion.span
           className="fs-slab__edge fs-slab__edge--r"
           hidden={reduced && state === "committed"}
-          style={{ transform: edgeR, opacity: reduced && state === "committed" ? 0 : edgeOpacity }}
+          style={{ opacity: reduced && state === "committed" ? 0 : edgeOpacity }}
         />
         <motion.span
           className="fs-slab__edge fs-slab__edge--b"
           hidden={reduced && state === "committed"}
-          style={{ transform: edgeB, opacity: reduced && state === "committed" ? 0 : edgeOpacity }}
+          style={{ opacity: reduced && state === "committed" ? 0 : edgeOpacity }}
         />
         <motion.button
           ref={faceRef}
@@ -783,13 +788,23 @@ export function Slab(props: WebSlabProps) {
               <span className="fs-slab__bolt fs-slab__bolt--r" aria-hidden />
             </>
           )}
-          <span className="fs-slab__label">
-            {glyph && !(state === "committed" && record) && (
-              <Glyph name={glyph} size={size === "l" ? 24 : 20} />
-            )}
-            <span>
-              {state === "committed" ? (record ?? label) : state === "armed" ? t("slab.release") : label}
+          <span className="fs-slab__label" data-detail={detail && !recorded ? "" : undefined}>
+            {glyph && !recorded && <Glyph name={glyph} size={size === "l" ? 24 : 20} />}
+            <span className="fs-slab__words">
+              {recorded ? (
+                <span>{record}</span>
+              ) : (
+                <>
+                  <span>{state === "armed" ? t("slab.release") : label}</span>
+                  {detail && state !== "armed" && <span className="fs-slab__detail">{` ${detail}`}</span>}
+                </>
+              )}
             </span>
+            {trailing && !recorded && (
+              <span className="fs-slab__trailing" aria-hidden>
+                {trailing}
+              </span>
+            )}
           </span>
         </motion.button>
       </div>
