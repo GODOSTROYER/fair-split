@@ -346,6 +346,23 @@ fetches the bundle and the published keys with no cookie or credential, and runs
 browser: the hash chain, its signed checkpoint and the six plates. It prints each plate's result and the rail's
 provenance, and exits 0 only when the record is accepted.
 
+## Postman
+
+[`postman/`](postman/README.md) holds a Postman v2.1 collection with tests: the judge's 60-second loop, Proof verify
+and the labelled failure paths. It runs against a **local keyless stack only** (the simulated PayPal sandbox and the
+seed's labelled stand-in reading), never against a hosted demo. Start the stack in one terminal and run the collection
+from the repository root in another; newman 6.2.3 comes through `npx`, so nothing is installed.
+
+```powershell
+$env:COREPACK_ENABLE_DOWNLOAD_PROMPT = "0"
+corepack pnpm --filter @fairsplit/e2e stack              # prints "fs-api up at http://127.0.0.1:<port>"
+node postman/run.mjs --base-url http://127.0.0.1:<port>  # in a second terminal
+```
+
+On Linux or macOS, use `export COREPACK_ENABLE_DOWNLOAD_PROMPT=0` in place of the `$env:` line. The runner refuses
+any origin that is not loopback http and any fs-api whose rail is not `simulated`. It prints the request, assertion
+and failure counts, and keeps newman's JSON report under `.codex-scratch/postman/`.
+
 ## Tests
 
 Counts from the merge trial of main at 8fc978c (1 Nov 2026). The console's count is from its own run: under the
