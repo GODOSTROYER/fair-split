@@ -239,7 +239,7 @@
 :root {
   --fs-font-ui: "FS Sans", system-ui, sans-serif;
   --fs-font-statement: "Atkinson Hyperlegible Next", "FS Sans", system-ui, sans-serif;
-  --fs-font-mark: "FS Stencil", "FS Sans", system-ui, sans-serif;
+  --fs-font-mark: "FS Sans", system-ui, sans-serif;
   --fs-font-hollow: "FS Sans", system-ui, sans-serif;
   --fs-space-2: 2px;
   --fs-space-4: 4px;
@@ -680,8 +680,7 @@
   font-weight: 500;
   font-size: 0.875rem;
   line-height: 1.25rem;
-  font-variant-numeric: tabular-nums lining-nums;
-  font-feature-settings: "tnum" 1;
+  font-variant-numeric: lining-nums proportional-nums;
 }
 
 .fs-t-micro {
@@ -707,8 +706,8 @@
   font-family: var(--fs-font-ui);
   font-stretch: 100%;
   font-weight: 500;
-  font-size: 0.75rem;
-  line-height: 1rem;
+  font-size: 0.8125rem;
+  line-height: 1.125rem;
 }
 
 .fs-t-hash {
@@ -763,11 +762,13 @@
 }
 
 .fs-t-mark {
-  font-family: var(--fs-font-mark);
-  font-stretch: 100%;
-  font-weight: 800;
-  font-size: 1.25rem;
-  line-height: 1.25rem;
+  font-family: var(--fs-font-ui);
+  font-stretch: 87.5%;
+  font-weight: 500;
+  font-size: 0.8125rem;
+  line-height: 1rem;
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: "tnum" 1;
 }
 
 /* Aligned columns: tabular figures (decision.md §7). */

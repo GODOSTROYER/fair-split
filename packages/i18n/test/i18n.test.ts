@@ -128,9 +128,16 @@ describe("catalogs", () => {
     expect(translate("en", "W-JG-01.markPaidLabel")).toBe("Mark the invoice paid");
     expect(translate("en", "W-JG-01.markPaid")).toMatch(/^Mark Lantern Bay’s invoice paid/);
     expect(translate("en", "W-JG-01.markPaid")).toMatch(/simulated PayPal sandbox/);
-    expect(translate("en", "W-JG-01.pill.recording")).toBe(
-      "Recording the payment in the simulated PayPal sandbox…",
-    );
+    // UI gate round 3: the run pill carries no honesty parenthetical; the top bar's one indicator says the rail.
+    expect(translate("en", "W-JG-01.pill.recording")).toBe("Recording the payment…");
+    expect(translate("en", "W-JG-01.pill.markPaid")).toBe("Next: mark the invoice paid");
+  });
+
+  it("never overclaims a run's state: cash still due is never Settled or Done (round 3)", () => {
+    expect(translate("en", "W-JG-01.pill.stateCashDue")).toBe("PayPal complete · cash due");
+    expect(translate("en", "W-JG-01.pill.cashDue")).toBe("Review cash handover");
+    expect(translate("en", "W-JG-01.pill.done")).not.toMatch(/\bDone\b/);
+    expect(translate("en", "W-JG-01.proofChip", { matched: 0, total: 6 })).toBe("Proof: 0 of 6 checks match");
   });
 
   it("says simulated wherever it names the sandbox or PayPal confirming, and moves no real money (E-19)", () => {
@@ -139,8 +146,6 @@ describe("catalogs", () => {
       "confirm.body",
       "run.SETTLING",
       "W-JG-01.markPaid",
-      "W-JG-01.pill.markPaid",
-      "W-JG-01.pill.confirming",
       "W-JG-01.state.queued",
       "W-TR-01.invoice.drafted",
       "W-TR-07.fees",
@@ -150,6 +155,14 @@ describe("catalogs", () => {
     }
     expect(CATALOGS.en["confirm.body"]).toMatch(/No real money moves/);
     expect(CATALOGS.en["confirm.body"]).not.toMatch(/This moves money/);
+    // Round 3: the run pill's steps name neither the sandbox nor PayPal confirming, so they need no qualifier.
+    for (const key of [
+      "W-JG-01.pill.markPaid",
+      "W-JG-01.pill.recording",
+      "W-JG-01.pill.confirming",
+    ] as const) {
+      expect(CATALOGS.en[key], key).not.toMatch(/sandbox|PayPal(?:['’]s)?\s+(?:is\s+)?confirm/i);
+    }
     // The PP_MODE=sandbox variants never claim a real sandbox run: that path is untested (ADR-0002).
     for (const key of ["W-JG-01.notice", "W-PF-01.heroMarked", "W-PF-01.footer.sandbox"] as const) {
       expect(CATALOGS.en[key], key).toMatch(/not yet tested/);
@@ -157,10 +170,11 @@ describe("catalogs", () => {
     }
   });
 
-  it("gives the seed's recordedOn to no run: the reading pill replays a labelled seed stand-in (E-19)", () => {
+  it("gives the seed's recordedOn to no run, and the reading pill claims no Claude reading (E-19)", () => {
+    // Round 3: the pill says what happens; its seed stand-in glyph (console RunPill) names the stand-in.
     const pill = CATALOGS.en["W-JG-01.pill.reading"];
-    expect(pill).toMatch(/labelled seed stand-in/);
-    expect(pill).not.toMatch(/\{date\}|replay of the .*\brun\b|recorded/i);
+    expect(pill).toBe("Reading 12 photos");
+    expect(pill).not.toMatch(/Claude|\{date\}|replay of the .*\brun\b|recorded/i);
   });
 
   it("names the PayPal webhook's signature as the simulator's (ADR-0002, E-19)", () => {

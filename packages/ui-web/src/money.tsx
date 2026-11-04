@@ -36,6 +36,48 @@ export function CurrencyFigure({ display }: { readonly display: string }): React
   );
 }
 
+export interface MoneyFigureProps {
+  /** "US$4,273.50", "4,273.50", "₱270,844". */
+  readonly display: string;
+  /**
+   * decimal: a money column aligns on its decimal point (round 3). FS Sans's only tabular set is the id role's
+   * code-like figures, so money keeps the plain grotesk and its cents sit in a fixed slot instead.
+   */
+  readonly align?: "decimal";
+  /** Small raised "US$" (a hero or a total); a column states its currency in the header and leaves this off. */
+  readonly raisedPrefix?: boolean;
+  readonly className?: string;
+  readonly testId?: string;
+}
+
+/**
+ * Money in the one money role (UI gate round 3): the grotesk, plain lining figures, every amount on every screen,
+ * the by-hand entry included. The text content is the whole string ("US$64.45"), so a copy or a test reads it.
+ */
+export function MoneyFigure({ display, align, raisedPrefix = false, className, testId }: MoneyFigureProps) {
+  const [prefix, figure] = splitCurrency(display);
+  const point = align === "decimal" ? figure.lastIndexOf(".") : -1;
+  const whole = point >= 0 ? figure.slice(0, point) : figure;
+  const cents = point >= 0 ? figure.slice(point) : "";
+  return (
+    <span
+      className={["fs-money", className].filter(Boolean).join(" ")}
+      data-align={align}
+      data-testid={testId}
+    >
+      {prefix && (raisedPrefix ? <span className="fs-cur">{prefix}</span> : prefix)}
+      {align === "decimal" ? (
+        <>
+          {whole}
+          <span className="fs-money__cents">{cents}</span>
+        </>
+      ) : (
+        figure
+      )}
+    </span>
+  );
+}
+
 export interface AmountDisplayProps {
   readonly amount: MoneyView;
   /** "mga ₱4,028 (gibanabana)", already worded by the catalog. */

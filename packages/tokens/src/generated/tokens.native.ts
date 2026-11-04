@@ -345,7 +345,6 @@ export const type = {
     fontFamily: "FSSans-SemiCondMedium",
     fontSize: 14,
     lineHeight: 20,
-    tabular: true,
   },
   micro: {
     fontFamily: "FSSans-SemiCondMedium",
@@ -393,6 +392,12 @@ export const type = {
     fontFamily: "AtkinsonNext-Bold",
     fontSize: 18,
     lineHeight: 22,
+  },
+  mark: {
+    fontFamily: "FSSans-SemiCondMedium",
+    fontSize: 13,
+    lineHeight: 16,
+    tabular: true,
   },
 } as const;
 

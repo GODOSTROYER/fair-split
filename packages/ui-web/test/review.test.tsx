@@ -90,12 +90,32 @@ describe("the stylesheet after the review", () => {
         expect(d["outline-offset"], selector).toBeUndefined();
       }
     }
-    const dashed = declared('.fs-slab[data-tone="jade"][data-state="committed"] .fs-slab__face::after');
-    expect(dashed.map((d) => d.border)).toContain("1.5px dashed var(--fs-jade-flush-border)");
-    const ring = rules.find(
-      (r) => r.selector.includes(".fs-slab__face") && r.selector.endsWith(":focus-visible"),
-    );
-    expect(ring?.decls.outline).toBe("var(--fs-focus-width) solid var(--fs-pod)");
+    // Round 3: dashed means simulated only, so money on its way is a solid jade hairline.
+    const line = declared('.fs-slab[data-tone="jade"][data-state="committed"] .fs-slab__face::after');
+    expect(line.map((d) => d.border)).toContain("1.5px solid var(--fs-jade-flush-border)");
+    const ring = declared(":where(*):focus-visible")[0];
+    expect(ring?.outline).toBe("var(--fs-focus-width) solid var(--fs-pod)");
+    expect(ring?.["outline-offset"]).toBe("var(--fs-focus-offset)");
+  });
+
+  it("one focus ring (round 3): every focusable thing, on :focus-visible only, and no second ring anywhere", () => {
+    expect(declared(":where(*):focus:not(:focus-visible)")[0]?.outline).toBe("none");
+    for (const r of rules) {
+      if (r.selector === ":where(*):focus-visible") continue;
+      if (/:focus(-visible|-within)?\b/.test(r.selector)) {
+        expect(r.decls.outline ?? "none", r.selector).toMatch(/^none$|var\(--fs-pod\)/);
+        expect(r.decls["box-shadow"] ?? "", r.selector).not.toMatch(/--fs-pod/);
+      }
+    }
+  });
+
+  it("dashed lines mean simulated only (round 3): in flight, sent and the rail bar are solid", () => {
+    for (const r of rules) {
+      const border = `${r.decls.border ?? ""} ${r.decls.outline ?? ""}`;
+      if (!/dashed/.test(border)) continue;
+      expect(r.selector, r.selector).toMatch(/fs-honesty|fs-microtag|fs-dial|fs-seal|fs-you|fs-print/);
+    }
+    expect(declared('.fs-chip[data-tone="flight"]')[0]?.border).toBe("1px solid var(--fs-rule-strong)");
   });
 
   it("plays the jade halo only on a live flip, never on a chip or capsule that mounted paid", () => {
@@ -104,9 +124,11 @@ describe("the stylesheet after the review", () => {
     for (const r of animated) expect(r.selector, r.selector).toContain("[data-flip]");
   });
 
-  it("tags synthetic samples on the yellow copy, with a small radius", () => {
+  it("marks synthetic paper with the legend glyph on a white chip, bottom left (round 3: no yellow sticker)", () => {
     const tag = declared(".fs-paper__tag")[0];
-    expect(tag?.background).toBe("var(--fs-copy-yellow)");
+    expect(tag?.background).toBe("color-mix(in srgb, var(--fs-plate) 90%, transparent)");
+    expect(tag?.bottom).toBe("8px");
+    expect(tag?.left).toBe("8px");
     expect(tag?.["border-radius"]).toBe("4px");
     expect(tag?.["box-shadow"]).toBeUndefined();
   });

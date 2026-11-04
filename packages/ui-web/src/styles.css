@@ -6,6 +6,14 @@
    outline. The one glow is the jade halo, one beat after the simulated PayPal confirms. No glass, no gradient
    text, no noise. */
 
+:root {
+  /* Round 3's neutral states, as aliases of existing tokens: a pending amount (neutral-500), an unsigned seal ring
+     or waiting signer (neutral-400), the cash route's hatch (neutral-300). */
+  --fs-pending: var(--fs-ink-3);
+  --fs-unsigned: var(--fs-steel-line);
+  --fs-cash-route: var(--fs-hatch);
+}
+
 @layer components {
   /* ------------------------------------------------------------------ shared controls */
 
@@ -62,9 +70,22 @@
     background: var(--fs-plate-2);
   }
 
-  :where(.fs-link, .fs-flat, .fs-receipt__seg, .fs-slab__face, .fs-stamp):focus-visible {
+  /* One focus ring (UI gate round 3): 2 px indigo, 2 px off the element, following its radius (an outline follows
+     border-radius), on keyboard focus only. A click never rings, and nothing draws a second ring (no box-shadow
+     rings, no inset variants): every focusable thing in every package gets this one rule. */
+  :where(*):focus-visible {
     outline: var(--fs-focus-width) solid var(--fs-pod);
     outline-offset: var(--fs-focus-offset);
+  }
+
+  :where(*):focus:not(:focus-visible) {
+    outline: none;
+  }
+
+  /* An inline link has no radius of its own: the ring takes the control radius's smallest step so it never reads
+     as a hard rectangle around words. */
+  :where(a:not([class]), .fs-link):focus-visible {
+    border-radius: 4px;
   }
 
   .fs-glyph {
@@ -293,20 +314,21 @@
   }
 
   /* A committed money slab is signed, not paid: flush jade belongs only to what the simulated PayPal confirmed, so
-     the pressed face turns plate with a dashed jade outline (money on its way) and an ink label (ADR-0016). */
+     the pressed face turns plate with a solid jade hairline (money on its way) and an ink label. Dashed lines mean
+     simulated and nothing else (round 3). */
   .fs-slab[data-tone="jade"][data-state="committed"] .fs-slab__face {
     background: var(--fs-plate);
     box-shadow: none;
     color: var(--fs-ink);
   }
 
-  /* The dashed outline is drawn inside the face, never as its outline: the face stays focusable (aria-disabled)
-     and keeps the pod focus ring (WCAG 2.4.7). */
+  /* The hairline is drawn inside the face, never as its outline: the face stays focusable (aria-disabled) and keeps
+     the pod focus ring (WCAG 2.4.7). */
   .fs-slab[data-tone="jade"][data-state="committed"] .fs-slab__face::after {
     content: "";
     position: absolute;
     inset: 0;
-    border: 1.5px dashed var(--fs-jade-flush-border);
+    border: 1.5px solid var(--fs-jade-flush-border);
     border-radius: inherit;
     pointer-events: none;
   }
@@ -656,9 +678,10 @@
     animation: fs-halo var(--fs-dur-halo) var(--fs-ease-out) both;
   }
 
-  /* In flight: a 1.5 px dashed jade outline on a transparent face: not yet money anyone holds. */
+  /* In flight: a solid neutral ring on a transparent face, the glyph in jade text: not yet money anyone holds. Dashed
+     lines mean simulated only (round 3). */
   .fs-chip[data-tone="flight"] {
-    border: 1.5px dashed var(--fs-jade-flush-border);
+    border: 1px solid var(--fs-rule-strong);
     background: transparent;
     color: var(--fs-ink);
   }
@@ -709,6 +732,188 @@
     color: var(--fs-steel-line);
   }
 
+  /* The top bar's one quiet indicator (round 3): the dashed circle and the words, no outline. */
+  .fs-honesty[data-quiet] {
+    height: auto;
+    padding: 0;
+    border: 0;
+  }
+
+  /* ------------------------------------------------------------------ honesty marks with a budget (round 3) */
+
+  /* The micro-tag beside a PayPal money value: a 12 px dashed circle and "Sandbox" at 11 px, 18 px tall, ink-3. No
+     pill around it: the dashed circle is the mark. */
+  .fs-microtag {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    gap: 4px;
+    height: 18px;
+    padding: 0;
+    color: var(--fs-ink-3);
+    font-family: var(--fs-font-ui);
+    font-stretch: 87.5%;
+    font-weight: 520;
+    font-size: 0.6875rem;
+    line-height: 1rem;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+    vertical-align: middle;
+  }
+
+  /* A bare legend glyph in place of a provenance pill: 12 px, ink-3, no outline, its words in the title. */
+  .fs-legend-glyph {
+    display: inline-grid;
+    flex: none;
+    place-items: center;
+    color: var(--fs-ink-3);
+    vertical-align: middle;
+    cursor: help;
+  }
+
+  .fs-legend-glyph[data-kind="simulated"] {
+    color: var(--fs-steel-line);
+  }
+
+  .fs-mark-svg {
+    display: block;
+    flex: none;
+  }
+
+  .fs-microtag > .fs-mark-svg {
+    color: var(--fs-steel-line);
+  }
+
+  /* The full legend (What's real only): glyph, term, and a short line. */
+  .fs-legend {
+    display: grid;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .fs-legend__row {
+    display: grid;
+    grid-template-columns: 16px max-content minmax(0, 1fr);
+    align-items: center;
+    gap: 8px;
+  }
+
+  .fs-legend__row .fs-legend-glyph {
+    cursor: default;
+  }
+
+  .fs-legend__term {
+    color: var(--fs-ink);
+  }
+
+  .fs-legend__line {
+    color: var(--fs-ink-3);
+  }
+
+  /* State dots (round 3): pending is a hollow neutral dot (its amount in --fs-pending), a waiting signer a hollow
+     grey circle, a signed or confirmed row a solid green dot. Colour lives in the dot; the word says the state. */
+  .fs-state-dot {
+    display: inline-block;
+    flex: none;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    vertical-align: middle;
+  }
+
+  .fs-state-dot[data-kind="pending"] {
+    box-shadow: inset 0 0 0 1.5px var(--fs-pending);
+  }
+
+  .fs-state-dot[data-kind="waiting"] {
+    width: 12px;
+    height: 12px;
+    box-shadow: inset 0 0 0 1.5px var(--fs-unsigned);
+  }
+
+  .fs-state-dot[data-kind="done"] {
+    background: var(--fs-jade);
+    box-shadow: inset 0 0 0 1px var(--fs-jade-flush-border);
+  }
+
+  .fs-state-dot[data-kind="held"] {
+    background: var(--fs-canary);
+  }
+
+  .fs-state-dot[data-kind="failed"] {
+    background: var(--fs-red);
+  }
+
+  /* A pending amount: neutral, never dashed (dashed means simulated). */
+  .fs-pending {
+    color: var(--fs-pending);
+  }
+
+  /* A row in a settled state (signed, confirmed): a solid 1 px ring, never a dashed box. */
+  .fs-solid-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 40px;
+    padding: 0 12px;
+    border: 1px solid var(--fs-rule);
+    border-radius: var(--fs-radius-control);
+    background: var(--fs-plate);
+  }
+
+  /* ------------------------------------------------------------------ the instrument numeral */
+
+  .fs-dm {
+    display: block;
+    flex: none;
+    overflow: visible;
+    color: var(--fs-ink);
+  }
+
+  .fs-dm[data-tone="dim"] {
+    color: var(--fs-ink-3);
+  }
+
+  .fs-dm[data-tone="over"] {
+    color: var(--fs-canary-border);
+  }
+
+  .fs-dm__dot {
+    fill: currentColor;
+    fill-opacity: 0.05;
+    transition: fill-opacity 120ms var(--fs-ease-out);
+  }
+
+  .fs-dm__dot[data-on] {
+    fill-opacity: 1;
+  }
+
+  [data-motion="reduced"] .fs-dm__dot {
+    transition: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .fs-dm__dot {
+      transition: none;
+    }
+  }
+
+  /* ------------------------------------------------------------------ money (one money role) */
+
+  .fs-money {
+    font-variant-numeric: lining-nums proportional-nums;
+    white-space: nowrap;
+  }
+
+  /* A money column aligns on its decimal point: the cents sit in a fixed slot. */
+  .fs-money[data-align="decimal"] .fs-money__cents {
+    display: inline-block;
+    min-width: 1.7em;
+    text-align: left;
+  }
+
   .fs-stamp {
     display: inline-grid;
     place-items: center;
@@ -753,14 +958,17 @@
   }
 
   /* "Synthetic sample": the yellow carbon copy's tag, evidence colour on evidence paper. */
+  /* The synthetic glyph on a white chip at 90%, bottom left (round 3: no yellow sticker, no words on the paper). */
   .fs-paper__tag {
     position: absolute;
-    top: 8px;
-    right: 8px;
-    padding: 1px 6px;
+    bottom: 8px;
+    left: 8px;
+    display: inline-grid;
+    place-items: center;
+    padding: 3px;
     border-radius: 4px;
-    background: var(--fs-copy-yellow);
-    color: var(--fs-paper-ink);
+    background: color-mix(in srgb, var(--fs-plate) 90%, transparent);
+    color: var(--fs-ink-3);
   }
 
   /* ------------------------------------------------------------------ hold card */
@@ -1025,7 +1233,7 @@
   }
 
   .fs-capsule[data-state="sent"] .fs-capsule__face {
-    border: 1.5px dashed var(--fs-jade-flush-border);
+    border: 1.5px solid var(--fs-jade-flush-border);
     background: transparent;
   }
 
@@ -1190,7 +1398,7 @@
 
   .fs-railbar__paypal {
     flex: none;
-    border: 1.5px dashed var(--fs-jade-flush-border);
+    border: 1.5px solid var(--fs-jade-flush-border);
     border-radius: var(--fs-radius-pill) 0 0 var(--fs-radius-pill);
   }
 

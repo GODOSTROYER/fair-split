@@ -10,12 +10,15 @@ import {
   LAYOUT,
   M3_ROLES,
   MATERIALS,
+  NUMERAL_ROLES,
   RADII,
   SHADOWS,
   SPACE,
+  TEXT_FLOORS,
   THEME_INFO,
   THEMES,
   TYPE_ROLES,
+  type TypeRole,
   WASH,
 } from "../src/tokens.js";
 
@@ -197,13 +200,27 @@ describe("colour source", () => {
 });
 
 describe("type, space and layout", () => {
-  it("amounts read as money in proportional figures; aligned columns are tabular; hashes keep the slashed zero", () => {
-    for (const role of ["amount-hero", "amount-l", "slab"] as const) {
+  it("three numeral roles (round 3): money is the plain grotesk, ids the code-like tabular set, one instrument", () => {
+    for (const role of NUMERAL_ROLES.money) {
       expect(TYPE_ROLES[role].numerals, role).toBe("proportional");
     }
-    expect(TYPE_ROLES.figure.numerals).toBe("tabular");
-    expect(TYPE_ROLES.micro.numerals).toBe("tabular");
-    expect(TYPE_ROLES.hash.numerals).toBe("hash");
+    for (const role of NUMERAL_ROLES.id) {
+      expect(["tabular", "hash"], role).toContain(TYPE_ROLES[role].numerals);
+      expect(TYPE_ROLES[role].size, role).toBeGreaterThanOrEqual(TEXT_FLOORS.id);
+    }
+    expect(NUMERAL_ROLES.instrument).toEqual([]);
+    const roled = new Set<string>([...NUMERAL_ROLES.money, ...NUMERAL_ROLES.id]);
+    for (const [name, role] of Object.entries(TYPE_ROLES) as [string, TypeRole][]) {
+      if (role.numerals) expect(roled.has(name), name).toBe(true);
+    }
+  });
+
+  it("secondary words are 13 px or more on the console, ids 12 px or more (round 3)", () => {
+    expect(TEXT_FLOORS).toEqual({ secondary: 13, id: 12 });
+    for (const role of ["caption", "label", "body"] as const) {
+      expect(TYPE_ROLES[role].size, role).toBeGreaterThanOrEqual(TEXT_FLOORS.secondary);
+    }
+    expect(TYPE_ROLES.micro.size).toBeGreaterThanOrEqual(TEXT_FLOORS.id);
   });
 
   it("one numeral voice: every money hero, figure, micro label and hash is FS Sans 87.5 at 500 (round 2)", () => {
@@ -213,10 +230,11 @@ describe("type, space and layout", () => {
     }
   });
 
-  it("three type voices at most: FS Sans, Atkinson for statements, the stencil for one mark; no outline face", () => {
+  it("two type voices: FS Sans and Atkinson for statements; no outline face and no stencil (round 3)", () => {
     const families = new Set(Object.values(TYPE_ROLES).map((r) => r.family));
-    expect([...families].sort()).toEqual(["mark", "statement", "ui"]);
+    expect([...families].sort()).toEqual(["statement", "ui"]);
     expect(FONT_STACKS.hollow).toBe(FONT_STACKS.ui);
+    expect(FONT_STACKS.mark).toBe(FONT_STACKS.ui);
   });
 
   it("money is never bold, and only headers, buttons, statement status, stamps and the mark reach 600", () => {
@@ -240,7 +258,7 @@ describe("type, space and layout", () => {
     expect(TYPE_ROLES["title-2"]).toMatchObject({ stretch: 100, weight: 560, size: 20, line: 24 });
     expect(TYPE_ROLES.figure.weight).toBe(500);
     expect(TYPE_ROLES.label.weight).toBe(520);
-    expect(TYPE_ROLES.caption).toMatchObject({ weight: 500, size: 12 });
+    expect(TYPE_ROLES.caption).toMatchObject({ weight: 500, size: 13, app: { size: 12 } });
   });
 
   it("statement prose never drops below 18 px, and the hero amount caps app font scaling at 1.5×", () => {
@@ -254,11 +272,11 @@ describe("type, space and layout", () => {
     expect(TYPE_ROLES["amount-l"].size).toBeGreaterThanOrEqual(HOLLOW.minSize);
   });
 
-  it("the stencil face is for marks only and has no native cut", () => {
-    expect(TYPE_ROLES.mark.family).toBe("mark");
-    expect(TYPE_ROLES.mark.native).toBeNull();
-    const others = Object.entries(TYPE_ROLES).filter(([n]) => n !== "mark");
-    for (const [, role] of others) expect(role.family).not.toBe("mark");
+  it("the season and lot marks are the id role at 13 px: the stencil face is retired (round 3)", () => {
+    expect(TYPE_ROLES.mark).toMatchObject({ family: "ui", stretch: 87.5, weight: 500, size: 13 });
+    expect(TYPE_ROLES.mark.numerals).toBe("hash");
+    expect(TYPE_ROLES.mark.proof).toMatchObject({ size: 13 });
+    for (const role of Object.values(TYPE_ROLES)) expect(role.family).not.toBe("mark");
   });
 
   it("uses the 4-based space scale and one radius scale (0, 2, cell 6, control 12, card 16, panel 24, pill)", () => {

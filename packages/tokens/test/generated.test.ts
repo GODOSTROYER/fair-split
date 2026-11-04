@@ -42,7 +42,10 @@ describe("generated files", () => {
     expect(css).toContain(".fs-cur {");
     expect(css).toMatch(/\.fs-t-amount-hero \{[^}]*proportional-nums/);
     expect(css).toMatch(/\.fs-t-hash \{[^}]*"tnum" 1/);
-    expect(css).toMatch(/\.fs-t-figure \{[^}]*tabular-nums/);
+    // Round 3: the money grotesk has plain figures in columns too; only the id role keeps the code-like tabular set.
+    expect(css).toMatch(/\.fs-t-figure \{[^}]*proportional-nums/);
+    expect(css).toMatch(/\.fs-t-micro \{[^}]*"tnum" 1/);
+    expect(css).not.toMatch(/FS Stencil/);
     for (const name of COLOUR_NAMES) {
       const count = css.split(`--fs-${name}:`).length - 1;
       expect(count, name).toBe(4);
@@ -71,7 +74,8 @@ describe("generated files", () => {
   it("every font file the CSS and the native module name exists in assets/fonts", () => {
     const css = `${files["fonts.css"]}${files["fonts-proof.css"]}`;
     const urls = [...css.matchAll(/url\("([^"]+)"\)/g)].map((m) => m[1] ?? "");
-    expect(urls.length).toBeGreaterThan(5);
+    // FS Sans, the peso face and Atkinson on the console; FS Sans Proof and the peso face on Proof (no stencil).
+    expect(urls.length).toBe(5);
     for (const url of urls) expect(existsSync(resolve(GENERATED_DIR, url)), url).toBe(true);
     for (const font of Object.values(native.fonts)) {
       expect(existsSync(resolve(here, "../../../assets/fonts/native", `${font}.ttf`)), font).toBe(true);

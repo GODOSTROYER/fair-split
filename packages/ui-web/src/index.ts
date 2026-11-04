@@ -3,10 +3,12 @@
 
 export * from "./context.js";
 export * from "./contract.js";
+export * from "./DotMatrix.js";
 export { feedback } from "./feedback.js";
 export * from "./frames.js";
 export { Glyph, type GlyphName, type GlyphProps } from "./Glyph.js";
 export * from "./HoldCard.js";
+export * from "./honesty.js";
 export * from "./instruments.js";
 export * from "./marks.js";
 export * from "./money.js";

@@ -217,8 +217,7 @@ const SPECIMENS: Readonly<Record<TypeRoleName, string>> = {
 function TypeSpecimen({ role }: { readonly role: TypeRoleName }) {
   const r = TYPE_ROLES[role];
   const text = role === "hash" ? hashPrefix(RATE_CARD_SHA256, 4) : SPECIMENS[role];
-  const family =
-    r.family === "statement" ? "Atkinson Hyperlegible Next" : r.family === "mark" ? "FS Stencil" : "FS Sans";
+  const family = r.family === "statement" ? "Atkinson Hyperlegible Next" : "FS Sans";
   return (
     <div className="tok-type" data-testid={`W-DP-01.type.${role}`}>
       <p className="tok-type__meta fs-t-caption">

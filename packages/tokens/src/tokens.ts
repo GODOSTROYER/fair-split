@@ -22,6 +22,12 @@
 // no cream wash. Every button is one flat primary (the indigo face) or one outline secondary: the money slab
 // wears the same indigo face, because green is only money the simulated PayPal confirmed. One numeral voice:
 // money, figures and hashes are FS Sans semi-condensed, and there is no outline face any more.
+//
+// UI gate round 3: three numeral roles (NUMERAL_ROLES). Money and every other quantity are the grotesk (FS Sans,
+// plain lining figures); ids, hashes and times are the id role (FS Sans's code-like tabular set: the slashed zero,
+// the serifed one); one hero count per screen is the dot-matrix instrument (ui-web's DotMatrix, no font). The
+// stencil face is retired: the season and lot marks are the id role at 13 px. Secondary words are 13 px or more
+// on the console (caption), ids 12 px or more (micro). Dashed outlines mean simulated, and nothing else.
 
 import { DEPTH, EASE, SPRINGS, TWEENS } from "@fairsplit/motion/presets";
 import type { Oklch } from "./color.js";
@@ -425,17 +431,34 @@ export const CONTRAST_RULES: readonly ContrastRule[] = [
 export type FontFamilyRole = "ui" | "statement" | "mark" | "hollow";
 
 /**
- * CSS stacks: three voices at most. FS Sans for the interface and every numeral (money, figures, hashes),
- * Atkinson for a member's statement, and the stencil for one brand mark. Money is always FS Sans, even inside
- * Atkinson prose. No monospace anywhere. The outline face is retired (UI gate round 2): `hollow` stays as a slot
- * so consumers compile, and resolves to FS Sans.
+ * CSS stacks: two voices. FS Sans for the interface and every numeral (money, figures, ids, hashes), Atkinson for
+ * a member's statement. Money is always FS Sans, even inside Atkinson prose. No monospace font: ids use FS Sans's
+ * code-like tabular figures. The outline face is retired (UI gate round 2) and so is the stencil (round 3):
+ * `hollow` and `mark` stay as slots so consumers compile, and resolve to FS Sans.
  */
 export const FONT_STACKS: Readonly<Record<FontFamilyRole, string>> = {
   ui: '"FS Sans", system-ui, sans-serif',
   statement: '"Atkinson Hyperlegible Next", "FS Sans", system-ui, sans-serif',
-  mark: '"FS Stencil", "FS Sans", system-ui, sans-serif',
+  mark: '"FS Sans", system-ui, sans-serif',
   hollow: '"FS Sans", system-ui, sans-serif',
 };
+
+/**
+ * The three numeral roles (UI gate round 3), and the type roles that set each. A screen never mixes in a fourth.
+ * - money: every amount, the by-hand entry included, and every other quantity (kg, counts, percents): the grotesk,
+ *   plain lining figures. FS Sans has no plain tabular set (its tabular zero is slashed), so a money column aligns
+ *   on its decimal point instead (ui-web's `MoneyFigure align="decimal"`).
+ * - id: ids, hashes and times: the code-like tabular set (slashed zero, serifed one), 12 px or more.
+ * - instrument: exactly one hero count per screen, drawn as a dot matrix (ui-web's `DotMatrix`), never money.
+ */
+export const NUMERAL_ROLES = {
+  money: ["amount-hero", "amount-l", "figure", "slab"],
+  id: ["micro", "hash", "mark"],
+  instrument: [],
+} as const satisfies Record<string, readonly string[]>;
+
+/** Text-size floors on the console at 1280 px and wider (UI gate round 3): secondary words 13, ids 12. */
+export const TEXT_FLOORS = { secondary: 13, id: 12 } as const;
 
 /** Native static cuts (React Native cannot drive font axes). File name = PostScript name. */
 export const NATIVE_FONTS = {
@@ -555,9 +578,9 @@ export const TYPE_ROLES = {
     weight: 500,
     size: 14,
     line: 20,
-    numerals: "tabular",
+    numerals: "proportional",
     native: NATIVE_FONTS.semiCondMedium,
-    use: "Grid and list numbers that align on the decimal (tabular, the same face as money)",
+    use: "Grid and list amounts and quantities: the money grotesk, plain figures (a column aligns on the decimal)",
   },
   micro: {
     family: "ui",
@@ -568,7 +591,7 @@ export const TYPE_ROLES = {
     tracking: 0.01,
     numerals: "tabular",
     native: NATIVE_FONTS.semiCondMedium,
-    use: "Data joined by a middle dot: times, IDs, counts, deltas, the run state (12 px floor)",
+    use: "The id role: ids, times and short data joined by a middle dot (the 12 px floor for ids)",
   },
   label: {
     family: "ui",
@@ -583,10 +606,11 @@ export const TYPE_ROLES = {
     family: "ui",
     stretch: 100,
     weight: 500,
-    size: 12,
-    line: 16,
+    size: 13,
+    line: 18,
     native: NATIVE_FONTS.regular,
-    use: "Provenance footers and IDs; the 12 px floor on the judge path",
+    app: { size: 12, line: 16 },
+    use: "Secondary words: the 13 px floor on the console (12 in the app); ids use micro",
   },
   hash: {
     family: "ui",
@@ -646,14 +670,15 @@ export const TYPE_ROLES = {
     use: "Bayad na and Gisusi pa inside their pills",
   },
   mark: {
-    family: "mark",
-    stretch: 100,
-    weight: 800,
-    size: 20,
-    line: 20,
-    native: null,
-    proof: { size: 40, line: 40 },
-    use: "Season and lot marks only (web only)",
+    family: "ui",
+    stretch: 87.5,
+    weight: 500,
+    size: 13,
+    line: 16,
+    numerals: "hash",
+    native: NATIVE_FONTS.semiCondMedium,
+    proof: { size: 13, line: 16 },
+    use: "Season and lot ids (2026-A, LB-PH-2026-03): the id role at 13 px; the stencil face is retired",
   },
 } as const satisfies Record<string, TypeRole>;
 

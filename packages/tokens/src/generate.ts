@@ -247,7 +247,7 @@ function fontFace(family: string, file: string, descriptors: string[]): string {
   ].join("\n");
 }
 
-/** Console and stage: the full variable FS Sans, the peso face, the stencil mark, Atkinson (lazy). */
+/** Console and stage: the full variable FS Sans, the peso face and Atkinson (lazy); the stencil is retired. */
 export function renderFontsCss(): string {
   const ui = ["font-weight: 200 900;", "font-stretch: 75% 125%;"];
   return `${CSS_HEADER}
@@ -255,7 +255,6 @@ ${[
   fontFace("FS Sans", "FSSans-VF.woff2", ui),
   "/* Mona Sans has no peso sign: Noto's joins the family with identical descriptors (assets/fonts/README.md). */",
   fontFace("FS Sans", "FSSansPeso.woff2", [...ui, "unicode-range: U+20B1;"]),
-  fontFace("FS Stencil", "FSStencil.woff2", ["font-weight: 800;"]),
   "/* Downloaded only when statement prose renders. */",
   fontFace("Atkinson Hyperlegible Next", "AtkinsonNext-VF.woff2", ["font-weight: 400 700;"]),
 ].join("\n\n")}\n`;
@@ -268,7 +267,6 @@ export function renderProofFontsCss(): string {
 ${[
   fontFace("FS Sans", "FSSans-Proof.woff2", ui),
   fontFace("FS Sans", "FSSansPeso.woff2", [...ui, "unicode-range: U+20B1;"]),
-  fontFace("FS Stencil", "FSStencil.woff2", ["font-weight: 800;"]),
 ].join("\n\n")}\n`;
 }
 

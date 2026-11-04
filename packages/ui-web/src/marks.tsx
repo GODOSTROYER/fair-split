@@ -7,6 +7,7 @@ import { useLang, useT } from "./context.js";
 import { AUTO_ACCEPT, type StampView } from "./contract.js";
 import { useFlip } from "./flip.js";
 import { Glyph, type GlyphName } from "./Glyph.js";
+import { LegendGlyph } from "./honesty.js";
 
 export interface InkStampProps {
   readonly stamp: StampView;
@@ -105,17 +106,28 @@ export interface HonestyChipProps {
   readonly children: ReactNode;
   readonly testId?: string;
   readonly className?: string;
+  /**
+   * The top bar's one quiet indicator (UI gate round 3): the dashed circle and the words, with no outline. Every
+   * other place uses MicroTag (PayPal money) or a LegendGlyph (anything else).
+   */
+  readonly quiet?: boolean;
 }
 
 /**
  * The honesty tag (I8; unslop spec §2.2): every simulated or seeded thing carries this one design. A 20 px pill
  * in a dashed steel outline ("not real, or not yet", decision.md §4), a 10 px dashed circle, the words at 12/16
  * in ink-3. Its words are the label, word for word ("Simulated PayPal sandbox"); it never sits inside a sentence,
- * and one tag covers the smallest container that holds PayPal-derived values.
+ * and one tag covers the smallest container that holds PayPal-derived values. It counts against the screen's tag
+ * budget (TAG_BUDGET: three at most, honesty.tsx).
  */
-export function HonestyChip({ children, testId, className }: HonestyChipProps) {
+export function HonestyChip({ children, testId, className, quiet = false }: HonestyChipProps) {
   return (
-    <span className={["fs-honesty fs-t-micro", className].filter(Boolean).join(" ")} data-testid={testId}>
+    <span
+      className={["fs-honesty fs-t-micro", className].filter(Boolean).join(" ")}
+      data-testid={testId}
+      data-fs-tag={quiet ? "bar" : "tag"}
+      data-quiet={quiet ? "" : undefined}
+    >
       <svg className="fs-honesty__glyph" width={10} height={10} viewBox="0 0 10 10" aria-hidden>
         <circle
           cx={5}
@@ -195,7 +207,10 @@ export interface PaperProps {
   readonly className?: string;
 }
 
-/** Evidence: the only thing that casts a shadow, tagged "Synthetic sample" in its corner. */
+/**
+ * Evidence: the only thing that casts a shadow. Its corner carries the synthetic legend glyph (UI gate round 3: no
+ * yellow sticker): a hatched square on a white chip, bottom left, "Synthetic sample" as its tooltip and its name.
+ */
 export function Paper({ alt, children, testId, className }: PaperProps) {
   const t = useT();
   return (
@@ -203,7 +218,9 @@ export function Paper({ alt, children, testId, className }: PaperProps) {
       <div role="img" aria-label={`${alt}. ${t("paper.synthetic")}`} className="fs-paper__body">
         {children}
       </div>
-      <figcaption className="fs-paper__tag fs-t-caption">{t("paper.synthetic")}</figcaption>
+      <figcaption className="fs-paper__tag">
+        <LegendGlyph kind="synthetic" label={t("paper.synthetic")} />
+      </figcaption>
     </figure>
   );
 }
