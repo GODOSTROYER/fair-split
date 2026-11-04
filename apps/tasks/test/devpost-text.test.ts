@@ -144,6 +144,73 @@ describe("docs/devpost.md", () => {
       expect(text).toContain(s);
   });
 
+  it("quotes PayPal PH's payout fee cap without the uncapped 2% batch figure beside it", () => {
+    const { story } = devpostSections(input);
+    expect(story).toContain("payouts 2% capped at ₱50 each, conversion 3.0%");
+    // IC-03's feesProduction is 2% of the batch before the cap, so it cannot sit next to the cap.
+    expect(story).not.toContain(input.snapshot.figures.display.feesProduction);
+  });
+
+  it("calls only the imaged slips synthetic images and names the seeded photo entries as not imaged", () => {
+    const { story } = devpostSections(input);
+    const replay = new Set(input.snapshot.photos.filter((p) => p.set === "REPLAY").map((p) => p.photoId));
+    const slips = input.snapshot.slips.filter((s) => replay.has(s.photoId)).length;
+    const earlier = input.snapshot.photos.length - replay.size;
+    expect(story).toContain(`the ${slips} slips in ${replay.size} photos (A–L, composed in code`);
+    expect(story).toContain(`the ${earlier} earlier photos' manifest entries`);
+    expect(story).toMatch(/not imaged/);
+    expect(story).not.toMatch(/slip images in \d+ photos/);
+  });
+
+  it("describes the payout tamper as the console arms it: before key 2, refused once both keys sign", () => {
+    const { story } = devpostSections(input);
+    expect(story).toContain("Arm a one-cent change to one payout before key 2");
+    expect(story).toContain("(armed before key 2)");
+    expect(story).not.toMatch(/Change one payout after both keys|change to one payout after both keys/);
+  });
+
+  it("explains the redirected sum from its two IC-03 parts, never as money kept back", () => {
+    const { story } = devpostSections(input);
+    const f = input.snapshot.figures;
+    expect(f.redirectedDuplicateCents + f.redirectedCreditCents).toBe(f.redirectedCents);
+    expect(story).toContain(`The holds returned ${f.display.redirected} to the members it belonged to`);
+    expect(story).toContain(
+      `US$${(f.redirectedDuplicateCents / 100).toFixed(2)} by counting the duplicate slip once`,
+    );
+    expect(story).toContain(`${f.display.credits} by returning the unruled fine`);
+    expect(story).not.toMatch(/kept for members/);
+  });
+
+  it("says a judge run's Proof reads Sample, and that verify runs no Playwright suite", () => {
+    const { story, testing } = devpostSections(input);
+    expect(story).toContain("a judge run, signed with demo keys, reads Sample, never Verified");
+    expect(testing).toContain("(not the Playwright suite)");
+    expect(testing).not.toMatch(/every test suite/);
+  });
+
+  it("names every speech-recognition model the committed verification records", () => {
+    const records = JSON.parse(
+      readFileSync(join(REPO_ROOT, "media/audio/statement-verification.json"), "utf8"),
+    ) as unknown;
+    const models = new Set<string>();
+    const walk = (v: unknown): void => {
+      if (Array.isArray(v)) for (const x of v) walk(x);
+      else if (v && typeof v === "object") {
+        const o = v as Record<string, unknown>;
+        if (typeof o.asrModel === "string") models.add(o.asrModel);
+        for (const x of Object.values(o)) walk(x);
+      }
+    };
+    walk(records);
+    expect(models.size).toBeGreaterThan(0);
+    const { aiTools } = devpostSections(input);
+    for (const m of models) {
+      const version = /^gemini-(\d+\.\d+)-flash$/.exec(m)?.[1];
+      expect(version, m).toBeDefined();
+      expect(aiTools, m).toMatch(new RegExp(`\\b${version?.replace(".", "\\.")} Flash\\b`));
+    }
+  });
+
   it("gives the testing instructions the plan asks for", () => {
     expect(devpostSections(input).testing).toContain(
       "No login: open Judge Mode. Local: pnpm i && pnpm verify",
