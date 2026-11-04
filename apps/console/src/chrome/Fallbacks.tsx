@@ -14,7 +14,11 @@ export function RunRouteGate({
   data,
   children,
 }: {
-  readonly data: { readonly access: RunAccess; readonly startFresh?: (() => Promise<void>) | undefined };
+  readonly data: {
+    readonly access: RunAccess;
+    readonly startFresh?: (() => Promise<void>) | undefined;
+    readonly showcase?: string;
+  };
   readonly children?: ReactNode;
 }) {
   const [resetFailed, setResetFailed] = useState(false);
@@ -46,7 +50,7 @@ export function RunRouteGate({
         >
           Start a fresh run
         </a>
-        <a className="fs-link fs-t-label" href="/prototype">
+        <a className="fs-link fs-t-label" href={data.showcase ?? "/judge"}>
           Open the showcase
         </a>
       </p>

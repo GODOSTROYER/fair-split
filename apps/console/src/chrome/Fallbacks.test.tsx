@@ -22,7 +22,9 @@ describe("run visit gate", () => {
     );
     expect(screen.getByText("This run belongs to another visit.")).toBeTruthy();
     expect(screen.getByRole("link", { name: "Start a fresh run" }).getAttribute("href")).toBe("/judge");
-    expect(screen.getByRole("link", { name: "Open the showcase" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Open the showcase" }).getAttribute("href")).not.toBe(
+      "/prototype",
+    );
     expect(view.container.textContent).not.toContain("US$");
   });
   it("ends the existing visit before starting a fresh run", async () => {

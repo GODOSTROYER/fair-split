@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { firstView } from "../../../data/run-view.js";
 import { seedSnapshot } from "../../../test/world.js";
 import { FANOUT } from "./copy.js";
-import { cashDayForRun, runAccess } from "./run-data.js";
+import { cashDayForRun, runAccess, showcaseHref } from "./run-data.js";
 
 const snapshot = seedSnapshot();
 
@@ -17,6 +17,17 @@ describe("a run belongs to its visit", () => {
     expect(runAccess(snapshot.run.runSlug, { status: "none", session: null, error: null }, snapshot)).toBe(
       "allowed",
     );
+  });
+  it("opens the seeded showcase inside a session too, and links to the same screen of it", () => {
+    const session = { sessionId: "s", runId: "r", runSlug: "2026A-r4", expiresAt: "" } as never;
+    expect(runAccess(snapshot.run.runSlug, { status: "active", session, error: null }, snapshot)).toBe(
+      "allowed",
+    );
+    expect(runAccess("2026A-r99", { status: "active", session, error: null }, snapshot)).toBe("missing");
+    expect(showcaseHref("/runs/2026A-r99/approve", "2026A-r99", snapshot)).toBe(
+      `/runs/${snapshot.run.runSlug}/approve`,
+    );
+    expect(showcaseHref("/elsewhere", "2026A-r99", snapshot)).toBe("/judge");
   });
 });
 
