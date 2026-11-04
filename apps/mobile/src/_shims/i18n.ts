@@ -59,15 +59,16 @@ export const messages = defineMessages({
     fil: "Hindi alam ang pinagmulan ng bayad.",
     en: "Payment rail unknown.",
   },
+  // A few plain words on the member's phone; the sentence under the chip names the simulated rail.
   "common.payoutPlannedChip": {
-    ceb: "Giplano nga replay (labelled) · Simulated PayPal sandbox",
-    fil: "Planadong replay (labelled) · Simulated PayPal sandbox",
-    en: "Planned replay (labelled) · Simulated PayPal sandbox",
+    ceb: "Giplano nga replay",
+    fil: "Planadong replay",
+    en: "Replay planned",
   },
   "common.payoutPlannedCopy": {
-    ceb: "Giplano ang labelled replay sa simulated PayPal sandbox. Wala pay payout item; ang kahimtang sa linya iya niini nga run.",
-    fil: "Planado ang labelled replay sa simulated PayPal sandbox. Wala pang payout item; ang status ng linya ay para sa run na ito.",
-    en: "This run plans a labelled replay of the simulated PayPal sandbox payout step. No payout item exists yet; the line status belongs to this run.",
+    ceb: "Kini nga bayad i-replay sa simulated PayPal sandbox. Wala pay gipadala.",
+    fil: "Ire-replay ang bayad na ito sa simulated PayPal sandbox. Wala pang naipadala.",
+    en: "This pay will replay on the simulated PayPal sandbox. Nothing is sent yet.",
   },
   "common.payoutReplayStatus": {
     ceb: "Gi-replay: {status}",

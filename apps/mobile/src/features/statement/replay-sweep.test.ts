@@ -32,7 +32,11 @@ describe("inv.i8.mobile replay status sweep", () => {
         const rail = statementRail(dto, lang, EMPTY_TRACK);
         expect(rail.kind).toBe("replay-planned");
         expect(rail.chip).toMatch(/planned|giplano|planado/i);
+        // A few plain words on the member's phone: no console jargon in the chip or its sentence.
+        expect(rail.chip.length).toBeLessThanOrEqual(20);
+        expect(rail.chip).not.toMatch(/labelled|·/);
         expect(rail.copy).toMatch(/simulated PayPal sandbox/i);
+        expect(rail.copy).not.toMatch(/labelled|payout item|line status|linya|run\b/i);
         expect(rail.copy).not.toMatch(/^Replayed payment|^Gi-replay nga bayad|^Ni-replay na bayad/i);
         expect(statementRail(dto, lang, { provenance: "replay" }).kind).toBe("replay");
         expect(statementRail({ ...dto, provenance: "simulated_rail" }, lang, EMPTY_TRACK).kind).toBe(
