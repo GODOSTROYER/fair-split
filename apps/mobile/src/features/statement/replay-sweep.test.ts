@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import type { StatementDTO } from "../../_shims/api-client";
 import { MEMBER_STATUS_WORDS, type RunEvent } from "../../_shims/contracts";
-import { capsuleFor, EMPTY_TRACK } from "../../lib/item-status";
+import { capsuleFor, EMPTY_TRACK, type ItemTrack } from "../../lib/item-status";
 import { mergeTrack } from "../../lib/statement";
 import { buildDemoStatement, DEMO_STAGES } from "../../services/demo-fixtures";
 import { historyRows, lineView } from "./line-view";
@@ -187,6 +187,63 @@ describe("inv.i8.mobile replay status sweep", () => {
       expect(paid?.copy.key).toBe("M-MB-01.historyPaid");
     }
   });
+
+  it.each(["simulated_rail", "replay"] as const)(
+    "a rerouted %s item drops the previous attempt's status and provenance",
+    (provenance) => {
+      const base = buildDemoStatement({ stage: "sent", now: "2026-11-04T00:00:00Z" });
+      if (!base.item) throw new Error("Missing payout item");
+      const oldProvenance = provenance === "replay" ? "simulated_rail" : "replay";
+      const old: ItemTrack = {
+        status: "RETURNED" as const,
+        updatedAt: "2026-11-04T00:01:00Z",
+        provenance: oldProvenance,
+        senderItemId: base.item.senderItemId,
+        seen: ["old-returned"],
+      };
+      for (const status of ["PENDING", "SUCCESS"] as const) {
+        const dto = {
+          ...base,
+          provenance,
+          item: {
+            ...base.item,
+            senderItemId: `${base.item.senderItemId}-x1`,
+            status,
+            updatedAt: "2026-11-04T00:02:00Z",
+          },
+        };
+        const track = mergeTrack(old, dto.item);
+        expect(track.status).toBe(status);
+        expect(track.senderItemId).toBe(dto.item.senderItemId);
+        expect(track.provenance).toBeUndefined();
+        expect(track.seen).toEqual(old.seen);
+        const capsule = capsuleFor({ lineState: dto.lineState, rail: dto.rail, itemStatus: track.status });
+        const view = lineView(dto, capsule, track, "en");
+        expect(view.replayed).toBe(provenance === "replay");
+        expect(statementRail(dto, "en", track).kind).toBe(provenance === "replay" ? "replay" : "simulated");
+        // A render racing the merge must also refuse evidence identified as another attempt.
+        expect(statementRail(dto, "en", old).kind).toBe(provenance === "replay" ? "replay" : "simulated");
+        const event = {
+          id: "new-attempt-success",
+          type: "item.updated",
+          at: "2026-11-04T00:03:00Z",
+          provenance,
+          payload: {
+            senderItemId: dto.item.senderItemId,
+            memberNo: dto.member.memberNo,
+            to: "SUCCESS",
+            source: "webhook",
+            eventId: "verified-new-simulated-event",
+          },
+        } as RunEvent;
+        const applied = applyStatementItemEvent(old, event, dto.item.senderItemId, 100, false);
+        expect(applied.track.status).toBe("SUCCESS");
+        expect(applied.track.senderItemId).toBe(dto.item.senderItemId);
+        expect(applied.track.provenance).toBe(provenance);
+        expect(applied.paid !== null).toBe(provenance === "simulated_rail");
+      }
+    },
+  );
 
   it("screens consume the tested projection and store gate, including the replay MM-1 guard", () => {
     const source = (name: string) => readFileSync(new URL(name, import.meta.url), "utf8");

@@ -36,7 +36,11 @@ export function railLabel(rail: string | null | undefined, provenance: string, l
   };
 }
 
-export function statementRail(dto: StatementDTO, lang: Lang, track?: Pick<ItemTrack, "provenance">) {
+export function statementRail(
+  dto: StatementDTO,
+  lang: Lang,
+  track?: Pick<ItemTrack, "provenance" | "senderItemId">,
+) {
   if (dto.provenance === "replay" && !dto.item && !track?.provenance) {
     return {
       kind: "replay-planned",
@@ -51,9 +55,10 @@ export function statementRail(dto: StatementDTO, lang: Lang, track?: Pick<ItemTr
 /** The newest accepted event is the item's evidence; run-only provenance never proves an item outcome. */
 export function statementEvidence(
   dto: StatementDTO,
-  track?: Pick<ItemTrack, "provenance">,
+  track?: Pick<ItemTrack, "provenance" | "senderItemId">,
 ): readonly string[] {
-  if (track?.provenance) return [track.provenance];
+  const sameAttempt = !dto.item || !track?.senderItemId || track.senderItemId === dto.item.senderItemId;
+  if (sameAttempt && track?.provenance) return [track.provenance];
   return dto.item ? [dto.provenance] : [];
 }
 

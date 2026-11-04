@@ -548,7 +548,12 @@ describe("inv.i5.member-track: a statement read never moves the item backwards",
         status: "SUCCESS",
         updatedAt: "2026-10-30T01:00:00Z",
       }),
-    ).toEqual({ status: "SUCCESS", updatedAt: "2026-10-30T01:00:00Z", seen: ["e0"] });
+    ).toEqual({
+      senderItemId: "r37-M-014",
+      status: "SUCCESS",
+      updatedAt: "2026-10-30T01:00:00Z",
+      seen: ["e0"],
+    });
     expect(mergeTrack(EMPTY_TRACK, { senderItemId: "x", status: "UNCLAIMED", updatedAt: null }).status).toBe(
       "UNCLAIMED",
     );
