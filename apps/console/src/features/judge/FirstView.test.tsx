@@ -4,7 +4,7 @@
 
 import { act, configure, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { getResponse, HttpResponse, http } from "msw";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   clearMomentTrace,
   createTestWorld,
@@ -110,6 +110,36 @@ describe("W-JG-01 first view", { timeout: 60_000 }, () => {
     expect(screen.getByTestId("W-JG-01.markPaid").dataset.state).toBe("rest");
     expect(log.calls()).toEqual([]);
     await expectNoAxeViolations(view.container);
+  });
+
+  it("the desk's exhibit link opens the reading room and focuses the exhibit once its screen has drawn it", async () => {
+    await renderConsole({ path: "/judge" });
+    const link = within(screen.getByTestId("W-JG-01.desk")).getByRole("link", {
+      name: /Claude's real readings of 10 hero slips/,
+    });
+    // The reading room can commit after navigate() resolves (a lazy chunk, a transition): for a moment after the
+    // route changes, its exhibit heading is not in the document yet.
+    const lookup = document.getElementById.bind(document);
+    let drawn = false;
+    let lookups = 0;
+    const late = vi.spyOn(document, "getElementById").mockImplementation((id: string) => {
+      if (id !== "fsc-heroes-title") return lookup(id);
+      lookups += 1;
+      return drawn ? lookup(id) : null;
+    });
+    try {
+      link.focus();
+      await act(async () => {
+        fireEvent.click(link);
+      });
+      await screen.findByTestId("W-TR-03");
+      // The link has looked for the heading before the route changed and again after it: only now is it drawn.
+      await waitFor(() => expect(lookups).toBeGreaterThanOrEqual(2));
+      drawn = true;
+      await waitFor(() => expect(document.activeElement?.id).toBe("fsc-heroes-title"));
+    } finally {
+      late.mockRestore();
+    }
   });
 
   it("leads with the paper: at 1470 × 956 the desk lies beside the invoice, under the pool's strip", async () => {

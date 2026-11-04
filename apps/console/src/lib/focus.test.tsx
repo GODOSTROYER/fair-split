@@ -586,6 +586,22 @@ describe("focusInto", () => {
     await frames(3);
     expect(document.activeElement).toBe(document.body);
   });
+
+  it("a container given as a getter is looked for each frame: focus lands once the next screen draws it", async () => {
+    document.body.innerHTML = '<main id="fsc-main"><button id="first">First</button></main>';
+    const first = document.getElementById("first") as HTMLElement;
+    first.focus();
+    const exhibit = () => document.getElementById("exhibit");
+    focusInto(exhibit, exhibit);
+    await frames(2);
+    expect(document.activeElement).toBe(first);
+    const heading = document.createElement("h2");
+    heading.id = "exhibit";
+    heading.tabIndex = -1;
+    document.getElementById("fsc-main")?.append(heading);
+    await frames(2);
+    expect(document.activeElement).toBe(heading);
+  });
 });
 
 describe("registerScreenControl", () => {
@@ -1063,6 +1079,26 @@ describe("useFocusGuard, the root's backstop", () => {
     // The person acts on it (a key while it holds focus): theirs from then on.
     payCash.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
     expect(rememberFocus()).toEqual({ el: payCash, key: focusKey(payCash) });
+  });
+
+  it("where it put focus is no one's for focusInto either: the exhibit the next screen draws later still takes it", async () => {
+    const view = render(<Screens />);
+    const link = view.getByTestId("fanout");
+    link.focus();
+    const exhibit = () => document.getElementById("exhibit");
+    focusInto(exhibit, exhibit);
+    act(() => {
+      link.click();
+    });
+    await frames(1);
+    const payCash = view.getByTestId("payCash");
+    expect(document.activeElement).toBe(payCash);
+    const heading = document.createElement("h2");
+    heading.id = "exhibit";
+    heading.tabIndex = -1;
+    document.body.append(heading);
+    await frames(2);
+    expect(document.activeElement).toBe(heading);
   });
 
   it("a focus moved on after it placed one is an opener again", async () => {
