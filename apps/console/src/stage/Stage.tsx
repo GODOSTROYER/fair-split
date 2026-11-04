@@ -100,7 +100,7 @@ function firstViewRows(snapshot: SeasonSnapshot | undefined, rail: string): Reco
     MACHINE: row(
       "MACHINE",
       "Invoice lines: a seeded sample",
-      "Not drafted by Claude in this build. Code quotes every amount",
+      "Claude did not draft them in this build. Code quotes every amount",
       run.recordedOn,
     ),
     PEOPLE: row(

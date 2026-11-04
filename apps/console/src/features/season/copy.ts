@@ -38,7 +38,7 @@ export const SEASON_COPY = {
     "Line labels: a placeholder written with the seed (no Claude recording in this build). Every amount is the engine's quote, checked by the live policy lattice before anything is sent.",
   invoiceLines: "Invoice lines (seeded sample)",
   invoiceLinesNote: (_recorded: string) =>
-    "Written with the seed, not drafted by Claude in this build. Every amount is the engine's quote; policy checks it before anything is sent.",
+    "Written with the seed; Claude did not draft these lines in this build. Every amount is the engine's quote; policy checks it before anything is sent.",
   memo: (note: string) => `Memo: ${note}`,
   autoCancel: (date: string) => `Auto-cancels ${date} if unpaid.`,
   sentBy: (name: string) => `Sent by ${name}`,
