@@ -36,9 +36,9 @@ describe("W-TR-01 season", { timeout: 60_000 }, () => {
     expect(screen.getByTestId("W-TR-01.strip.PAID").dataset.state).toBe("unlit");
     expect(screen.getByTestId("W-TR-01.invoice.amount").dataset.amountState).toBe("hollow");
     expect(screen.getByTestId("W-TR-01.pool.premium").dataset.amountState).toBe("hollow");
-    expect(screen.getByTestId("W-TR-01.next").textContent).toMatch(
-      /Mark the invoice paid \(simulated PayPal sandbox\)/,
-    );
+    // Round 3: the step names the action; the stage's one indicator says the rail (no parenthetical).
+    expect(screen.getByTestId("W-TR-01.next").textContent).toMatch(/Mark the invoice paid$/);
+    expect(screen.getByTestId("W-TR-01.next").textContent).not.toMatch(/\(simulated/);
     expect(screen.getByTestId("W-TR-01.eval").dataset.state).toBe("empty");
     await expectNoAxeViolations(view.container);
   });

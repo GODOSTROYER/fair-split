@@ -46,6 +46,39 @@ export function heroPaymentLanded(event: RunEvent): boolean {
   );
 }
 
+/** A persona's initials for the phone rail's avatar: "Nang Celing" → "NC", "Ernesto" → "E". */
+export function personaInitials(name: string): string {
+  const words = name.split(/\s+/).filter((w) => /^[\p{L}]/u.test(w));
+  return words
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase() ?? "")
+    .join("");
+}
+
+/**
+ * The rail's status dot for a persona (round 3): green only for her payment the simulated PayPal confirmed in this
+ * run (never a replay), marigold while a person must act (her line in review, the Chair's co-sign request), a hollow
+ * neutral dot while it is on its way, and none for a frame with nothing to say.
+ */
+export function personaTone(
+  persona: FramePersona,
+  view: RunView | undefined,
+): "done" | "held" | "pending" | null {
+  if (persona === "member") {
+    const state = view?.lines[HERO_MEMBER]?.state ?? "COMPUTED";
+    const status = payoutStatus({ state, view, memberNo: HERO_MEMBER, statusWord: "" });
+    if (status.amountState === "landed") return "done";
+    if (["SUBMITTED", "PAYPAL_PENDING", "LOCKED", "OFF_RAIL_DUE", "REROUTED"].includes(state))
+      return "pending";
+    return "held";
+  }
+  if (persona === "chair" && view) {
+    if (view.state === "AWAITING_BOARD" || view.state === "TREASURER_APPROVED") return "held";
+    if (atLeast(view, "APPROVED")) return "done";
+  }
+  return null;
+}
+
 /**
  * The 64 px tab's words: "Nang Celing: Gisusi pa" (member status words are Cebuano, register §7). The tab has no
  * room for a detail line, so a replayed status keeps the rail label beside the item it replayed, like a live one.

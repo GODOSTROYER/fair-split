@@ -1,6 +1,6 @@
 import { getSnapshot } from "@fairsplit/api-client/seed";
 import { webRoutes } from "@fairsplit/contracts";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { expect, it } from "vitest";
 import { nextStep } from "../chrome/next-step.js";
 import { applyRunEvent, emptyRunView, type RunView } from "../data/run-view.js";
@@ -93,7 +93,7 @@ it("inv.i8.brand payout summary labels replayed statuses", () => {
   expect(screen.getByTestId("W-BR-01.payouts").textContent).not.toContain("confirmed by");
 });
 
-it("inv.i8.replay SUCCESS never paints the Ribbon's confirmed jade", async () => {
+it("inv.i8.replay SUCCESS never paints the Log's confirmed jade", async () => {
   const rendered = await renderConsole({ path: "/judge" });
   await rendered.startSession();
   act(() =>
@@ -101,9 +101,13 @@ it("inv.i8.replay SUCCESS never paints the Ribbon's confirmed jade", async () =>
       view ? applyRunEvent(view, replayEvent) : view,
     ),
   );
-  await waitFor(() => expect(screen.getByTestId("W-JG-01.ribbon.paypal").textContent).toContain("Replayed"));
-  expect(screen.getByTestId("W-JG-01.ribbon.paypal").hasAttribute("data-landed")).toBe(false);
-  expect(screen.getByTestId("W-JG-01.ribbon.paypal").textContent).not.toContain("SUCCEEDED");
+  await act(async () => {
+    fireEvent.click(screen.getByTestId("W-JG-01.logOpen"));
+  });
+  const paypal = () => within(screen.getByTestId("W-JG-01.log")).getAllByTestId("W-JG-01.log.paypal")[0];
+  await waitFor(() => expect(paypal()?.textContent).toContain("Replayed"));
+  expect(paypal()?.hasAttribute("data-landed")).toBe(false);
+  expect(paypal()?.textContent).not.toContain("SUCCEEDED");
 });
 
 it("inv.i8.remaining retry and due copy names the simulated rail", () => {
@@ -134,11 +138,10 @@ it("inv.i8.posted live Stage and Proof keep confirmations when the session quota
     world.sign("treasurer");
     world.cosign();
   });
-  await waitFor(() =>
-    expect(screen.getByTestId("W-JG-01.proofChip").textContent).toContain(
-      "confirmed in the simulated sandbox",
-    ),
-  );
+  // The Proof counter counts Proof's six checks (round 3): live payouts never read as replayed there either.
+  await waitFor(() => expect(screen.getByTestId("W-TR-08.share").textContent).toMatch(/confirmed/i));
+  expect(screen.getByTestId("W-JG-01.proofChip").textContent).toContain("Proof: 0 of 6 checks match");
+  expect(screen.getByTestId("W-JG-01.proofChip").textContent).not.toMatch(/replay/i);
   await waitFor(() => expect(quotaReads).toBeGreaterThan(0));
   expect(screen.getByTestId("W-TR-08.share").textContent).not.toMatch(/replay/i);
   expect(screen.getByTestId("W-TR-08.table").textContent).not.toMatch(/replay/i);

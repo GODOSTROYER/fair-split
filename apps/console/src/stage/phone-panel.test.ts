@@ -83,20 +83,28 @@ describe("the phone's panel on the tab layout (stage.css)", () => {
     [1024, 1100, 1279, 1470].flatMap((width) =>
       (["full", "reduced"] as const).map((motion) => ({ width, motion })),
     ),
-  )("lowered at $width px ($motion motion): hidden, once its way down is over", ({ width, motion }) => {
-    const panel = panelIn(null);
-    const medium = { width, motion };
-    expect(cascaded(rules, panel, "visibility", medium)).toBe("hidden");
-    const transition = cascaded(rules, panel, "transition", medium) ?? "";
-    expect(transitionDelay(transition, "visibility")).toBe(
-      motion === "reduced" ? "var(--fs-dur-reduced)" : "var(--fs-dur-drawer-out)",
-    );
-    // Reduced motion fades it: no slide either way.
-    if (motion === "reduced") {
-      expect(cascaded(rules, panel, "transform", medium)).toBe("none");
-      expect(cascaded(rules, panel, "opacity", medium)).toBe("0");
-    }
-  });
+  )(
+    "lowered at $width px ($motion motion): the device hides once its way down is over; the rail stays",
+    ({ width, motion }) => {
+      const panel = panelIn(null);
+      const device = document.createElement("div");
+      device.className = "fsc-dock__device";
+      panel.append(device);
+      const medium = { width, motion };
+      // Round 3: the lowered phone is its 56 px rail (the glyph and the avatars), never gone.
+      expect(cascaded(rules, panel, "visibility", medium) ?? "visible").toBe("visible");
+      expect(cascaded(rules, device, "visibility", medium)).toBe("hidden");
+      const transition = cascaded(rules, device, "transition", medium) ?? "";
+      expect(transitionDelay(transition, "visibility")).toBe(
+        motion === "reduced" ? "var(--fs-dur-reduced)" : "var(--fs-dur-drawer-out)",
+      );
+      // Reduced motion fades it: no slide either way.
+      if (motion === "reduced") {
+        expect(cascaded(rules, device, "transform", medium)).toBe("none");
+        expect(cascaded(rules, device, "opacity", medium)).toBe("0");
+      }
+    },
+  );
 });
 
 it.each([1024, 1470, 1679])("inv.i8.phone panel contains its figure at %s px", (width) => {
@@ -105,24 +113,47 @@ it.each([1024, 1470, 1679])("inv.i8.phone panel contains its figure at %s px", (
   expect(cascaded(rules, panel, "min-width", { width, motion: "full" })).toBe("0");
 });
 
-it("a short-screen phone lane stays one line and retains its full words as a tooltip", () => {
-  const lane = document.createElement("button");
-  lane.className = "fsc-ribbon__phone";
-  const words = document.createElement("span");
-  words.className = "fsc-ribbon__words";
-  lane.append(words);
-  document.body.append(lane);
-  expect(cascaded(rules, words, "white-space", { width: 1280, height: 800, motion: "full" })).toBe("nowrap");
-});
+/** The folded phone's rail, as PhoneDock draws it. */
+function railIn(layout: "dock" | "tab"): { dock: HTMLElement; word: HTMLElement; device: HTMLElement } {
+  const stage = document.createElement("div");
+  stage.className = "fsc-stage";
+  stage.dataset.layout = layout;
+  stage.dataset.phone = "folded";
+  const body = document.createElement("div");
+  body.className = "fsc-stage__body";
+  const dock = document.createElement("aside");
+  dock.className = "fsc-dock";
+  dock.dataset.folded = "";
+  const word = document.createElement("span");
+  word.className = "fsc-dock__tabword";
+  const device = document.createElement("div");
+  device.className = "fsc-dock__device";
+  dock.append(word, device);
+  body.append(dock);
+  stage.append(body);
+  document.body.append(stage);
+  return { dock, word, device };
+}
 
-it("inv.i8.phone tab never clips its replay and simulated labels", () => {
-  const lane = document.createElement("button");
-  lane.className = "fsc-ribbon__phone";
-  const words = document.createElement("span");
-  words.className = "fsc-ribbon__words";
-  lane.append(words);
-  document.body.append(lane);
-  const medium = { width: 1470, motion: "full" as const };
-  expect(cascaded(rules, words, "white-space", medium)).toBe("normal");
-  expect(cascaded(rules, words, "overflow", medium)).toBe("visible");
-});
+it.each([
+  ["dock", 1470],
+  ["dock", 1920],
+  ["tab", 1280],
+] as const)(
+  "folded on the %s layout at %i px: a 56 px rail, the frame words kept for assistive tech",
+  (layout, width) => {
+    const { dock, word, device } = railIn(layout);
+    const medium = { width, height: 956, motion: "full" as const };
+    const body = dock.parentElement as HTMLElement;
+    expect(cascaded(rules, body, "grid-template-columns", medium)).toBe(
+      "minmax(0, 1fr) var(--fsc-phone-rail)",
+    );
+    expect(cascaded(rules, body.parentElement as HTMLElement, "--fsc-phone-rail", medium)).toBe("56px");
+    // The word leaves the screen, never the accessibility tree (clipped, not display: none).
+    expect(cascaded(rules, word, "clip-path", medium)).toBe("inset(50%)");
+    expect(cascaded(rules, word, "display", medium)).toBeUndefined();
+    // The frames stay loaded at their size, only hidden: opening shows their last good state.
+    expect(cascaded(rules, device, "visibility", medium)).toBe("hidden");
+    expect(cascaded(rules, device, "display", medium)).toBeUndefined();
+  },
+);

@@ -1,10 +1,14 @@
-// The Judge stage's breakpoints (S1.6's table, UI gate round 2): one phone docked at 1440 px and wider (a
-// narrower column, with the rail folded to its glyphs, below 1680 px, so a 1470 laptop keeps the member's
-// statement beside the console), a 64 px tab that rises below that, and a phone-visit layout under 1024 px. Drawers push the content aside below 1600 px (full
-// width below 1280) and overlay at 560 px from 1600. Split review drops to five columns in containers under
-// 1,180 px. Playwright snapshots run at 390, 1280, 1470, 1536, 1920 and 2560 px.
+// The Judge stage's breakpoints (S1.6's table, UI gate round 3): from 1440 px the phone has a column of its own (a
+// narrower one below 1680), and below that it rises over or beside the screen; under 1024 px the stage is a phone
+// visit. At every desktop width the phone folds to a 56 px rail on the steps where it does not change (the rate
+// card, the reading room, slip 0462 by hand, split review and the holds), and below 1680 px on every step: it
+// opens on its own on the phone's beats (key 2, "Bayad na", the traced peso) and when the viewer asks. The console
+// rail keeps its labels from 1280 px (the 1,470 laptop included) and folds to glyphs below. Drawers push the
+// content aside below 1600 px (full width below 1280) and overlay at 560 px from 1600. Split review drops to five
+// columns in containers under 1,180 px. Playwright snapshots run at 390, 1280, 1470, 1536, 1920 and 2560 px.
 
 import { useSyncExternalStore } from "react";
+import type { RailItem } from "../chrome/rail-items.js";
 
 export type PhoneLayout = "phone-visit" | "tab" | "dock";
 export type DrawerMode = "push-full" | "push" | "overlay";
@@ -12,6 +16,8 @@ export type DrawerMode = "push-full" | "push" | "overlay";
 export const BREAKPOINTS = { visit: 1024, rail: 1280, dock: 1440, overlay: 1600, wide: 1680 } as const;
 /** Container width under which the split grid shows five columns (S1.6). */
 export const NARROW_GRID_PX = 1180;
+/** The folded phone's rail (round 3). */
+export const PHONE_RAIL_PX = 56;
 
 export function phoneLayoutFor(width: number): PhoneLayout {
   if (width < BREAKPOINTS.visit) return "phone-visit";
@@ -25,12 +31,9 @@ export function drawerModeFor(width: number): DrawerMode {
   return "overlay";
 }
 
-/**
- * The console rail collapses to glyphs below 1280 px so the work keeps its width, and again beside the narrow
- * docked phone (1440-1679 px), where the screen keeps the width it has at 1280 px.
- */
+/** The console rail folds to glyphs below 1280 px only: from there up its places keep their labels (round 3). */
 export function railCollapsedAt(width: number): boolean {
-  return width < BREAKPOINTS.rail || (width >= BREAKPOINTS.dock && width < BREAKPOINTS.wide);
+  return width < BREAKPOINTS.rail;
 }
 
 export interface StageLayout {
@@ -49,14 +52,35 @@ export function stageLayoutFor(width: number): StageLayout {
   };
 }
 
+/**
+ * Places on which the phone shows nothing new: the rate card, the reading room (slip 0462 by hand too) and split
+ * review (its holds and member lines too). It folds to its rail there (round 3).
+ */
+export const PHONE_STILL_PLACES: ReadonlySet<RailItem["id"]> = new Set(["rate-card", "reading", "split"]);
+
+/** Steps on which the phone shows nothing new either, whatever the screen (the reading replays on the console). */
+const PHONE_STILL_STEPS: ReadonlySet<string> = new Set(["recording", "reading"]);
+
+/**
+ * The phone's resting fold on a place and step, before any beat or the viewer's own choice: folded on the still
+ * places and steps at every width, and below 1680 px everywhere (the console keeps its width there); open beside the
+ * first view, Approve and the run from 1680 px.
+ */
+export function phoneRestsFolded(layout: StageLayout, place: RailItem["id"] | null, step: string): boolean {
+  if (layout.phone === "phone-visit") return false;
+  if (layout.phone === "tab" || layout.width < BREAKPOINTS.wide) return true;
+  if (place !== null && PHONE_STILL_PLACES.has(place)) return true;
+  return PHONE_STILL_STEPS.has(step);
+}
+
 /** The phone screen's size (S1.6: 360 px wide on the stage). Height fills what the stage leaves, clamped. */
 export interface PhoneSize {
   readonly width: number;
   readonly height: number;
 }
 
-/** Vertical space the stage's own chrome takes around the phone screen, per layout (px). */
-const PHONE_CHROME_PX = { dock: 340, tab: 370, visit: 184 } as const;
+/** Vertical space the stage's own chrome takes around the phone screen, per layout (px): no ribbon since round 3. */
+const PHONE_CHROME_PX = { dock: 250, tab: 280, visit: 184 } as const;
 
 export function phoneSizeFor(layout: StageLayout, viewportHeight: number): PhoneSize {
   const clamp = (n: number, lo: number, hi: number) => Math.round(Math.max(lo, Math.min(hi, n)));
@@ -68,7 +92,7 @@ export function phoneSizeFor(layout: StageLayout, viewportHeight: number): Phone
       height: clamp(viewportHeight - PHONE_CHROME_PX.visit, 480, 1200),
     };
   if (layout.phone === "tab")
-    return { width: 360, height: clamp(viewportHeight - PHONE_CHROME_PX.tab, 400, 680) };
+    return { width: 360, height: clamp(viewportHeight - PHONE_CHROME_PX.tab, 400, 720) };
   // The narrow dock (1440-1679 px) keeps a 340 px screen; from 1680 px it is S1.6's 360.
   const width = layout.width < BREAKPOINTS.wide ? 340 : 360;
   return { width, height: clamp(viewportHeight - PHONE_CHROME_PX.dock, 480, 780) };

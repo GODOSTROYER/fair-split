@@ -33,6 +33,8 @@
     outline: none;
   }
 
+  /* One focus ring (UI gate round 3): ui-web's rule, 2 px indigo with a 2 px offset following the radius, on
+     :focus-visible only. A screen's first pre-focus wears none until the viewer presses a key (stage.css). */
   :where(a, button, [role="tab"], [role="menuitem"], [role="switch"]):focus-visible {
     outline: var(--fs-focus-width) solid var(--fs-pod);
     outline-offset: var(--fs-focus-offset);

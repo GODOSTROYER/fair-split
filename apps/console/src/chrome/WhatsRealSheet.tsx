@@ -5,10 +5,23 @@
 // season slice's (ChromePortal "whatsReal.tryToBreak"); the plain list stands in until then.
 
 import { Dialog } from "@base-ui/react/dialog";
-import { Glyph } from "@fairsplit/ui-web";
+import { Glyph, type HonestyKind, LegendMark } from "@fairsplit/ui-web";
 import { FocusReturn } from "../lib/focus.js";
 import { stageCaption, TRY_TO_BREAK, WHATS_REAL, type WhatsRealFacts, whatsReal } from "./copy.js";
 import { ChromeSlot } from "./slots.js";
+
+/**
+ * The full legend lives here only (UI gate round 3): each row's glyph is the one the screens carry bare, with its
+ * words as tooltip and name. Real code a solid square, the simulated PayPal sandbox (and demo keys) a dashed
+ * circle, the seed stand-in and the synthetic co-op a hatched square.
+ */
+const SECTION_GLYPH: Readonly<Record<string, HonestyKind>> = {
+  real: "real",
+  "simulated-paypal": "simulated",
+  "real-paypal": "simulated",
+  replayed: "synthetic",
+  synthetic: "synthetic",
+};
 
 export interface WhatsRealSheetProps {
   readonly open: boolean;
@@ -46,7 +59,12 @@ export function WhatsRealSheet({ open, onOpenChange, facts }: WhatsRealSheetProp
             {sections.map((section) => (
               <div key={section.id} className="fsc-truth__row" data-section={section.id}>
                 <dt className="fsc-truth__term fs-t-label">
-                  <span className="fsc-truth__mark" aria-hidden />
+                  {/* The legend: the same glyph the screens carry bare (round 3), hidden here beside its words. */}
+                  {SECTION_GLYPH[section.id] ? (
+                    <LegendMark kind={SECTION_GLYPH[section.id] ?? "real"} />
+                  ) : (
+                    <span className="fsc-truth__mark" aria-hidden />
+                  )}
                   {section.title}
                 </dt>
                 <dd className="fsc-truth__line">

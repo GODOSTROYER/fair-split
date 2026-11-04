@@ -78,7 +78,7 @@ export function usePrefocus(ref: RefObject<HTMLElement | null>, screen: ConsoleS
     const mounting = first.current;
     first.current = false;
     if (focused.current?.target !== target || focused.current?.stepId !== stepId) {
-      if (mounting) target.focus({ preventScroll: true });
+      if (mounting) prefocusQuietly(target);
       else focusAndReveal(target);
       focused.current = { target, stepId };
     }
@@ -86,6 +86,25 @@ export function usePrefocus(ref: RefObject<HTMLElement | null>, screen: ConsoleS
     // when focus returns, so a control drawn again meanwhile (the press remounted at rest) is the one it finds.
     return registerScreenControl(() => controlOf(ref.current));
   }, [isStep, stepId, when, ref]);
+}
+
+/**
+ * A screen's first pre-focus (UI gate round 3: one focus ring, on keyboard focus only). A browser treats focus moved
+ * by script on a fresh page as keyboard focus and rings it, so the first press wore a ring nobody asked for. The
+ * control takes focus without the ring (`focusVisible: false` where the browser has it, and `data-prefocused`, which
+ * styles.css reads, where it does not); the first key the viewer presses gives the ring back, so a keyboard user
+ * still sees where Enter will land.
+ */
+export function prefocusQuietly(target: HTMLElement): void {
+  target.dataset.prefocused = "";
+  target.focus({ preventScroll: true, focusVisible: false });
+  const done = () => {
+    delete target.dataset.prefocused;
+    window.removeEventListener("keydown", done, true);
+    target.removeEventListener("blur", done);
+  };
+  window.addEventListener("keydown", done, true);
+  target.addEventListener("blur", done);
 }
 
 /** The control a step pre-focuses: `el` itself, or the slab face or first control inside it. */

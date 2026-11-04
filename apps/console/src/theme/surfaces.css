@@ -34,23 +34,13 @@
   font-display: swap;
 }
 
-/* Proof's lot mark (.pf-hero__lot) in FS Stencil: a 3.7 KB face the build inlines as a data: URI. tokens'
-   fonts.css declares it with font-display: swap, so a cold Proof load painted the mark one frame in the fallback
-   (FS Sans Proof 800, 256 px wide) and then snapped to Stencil (194 px): a layout shift on the hero. Declared
-   again here, later in the cascade (the last matching face wins), it blocks instead; lib/face.ts starts it
-   loading before the first render, so the first frame of the mark is already Stencil. */
-@font-face {
-  font-family: "FS Stencil";
-  src: url("../../../../assets/fonts/web/FSStencil.woff2") format("woff2");
-  font-weight: 800;
-  font-style: normal;
-  font-display: block;
-}
+/* The stencil face is retired (UI gate round 3): Proof's lot mark (.pf-hero__lot) is the id role, FS Sans Proof's
+   code-like figures at 13 px, so it needs no face of its own and has no frame in a fallback. */
 
 :root[data-face="proof"] {
   --fs-font-ui: "FS Sans Proof", system-ui, sans-serif;
   --fs-font-statement: "Atkinson Hyperlegible Next", "FS Sans Proof", system-ui, sans-serif;
-  --fs-font-mark: "FS Stencil", "FS Sans Proof", system-ui, sans-serif;
+  --fs-font-mark: "FS Sans Proof", system-ui, sans-serif;
   --fs-font-hollow: "FS Sans Proof", system-ui, sans-serif;
 }
 

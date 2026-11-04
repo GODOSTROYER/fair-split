@@ -1,7 +1,7 @@
-// The console's flat 220 px rail (S1.7; UI gate round 2): the lockup, six places with WS-DS's glyphs (filled
-// when current), and at its foot the person the judge acts as ("AS Analyn · Treasurer", the catalog's whole
-// sentence as its name) and the "?" key for Shortcuts. The one-line story and the stencilled season mark are gone
-// from the rail: the first view's header says both. Each place says where the run stands with it, in the run pill's own marks: an ink tick once
+// The console's flat 220 px rail (S1.7; UI gate round 3): six places with WS-DS's glyphs (filled when current), and
+// at its foot the person the judge acts as ("AS Analyn · Treasurer", the catalog's whole sentence as its name) and
+// the "?" key for Shortcuts. The lockup moved to the top bar (it leads there at every width); the places keep their
+// labels from 1280 px up, the 1,470 laptop included. Each place says where the run stands with it, in the run pill's own marks: an ink tick once
 // it is done, and on the place the next step is in, the pill's mark for who moves next (canary when a person
 // decides, pencil while the machine reads, an open ring while PayPal confirms). The current
 // place is marked by a 3 px ink rule, not a filled plate. Below 1280 px it folds to glyphs; each label is still
@@ -14,7 +14,6 @@ import { AppLink } from "./AppLink.js";
 import { STAGE } from "./copy.js";
 import type { StepActor } from "./next-step.js";
 import { activeRailItem, type PlaceState, type RailItem } from "./rail-items.js";
-import { Wordmark } from "./Wordmark.js";
 
 /** The person the judge acts as, short: their initials, first name and role. */
 export interface RailActor {
@@ -62,11 +61,6 @@ export function ConsoleRail({ items, collapsed, actor, states, nextActor = "pers
       data-collapsed={collapsed ? "" : undefined}
       data-testid="W-JG-01.rail"
     >
-      {!collapsed && (
-        <div className="fsc-rail__head">
-          <Wordmark />
-        </div>
-      )}
       <ul className="fsc-rail__list">
         {items.map((item) => {
           const current = item.id === active;

@@ -18,7 +18,7 @@
 .pf {
   --fs-font-ui: "FS Sans Proof", system-ui, sans-serif;
   --fs-font-statement: "Atkinson Hyperlegible Next", "FS Sans Proof", system-ui, sans-serif;
-  --fs-font-mark: "FS Stencil", "FS Sans Proof", system-ui, sans-serif;
+  --fs-font-mark: "FS Sans Proof", system-ui, sans-serif;
   --fs-font-hollow: "FS Sans Proof", system-ui, sans-serif;
   /* The dot-matrix count changes column by column, 24 ms apart (unslop spec §1.6). */
   --pf-dot-step: 24ms;
@@ -239,7 +239,7 @@
 
 .pf-dots__off {
   fill: var(--fs-ink);
-  fill-opacity: 0.07;
+  fill-opacity: 0.05;
 }
 
 /* A count that changed after the first paint comes in column by column; history never animates. */

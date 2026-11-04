@@ -1,34 +1,33 @@
-// The Judge stage's top bar (S1.6; UI gate round 2): one row. On the left only what must lead (the mock-data chip
-// when the build answers from a mock, I8; the lockup and the story when the rail is folded); in the centre, the
-// run pill, the one element that says what to do next, which never truncates; on the right the utilities (What's
-// real, Sound, Reset) as one quiet cluster, the short Proof counter, and the honesty tag beside it, once. The
-// tag replaces the sentence the bar used to open on ("Simulated PayPal sandbox. Anything replayed says so.").
+// The Judge stage's top bar (S1.6; UI gate round 3): one row. "Fair Split" leads at every width (the rail no longer
+// carries the lockup); then the mock-data chip when the build answers from a mock (I8); in the centre the run pill,
+// the one element that says what to do next, which never truncates; on the right the utilities (What's real, Log,
+// Sound, Reset) as one quiet cluster of line icons, the Proof counter on Proof's six checks ("Proof 0/6" until this
+// browser has checked, then "6/6"), and the stage's one quiet honesty indicator, "Simulated PayPal sandbox".
 
 import { Glyph, HonestyTag, useT } from "@fairsplit/ui-web";
 import { type ReactNode, useRef } from "react";
 import type { PaypalRail } from "../lib/env.js";
 import { useFocusOnLeave } from "../lib/focus.js";
 import { AppLink } from "./AppLink.js";
-import { MOCK_DATA, railTag, STAGE } from "./copy.js";
+import { LOG, MOCK_DATA, railTag, STAGE } from "./copy.js";
 import { SoundToggle } from "./SoundToggle.js";
 import { Wordmark } from "./Wordmark.js";
 
 export interface StageBarProps {
-  /** The season's member count (the lockup's story is no longer printed: UI gate round 2). */
-  readonly members?: number;
   readonly rail: PaypalRail;
   readonly mock: boolean;
-  /** Show the lockup in the bar (the rail is folded, or there is no rail). */
-  readonly lockup: boolean;
-  /** The run pill, centred in the bar. */
+  /** The run pill. */
   readonly pill?: ReactNode;
   readonly proofHref: string | null;
-  readonly confirmed: number;
+  /** Proof's six checks: how many matched in this browser (0 until it has checked). */
+  readonly checks: { readonly matched: number; readonly total: number };
+  /** The run's payout statuses are a labelled replay (the counter says so). */
   readonly replayed?: boolean;
-  readonly total: number;
   readonly canReset: boolean;
   readonly resetting: boolean;
   readonly onWhatsReal: () => void;
+  /** Opens the run's whole timeline (the Log sheet). */
+  readonly onLog: () => void;
   readonly onReset: () => void;
 }
 
@@ -60,48 +59,42 @@ function ResetButton({ resetting, onReset }: { readonly resetting: boolean; read
 }
 
 /**
- * What the Proof counter says to assistive technology and to anyone reading the page's text: the whole
- * sentence. On screen it reads "Proof 0/8" (or "Proof replayed"); the honesty tag beside it says where.
+ * What the Proof counter says to assistive technology and to anyone reading the page's text: the whole sentence,
+ * about the same six checks Proof shows. On screen it reads "Proof 0/6"; a replayed run says that first.
  */
 export function proofChipLabel(
   t: ReturnType<typeof useT>,
   {
-    confirmed,
+    matched,
     total,
     replayed,
-    rail,
-  }: { confirmed: number; total: number; replayed: boolean; rail: PaypalRail },
+  }: { readonly matched: number; readonly total: number; readonly replayed: boolean },
 ): { readonly spoken: string; readonly count: string } {
-  if (replayed)
-    return {
-      spoken: `Proof: ${total} statuses replayed (labelled, simulated), ${confirmed} successful in the source run`,
-      count: STAGE.proofReplayed,
-    };
+  const checks = t("W-JG-01.proofChip", { matched, total });
   return {
-    spoken: `${t("W-JG-01.proofChip", { confirmed, total })}${rail === "simulator" ? " in the simulated sandbox" : ""}`,
-    count: `${confirmed}/${total}`,
+    spoken: replayed ? `${checks}. Payout statuses replayed (labelled, simulated)` : checks,
+    count: `${matched}/${total}`,
   };
 }
 
 export function StageBar({
   rail,
   mock,
-  lockup,
   pill,
   proofHref,
-  confirmed,
+  checks,
   replayed = false,
-  total,
   canReset,
   resetting,
   onWhatsReal,
+  onLog,
   onReset,
 }: StageBarProps) {
   const t = useT();
-  const proof = proofChipLabel(t, { confirmed, total, replayed, rail });
+  const proof = proofChipLabel(t, { ...checks, replayed });
   return (
-    <header className="fsc-bar" data-testid="W-JG-01.bar" data-lockup={lockup ? "" : undefined}>
-      {lockup && <Wordmark compact />}
+    <header className="fsc-bar" data-testid="W-JG-01.bar">
+      <Wordmark compact />
       <div className="fsc-bar__honest">
         {mock && (
           <span
@@ -127,6 +120,16 @@ export function StageBar({
             <Glyph name="ms:visibility" size={16} />
             <span className="fs-t-label">{STAGE.whatsReal}</span>
           </button>
+          <button
+            type="button"
+            className="fsc-barlink fsc-barlink--fold"
+            title={LOG.title}
+            onClick={onLog}
+            data-testid="W-JG-01.logOpen"
+          >
+            <Glyph name="ms:schedule" size={16} />
+            <span className="fs-t-label">{LOG.open}</span>
+          </button>
           <SoundToggle testId="W-JG-01.sound" className="fsc-barlink--fold" />
           {canReset && <ResetButton resetting={resetting} onReset={onReset} />}
         </div>
@@ -135,9 +138,10 @@ export function StageBar({
             href={proofHref}
             className="fsc-proofchip"
             data-testid="W-JG-01.proofChip"
-            data-complete={total > 0 && confirmed === total ? "" : undefined}
+            data-complete={checks.total > 0 && checks.matched === checks.total ? "" : undefined}
+            data-replayed={replayed ? "" : undefined}
           >
-            <Glyph name={confirmed > 0 ? "seal-fill" : "seal"} size={16} />
+            <Glyph name={checks.matched > 0 ? "seal-fill" : "seal"} size={16} />
             <span className="fs-sr">{proof.spoken}</span>
             <span className="fs-t-label" aria-hidden>
               {STAGE.proof}
@@ -148,7 +152,7 @@ export function StageBar({
           </AppLink>
         )}
         <span className="fsc-bar__tag" data-testid="W-JG-01.notice">
-          <HonestyTag>{railTag(rail)}</HonestyTag>
+          <HonestyTag quiet>{railTag(rail)}</HonestyTag>
         </span>
       </nav>
     </header>

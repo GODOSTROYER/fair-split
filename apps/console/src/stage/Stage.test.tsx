@@ -106,14 +106,27 @@ describe("Judge stage", () => {
     const callSpy = vi.spyOn(view.adapter, "call");
     const stage = screen.getByTestId("W-JG-01.stage");
     expect(stage.dataset.state).toBe("ready");
-    // The test window is 1470 px wide: the narrow dock (UI gate round 2) keeps the phone beside the console.
+    // The test window is 1470 px wide: the phone has its column, folded to its rail (round 3), and the rail keeps
+    // its labels; "Fair Split" leads the bar.
     expect(stage.dataset.layout).toBe("dock");
-    expect(screen.getByTestId("W-JG-01.ribbon").textContent).toMatch(/\d\d:\d\d:\d\d PHT/);
+    expect(stage.dataset.phone).toBe("folded");
+    expect(stage.dataset.rail).toBe("full");
+    expect(screen.getByTestId("W-JG-01.bar").textContent).toMatch(/^Fair Split/);
+    // No ribbon: the first view's seeded history is in the Log, newest first.
+    expect(screen.queryByTestId("W-JG-01.ribbon")).toBeNull();
+    expect(screen.queryByTestId("W-JG-01.toast")).toBeNull();
     expect(screen.getByTestId("W-JG-01.runPill").dataset.step).toBe("mark-paid");
-    expect(screen.getByTestId("W-JG-01.notice").textContent).toMatch(/simulated PayPal sandbox/i);
-    expect(screen.getByTestId("W-JG-01.ribbon.paypal").textContent).toMatch(/FS-2026A-r37/);
-    // The seeded rows wear their small tag; the canonical phrase is the lane's title.
-    expect(screen.getByTestId("W-JG-01.ribbon.machine").textContent).toMatch(/Seed stand-in/);
+    expect(screen.getByTestId("W-JG-01.notice").textContent).toBe("Simulated PayPal sandbox");
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("W-JG-01.logOpen"));
+    });
+    const log = await screen.findByTestId("W-JG-01.log");
+    expect(log.textContent).toMatch(/\d\d:\d\d:\d\d PHT/);
+    expect(within(log).getByTestId("W-JG-01.log.paypal").textContent).toMatch(/FS-2026A-r37/);
+    // The seeded rows carry the seed stand-in glyph: the canonical phrase is its name and its title.
+    const machine = within(log).getByTestId("W-JG-01.log.machine");
+    expect(machine.querySelector('[title="Seed stand-in, not a Claude recording"]')).toBeTruthy();
+    expect(machine.textContent).toMatch(/Seed stand-in, not a Claude recording/);
     expect(screen.queryByTestId("W-JG-01.caption")).toBeNull();
     expect(screen.queryByTestId("W-JG-01.reset")).toBeNull();
     expect(callSpy).not.toHaveBeenCalled();
@@ -121,7 +134,7 @@ describe("Judge stage", () => {
     expect(view.world.events()).toEqual([]);
   });
 
-  it("the first press starts the run; the stream moves the stage, the pill and the ribbon", async () => {
+  it("the first press starts the run; the stream moves the stage, the pill, the toast and the Log", async () => {
     const view = await renderConsole({ path: "/judge" });
     await press("W-JG-01.markPaid");
     const stage = screen.getByTestId("W-JG-01.stage");
@@ -133,9 +146,22 @@ describe("Judge stage", () => {
     });
     await waitFor(() => expect(screen.getByTestId("W-JG-01.runPill").dataset.step).toBe("by-hand"));
     expect(screen.getByTestId("W-JG-01.runPill.state").textContent).toBe("In review");
-    expect(screen.getByTestId("W-JG-01.ribbon.machine").textContent).toMatch(
-      /Raised by the engine|Lines computed|In review/,
-    );
+    // Each new event toasts once, bottom left; the whole timeline is behind Log.
+    expect(screen.getByTestId("W-JG-01.toast").dataset.state).toBe("in");
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("W-JG-01.logOpen"));
+    });
+    const log = await screen.findByTestId("W-JG-01.log");
+    expect(
+      within(log)
+        .getAllByTestId("W-JG-01.log.machine")
+        .some((row) =>
+          /Raised by the engine|Lines computed|In review|Season check/.test(row.textContent ?? ""),
+        ),
+    ).toBe(true);
+    await act(async () => {
+      fireEvent.click(within(log).getByTestId("W-JG-01.log.close"));
+    });
     expect(screen.getByTestId("W-JG-01.reset")).toBeTruthy();
     // The rest of the loop arrives the same way: by events, never by timers.
     const runSlug = view.runtime.session.getState().session?.runSlug ?? "";
@@ -396,11 +422,12 @@ describe("Judge stage", () => {
     });
   });
 
-  it("raises the phone from its ribbon lane and lowers it with Escape (1024–1439 px)", async () => {
+  it("raises the phone from its rail and lowers it with Escape (1024–1439 px)", async () => {
     await renderConsole({ path: "/judge", viewport: { width: 1366 } });
     const tab = screen.getByTestId("W-JG-01.phoneTab");
-    // The collapsed phone is the ribbon's fourth lane: it never covers the screen.
-    expect(screen.getByTestId("W-JG-01.ribbon").contains(tab)).toBe(true);
+    // The folded phone is its 56 px rail at the right: it never covers the screen.
+    expect(screen.getByTestId("W-JG-01.phone").contains(tab)).toBe(true);
+    expect(screen.getByTestId("W-JG-01.stage").dataset.phone).toBe("folded");
     expect(tab.getAttribute("aria-expanded")).toBe("false");
     expect(tab.textContent).toMatch(/Gisusi pa/);
     await act(async () => {
@@ -656,7 +683,8 @@ describe("Judge stage", () => {
           fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
         });
         expect(stage.dataset.raised).toBeUndefined();
-        expect(panel.hasAttribute("inert")).toBe(true);
+        // Round 3: the phone folds to its rail; its frames go inert, its avatars stay.
+        expect(panel.querySelector("#fsc-phone-device")?.hasAttribute("inert")).toBe(true);
         // The browser's focus fixup: a control under the now-inert panel loses focus to <body>.
         const held = document.activeElement;
         if (held instanceof HTMLElement && held.closest("[inert]")) held.blur();
@@ -741,17 +769,48 @@ describe("Judge stage", () => {
     expect(console_?.contains(document.activeElement)).toBe(true);
   });
 
-  it("docks a narrow phone with the rail folded at 1470 px, its statement never under a veil or a label", async () => {
+  it("at 1470 px keeps the rail's labels and folds the phone to its rail; the glyph opens it beside the screen", async () => {
     await renderConsole({ path: "/judge", viewport: { width: 1470, height: 956 } });
     const stage = screen.getByTestId("W-JG-01.stage");
     expect(stage.dataset.layout).toBe("dock");
-    expect(stage.dataset.rail).toBe("collapsed");
-    expect(screen.queryByTestId("W-JG-01.phoneTab")).toBeNull();
+    expect(stage.dataset.rail).toBe("full");
+    expect(stage.dataset.phone).toBe("folded");
+    // Folded, the frames stay loaded, only hidden (never a skeleton on the way back), and nothing in them takes a key.
+    expect(document.getElementById("fsc-phone-device")?.hasAttribute("inert")).toBe(true);
+    const toggle = screen.getByTestId("W-JG-01.phoneTab");
+    expect(toggle.textContent).toMatch(/Show the phone\. Nang Celing: Gisusi pa/);
+    await act(async () => {
+      fireEvent.click(toggle);
+    });
+    expect(stage.dataset.phone).toBe("open");
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    // The glyph folds it again, and the viewer's choice holds on this screen.
+    await act(async () => {
+      fireEvent.click(toggle);
+    });
+    expect(stage.dataset.phone).toBe("folded");
+  });
+
+  it("from 1680 px opens the phone beside the first view, and folds it on the still places (round 3)", async () => {
+    const view = await renderConsole({ path: "/judge", viewport: { width: 1920, height: 1080 } });
+    const stage = screen.getByTestId("W-JG-01.stage");
+    expect(stage.dataset.phone).toBe("open");
     // "Use the phone" sits on the line under the device, outside the frame's screen.
     const scrim = screen.getByTestId("W-JG-01.phoneScrim");
     expect(scrim.textContent).toBe("Use the phone");
-    const frame = screen.getByTestId("W-JG-01.frame");
-    expect(frame.contains(scrim)).toBe(false);
+    expect(screen.getByTestId("W-JG-01.frame").contains(scrim)).toBe(false);
+    await press("W-JG-01.markPaid");
+    await waitFor(() => expect(view.world.run.state).toBe("FUNDED"));
+    act(() => view.world.settle());
+    const slug = view.runtime.session.getState().session?.runSlug ?? "";
+    await view.navigate(`/runs/${slug}/split`);
+    await waitFor(() => expect(stage.dataset.phone).toBe("folded"));
+    // A frame's avatar opens that frame.
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("W-JG-01.tab.chair"));
+    });
+    expect(stage.dataset.phone).toBe("open");
+    expect(screen.getByTestId("W-JG-01.tab.chair").getAttribute("aria-selected")).toBe("true");
   });
 
   it("docks the phone from 1680 px, and its button hands it focus", async () => {
@@ -796,7 +855,7 @@ describe("Judge stage", () => {
   );
 
   it.each([
-    ["lowered into the ribbon", 1366, 768],
+    ["folded to its rail", 1366, 768],
     ["dimmed in the dock", 1920, 1080],
   ])(
     "a frame that focuses itself while the phone is %s hands focus to the screen's control",

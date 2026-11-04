@@ -73,9 +73,8 @@ describe("W-TR-08 run: the honest fan-out", () => {
       for (const m of ["M-014", "M-007", "M-060", "M-018", "M-039", "M-022", "M-002"])
         expect(toneOf(m)).toBe("landed");
       expect(toneOf("M-031")).toBe("parked");
-      expect(screen.getByTestId("W-JG-01.proofChip").textContent).toContain(
-        "confirmed in the simulated sandbox",
-      );
+      // The top bar's Proof counter counts Proof's six checks (round 3), not payouts: none checked yet.
+      expect(screen.getByTestId("W-JG-01.proofChip").textContent).toContain("Proof: 0 of 6 checks match");
       // Signature 6: one seal, 64 lines, eight PayPal threads and 56 cash members, each its own path, the cash
       // drawn solid so the 56 meet as one calm band.
       const fan = screen.getByTestId("W-TR-08.fan");

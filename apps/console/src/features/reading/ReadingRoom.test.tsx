@@ -155,16 +155,19 @@ describe("W-TR-03 reading room", { timeout: 60_000 }, () => {
   );
 
   it.each(["full", "reduced"] as const)(
-    "prints a cloned run row by row in %s motion: the counter keeps up with the ribbon, the bench follows, photos tick",
+    "prints a cloned run row by row in %s motion: the counter keeps up with the toast, the bench follows, photos tick",
     async (motion) => {
       const r = await readingRun(motion);
       clearMomentTrace();
       const photoRows = (id: string) => replayRows(seedSnapshot()).filter((row) => row.photoId === id);
       const progress = () => screen.getByTestId("W-TR-03.film.progress").textContent;
+      // Round 3: no ribbon; each new event is the one toast at the bottom left (the Log keeps them all).
       const ribbon = (serial: string) =>
-        waitFor(() =>
-          expect(screen.getByTestId("W-JG-01.ribbon.machine").textContent).toMatch(`Read slip ${serial}`),
-        );
+        waitFor(() => {
+          const toast = screen.getByTestId("W-JG-01.toast");
+          expect(toast.dataset.lane).toBe("machine");
+          expect(toast.textContent).toMatch(`Read slip ${serial}`);
+        });
       expect(progress()).toBe("0 of 48 slips read");
       // Photo B's rows one at a time: each prints as it arrives, never waiting for COMPUTED.
       const b = photoRows("B");

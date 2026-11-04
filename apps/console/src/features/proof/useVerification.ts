@@ -5,10 +5,12 @@
 import type { ProofBundle } from "@fairsplit/contracts";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAdapter, useSnapshot } from "../../data/hooks.js";
+import { recordProofChecks } from "../../lib/proof-checks.js";
 import {
   headOf,
   loadPublishedKeys,
   loadServerPlate6,
+  PLATES,
   runVerification,
   type VerifyInput,
   type VerifyOutcome,
@@ -76,6 +78,11 @@ export function useVerification(
       .then((outcome) => {
         if (mine !== generation.current) return;
         setState({ kind: "done", outcome, at: new Date().toISOString(), pressId });
+        // The stage's Proof counter counts these same six checks (UI gate round 3).
+        recordProofChecks(
+          runSlug,
+          PLATES.filter((p) => ["matches", "server"].includes(outcome.checks[p].state)).length,
+        );
       })
       .catch((error: unknown) => {
         if (mine !== generation.current) return;

@@ -3,6 +3,7 @@
 // trace, the viewport). No network: anything that reaches fetch without a handler fails the test.
 
 import { afterEach, beforeEach } from "vitest";
+import { clearProofChecks } from "../lib/proof-checks.js";
 import { resetViewport } from "./viewport.js";
 
 const w = window as Window & {
@@ -46,6 +47,8 @@ beforeEach(() => {
   window.__fsMoments = [];
   document.documentElement.dataset.theme = "adlaw";
   document.documentElement.removeAttribute("data-datamode");
+  // The Proof counter's six checks are per tab: each test starts unchecked.
+  clearProofChecks();
 });
 
 afterEach(() => {

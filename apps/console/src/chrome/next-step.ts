@@ -40,6 +40,11 @@ export interface NextStep {
   readonly to: string;
   /** A phone frame to raise for this step (the Chair's key). */
   readonly persona?: FramePersona;
+  /**
+   * The run's state in the pill's words when the register's word would overclaim (UI gate round 3): a settled run
+   * with cash still due at the bodega reads "PayPal complete · cash due", never "Settled".
+   */
+  readonly stateWord?: string;
 }
 
 export interface NextStepContext {
@@ -55,6 +60,18 @@ export interface NextStepContext {
   readonly payouts: number;
   /** The hold open in the drawer (`?hold=`, a label or an ID): the pill names that hold's own decision. */
   readonly openHold?: string | null;
+  /** Members the plan pays in cash at the bodega (the snapshot's 56): until each is received, cash is due. */
+  readonly cashMembers?: number;
+}
+
+/**
+ * Cash is still due on a settled run: a cash line reads due, or fewer cash lines read received than the plan pays
+ * in cash. A settled run is PayPal's part complete, never the whole run, until the bodega's cash is handed over.
+ */
+export function cashStillDue(view: RunView, cashMembers = 0): boolean {
+  const lines = Object.values(view.lines);
+  if (lines.some((l) => l.state === "OFF_RAIL_DUE")) return true;
+  return lines.filter((l) => l.state === "OFF_RAIL_PAID").length < cashMembers;
 }
 
 const en = (key: MessageKey, values?: Record<string, string | number>) => translate("en", key, values);
@@ -172,6 +189,18 @@ export function nextStep(view: RunView | undefined, ctx: NextStepContext): NextS
       };
     case "SETTLED":
     case "CLOSED":
+      // PayPal's part is complete; with cash still due at the bodega the pill never says Settled or Done. Proof
+      // lists every cash line as due, so the review is there.
+      if (cashStillDue(view, ctx.cashMembers ?? 0)) {
+        return {
+          id: "done",
+          text: en("W-JG-01.pill.cashDue"),
+          actor: "person",
+          screen: "W-PF-01",
+          to: webRoutes.proof(runSlug),
+          stateWord: en("W-JG-01.pill.stateCashDue"),
+        };
+      }
       return {
         id: "done",
         text: en("W-JG-01.pill.done"),

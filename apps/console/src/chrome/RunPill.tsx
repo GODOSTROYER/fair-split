@@ -4,7 +4,7 @@
 // console screens and Shortcuts. "Play it for me" (the season slice) sits in its accessory slot.
 
 import { Menu } from "@base-ui/react/menu";
-import { Glyph, useT } from "@fairsplit/ui-web";
+import { Glyph, HONESTY, LegendGlyph, useT } from "@fairsplit/ui-web";
 import type { RunView } from "../data/run-view.js";
 import { useShortcuts } from "../lib/shortcuts.js";
 import { AppLink } from "./AppLink.js";
@@ -23,11 +23,18 @@ export interface RunPillProps {
 export function RunPill({ view, next, items, onStep }: RunPillProps) {
   const t = useT();
   const shortcuts = useShortcuts();
-  const state = view ? t(`run.${view.state}`, { treasurer: "Analyn", chair: "Ernesto" }) : "";
+  // The step's own state word where the register's would overclaim (cash still due is never "Settled").
+  const state = view
+    ? (next.stateWord ?? t(`run.${view.state}`, { treasurer: "Analyn", chair: "Ernesto" }))
+    : "";
   return (
     <div className="fsc-pill" data-testid="W-JG-01.runPill" data-step={next.id} data-actor={next.actor}>
       {state && (
-        <span className="fsc-pill__state fs-t-caption" data-testid="W-JG-01.runPill.state">
+        <span
+          className="fsc-pill__state fs-t-caption"
+          data-keep={next.stateWord ? "" : undefined}
+          data-testid="W-JG-01.runPill.state"
+        >
           {state}
         </span>
       )}
@@ -39,6 +46,8 @@ export function RunPill({ view, next, items, onStep }: RunPillProps) {
       >
         <span className="fsc-pill__mark" aria-hidden />
         <span>{next.text}</span>
+        {/* The reading replays the seed stand-in: its glyph says so (the pinned phrase is its name), no sentence. */}
+        {next.id === "reading" && <LegendGlyph {...HONESTY.seedStandIn} className="fsc-pill__glyph" />}
       </AppLink>
       <ChromeSlot name="pill.accessory" as="span" className="fsc-pill__slot" />
       <Menu.Root>

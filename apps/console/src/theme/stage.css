@@ -1,10 +1,9 @@
-/* The Judge stage (S1.6, design §6 J1) in Hayag, the light default (ADR-0016): one bar (the run pill in its
-   centre, the utilities, the short Proof counter and the honesty tag on the right) on plate, then white panels set
-   on the ground at the panel radius on e2: the console (rail, screen), the docked phone and the ribbon (three log
-   lanes, the phone's lane, the honesty caption). No wash behind the stage (UI gate round 2: colour only where it
-   means something). The screens get every pixel the chrome does not need. Layout follows S1.6's table: phone
-   docked from 1440 px (a narrow column, the rail folded, below 1680), a ribbon lane that rises from 1024, and
-   below that a phone visit: the member's statement, full width. */
+/* The Judge stage (S1.6, design §6 J1) in Hayag, the light default (ADR-0016; UI gate round 3): one bar ("Fair
+   Split" on the left at every width, the run pill in its centre, the utilities, the Proof counter and the one quiet
+   honesty indicator on the right) on plate, then white panels set on the ground at the panel radius on e2: the
+   console (rail, screen) and the phone, its own column from 1440 px or a 56 px rail where it shows nothing new. No
+   ribbon: one 40 px toast at the bottom left for 3 s per event, the whole timeline behind Log. No wash behind the
+   stage. The screens get every pixel the chrome does not need. Below 1024 px the stage is a phone visit. */
 
 /* ---------------------------------------------------------------- frame */
 
@@ -15,6 +14,8 @@
   --fsc-gutter: 10px;
   /* The docked phone's column: S1.6's 420 px from 1680 px; narrower (a 340 px screen) from 1440 px. */
   --fsc-dock: var(--fs-console-dock);
+  /* The folded phone's rail (round 3). */
+  --fsc-phone-rail: 56px;
   position: relative;
   display: flex;
   flex-direction: column;
@@ -42,6 +43,11 @@
   grid-template-columns: minmax(0, 1fr) var(--fsc-dock);
 }
 
+/* Folded (round 3), at any desktop width, the phone keeps a 56 px rail and the console takes the rest. */
+.fsc-stage[data-phone="folded"] .fsc-stage__body {
+  grid-template-columns: minmax(0, 1fr) var(--fsc-phone-rail);
+}
+
 @media (max-width: 1679px) {
   .fsc-stage[data-layout="dock"] {
     --fsc-dock: 380px;
@@ -50,13 +56,13 @@
 
 /* ---------------------------------------------------------------- top bar */
 
-/* One row (UI gate round 2): the left column (a mock chip, or the folded rail's lockup story) gives way first;
-   the run pill in the centre keeps its full width and never truncates; the right holds the utilities, the short
-   Proof counter and the honesty tag. */
+/* One row (UI gate round 3): "Fair Split" leads at every width, then a mock chip (if any) in a column that gives
+   way first; the run pill keeps its full width and never truncates; the right holds the utilities, the Proof
+   counter and the one quiet honesty indicator. */
 .fsc-bar {
   display: grid;
   flex: none;
-  grid-template-columns: minmax(0, 1fr) max-content minmax(max-content, 1fr);
+  grid-template-columns: max-content minmax(0, 1fr) max-content minmax(max-content, 1fr);
   align-items: center;
   gap: 8px 16px;
   min-height: 56px;
@@ -66,7 +72,10 @@
   box-shadow: var(--fs-shadow-e1);
 }
 
-.fsc-bar .fsc-wordmark {
+.fsc-bar > .fsc-wordmark {
+  grid-row: 1;
+  grid-column: 1;
+  justify-self: start;
   padding-right: 16px;
   border-right: 1px solid var(--fs-rule);
 }
@@ -76,16 +85,6 @@
   align-items: center;
   gap: 8px;
   min-width: 0;
-}
-
-.fsc-bar__story {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--fs-ink-2);
-  font-size: 0.8125rem;
-  line-height: 1.125rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .fsc-bar__pill {
@@ -101,24 +100,23 @@
   gap: 8px;
 }
 
-/* Each part keeps its column even while the honesty slot is empty (and hidden): auto-placement would move the
-   pill into the shrinking first column, where a long next step runs under the links. */
+/* Each part keeps its column even while the mock slot is empty (and hidden). */
 .fsc-bar > .fsc-bar__honest {
-  grid-row: 1;
-  grid-column: 1;
-}
-
-.fsc-bar > .fsc-bar__pill {
   grid-row: 1;
   grid-column: 2;
 }
 
-.fsc-bar > .fsc-bar__actions {
+.fsc-bar > .fsc-bar__pill {
   grid-row: 1;
   grid-column: 3;
 }
 
-/* What's real, Sound and Reset: one quiet cluster of line icons, set off from Proof by a rule. */
+.fsc-bar > .fsc-bar__actions {
+  grid-row: 1;
+  grid-column: 4;
+}
+
+/* What's real, Log, Sound and Reset: one quiet cluster of line icons, set off from Proof by a rule. */
 .fsc-bar__utils {
   display: flex;
   align-items: center;
@@ -127,6 +125,7 @@
   border-right: 1px solid var(--fs-rule);
 }
 
+/* The one quiet indicator: the dashed circle and the words in ink-3, no outline. */
 .fsc-bar__tag {
   display: inline-flex;
   flex: none;
@@ -134,36 +133,6 @@
 
 .fsc-bar__mock {
   flex: none;
-}
-
-/* Where the lockup sits in the bar (the rail folded), it leads the row, a mock chip (if any) beside it; the pill
-   stays whole in the middle. */
-.fsc-bar[data-lockup] {
-  grid-template-columns: max-content minmax(0, 1fr) max-content minmax(max-content, 1fr);
-}
-
-.fsc-bar[data-lockup] > .fsc-wordmark {
-  grid-row: 1;
-  grid-column: 1;
-}
-
-.fsc-bar[data-lockup] > .fsc-bar__pill {
-  grid-row: 1;
-  grid-column: 3;
-}
-
-.fsc-bar[data-lockup] > .fsc-bar__actions {
-  grid-row: 1;
-  grid-column: 4;
-}
-
-.fsc-bar[data-lockup] > .fsc-wordmark {
-  justify-self: start;
-}
-
-.fsc-bar[data-lockup] > .fsc-bar__honest {
-  grid-row: 1;
-  grid-column: 2;
 }
 
 .fsc-bar__honest:empty {
@@ -210,8 +179,8 @@
   white-space: nowrap;
 }
 
-/* The Proof counter: "Proof 0/8", a seal and a count in an outline pill (a checked fact, never a fill). Its
-   whole sentence is the accessible name. */
+/* The Proof counter on Proof's six checks: "Proof 0/6", a seal and a count in an outline pill (a checked fact,
+   never a fill). Its whole sentence is the accessible name. */
 .fsc-proofchip {
   display: inline-flex;
   flex: none;
@@ -749,7 +718,7 @@
   padding: 24px;
 }
 
-/* ---------------------------------------------------------------- phone dock */
+/* ---------------------------------------------------------------- phone dock and its rail (round 3) */
 
 .fsc-dock {
   position: relative;
@@ -759,8 +728,9 @@
   min-height: 0;
 }
 
-/* The dock: one plate panel like the console's (no wash, UI gate round 2), the graphite phone standing on it. */
-.fsc-stage[data-layout="dock"] .fsc-dock {
+/* The phone's own column (1440 px and up) and its rail at every desktop width: one plate panel like the
+   console's, the graphite phone standing on it. */
+.fsc-stage:is([data-layout="dock"], [data-layout="tab"]) .fsc-dock {
   overflow: hidden auto;
   border-radius: var(--fs-radius-panel);
   background: var(--fs-plate);
@@ -778,6 +748,7 @@
   display: grid;
   justify-items: center;
   align-content: start;
+  min-width: 0;
   padding: 12px 16px 12px;
 }
 
@@ -785,6 +756,32 @@
   display: grid;
   justify-items: center;
   gap: 14px;
+  min-width: 0;
+}
+
+/* The head: the phone glyph (open or fold) beside the frame switch. */
+.fsc-dock__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.fsc-dock__toggle {
+  appearance: none;
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: var(--fs-radius-control);
+  background: transparent;
+  color: var(--fs-ink-2);
+}
+
+.fsc-dock__toggle:hover {
+  background: var(--fs-plate-2);
+  color: var(--fs-ink);
 }
 
 /* Member, Chair, Clerk: a segmented pill; the selected persona is a white pill on e1. */
@@ -819,6 +816,11 @@
   color: var(--fs-ink);
 }
 
+/* Open, the avatars give way to the words. */
+.fsc-dock__avatar {
+  display: none;
+}
+
 .fsc-dock__device {
   position: relative;
 }
@@ -827,9 +829,90 @@
   transition: opacity var(--fs-dur-crossfade) var(--fs-ease-out);
 }
 
-/* Docked (1440 px and wider): the phone waits, at full contrast (no veil: its statement keeps 7:1), until it is
-   the focus (S1.6). One button covers it and the line under it; "Use the phone" sits on that line, outside the
-   device, so it never covers the member's statement (UI gate round 2). */
+/* Folded (round 3): a 56 px rail. The phone glyph on top, then one 32 px avatar per frame, the shown frame's status
+   dot on its corner. The device stays loaded at its size, only hidden, so opening shows its last good state. */
+.fsc-dock[data-folded] .fsc-dock__panel {
+  padding: 12px 0;
+}
+
+.fsc-dock[data-folded] .fsc-dock__head {
+  flex-direction: column;
+  gap: 12px;
+}
+
+.fsc-dock[data-folded] .fsc-dock__tabs {
+  flex-direction: column;
+  gap: 8px;
+  padding: 0;
+  background: transparent;
+}
+
+.fsc-dock[data-folded] .fsc-dock__tab {
+  display: grid;
+  place-items: center;
+  min-width: 0;
+  width: 40px;
+  min-height: 40px;
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.fsc-dock[data-folded] .fsc-dock__avatar {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--fs-plate-2);
+  box-shadow: inset 0 0 0 1px var(--fs-rule-strong);
+  color: var(--fs-ink-2);
+  font-stretch: 87.5%;
+  font-weight: 560;
+  font-size: 0.75rem;
+  line-height: 1;
+}
+
+.fsc-dock[data-folded] .fsc-dock__tab[aria-selected="true"] .fsc-dock__avatar {
+  background: var(--fs-plate);
+  box-shadow: inset 0 0 0 1.5px var(--fs-ink);
+  color: var(--fs-ink);
+}
+
+.fsc-dock__dot {
+  position: absolute;
+  top: -1px;
+  right: -1px;
+  box-shadow:
+    0 0 0 2px var(--fs-plate),
+    inset 0 0 0 1.5px var(--fs-pending);
+}
+
+.fsc-dock__dot[data-kind="done"],
+.fsc-dock__dot[data-kind="held"] {
+  box-shadow: 0 0 0 2px var(--fs-plate);
+}
+
+.fsc-dock[data-folded] .fsc-dock__tabword {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.fsc-dock[data-folded] .fsc-dock__device {
+  position: absolute;
+  top: 0;
+  left: 100%;
+  visibility: hidden;
+}
+
+/* Open in its column (1440 px and up): the phone waits, at full contrast (no veil: its statement keeps 7:1), until
+   it is the focus (S1.6). One button covers it and the line under it; "Use the phone" sits on that line, outside
+   the device, so it never covers the member's statement. */
 .fsc-dock__device[data-dimmed] {
   padding-bottom: 36px;
 }
@@ -867,17 +950,19 @@
   outline-offset: -2px;
 }
 
-/* 1024–1679 px: the phone folds into the ribbon's phone lane and rises above the ribbon at the right. A raise
-   the viewer asked for lays the scrim over the console; a moment's raise leaves the console lit, and the screen
-   makes room for the phone beside it, so the two read side by side (MM-5's seal and the Chair's frame). */
+/* 1024–1439 px: the rail sits in its column; raised, the phone rises at the right. A raise the viewer asked for
+   lays the scrim over the console; a moment's raise leaves the console lit, and from 1280 px the screen makes room
+   for the phone beside it, so the two read side by side (MM-5's seal and the Chair's frame). */
 .fsc-stage[data-layout="tab"] .fsc-dock {
-  position: absolute;
-  inset: 0;
   z-index: var(--fs-z-dock);
-  pointer-events: none;
 }
 
-/* Room beside the phone exists from 1280 px only; below it a moment raises the phone over the scrim (Stage.tsx). */
+.fsc-stage[data-layout="tab"] .fsc-dock[data-raised] {
+  position: static;
+  overflow: visible;
+  box-shadow: none;
+}
+
 @media (min-width: 1280px) {
   .fsc-stage[data-layout="tab"][data-raised="moment"] .fsc-stage__body {
     grid-template-columns: minmax(0, 1fr) var(--fsc-phone-panel);
@@ -887,6 +972,8 @@
     grid-column: 2;
     grid-row: 1;
     min-width: 0;
+    overflow: hidden auto;
+    box-shadow: var(--fs-shadow-e2);
   }
   .fsc-stage[data-layout="tab"][data-raised="moment"] .fsc-dock__panel {
     right: 0;
@@ -896,6 +983,7 @@
 .fsc-dock__backdrop {
   position: absolute;
   inset: 0;
+  z-index: var(--fs-z-scrim);
   background: var(--fs-scrim);
   pointer-events: auto;
   transition: opacity var(--fs-dur-drawer-in) var(--fs-ease-drawer);
@@ -907,49 +995,49 @@
   }
 }
 
-.fsc-stage[data-layout="tab"] .fsc-dock__panel {
+/* Raised below 1440 px, the panel stands at the right, over the rail's column, above the console. It is visible in
+   the raise's first frame: Stage moves focus into it in that commit, and a browser refuses focus to a control it
+   does not render (with the console under the scrim inert, focus would fall to <body>, WCAG 2.4.3). */
+.fsc-stage[data-layout="tab"] .fsc-dock[data-raised] .fsc-dock__panel {
   position: absolute;
+  top: 0;
   max-height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
   min-width: 0;
-  right: 24px;
-  bottom: 0;
-  z-index: 1;
+  right: 0;
+  z-index: calc(var(--fs-z-scrim) + 1);
   width: var(--fsc-phone-panel);
   /* A 360 px screen and its 20 px bezel fit inside the fixed panel's border box. */
   padding: 14px 8px 12px;
   border: 1px solid var(--fs-rule);
-  border-bottom: 0;
-  border-radius: var(--fs-radius-panel) var(--fs-radius-panel) 0 0;
+  border-radius: var(--fs-radius-panel);
   background: var(--fs-plate);
   box-shadow: var(--fs-shadow-e3);
-  pointer-events: auto;
   transition:
     transform var(--fs-spring-glide-dur) var(--fs-spring-glide),
     visibility 0s linear;
 }
 
-.fsc-stage[data-layout="tab"] .fsc-dock:not([data-raised]) .fsc-dock__panel {
-  visibility: hidden;
-  transform: translateY(calc(100% + 1px));
-  transition:
-    transform var(--fs-dur-drawer-out) var(--fs-ease-drawer),
-    visibility 0s linear var(--fs-dur-drawer-out);
+@starting-style {
+  .fsc-stage[data-layout="tab"] .fsc-dock[data-raised] .fsc-dock__panel {
+    transform: translateX(calc(24px * var(--fs-motion, 1)));
+  }
 }
 
-/* Reduced, the panel fades instead of sliding. On the way up it is visible at once, as in full motion: Stage moves
-   focus into it in the commit that raised it, and a browser refuses focus to a control it does not render (with the
-   console under the scrim inert, focus would fall to <body>, WCAG 2.4.3). Only the way down waits for the fade. */
+/* The device folds away below 1440 px once its way back is over (the rail stays). */
+.fsc-stage[data-layout="tab"] .fsc-dock:not([data-raised]) .fsc-dock__device {
+  visibility: hidden;
+  transition: visibility 0s linear var(--fs-dur-drawer-out);
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .fsc-stage[data-layout="tab"] .fsc-dock__panel {
+  .fsc-stage[data-layout="tab"] .fsc-dock[data-raised] .fsc-dock__panel {
     transform: none;
-    transition:
-      opacity var(--fs-dur-reduced) linear,
-      visibility 0s linear;
+    transition: visibility 0s linear;
   }
 
-  .fsc-stage[data-layout="tab"] .fsc-dock:not([data-raised]) .fsc-dock__panel {
+  .fsc-stage[data-layout="tab"] .fsc-dock:not([data-raised]) .fsc-dock__device {
     opacity: 0;
     transform: none;
     transition:
@@ -1116,213 +1204,134 @@
   color: var(--fs-ink-2);
 }
 
-/* ---------------------------------------------------------------- ribbon and caption */
+/* ---------------------------------------------------------------- toast and Log (round 3) */
 
-/* Three log lanes, one line each (UI gate round 2), then (1024-1439 px) the phone's lane. The honesty caption
-   that closed the ribbon moved to What's real; the PayPal lane's name is the honesty tag. */
-.fsc-ribbon {
-  display: grid;
-  flex: none;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  overflow: clip;
-  border-radius: var(--fs-radius-panel);
+/* One toast, bottom left of the screen (beside the rail, never over its foot), 40 px: the newest live event for
+   3 s. It never takes a click or focus. */
+.fsc-toast {
+  position: absolute;
+  bottom: calc(var(--fsc-gutter) + 16px);
+  left: calc(var(--fsc-gutter) + var(--fs-console-rail) + 24px);
+  z-index: var(--fs-z-snackbar);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: min(560px, calc(100% - 64px));
+  height: 40px;
+  padding: 0 16px 0 14px;
+  border: 1px solid var(--fs-rule);
+  border-radius: var(--fs-radius-pill);
   background: var(--fs-plate);
-  box-shadow: var(--fs-shadow-e2);
-}
-
-.fsc-ribbon__caption > p {
-  margin: 0;
-}
-
-.fsc-ribbon__zone {
-  margin-top: 4px;
-  color: var(--fs-ink-3);
-}
-
-.fsc-ribbon[data-phone] {
-  grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(208px, 0.62fr);
-}
-
-.fsc-ribbon__lane {
-  display: grid;
-  align-content: start;
-  gap: 4px;
-  min-width: 0;
-  padding: 10px 20px 12px;
-}
-
-.fsc-ribbon__lane + .fsc-ribbon__lane {
-  border-left: 1px solid var(--fs-rule);
-}
-
-/* The phone's lane: read like a log lane (name, words, what it does), pressed like a link. */
-.fsc-ribbon__phone {
-  appearance: none;
-  justify-items: start;
-  margin: 0;
-  border: 0;
-  border-left: 1px solid var(--fs-rule);
-  border-radius: 0;
-  background: transparent;
+  box-shadow: var(--fs-shadow-e3);
   color: var(--fs-ink);
-  text-align: left;
-  cursor: pointer;
+  pointer-events: none;
+  transition:
+    opacity var(--fs-dur-popover) var(--fs-ease-out),
+    transform var(--fs-dur-popover) var(--fs-ease-out),
+    visibility 0s linear;
 }
 
-.fsc-ribbon__phone:hover,
-.fsc-ribbon__phone[aria-expanded="true"] {
-  background: var(--fs-plate-2);
+.fsc-stage[data-rail="collapsed"] .fsc-toast {
+  left: calc(var(--fsc-gutter) + 64px + 24px);
 }
 
-.fsc-ribbon__phone:focus-visible {
-  outline-offset: -3px;
-}
-
-.fsc-ribbon__action {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  color: var(--fs-ink-2);
-}
-
-.fsc-ribbon__phone:hover .fsc-ribbon__action {
-  color: var(--fs-ink);
-}
-
-/* The stage's honesty caption closes the ribbon (I8): synthetic people, and the reading's replay date. */
-.fsc-ribbon__caption {
-  align-self: center;
-  min-width: 0;
-  margin: 0;
-  padding: 10px 20px 12px;
-  border-left: 1px solid var(--fs-rule);
-  color: var(--fs-ink-3);
-}
-
-.fsc-ribbon__name {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--fs-ink-3);
-}
-
-/* The lane's material: graphite for the machine, ink for people, an open ring for PayPal until a payment
-   it confirmed is the newest row, which is jade flush (design §2.2: jade only when PayPal confirms). */
-/* The lane's material: graphite for the machine, ballpoint for people (a person's hand), the dashed steel ring
-   for the simulated PayPal (not real; a notice, a cancellation) until a payment it confirmed is the newest row,
-   which is flush jade (jade only when PayPal confirms money; a dashed jade ring would read as money in flight). */
-.fsc-ribbon__mark {
-  flex: none;
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: var(--fs-pencil);
-}
-
-.fsc-ribbon__lane[data-lane="people"] .fsc-ribbon__mark {
-  background: var(--fs-pod);
-}
-
-/* The PayPal lane's name is the honesty tag, with its own dashed ring: the lane's mark shows only once a payment
-   the simulated PayPal confirmed is its newest row (jade). */
-.fsc-ribbon__lane[data-lane="paypal"] .fsc-ribbon__mark {
-  display: none;
-}
-
-.fsc-ribbon__lane[data-lane="paypal"][data-landed] .fsc-ribbon__mark {
-  display: block;
-  border: 1.5px solid var(--fs-jade-flush-border);
-  background: var(--fs-jade);
-}
-
-/* The phone lane's mark: a phone's outline. */
-/* biome-ignore lint/style/noDescendingSpecificity: a different lane from PayPal's; the two never meet */
-.fsc-ribbon__lane[data-lane="phone"] .fsc-ribbon__mark {
-  width: 7px;
-  height: 11px;
-  border: 1.5px solid var(--fs-ink-2);
-  border-radius: 2px;
-  background: transparent;
-}
-
-/* One line: the event's words, then (a seeded or replayed row) its small tag. */
-.fsc-ribbon__row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
-.fsc-ribbon__tag {
-  flex: none;
-}
-
-.fsc-ribbon__name .fsc-ribbon__tag {
-  margin-left: -2px;
-}
-
-.fsc-ribbon__row[data-print] {
-  animation: fs-wipe var(--fs-dur-print) linear;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .fsc-ribbon__row[data-print] {
-    animation: fs-fade var(--fs-dur-reduced) linear;
+@starting-style {
+  .fsc-toast {
+    opacity: 0;
+    transform: translateY(calc(8px * var(--fs-motion, 1)));
   }
 }
 
-.fsc-ribbon__words {
+.fsc-toast[data-state="out"] {
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(calc(8px * var(--fs-motion, 1)));
+  transition:
+    opacity var(--fs-dur-popover) var(--fs-ease-out),
+    transform var(--fs-dur-popover) var(--fs-ease-out),
+    visibility 0s linear var(--fs-dur-popover);
+}
+
+/* The Log: the whole timeline, newest first, one line a row. */
+.fsc-logsheet {
+  width: min(560px, 100vw);
+}
+
+.fsc-log {
+  display: grid;
+  margin: 0;
+  padding: 8px 0 24px;
+  list-style: none;
+}
+
+.fsc-log__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 40px;
+  padding: 8px 28px;
+  border-bottom: 1px solid var(--fs-rule);
+}
+
+.fsc-log__empty {
+  padding: 16px 28px;
+  color: var(--fs-ink-3);
+}
+
+/* The lane's mark: graphite for the machine, ink for people, the simulated glyph for PayPal (a jade dot only when
+   the simulated PayPal confirmed a payment). */
+.fsc-log__mark {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  background: var(--fs-pencil);
+}
+
+.fsc-log__mark[data-lane="people"] {
+  background: var(--fs-ink);
+}
+
+.fsc-log__mark[data-lane="paypal"][data-landed] {
+  border-radius: 50%;
+  background: var(--fs-jade);
+  box-shadow: inset 0 0 0 1px var(--fs-jade-flush-border);
+}
+
+.fsc-log__glyph {
+  flex: none;
+}
+
+.fsc-log__time {
+  flex: none;
+  color: var(--fs-ink-3);
+}
+
+.fsc-log__words {
   min-width: 0;
+  color: var(--fs-ink);
+}
+
+.fsc-log__words[data-duplicate] {
+  color: var(--fs-ink-3);
+}
+
+/* In the toast the words keep one line. */
+.fsc-toast .fsc-log__words {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-/* Replay and simulated rail labels stay visible even when the phone lane is narrow. */
-.fsc-ribbon__phone .fsc-ribbon__words {
-  display: block;
-  max-width: 100%;
-  overflow: visible;
-  white-space: normal;
+/* The reading step's seed stand-in glyph, after the pill's words. */
+.fsc-pill__glyph {
+  margin-left: 2px;
 }
 
-.fsc-ribbon__lane[data-lane="machine"] .fsc-ribbon__words {
-  color: var(--fs-pencil);
-}
-
-.fsc-ribbon__row[data-duplicate] .fsc-ribbon__words {
-  color: var(--fs-ink-2);
-}
-
-/* A row's detail (event name, IDs, source, signature) keeps two lines: an item ID is never cut mid-word. */
-.fsc-ribbon__detail {
-  display: -webkit-box;
-  overflow: hidden;
-  color: var(--fs-ink-3);
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  overflow-wrap: anywhere;
-}
-
-/* The row's time, with its zone, at the end of the lane's name: "08:00:00 PHT". */
-.fsc-ribbon__time {
-  margin-left: auto;
-  color: var(--fs-ink-3);
-}
-
-.fsc-ribbon__empty {
-  color: var(--fs-ink-3);
-}
-
-.fsc-stage__caption {
-  display: flex;
-  flex: none;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: 4px 24px;
-  padding: 6px 24px 8px;
-  color: var(--fs-ink-3);
+/* A screen's first pre-focus wears no ring until the viewer presses a key (stage/context.tsx): one ring, on
+   keyboard focus only (round 3). Unlayered, so it wins over ui-web's ring. */
+[data-prefocused]:focus-visible {
+  outline-color: transparent;
 }
 
 .fsc-stage__overlay {
@@ -1530,8 +1539,8 @@
   display: none;
 }
 
-/* 1024–1679 px: the raised phone sits above drawers (the phone lane in the ribbon never covers either). */
-.fsc-stage[data-layout="tab"] .fsc-dock {
+/* 1024–1439 px: the raised phone sits above drawers (its rail never covers either). */
+.fsc-stage[data-layout="tab"] .fsc-dock[data-raised] {
   z-index: calc(var(--fs-z-drawer) + 1);
 }
 
@@ -1557,52 +1566,46 @@
   }
 }
 
-/* 1024-1279 px: the pill on the left, the links on the right; anything on the left column moves to row 2. */
+/* 1024-1279 px: "Fair Split" and the pill on row 1; the links on row 2; a mock chip on row 3. */
 @media (min-width: 1024px) and (max-width: 1279px) {
   .fsc-bar {
-    grid-template-columns: max-content minmax(0, 1fr);
-  }
-
-  .fsc-bar > .fsc-bar__honest {
-    grid-row: 2;
-    grid-column: 1 / -1;
+    grid-template-columns: auto minmax(max-content, 1fr);
   }
 
   .fsc-bar > .fsc-bar__pill {
     grid-row: 1;
-    grid-column: 1;
+    grid-column: 2;
     justify-content: flex-start;
   }
 
   .fsc-bar > .fsc-bar__actions {
-    grid-row: 1;
-    grid-column: 2;
+    grid-row: 2;
+    grid-column: 1 / -1;
     min-width: 0;
   }
 
-  /* With the lockup in the bar, the pill keeps row 1 beside it; the links take row 2, the story row 3. */
-  .fsc-bar[data-lockup] {
-    grid-template-columns: auto minmax(max-content, 1fr);
-  }
-
-  .fsc-bar[data-lockup] > .fsc-bar__pill {
-    grid-column: 2;
-  }
-
-  .fsc-bar[data-lockup] > .fsc-bar__actions {
-    grid-row: 2;
-    grid-column: 1 / -1;
-  }
-
-  .fsc-bar[data-lockup] > .fsc-bar__honest {
+  .fsc-bar > .fsc-bar__honest {
     grid-row: 3;
+    grid-column: 1 / -1;
   }
 }
 
-/* Narrower than the pill, its run state and the links side by side with the honesty line: the run state
-   word gives way first (the ribbon's Machine lane says it too). */
+/* Below 1440 px the lockup keeps its name and lets its qualifier go (its words stay in the page). */
+@media (max-width: 1439px) {
+  .fsc-bar .fsc-wordmark__qualifier {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+/* Narrower than the pill, its run state and the links side by side: the run state word gives way first, unless it
+   is the step's own (a settled run with cash still due says so at every width; round 3). */
 @media (max-width: 1599px) {
-  .fsc-bar .fsc-pill__state {
+  .fsc-bar .fsc-pill__state:not([data-keep]) {
     display: none;
   }
 }
@@ -1615,11 +1618,6 @@
   .fsc-bar .fsc-wordmark {
     padding-right: 0;
     border-right: 0;
-  }
-
-  .fsc-ribbon__lane,
-  .fsc-ribbon__caption {
-    padding-inline: 16px;
   }
 
   .fsc-console__screen {
@@ -1661,37 +1659,4 @@
 
 .fsc-stage .fs-you__tag {
   font-size: 0.75rem;
-}
-
-@media (max-height: 899px) {
-  .fsc-ribbon__lane {
-    display: flex;
-    align-items: center;
-    padding: 10px 12px;
-  }
-  .fsc-ribbon__row {
-    min-width: 0;
-  }
-  .fsc-ribbon__words {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .fsc-ribbon__phone .fsc-ribbon__words {
-    min-width: 0;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .fsc-ribbon__detail,
-  .fsc-ribbon__time,
-  .fsc-ribbon__action {
-    display: none;
-  }
-  .fsc-ribbon__name {
-    flex: none;
-  }
-  .fsc-ribbon__caption {
-    padding-bottom: 18px;
-  }
 }

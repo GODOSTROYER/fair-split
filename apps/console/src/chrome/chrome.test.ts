@@ -28,15 +28,36 @@ describe("run pill (S1.6)", () => {
     expect(nextStep(firstView(snapshot), { ...CTX, pressing: true })).toMatchObject({
       id: "recording",
       actor: "paypal",
-      text: "Recording the payment in the simulated PayPal sandbox…",
+      text: "Recording the payment…",
     });
+  });
+
+  it("never reads Settled or Done while cash is still due: PayPal complete, review the cash handover", () => {
+    const settled = runTo((w) => {
+      w.markPaid();
+      w.enterByHand("64.80");
+      w.resolveAll();
+      w.sign("treasurer");
+      w.cosign();
+      w.payCash("M-031");
+    });
+    expect(settled.state).toBe("SETTLED");
+    const step = nextStep(settled, { ...CTX, cashMembers: snapshot.figures.cashMembers });
+    expect(step).toMatchObject({
+      id: "done",
+      actor: "person",
+      text: "Review cash handover",
+      stateWord: "PayPal complete · cash due",
+    });
+    expect(step.to).toBe(`/proof/${settled.runSlug}`);
+    expect(`${step.text} ${step.stateWord}`).not.toMatch(/\bSettled\b|\bDone\b/);
   });
   it("walks the judge's loop in order, each step with who acts next", () => {
     const first = nextStep(firstView(snapshot), { ...CTX, inSession: false });
     expect(first).toMatchObject({
       id: "mark-paid",
       actor: "person",
-      text: "Next: mark the invoice paid (simulated PayPal sandbox)",
+      text: "Next: mark the invoice paid",
     });
     const reading = runTo((w) => {
       w.markPaid();

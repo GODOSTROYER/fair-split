@@ -1,10 +1,12 @@
 import { payoutReplayed } from "../data/payout-replay.js";
-// The Judge stage (S1.6, design §6 J1; UI gate round 2): one bar on top (the run pill in its centre, What's
-// real, Sound and Reset as line icons, the Proof counter and the honesty tag), the console (rail and the screen)
-// on the left, one phone on the right from 1440 px, and the ribbon along the bottom: one line per lane, and the
-// phone's lane between 1024 and 1439 px. Under 1024 px the stage is a phone visit: the member's statement. Nothing else takes the screens' height. It holds the run the judge is
-// driving: the first view before the first press (no session, no calls), then the session's run, kept live by
-// one SSE stream. Every console route renders inside it.
+// The Judge stage (S1.6, design §6 J1; UI gate round 3): one bar on top ("Fair Split", the run pill in its
+// centre, What's real, Log, Sound and Reset as line icons, the Proof counter on Proof's six checks and the one quiet
+// honesty indicator), the console (rail and the screen) on the left and the phone on the right: its own column
+// from 1440 px, folded to a 56 px rail where it shows nothing new, rising on its beats. No ribbon: each new event
+// is one toast at the bottom left for 3 s, and the whole timeline is behind Log, so the screens get the height.
+// Under 1024 px the stage is a phone visit: the member's statement. It holds the run the judge is driving: the
+// first view before the first press (no session, no calls), then the session's run, kept live by one SSE stream.
+// Every console route renders inside it.
 
 import { type LogLane, type SeasonSnapshot, webRoutes } from "@fairsplit/contracts";
 import { useMotionMode } from "@fairsplit/ui-web";
@@ -13,10 +15,10 @@ import { type ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRe
 import { ConnectionBanner } from "../chrome/ConnectionBanner.js";
 import { ConsoleRail } from "../chrome/ConsoleRail.js";
 import { STAGE } from "../chrome/copy.js";
+import { EventToast, LogSheet } from "../chrome/EventLog.js";
 import { nextStep } from "../chrome/next-step.js";
-import { Ribbon } from "../chrome/Ribbon.js";
 import { RunPill } from "../chrome/RunPill.js";
-import { placeStates, railItems } from "../chrome/rail-items.js";
+import { activeRailItem, placeStates, railItems } from "../chrome/rail-items.js";
 import { StageBar } from "../chrome/StageBar.js";
 import { StageNotice, stageNoticeFor } from "../chrome/StageNotice.js";
 import { ChromeSlot } from "../chrome/slots.js";
@@ -31,11 +33,11 @@ import {
   useRunStream,
   useStageRun,
 } from "../data/hooks.js";
-import { itemCounts } from "../data/run-view.js";
 import { env } from "../lib/env.js";
 import { type FocusPlace, focusAndReveal, focusInto, rememberFocus, returnFocus } from "../lib/focus.js";
 import { format } from "../lib/format.js";
 import { DirectorProvider } from "../lib/moment.js";
+import { useProofChecks } from "../lib/proof-checks.js";
 import { useSearchParam } from "../lib/search-param.js";
 import { useShortcut } from "../lib/shortcuts.js";
 import { StageExtras } from "../screens/W-JG-01/index.js";
@@ -43,8 +45,8 @@ import { useSound } from "../sound/sound.js";
 import type { FramePrefs } from "./bridge.js";
 import { type AutoplayState, type StageApi, StageContext } from "./context.js";
 import { StageDirector } from "./director.js";
-import { phoneSizeFor, useStageLayout, useViewportHeight } from "./layout.js";
-import { PhoneDock, phoneLaneWords, type RaisedBy } from "./PhoneDock.js";
+import { phoneRestsFolded, phoneSizeFor, useStageLayout, useViewportHeight } from "./layout.js";
+import { PhoneDock, type RaisedBy } from "./PhoneDock.js";
 import { PhoneVisit } from "./PhoneVisit.js";
 import { heroPaymentLanded } from "./personas.js";
 import { useStageBridge } from "./useStageBridge.js";
@@ -139,6 +141,7 @@ export function Stage({ children }: { readonly children: ReactNode }) {
   const [raisedBy, setRaisedBy] = useState<RaisedBy | null>(null);
   const raised = raisedBy !== null;
   const [whatsReal, setWhatsReal] = useState(false);
+  const [logOpen, setLogOpen] = useState(false);
   const [autoplay, setAutoplay] = useState<AutoplayState>("off");
 
   const season = snapshot?.season.label ?? SEASON_FALLBACK;
@@ -154,6 +157,7 @@ export function Stage({ children }: { readonly children: ReactNode }) {
   const recordedOn = snapshot ? format.dateShort(snapshot.run.recordedOn) : "";
   const byHandSlip = snapshot?.holds.find((h) => h.kind === "LOW_CONFIDENCE")?.serials[0] ?? "0462";
   const payouts = snapshot?.figures.batchItemCount ?? 0;
+  const cashMembers = snapshot?.figures.cashMembers ?? 0;
   // The hold open in the drawer: the pill names its decision instead of pointing elsewhere.
   const openHold = useSearchParam("hold") ?? null;
   const next = useMemo(
@@ -166,8 +170,9 @@ export function Stage({ children }: { readonly children: ReactNode }) {
         byHandSlip,
         payouts,
         openHold,
+        cashMembers,
       }),
-    [view, inSession, session.pressing, season, recordedOn, byHandSlip, payouts, openHold],
+    [view, inSession, session.pressing, season, recordedOn, byHandSlip, payouts, openHold, cashMembers],
   );
 
   // The viewer's own raise (1024-1679 px) lays a scrim over the console: the console goes inert under it, focus
@@ -216,11 +221,16 @@ export function Stage({ children }: { readonly children: ReactNode }) {
   // goes to the screen's main control (or the drawer covering it), never to <body> (WCAG 2.4.3). Never on a timer:
   // one that fires before that commit finds the console still inert, the browser refuses the focus, and the panel
   // then drops it to <body> (lib/focus.ts).
+  // Below 1440 px the lowered phone keeps its rail (round 3), whose avatars stay live: focus left on one of them, or
+  // anywhere in the phone, still goes back to what raised it, as it did when the whole panel went inert.
+  const tabLayout = useRef(layout.phone === "tab");
+  tabLayout.current = layout.phone === "tab";
   useLayoutEffect(() => {
     const lowering = lowerTo.current;
     lowerTo.current = null;
     if (raisedBy !== null || !lowering) return;
-    returnFocus(lowering.opener);
+    const inPhone = document.getElementById("fsc-phone-panel")?.contains(document.activeElement) ?? false;
+    returnFocus(lowering.opener, inPhone && tabLayout.current ? { when: "always" } : {});
   }, [raisedBy]);
 
   // A co-sign request raises the Chair (S1.6); a frame may ask for focus itself (fs.focus).
@@ -279,9 +289,25 @@ export function Stage({ children }: { readonly children: ReactNode }) {
     () => placeStates(items, next.id === "done" ? null : next.screen, ratified),
     [items, next, ratified],
   );
-  const counts = view ? itemCounts(view) : { total: 0, confirmed: 0 };
+  const checks = useProofChecks(inSession ? runSlug : null);
   const seeded = useMemo(() => firstViewRows(snapshot, rail), [snapshot, rail]);
   const visit = layout.phone === "phone-visit";
+
+  // The phone's fold (round 3): it rests folded to its rail where it shows nothing new (and below 1680 px), opens
+  // on its beats (a raise), and the viewer's own choice holds on this screen until they move on.
+  const [foldChoice, setFoldChoice] = useState<{ readonly path: string; readonly folded: boolean } | null>(
+    null,
+  );
+  const restsFolded = phoneRestsFolded(layout, activeRailItem(pathname), next.id);
+  const chosenFold = foldChoice?.path === pathname ? foldChoice.folded : null;
+  // Below 1440 px the phone has no column of its own: lowered, it is its rail. From 1440 px it has one, and the
+  // viewer's choice (open or folded) holds on this screen.
+  const folded = !visit && !raised && (layout.phone === "tab" || (chosenFold ?? restsFolded));
+  const togglePhone = () => {
+    setFoldChoice({ path: pathname, folded: !folded });
+    if (folded) raiseByViewer();
+    else lowerPhone();
+  };
   const replayRail = useJudgeReplayRail();
   const replayReason = replayRail?.reason ?? null;
   const replayed = payoutReplayed(view);
@@ -332,12 +358,17 @@ export function Stage({ children }: { readonly children: ReactNode }) {
     const tab = () =>
       panel.querySelector<HTMLElement>(`[role="tab"][data-testid="W-JG-01.tab.${shown.current}"]`) ??
       panel.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]');
-    if (panel.contains(document.activeElement)) {
+    // The rail's phone glyph sits in the panel's head (round 3): focus on it is the opener's, not the phone's.
+    const active = document.activeElement;
+    const onToggle = active instanceof HTMLElement && active.dataset.testid === "W-JG-01.phoneTab";
+    if (panel.contains(active) && !onToggle) {
       const to = tab();
       if (asked && to && document.activeElement !== to) focusAndReveal(to);
       return;
     }
-    return focusInto(panel, tab);
+    // From the glyph, focus goes on into the frames' tabs (the glyph is in the panel, so the panel is no test).
+    const into = onToggle ? (panel.querySelector<HTMLElement>(".fsc-dock__tabs") ?? panel) : panel;
+    return focusInto(into, tab);
   }, [consoleUnderScrim, persona]);
 
   const onReset = async () => {
@@ -384,15 +415,14 @@ export function Stage({ children }: { readonly children: ReactNode }) {
           data-drawer={layout.drawer}
           data-rail={layout.railCollapsed ? "collapsed" : "full"}
           data-raised={raisedBy ?? undefined}
+          data-phone={visit ? undefined : folded ? "folded" : "open"}
         >
           <a className="fsc-skip" href="#fsc-main" ref={skipLink}>
             {STAGE.skip}
           </a>
           <StageBar
-            members={snapshot?.figures.members ?? 0}
             rail={rail}
             mock={env.data === "mock"}
-            lockup={layout.railCollapsed || visit}
             pill={
               visit ? null : (
                 <RunPill
@@ -404,12 +434,12 @@ export function Stage({ children }: { readonly children: ReactNode }) {
               )
             }
             proofHref={runSlug ? webRoutes.proof(runSlug) : null}
-            confirmed={counts.confirmed}
+            checks={checks}
             replayed={replayed}
-            total={counts.total || payouts}
             canReset={inSession || session.status === "failed"}
             resetting={session.status === "resetting"}
             onWhatsReal={() => setWhatsReal(true)}
+            onLog={() => setLogOpen(true)}
             onReset={() => void onReset()}
           />
           {notice && !visit && (
@@ -451,30 +481,24 @@ export function Stage({ children }: { readonly children: ReactNode }) {
               persona={persona}
               raised={raised}
               raisedBy={raisedBy}
+              folded={folded}
               onPersona={setPersona}
               onRaise={raiseByViewer}
               onLower={lowerPhone}
+              onToggle={togglePhone}
               bridge={bridge}
               view={view}
               snapshot={snapshot}
               size={phoneSize}
             />
           </div>
-          {!visit && (
-            <Ribbon
-              view={inSession ? view : undefined}
-              seeded={seeded}
-              phone={
-                layout.phone === "tab"
-                  ? {
-                      words: phoneLaneWords(persona, view, snapshot),
-                      raised,
-                      onToggle: raised ? lowerPhone : raiseByViewer,
-                    }
-                  : null
-              }
-            />
-          )}
+          {!visit && <EventToast runSlug={inSession ? runSlug : null} />}
+          <LogSheet
+            open={logOpen}
+            onOpenChange={setLogOpen}
+            view={inSession ? view : undefined}
+            seeded={seeded}
+          />
           <ChromeSlot name="stage.overlay" className="fsc-stage__overlay" />
           {/* No sound offer (UI gate round 2): the speaker icon in the bar, off by default, is the one control. */}
           <WhatsRealSheet

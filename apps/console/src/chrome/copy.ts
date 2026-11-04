@@ -45,7 +45,7 @@ export const MOCK_DATA = {
   note: "This build answers from a mock of the API over the seeded season. Nothing reaches PayPal or Claude.",
 } as const;
 
-/** The ribbon's one-line lanes (UI gate round 2): the zone after each time, the small tags, PayPal's notices. */
+/** The run log's rows (UI gate round 3: one toast and the Log sheet replace the ribbon): the zone, PayPal's notices. */
 export const RIBBON = {
   /** Philippine time, the co-op's wall clock (Davao). */
   zone: "PHT",
@@ -54,11 +54,24 @@ export const RIBBON = {
   notice: (what: string) => `Notice: ${what}`,
 } as const;
 
-/** The ribbon's phone lane (1024–1439 px): the collapsed phone, read like the log's three lanes beside it. */
-export const PHONE_LANE = {
+/** The top bar's Log: the whole timeline, newest first, behind one icon (round 3). */
+export const LOG = {
+  open: "Log",
+  title: "Run log",
+  close: "Close",
+  empty: "Nothing yet.",
+  /** The toast's landmark name, for assistive technology. */
+  toast: "Latest event",
+} as const;
+
+/** How long one event's toast stays (round 3: 3 s, then it goes; the Log keeps everything). */
+export const TOAST_MS = 3000;
+
+/** The phone's 56 px rail (round 3): the phone glyph expands it, the avatars pick a frame. */
+export const PHONE_RAIL = {
   name: "Phone",
-  raise: "Raise the phone",
-  lower: "Lower the phone",
+  expand: "Show the phone",
+  collapse: "Hide the phone",
 } as const;
 
 export const STAGE = {
