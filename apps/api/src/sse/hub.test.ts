@@ -64,6 +64,33 @@ describe("SSE envelope", () => {
 });
 
 describe("SSE hub and the workspace stream", () => {
+  it("HD6-4 counts the three anonymous network slots separately from credentialed streams", async () => {
+    const { ws } = await setup();
+    t.app.app.get("/test-public-mixed", (c) =>
+      t.deps.sse.open(c, {
+        scope: { workspaceId: ws },
+        caps: publicCaps(c),
+        label: "proof",
+      }),
+    );
+    const as = t.credentials.judge(t.credentials.judgeCookie({ workspaceId: ws }));
+    const opened: Awaited<ReturnType<TestApp["sse"]>>[] = [];
+    try {
+      for (let i = 0; i < 5; i++) {
+        const stream = await t.sse(`/v1/workspaces/${ws}/events`, { as });
+        expect(stream.response.status).toBe(200);
+        opened.push(stream);
+      }
+      for (let i = 0; i < 3; i++) {
+        const stream = await t.sse("/test-public-mixed");
+        expect(stream.response.status).toBe(200);
+        opened.push(stream);
+      }
+      expect((await t.request("/test-public-mixed")).status).toBe(429);
+    } finally {
+      for (const stream of opened) await stream.reader.close();
+    }
+  });
   it("HD6-4 caps one network at 40 streams across six judge sessions", async () => {
     const { ws } = await setup();
     const opened: Awaited<ReturnType<TestApp["sse"]>>[] = [];

@@ -60,7 +60,8 @@ export function publicCaps(c: AppContext): { key: string; limit: number }[] {
   const deps = c.get("deps");
   const ip = clientIpKey(c);
   return [
-    { key: `net:${ip}`, limit: deps.sse.limits.publicPerIp },
+    { key: `net:${ip}`, limit: deps.sse.limits.perNetwork },
+    { key: `public:net:${ip}`, limit: deps.sse.limits.publicPerIp },
     { key: "public:all", limit: deps.sse.limits.publicPerInstance },
   ];
 }
