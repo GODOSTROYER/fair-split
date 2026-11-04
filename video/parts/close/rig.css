@@ -163,6 +163,34 @@
 .cf-slip img {
   border-radius: 3px;
   filter: saturate(0.5);
+}
+/* focus (rig.js `focus`): a blurred, greyed base and a sharp copy inside a soft ellipse; the shadow sits apart so
+   the masks never cut it */
+.fx-shadow,
+.cf-in .fx-base,
+.cf-in .fx-sharp {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+/* the sharp copies are background layers, so each image is one <img> per composition */
+.cf-in .fx-sharp {
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
+}
+.cf-in .fx-sharp.is-0403 {
+  border-radius: 3px;
+  background-image: url("../assets/slip-0403.jpg");
+}
+.cf-in .fx-sharp.is-peso {
+  background-image: url("../assets/win-peso-quiet.png");
+}
+.cf-in .fx-sharp.is-phone {
+  background-image: url("../assets/win-phone.png");
+}
+.cf-slip .fx-shadow {
+  border-radius: 3px;
   box-shadow:
     0 2px 3px rgb(11 18 32 / 0.1),
     0 30px 60px -22px rgb(11 18 32 / 0.4),
@@ -181,6 +209,32 @@
   stroke: #4a2fd6;
   stroke-width: 4;
   stroke-linecap: round;
+}
+
+/* synthesized.: the member's statement said aloud, an ink wave out of a play disc (rig.js wavePaths) */
+.cf-wave {
+  width: 1000px;
+  height: 280px;
+  margin: -140px 0 0 -500px;
+}
+.cf-wave svg {
+  position: absolute;
+  inset: 0;
+  overflow: visible;
+}
+.cf-wave .wv-main,
+.cf-wave .wv-echo {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.cf-wave .wv-main {
+  stroke: #0b1220;
+  stroke-width: 4;
+}
+.cf-wave .wv-echo {
+  stroke: rgb(11 18 32 / 0.2);
+  stroke-width: 3;
 }
 
 /* the day keyword (STYLE §2): one anchor, x 140, top 150; a mask wipe up */
