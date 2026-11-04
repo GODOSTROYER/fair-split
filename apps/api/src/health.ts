@@ -6,7 +6,7 @@
 import { envKills } from "@fairsplit/db";
 import type { Hono } from "hono";
 import { killEnv } from "./env.js";
-import type { AppEnv } from "./lib/context.js";
+import type { AppDeps, AppEnv } from "./lib/context.js";
 
 export interface HealthProbes {
   /** `select 1`. */
@@ -22,13 +22,16 @@ export interface HealthProbes {
 }
 
 const HEALTH_TIMEOUT_MS = 1_000;
+const READINESS_CACHE_MS = 3_000;
+
+class ProbeTimeout extends Error {}
 
 function within<T>(p: Promise<T>, ms: number): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   return Promise.race([
     p,
     new Promise<T>((_, reject) => {
-      timer = setTimeout(() => reject(new Error(`timed out after ${ms} ms`)), ms);
+      timer = setTimeout(() => reject(new ProbeTimeout(`timed out after ${ms} ms`)), ms);
       timer.unref?.();
     }),
   ]).finally(() => clearTimeout(timer));
@@ -51,8 +54,7 @@ export function mountHealth(app: Hono<AppEnv>, probes: HealthProbes): void {
     }
   });
 
-  app.get("/readyz", async (c) => {
-    const deps = c.get("deps");
+  const probeReadiness = async (deps: AppDeps): Promise<Response> => {
     const checks: Record<string, unknown> = {};
     let ready = true;
     try {
@@ -60,7 +62,8 @@ export function mountHealth(app: Hono<AppEnv>, probes: HealthProbes): void {
       checks.db = { ok: true, role: probes.roleMode ?? null };
     } catch (e) {
       ready = false;
-      checks.db = { ok: false, error: (e as Error).message };
+      checks.db = { ok: false, error: e instanceof ProbeTimeout ? "timeout" : "unreachable" };
+      deps.logger.warn({ err: e }, "readiness database probe failed");
     }
     if (probes.listen) {
       try {
@@ -68,7 +71,8 @@ export function mountHealth(app: Hono<AppEnv>, probes: HealthProbes): void {
         checks.listen = { ok: true, roundTripMs: Math.round(ms) };
       } catch (e) {
         ready = false;
-        checks.listen = { ok: false, error: (e as Error).message };
+        checks.listen = { ok: false, error: e instanceof ProbeTimeout ? "timeout" : "unreachable" };
+        deps.logger.warn({ err: e }, "readiness LISTEN probe failed");
       }
     } else {
       checks.listen = { ok: false, error: "no LISTEN bus in this process" };
@@ -91,15 +95,34 @@ export function mountHealth(app: Hono<AppEnv>, probes: HealthProbes): void {
       token: { cached: auth.hasToken, failures: auth.failures, lastError: auth.lastError },
       webhooks: deps.paypal.core.verifier.health().status,
     };
-    return c.json(
-      {
+    return new Response(
+      JSON.stringify({
         status: ready ? "ready" : "not_ready",
         service: "fs-api",
         version: probes.version,
         rail: deps.paypal.label,
         checks,
-      },
-      ready ? 200 : 503,
+      }),
+      { status: ready ? 200 : 503, headers: { "content-type": "application/json" } },
     );
+  };
+  // One in-flight probe for every caller; the TTL starts after it completes, including failed probes.
+  let cached: { expiresAt: number; response: Promise<Response> } | undefined;
+  app.get("/readyz", async (c) => {
+    const deps = c.get("deps");
+    if (!cached || deps.clock.nowMs() >= cached.expiresAt) {
+      const entry = { expiresAt: Number.POSITIVE_INFINITY, response: probeReadiness(deps) };
+      cached = entry;
+      entry.response = entry.response
+        .then((response) => {
+          entry.expiresAt = deps.clock.nowMs() + READINESS_CACHE_MS;
+          return response;
+        })
+        .catch((error: unknown) => {
+          if (cached === entry) cached = undefined;
+          throw error;
+        });
+    }
+    return (await cached.response).clone();
   });
 }
