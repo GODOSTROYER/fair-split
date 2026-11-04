@@ -20,7 +20,6 @@ import {
 } from "@fairsplit/contracts";
 import {
   isUniqueViolation,
-  memberLineHashes,
   schema,
   systemScope,
   type Tx,
@@ -49,7 +48,12 @@ import type { CommandHandler } from "../lib/command.js";
 import type { AppDeps } from "../lib/context.js";
 import { ApiProblem, problem } from "../lib/problem.js";
 import { classifyPayPal, PayPalStepError, type StepCode } from "../money/errors.js";
-import { guardResumedReroute, payoutsServiceFor, REROUTE_VOID_REASON } from "../money/payouts.js";
+import {
+  guardResumedReroute,
+  payoutsServiceFor,
+  REROUTE_VOID_REASON,
+  rehashedMemberLines,
+} from "../money/payouts.js";
 import { LaneQueued, notReplayable, railForItem } from "../money/rail.js";
 import { receiverDirectory } from "../money/receivers.js";
 import { allow, CAN, personaId } from "./access.js";
@@ -163,7 +167,13 @@ export const resendHandler: CommandHandler<"resend"> = async (ctx) => {
           [{ senderItemId: sid, receiver: newReceiver, amountCents: amount, currency: "USD" }],
         );
         // A re-route's approval binds every member line too (IC-02 `linesDigest`), as the service checks it.
-        const lines = linesDigestOf(await memberLineHashes(tx, scope, run.id));
+        // Each line as it is now (`rehashedMemberLines`, I4): exactly what PayoutsService is handed before the POST.
+        const lines = linesDigestOf(
+          (await rehashedMemberLines(tx, scope, run.id, run.rateCardSha256)).map((l) => ({
+            memberNo: l.memberNo,
+            lineSha256: l.lineSha256 === "" ? null : l.lineSha256,
+          })),
+        );
         if (!lines) throw invalid("A member line has no stored hash; nothing can be signed.");
         const card = await cardById(tx, scope, run.rateCardId);
         if (
