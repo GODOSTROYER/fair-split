@@ -1,0 +1,608 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=1920, height=1080" />
+<title>Fair Split opening, motion prototype</title>
+<script src="assets/vendor/gsap.min.js"></script>
+<style>
+@font-face { font-family: "FS Sans"; src: url("assets/fonts/FSSans-VF.woff2") format("woff2"); font-weight: 200 900; font-stretch: 75% 125%; }
+@font-face { font-family: "FS Sans"; src: url("assets/fonts/FSSansPeso.woff2") format("woff2"); font-weight: 200 900; font-stretch: 75% 125%; unicode-range: U+20B1; }
+
+:root {
+  /* Hayag day (research/theme-1104/final/tokens.json, adlaw slot + film overrides) */
+  --ground: #F3F5F8; --plate: #FFFFFF; --rule: #E3E7EE;
+  --ink: #0B1220; --ink-2: #3A4456; --ink-3: #5A6476;
+  --pod: #4A2FD6; --jade: #14CC90; --steel-line: #7E8898;
+  /* Gabii night: the film's dark cards */
+  --n-ground: #090D18; --n-ink: #F4F6FA; --n-ink-2: #C3C9D6; --n-ink-3: #8E98AE;
+  --n-jade: #3DE6AE; --n-pod: #9C8CFF; --n-steel: #8996B4;
+  --copy-pink: #F4C9D4; --pink-glow: #F7B6CA;
+  --ui: "FS Sans", system-ui, sans-serif;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 100%; height: 100%; background: #04060C; overflow: hidden; }
+body { font-family: var(--ui); -webkit-font-smoothing: antialiased; font-kerning: normal; }
+#root { position: relative; width: 100%; height: 100%; overflow: hidden; background: #04060C; }
+.layer-full { position: absolute; inset: 0; }
+
+/* ---------------------------------------------------------------- night */
+#night { overflow: hidden; }
+#nightBg { position: absolute; inset: 0; background: var(--n-ground); }
+#nightGlow { position: absolute; inset: 0; opacity: 0;
+  background:
+    radial-gradient(40% 150% at 0% 100%, rgb(61 230 174 / 0.13), rgb(61 230 174 / 0.05) 40%, transparent 78%),
+    radial-gradient(40% 150% at 52% 0%, rgb(91 67 234 / 0.22), rgb(91 67 234 / 0.08) 42%, transparent 80%); }
+#cam1 { position: absolute; inset: 0; transform-origin: 960px 500px; }
+.frag { position: absolute; left: 0; top: 0; display: block; border-radius: 2px; will-change: transform, filter, opacity; opacity: 0; }
+#threads { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; }
+.slipwrap { position: absolute; width: 132px; height: 161px; left: 354px; top: 389.5px; opacity: 0; }
+#grain { position: absolute; inset: 0; pointer-events: none; opacity: 0.07; mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 0.5  0 0 0 0 0.5  0 0 0 0 0.5  0 0 0 1.4 -0.2'/></filter><rect width='220' height='220' filter='url(%23n)'/></svg>"); }
+.slipwrap img { display: block; width: 100%; height: 100%; border-radius: 2px; }
+#slipWhite img { box-shadow: 0 0 0 1px rgb(255 255 255 / 0.5), 0 0 26px rgb(244 246 250 / 0.45), 0 0 70px rgb(244 246 250 / 0.18); }
+#slipPink img { box-shadow: 0 0 0 1px rgb(247 182 202 / 0.6), 0 0 26px rgb(247 182 202 / 0.55), 0 0 70px rgb(247 182 202 / 0.22); }
+#slipHalo { position: absolute; left: 180px; top: 230px; width: 480px; height: 480px; border-radius: 50%; opacity: 0;
+  background: radial-gradient(closest-side, rgb(244 246 250 / 0.16), transparent 100%); }
+#hair { position: absolute; left: 0; top: 539px; width: 1920px; height: 2px; background: linear-gradient(90deg, transparent, rgb(195 201 214 / 0.55) 18%, rgb(195 201 214 / 0.55) 82%, transparent); transform-origin: 0 50%; }
+#tick { position: absolute; left: 957px; top: 506px; width: 5px; height: 68px; border-radius: 2px; background: var(--n-ink); opacity: 0; box-shadow: 0 0 18px rgb(244 246 250 / 0.6); }
+
+.phrase { position: absolute; left: 0; right: 0; display: flex; justify-content: center; align-items: baseline; white-space: nowrap;
+  font-stretch: 112.5%; font-weight: 690; letter-spacing: -0.028em; font-variant-numeric: lining-nums proportional-nums; }
+.phrase .w { display: inline-block; margin-right: 0.24em; will-change: transform, filter, opacity; opacity: 0; }
+.phrase .w:last-child { margin-right: 0; }
+.night-big { top: 438px; font-size: 136px; line-height: 150px; color: var(--n-ink); }
+.night-low { top: 902px; font-size: 92px; line-height: 108px; color: var(--n-ink); }
+.dim { color: var(--n-ink-3); }
+.acc-pod { color: var(--n-pod); }
+.acc-pink { color: var(--pink-glow); }
+#n64 { min-width: 1.18em; text-align: right; }
+
+#amount { position: absolute; left: 0; right: 0; top: 420px; text-align: center; color: var(--n-ink); opacity: 0;
+  font-stretch: 75%; font-weight: 800; font-size: 150px; line-height: 160px; letter-spacing: -0.012em; font-variant-numeric: lining-nums proportional-nums; }
+#amount .cur { font-size: 0.46em; vertical-align: top; position: relative; top: 0.22em; margin-right: 0.06em; letter-spacing: 0; }
+
+.tag { position: absolute; display: inline-flex; align-items: center; gap: 10px; height: 46px; padding: 0 20px 0 16px; border-radius: 999px;
+  font-stretch: 100%; font-weight: 600; font-size: 22px; line-height: 1; white-space: nowrap; opacity: 0; }
+.tag svg { width: 22px; height: 22px; flex: none; }
+.tag--night { color: var(--n-ink-2); border: 2px dashed var(--n-steel); background: rgb(16 23 42 / 0.72); }
+.tag--night svg { color: var(--n-ink-3); }
+.tag--day { color: var(--ink-2); border: 2px dashed var(--steel-line); background: rgb(255 255 255 / 0.86); }
+.tag--day svg { color: var(--ink-3); }
+.tag--nodot { padding-left: 20px; }
+#tagSynth { left: 50%; top: 626px; margin-left: -96px; }
+#tagSim1 { left: 50%; top: 852px; margin-left: -168px; }
+#tagSim2 { left: 150px; top: 978px; }
+
+/* ring overlay (above the daylight iris) */
+#ringLayer { pointer-events: none; }
+#ringSvg { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; overflow: visible; transform-origin: 960px 500px;
+  filter: drop-shadow(0 0 10px rgb(61 230 174 / 0.85)) drop-shadow(0 0 34px rgb(61 230 174 / 0.4)); }
+
+/* ---------------------------------------------------------------- day */
+#dayInner { position: absolute; inset: 0; overflow: hidden; clip-path: circle(0px at 960px 500px); }
+#dayBg { position: absolute; inset: 0; background: var(--ground); }
+#dayBg .wash { position: absolute; inset: 0;
+  background:
+    radial-gradient(52% 70% at 0% 0%, rgb(20 204 144 / 0.16), transparent 72%),
+    radial-gradient(42% 58% at 62% 0%, rgb(74 47 214 / 0.10), transparent 72%),
+    radial-gradient(60% 60% at 50% 55%, rgb(255 255 255 / 0.85), transparent 75%); }
+.blob { position: absolute; border-radius: 50%; left: 0; top: 0; }
+#blobA { width: 1100px; height: 1100px; background: radial-gradient(closest-side, rgb(20 204 144 / 0.17), transparent); }
+#blobB { width: 1200px; height: 1200px; background: radial-gradient(closest-side, rgb(74 47 214 / 0.12), transparent); }
+#blobC { width: 900px; height: 900px; background: radial-gradient(closest-side, rgb(255 255 255 / 0.9), transparent); }
+.cam-layer { position: absolute; left: 0; top: 0; width: 1px; height: 1px; transform-origin: 0 0; }
+#gridPlane { position: absolute; left: -3000px; top: -2400px; width: 9000px; height: 6000px; opacity: 0.9;
+  background-image: radial-gradient(circle, rgb(90 100 118 / 0.30) 1.6px, transparent 2.2px); background-size: 56px 56px; }
+#worldFade, #fgFade { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; opacity: 0; }
+.win { position: absolute; transform-origin: 50% 50%; will-change: transform, filter; }
+.win img { display: block; width: 100%; height: 100%; }
+.win--paper img { border-radius: 3px; box-shadow: 0 2px 3px rgb(11 18 32 / 0.10), 0 30px 60px -22px rgb(11 18 32 / 0.40), 0 0 0 1px rgb(11 18 32 / 0.06); }
+.win--panel img { border-radius: 25px; box-shadow: 0 2px 6px rgb(11 18 32 / 0.06), 0 44px 90px -34px rgb(11 18 32 / 0.38), 0 0 0 1px rgb(11 18 32 / 0.05); }
+.win--phone img { border-radius: 55px; box-shadow: 0 50px 90px -34px rgb(11 18 32 / 0.55); }
+.win--card img { border-radius: 20px; box-shadow: 0 2px 6px rgb(11 18 32 / 0.06), 0 30px 60px -24px rgb(11 18 32 / 0.34), 0 0 0 1px rgb(11 18 32 / 0.05); }
+#w1 { left: -300px; top: -366px; width: 600px; height: 732px; }
+#w2 { left: 468px; top: 681.5px; width: 1364px; height: 397px; }
+#w3 { left: 2172.5px; top: -411.25px; width: 355px; height: 822.5px; }
+#w4 { left: 1637.8px; top: 244.6px; width: 484.4px; height: 170.8px; }
+#c1 { position: absolute; left: 500px; top: 430px; width: 651px; height: 182px; }
+#c1 .in { width: 100%; height: 100%; opacity: 0; }
+#c1 img { border-radius: 0; box-shadow: none; filter: drop-shadow(0 1px 1px rgb(11 18 32 / 0.12)) drop-shadow(0 22px 26px rgb(11 18 32 / 0.22)); }
+#hl { position: absolute; left: 0; top: 0; width: 600px; height: 732px; overflow: visible; }
+#hl rect, #hl path { fill: none; stroke: var(--pod); stroke-width: 4; stroke-linecap: round; }
+#hl circle { fill: var(--pod); opacity: 0; }
+.pulse { position: absolute; opacity: 0; pointer-events: none; }
+#pulseW2 { left: 926px; top: 144px; width: 158px; height: 61px; border-radius: 18px; border: 4px solid var(--pod); }
+#pulseW3 { left: 39px; top: 386px; width: 155px; height: 49px; border-radius: 999px; border: 4px solid var(--jade); }
+#trace { position: absolute; left: -1000px; top: -1000px; width: 5000px; height: 3000px; overflow: visible; filter: drop-shadow(0 0 6px rgb(74 47 214 / 0.35)); }
+#trace path { fill: none; stroke: var(--pod); stroke-width: 4; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+#trace circle { fill: var(--plate); stroke: var(--pod); stroke-width: 3; vector-effect: non-scaling-stroke; opacity: 0; }
+#veil { position: absolute; inset: 0; background: var(--ground); opacity: 0; }
+#veil::after { content: ""; position: absolute; inset: 0;
+  background: radial-gradient(52% 70% at 0% 0%, rgb(20 204 144 / 0.14), transparent 72%), radial-gradient(42% 58% at 62% 0%, rgb(74 47 214 / 0.09), transparent 72%); }
+
+.small-grey { position: absolute; left: 0; right: 0; top: 472px; text-align: center; font-stretch: 100%; font-weight: 560; font-size: 46px; line-height: 56px; color: var(--ink-3); letter-spacing: 0.02em; opacity: 0; }
+.kw { position: absolute; left: 140px; overflow: hidden; padding: 0 20px 26px 10px; }
+.kw span { display: block; font-stretch: 112.5%; font-weight: 700; font-size: 176px; line-height: 176px; letter-spacing: -0.035em; color: var(--ink); }
+#kw1 { top: 438px; }
+#kw2 { top: 112px; }
+#kw3 { top: 236px; }
+#end { top: 450px; font-size: 118px; line-height: 132px; color: var(--ink); }
+#end .acc { color: var(--pod); position: relative; }
+#endLine { position: absolute; left: 0.02em; right: 0.3em; bottom: -10px; height: 7px; border-radius: 4px; background: var(--pod); transform-origin: 0 50%; }
+#name { position: absolute; left: 0; right: 0; top: 0; height: 100%; display: flex; align-items: center; justify-content: center; gap: 40px; }
+#mark { width: 138px; height: 138px; opacity: 0; }
+#nameCol { display: flex; flex-direction: column; align-items: flex-start; }
+#nameText { display: block; font-stretch: 112.5%; font-weight: 720; font-size: 150px; line-height: 150px; letter-spacing: -0.035em; color: var(--ink); opacity: 0; white-space: nowrap; }
+#nameSub { display: block; margin-top: 6px; margin-left: 6px; font-stretch: 100%; font-weight: 520; font-size: 44px; line-height: 52px; color: var(--ink-3); opacity: 0; white-space: nowrap; }
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="i-flask" viewBox="0 0 24 24"><path d="M9 3.5h6M10 3.5v5.2L4.8 17.6A2 2 0 0 0 6.5 20.5h11a2 2 0 0 0 1.7-2.9L14 8.7V3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/><path d="M7.4 14.5h9.2" stroke="currentColor" stroke-width="2"/></symbol>
+  </defs>
+</svg>
+<div id="root" data-composition-id="opening" data-start="0" data-width="1920" data-height="1080" data-fps="30" data-duration="30">
+
+  <!-- ============================================================ NIGHT: the problem (0 – 15.8 s) -->
+  <section id="night" class="clip" data-start="0" data-duration="15.8" data-track-index="0">
+    <div id="nightBg"></div>
+    <div id="nightGlow"></div>
+    <div id="hair"></div>
+    <div id="tick"></div>
+    <div id="cam1">
+      <img class="frag" src="assets/slip-0419.jpg" alt="" />
+      <img class="frag" src="assets/slip-0436.jpg" alt="" />
+      <img class="frag" src="assets/slip-0458.jpg" alt="" />
+      <img class="frag" src="assets/slip-0462.jpg" alt="" />
+      <img class="frag" src="assets/slip-0467.jpg" alt="" />
+      <img class="frag" src="assets/slip-0471.jpg" alt="" />
+      <img class="frag" src="assets/slip-0403.jpg" alt="" />
+      <div id="slipHalo"></div>
+      <div id="slipPink" class="slipwrap"><img src="assets/slip-0457-pink.jpg" alt="" /></div>
+      <div id="slipWhite" class="slipwrap"><img src="assets/slip-0457-white.jpg" alt="" /></div>
+      <canvas id="threads" width="1920" height="1080"></canvas>
+      <div id="amount"><span class="cur">US$</span>4,333.50</div>
+    </div>
+    <div class="phrase night-big" id="p1"><span class="w acc-pod" id="n64">1</span><span class="w">farmers.</span></div>
+    <div class="tag tag--night tag--nodot" id="tagSynth">Synthetic co-op</div>
+    <div class="phrase night-big" id="p2"><span class="w dim">one</span><span class="w dim">shoebox</span><span class="w dim">of</span><span class="w">slips.</span></div>
+    <div class="phrase night-low" id="p3"><span class="w dim">one</span><span class="w acc-pink">pink</span><span class="w dim">copy.</span></div>
+    <div class="phrase night-low" id="p4"><span class="w dim">count</span><span class="w dim">it</span><span class="w acc-pod">once.</span></div>
+    <div class="tag tag--night" id="tagSim1"><svg aria-hidden="true"><use href="#i-flask"/></svg>Simulated PayPal sandbox</div>
+  </section>
+
+  <!-- ============================================================ DAY: traced (14.4 – 30 s) -->
+  <section id="day" class="clip" data-start="14.4" data-duration="15.6" data-track-index="1">
+    <div id="dayInner">
+      <div id="dayBg"><div class="blob" id="blobA"></div><div class="blob" id="blobB"></div><div class="blob" id="blobC"></div><div class="wash"></div></div>
+      <div class="cam-layer" id="gridLayer"><div id="gridPlane"></div></div>
+      <div id="worldFade">
+        <div class="cam-layer" id="worldLayer">
+          <div class="win win--paper" id="w1">
+            <img src="assets/slip-0403.jpg" alt="Weigh slip 0403, synthetic sample" />
+            <div id="c1"><div class="in"><img src="assets/win-slip-read.png" alt="Read by Claude" /></div></div>
+            <svg id="hl" viewBox="0 0 600 732" aria-hidden="true">
+              <rect id="hlRect" x="240" y="337" width="98" height="55" rx="11" />
+              <path id="hlLead" d="M 338 364.5 C 440 364.5, 424 546, 522 546" />
+              <circle id="hlDot" cx="527" cy="546" r="6.5" />
+            </svg>
+          </div>
+          <div class="win win--panel" id="w2">
+            <img src="assets/win-split.png" alt="Split review, count it once" />
+            <div class="pulse" id="pulseW2"></div>
+          </div>
+          <div class="win win--card" id="w4"><img src="assets/win-peso.png" alt="Tap a peso" /></div>
+          <div class="win win--phone" id="w3">
+            <img src="assets/win-member-phone.png" alt="Member statement, Bayad na" />
+            <div class="pulse" id="pulseW3"></div>
+          </div>
+          <svg id="trace" viewBox="-1000 -1000 5000 3000" aria-hidden="true">
+            <path id="traceA" d="M 824 155 C 1180 150, 1300 382, 1652 382" />
+            <path id="traceB" d="M 2040 336 C 2118 336, 2126 64, 2200 64" />
+            <circle id="nodeA" cx="824" cy="155" r="7" />
+            <circle id="nodeB" cx="1652" cy="382" r="7" />
+            <circle id="nodeC" cx="2203" cy="64" r="7" />
+          </svg>
+        </div>
+      </div>
+      <div id="veil"></div>
+      <div class="small-grey" id="tracedSmall">traced.</div>
+      <div class="kw" id="kw1"><span>read.</span></div>
+      <div class="kw" id="kw2"><span>checked.</span></div>
+      <div class="kw" id="kw3"><span>paid.</span></div>
+      <div class="tag tag--day" id="tagSim2"><svg aria-hidden="true"><use href="#i-flask"/></svg>Simulated PayPal sandbox</div>
+      <div class="phrase" id="end"><span class="w">Every</span><span class="w">peso,</span><span class="w acc">traced.<i id="endLine"></i></span></div>
+      <div id="name">
+        <svg id="mark" viewBox="0 0 28 28" aria-hidden="true"><rect x="1" y="1" width="26" height="26" rx="8" fill="#0B1220"/><circle id="markDot" cx="9" cy="14" r="3.2" fill="#14CC90"/><path id="markPath" d="M12 14C16 14 16 7.5 21.5 7.5M12 14h9.5M12 14c4 0 4 6.5 9.5 6.5" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg>
+        <div id="nameCol"><span id="nameText">Fair Split</span><span id="nameSub">co-op payroll</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================ the jade ring, above the daylight iris -->
+  <section id="ringLayer" class="clip" data-start="12.4" data-duration="3.5" data-track-index="2">
+    <svg id="ringSvg" viewBox="0 0 1920 1080" aria-hidden="true"><circle id="ring" cx="960" cy="500" r="300" fill="none" stroke="#3DE6AE" stroke-width="3.5" transform="rotate(-90 960 500)" /></svg>
+  </section>
+
+  <!-- static fine grain over everything: breaks gradient banding in H.264 -->
+  <div id="grain"></div>
+</div>
+
+<script>
+(() => {
+  const tl = gsap.timeline({ paused: true });
+  const $ = (s) => document.querySelector(s);
+  const $$ = (s) => Array.from(document.querySelectorAll(s));
+  const PE = (n) => gsap.parseEase(n);
+  const E = {
+    p2o: PE("power2.out"), p2i: PE("power2.in"), p2io: PE("power2.inOut"),
+    p3o: PE("power3.out"), p3i: PE("power3.in"), p3io: PE("power3.inOut"),
+    eo: PE("expo.out"), eio: PE("expo.inOut"), sio: PE("sine.inOut"), bo: PE("back.out(2.2)"), lin: (u) => u,
+  };
+  const clamp01 = (v) => Math.min(1, Math.max(0, v));
+  const prog = (t, a, b) => clamp01((t - a) / (b - a));
+  const lerp = (a, b, u) => a + (b - a) * u;
+  function mulberry32(a) { return () => { a |= 0; a = (a + 0x6d2b79f5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+  const rnd = mulberry32(20261104);
+
+  // ------------------------------------------------------------------ NIGHT geometry (screen px)
+  const S = { x: 420, y: 470 };          // the glowing slip
+  const P = { x: 770, y: 470 };          // where the line splits into 64 threads
+  const W0 = { x: S.x + 64, y: S.y };    // where the line leaves the slip
+  const RC = { x: 960, y: 500 }, RR = 300;
+  const ARCS = [[560, 300, 13], [690, 325, 16], [820, 340, 17], [950, 352, 18]]; // rx, ry, count = 64
+  const dots = [];
+  ARCS.forEach(([rx, ry, n], k) => {
+    for (let i = 0; i < n; i++) {
+      const a = ((-70 + (140 * (i + 0.5)) / n + (rnd() - 0.5) * 3.2) * Math.PI) / 180;
+      const r = 1 + (rnd() - 0.5) * 0.06;
+      dots.push({ x: P.x + rx * r * Math.cos(a), y: P.y + ry * r * Math.sin(a), k, a });
+    }
+  });
+  // bezier samples, fan order (centre first), ring targets
+  const NS = 48;
+  const bez = (p0, p1, p2, p3, u) => { const v = 1 - u; return { x: v*v*v*p0.x + 3*v*v*u*p1.x + 3*v*u*u*p2.x + u*u*u*p3.x, y: v*v*v*p0.y + 3*v*v*u*p1.y + 3*v*u*u*p2.y + u*u*u*p3.y }; };
+  dots.forEach((d) => {
+    const dx = d.x - P.x;
+    d.c1 = { x: P.x + dx * 0.42, y: P.y };
+    d.c2 = { x: P.x + dx * 0.58, y: d.y };
+    d.pts = []; for (let i = 0; i <= NS; i++) d.pts.push(bez(P, d.c1, d.c2, d, i / NS));
+  });
+  const byAngle = dots.map((d, i) => i).sort((a, b) => Math.abs(dots[a].a) - Math.abs(dots[b].a));
+  byAngle.forEach((idx, order) => { dots[idx].t0 = 6.2 + order * 0.0115 + dots[idx].k * 0.05; });
+  dots.forEach((d) => { d.r0 = 11.35 + (3 - d.k) * 0.05 + rnd() * 0.08; });
+  // the dots gather into a ring around their own centre (short, uncrossed paths), then the ring glides to centre
+  const C0 = { x: dots.reduce((s, d) => s + d.x, 0) / 64, y: dots.reduce((s, d) => s + d.y, 0) / 64 };
+  const ringOrder = dots.map((d, i) => i).sort((a, b) => Math.atan2(dots[a].y - C0.y, dots[a].x - C0.x) - Math.atan2(dots[b].y - C0.y, dots[b].x - C0.x));
+  const th0 = Math.atan2(dots[ringOrder[0]].y - C0.y, dots[ringOrder[0]].x - C0.x);
+  ringOrder.forEach((idx, j) => {
+    dots[idx].th = th0 + (j * 2 * Math.PI) / 64;
+    dots[idx].m0 = 11.78 + Math.abs(j - 32) * 0.004;
+  });
+  const GLIDE = [12.3, 13.0];
+  function ringTarget(d, t) {
+    const g = E.sio(prog(t, GLIDE[0], GLIDE[1]));
+    const cx = lerp(C0.x, RC.x, g), cy = lerp(C0.y, RC.y, g), th = d.th + 0.5 * g;
+    return { x: cx + RR * Math.cos(th), y: cy + RR * Math.sin(th) };
+  }
+  // the duplicate: one member line, counted twice
+  let J = 0, best = 1e9;
+  dots.forEach((d, i) => { if (d.k === 1) { const e = Math.abs(d.a * 180 / Math.PI + 26); if (e < best) { best = e; J = i; } } });
+  const DJ = dots[J];
+  const G = { x: DJ.x + 16, y: DJ.y - 12 };
+  const dupPts = []; { const c1 = { x: DJ.c1.x, y: DJ.c1.y - 46 }, c2 = { x: DJ.c2.x + 10, y: DJ.c2.y - 40 }; for (let i = 0; i <= NS; i++) dupPts.push(bez(P, c1, c2, G, i / NS)); }
+
+  const cv = $("#threads"), ctx = cv.getContext("2d");
+  function strokePart(pts, a, b) {
+    if (b <= a) return;
+    const n = pts.length - 1, ia = a * n, ib = b * n;
+    const i0 = Math.floor(ia), i1 = Math.ceil(ib);
+    ctx.beginPath();
+    const pa = pts[i0], pa2 = pts[Math.min(i0 + 1, n)], fa = ia - i0;
+    ctx.moveTo(lerp(pa.x, pa2.x, fa), lerp(pa.y, pa2.y, fa));
+    for (let i = i0 + 1; i < i1; i++) ctx.lineTo(pts[i].x, pts[i].y);
+    const pb = pts[Math.max(i1 - 1, 0)], pb2 = pts[i1], fb = 1 - (i1 - ib);
+    ctx.lineTo(lerp(pb.x, pb2.x, fb), lerp(pb.y, pb2.y, fb));
+    ctx.stroke();
+  }
+  function dot(x, y, r, fill, glow, blur) {
+    if (r <= 0.05) return;
+    ctx.save(); ctx.shadowColor = glow; ctx.shadowBlur = blur; ctx.fillStyle = fill;
+    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+  }
+  const mixA = (c1, c2, u, a) => `rgba(${Math.round(lerp(c1[0], c2[0], u))},${Math.round(lerp(c1[1], c2[1], u))},${Math.round(lerp(c1[2], c2[2], u))},${a.toFixed(3)})`;
+  const WHITE = [244, 246, 250], JADE = [61, 230, 174], POD = [156, 140, 255];
+
+  function drawNight(t) {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, 1920, 1080);
+    if (t < 5.3 || t > 15.0) return;
+    ctx.lineCap = "round"; ctx.lineJoin = "round";
+
+    // the disc behind the ring
+    const disc = E.p2o(prog(t, 12.8, 13.35));
+    if (disc > 0) {
+      const g = ctx.createRadialGradient(RC.x, RC.y, 0, RC.x, RC.y, RR);
+      g.addColorStop(0, `rgba(2,3,8,${0.96 * disc})`); g.addColorStop(1, `rgba(7,10,20,${0.9 * disc})`);
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(RC.x, RC.y, RR - 2, 0, Math.PI * 2); ctx.fill();
+    }
+
+    // the line out of the slip: a wave that settles into a trunk
+    const L = P.x - W0.x;
+    const head = E.p2o(prog(t, 5.5, 6.3)), tail = E.p2i(prog(t, 11.3, 11.75));
+    if (head > tail) {
+      const A = 26 * (1 - E.p2io(prog(t, 6.05, 6.75)));
+      const ph = t * 10.5;
+      const pts = [];
+      for (let i = 0; i <= 90; i++) {
+        const u = i / 90, x = W0.x + u * L;
+        pts.push({ x, y: W0.y + A * Math.sin((2 * Math.PI * (x - W0.x)) / 64 - ph) * Math.sin(Math.PI * u) });
+      }
+      ctx.save(); ctx.shadowColor = "rgba(244,246,250,0.7)"; ctx.shadowBlur = 14;
+      ctx.strokeStyle = "rgba(244,246,250,0.92)"; ctx.lineWidth = 2; strokePart(pts, tail, head); ctx.restore();
+      if (head >= 1 && tail < 1) dot(P.x, P.y, 3.2, "#F4F6FA", "rgba(244,246,250,0.9)", 12);
+    }
+
+    // 64 threads
+    // focus: while one member's line is in question, the other 63 recede
+    const hiJ = prog(t, 7.6, 7.9) * (1 - prog(t, 11.0, 11.35));
+    const dimOthers = 1 - 0.62 * hiJ;
+    const onceJ = prog(t, 10.6, 10.8) * (1 - prog(t, 11.3, 11.6));
+    ctx.save(); ctx.shadowColor = "rgba(195,201,214,0.55)"; ctx.shadowBlur = 6;
+    for (let i = 0; i < dots.length; i++) {
+      const d = dots[i];
+      const f = E.p2o(prog(t, d.t0, d.t0 + 0.62)), g = E.p2i(prog(t, d.r0, d.r0 + 0.42));
+      if (f <= g) continue;
+      if (i === J) {
+        ctx.strokeStyle = onceJ > 0 ? mixA(WHITE, POD, onceJ, 0.36 + 0.6 * hiJ) : `rgba(244,246,250,${0.36 + 0.6 * hiJ})`;
+        ctx.lineWidth = 1.15 + 1.0 * hiJ;
+      } else {
+        ctx.strokeStyle = `rgba(214,219,230,${0.36 * dimOthers})`;
+        ctx.lineWidth = 1.15;
+      }
+      strokePart(d.pts, g, f);
+    }
+    ctx.restore();
+
+    // the duplicate thread (pink), flickering, then counted once
+    const df = E.p2o(prog(t, 7.75, 8.35)), dg = E.p2i(prog(t, 9.95, 10.4));
+    if (df > dg) {
+      const fl = t < 8.35 ? 1 : (Math.sin(t * 2 * Math.PI * 5.3) > -0.25 ? 1 : 0.18) * (0.72 + 0.28 * Math.sin(t * 2 * Math.PI * 1.7));
+      ctx.save(); ctx.shadowColor = "rgba(247,182,202,0.95)"; ctx.shadowBlur = 20;
+      ctx.strokeStyle = `rgba(247,182,202,${0.95 * fl})`; ctx.lineWidth = 2.6;
+      strokePart(dupPts, dg, df); ctx.restore();
+    }
+    const gp = E.bo(prog(t, 8.2, 8.5)), gm = E.p3io(prog(t, 10.3, 10.62));
+    if (gp > 0 && gm < 1) {
+      const fl = t < 8.5 || t > 9.9 ? 1 : (Math.sin(t * 2 * Math.PI * 5.3) > -0.25 ? 1 : 0.25);
+      dot(lerp(G.x, DJ.x, gm), lerp(G.y, DJ.y, gm), 5.2 * gp * (1 - 0.4 * gm), `rgba(247,182,202,${fl * (1 - gm)})`, "rgba(247,182,202,0.9)", 16);
+    }
+
+    // member dots: pop in, travel into a ring, turn jade, melt into the ring
+    const melt = prog(t, 13.15, 13.6);
+    const jadeU = E.sio(prog(t, 12.4, 13.0));
+    for (let i = 0; i < dots.length; i++) {
+      const d = dots[i];
+      const pop = E.bo(prog(t, d.t0 + 0.5, d.t0 + 0.78));
+      if (pop <= 0 || melt >= 1) continue;
+      const m = E.p3io(prog(t, d.m0, d.m0 + 0.62));
+      const tg = ringTarget(d, t);
+      const x = lerp(d.x, tg.x, m), y = lerp(d.y, tg.y, m);
+      const alpha = i === J ? 1 : lerp(dimOthers, 1, m);
+      const flash = i === J ? onceJ : 0;
+      const col = flash > 0 ? mixA(WHITE, POD, flash, 1) : mixA(WHITE, JADE, jadeU, alpha);
+      dot(x, y, (3.6 + 1.6 * flash) * pop * (1 - melt), col, flash > 0.3 ? "rgba(156,140,255,0.9)" : m > 0.5 ? "rgba(61,230,174,0.9)" : "rgba(244,246,250,0.8)", 10);
+    }
+    // the person's hand: one indigo ring where the copy was counted once (a ripple, then a held ring)
+    const hr = prog(t, 10.62, 11.4);
+    if (hr > 0 && hr < 1) {
+      ctx.save(); ctx.strokeStyle = `rgba(156,140,255,${0.95 * (1 - hr)})`; ctx.lineWidth = 2.5;
+      ctx.shadowColor = "rgba(156,140,255,0.9)"; ctx.shadowBlur = 14;
+      ctx.beginPath(); ctx.arc(DJ.x, DJ.y, 6 + 34 * E.eo(hr), 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+    }
+    const held = E.bo(prog(t, 10.68, 10.95)) * (1 - prog(t, 11.3, 11.55));
+    if (held > 0) {
+      ctx.save(); ctx.strokeStyle = `rgba(156,140,255,${0.95 * Math.min(1, held)})`; ctx.lineWidth = 2.5;
+      ctx.shadowColor = "rgba(156,140,255,0.9)"; ctx.shadowBlur = 12;
+      ctx.beginPath(); ctx.arc(DJ.x, DJ.y, 13 * held, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+    }
+  }
+
+  // drifting slip fragments ("a shoebox of slips"), converging into the one glowing slip
+  const FR = [
+    { x: 250, y: 236, w: 128, rot: -14, blur: 7, op: 0.22, dx: 46, dy: -12 },
+    { x: 1660, y: 214, w: 104, rot: 11, blur: 10, op: 0.17, dx: -34, dy: 16 },
+    { x: 1530, y: 830, w: 176, rot: -8, blur: 2.2, op: 0.3, dx: -52, dy: -22 },
+    { x: 410, y: 858, w: 150, rot: 16, blur: 5, op: 0.24, dx: 38, dy: -26 },
+    { x: 1190, y: 150, w: 86, rot: -20, blur: 12, op: 0.15, dx: -22, dy: 22 },
+    { x: 840, y: 940, w: 96, rot: 7, blur: 9, op: 0.16, dx: 26, dy: -16 },
+    { x: 118, y: 560, w: 100, rot: -6, blur: 11, op: 0.15, dx: 32, dy: 10 },
+  ];
+  const frags = $$(".frag");
+  frags.forEach((el, i) => { el.style.width = `${FR[i].w}px`; });
+  function drawFrags(t) {
+    frags.forEach((el, i) => {
+      const f = FR[i];
+      const a = E.p2o(prog(t, 1.25 + i * 0.1, 2.2 + i * 0.1));
+      const u = E.sio(prog(t, 1.25, 4.8));
+      const c = E.p3i(prog(t, 4.5 + i * 0.035, 5.25 + i * 0.035));
+      const x = lerp(f.x + f.dx * u, S.x, c), y = lerp(f.y + f.dy * u, S.y, c);
+      const h = f.w * 1.25;
+      el.style.opacity = (f.op * a * (1 - c)).toFixed(3);
+      el.style.filter = `blur(${(f.blur * (1 - 0.6 * c)).toFixed(2)}px)`;
+      el.style.transform = `translate(${(x - f.w / 2).toFixed(1)}px, ${(y - h / 2).toFixed(1)}px) rotate(${(f.rot * (1 - c) + 4 * u).toFixed(2)}deg) scale(${lerp(1, 0.55, c).toFixed(3)})`;
+    });
+  }
+
+  // ------------------------------------------------------------------ DAY: camera over a calm canvas
+  const CAM = [
+    { t: 16.45, x: -40, y: 34, s: 0.8 },
+    { t: 19.0, x: 32, y: 0, s: 0.9, e: E.sio },
+    { t: 20.5, x: 1150, y: 823.5, s: 1.24, e: E.p3io, dip: 0.36 },
+    { t: 21.9, x: 1162, y: 828, s: 1.28, e: E.sio },
+    { t: 23.3, x: 2060, y: 0, s: 1.0, e: E.p3io, dip: 0.34 },
+    { t: 24.75, x: 2082, y: 10, s: 1.05, e: E.sio },
+    { t: 26.0, x: 1114, y: 334, s: 0.56, e: E.p3io },
+    { t: 30.0, x: 1114, y: 334, s: 0.53, e: E.sio },
+  ];
+  function camAt(t) {
+    if (t <= CAM[0].t) return CAM[0];
+    for (let i = 1; i < CAM.length; i++) {
+      const a = CAM[i - 1], b = CAM[i];
+      if (t <= b.t) {
+        const u = (t - a.t) / (b.t - a.t), e = b.e(u);
+        const dip = b.dip ? 1 - b.dip * Math.sin(Math.PI * E.sio(u)) : 1;
+        return { x: lerp(a.x, b.x, e), y: lerp(a.y, b.y, e), s: lerp(a.s, b.s, e) * dip };
+      }
+    }
+    return CAM[CAM.length - 1];
+  }
+  const layers = [[$("#gridLayer"), 0.55], [$("#worldLayer"), 1]];
+  const WINS = [
+    { el: $("#w1"), cx: 275, cy: 0, w: 1151, h: 732, rot: -1.5, ry: 6, rx: 2, ph: 0.0, A: 7 },
+    { el: $("#w2"), cx: 1150, cy: 880, w: 1364, h: 397, rot: 0, ry: -4, rx: 3, ph: 1.7, A: 6 },
+    { el: $("#w3"), cx: 2350, cy: 0, w: 355, h: 822, rot: 0, ry: -8, rx: 2, ph: 3.1, A: 8 },
+    { el: $("#w4"), cx: 1880, cy: 330, w: 484, h: 171, rot: 0, ry: 6, rx: -3, ph: 4.4, A: 6 },
+  ];
+  const blobs = [[$("#blobA"), -200, -380, 140, 70, 0.11], [$("#blobB"), 1050, -300, -120, 90, 0.08], [$("#blobC"), 520, 260, 90, -60, 0.07]];
+  function drawDay(t) {
+    if (t < 14.3) return;
+    const c = camAt(t);
+    for (const [el, k] of layers) {
+      const sk = c.s * k;
+      el.style.transform = `translate(${(960 - c.x * sk).toFixed(2)}px, ${(540 - c.y * sk).toFixed(2)}px) scale(${sk.toFixed(4)})`;
+    }
+    // windows settle (no float, no tilt, no blur) as the camera pulls back for the trace
+    const live = 1 - E.p2io(prog(t, 24.8, 25.9));
+    const focusAmt = clamp01((c.s - 0.62) / 0.3);
+    for (const w of WINS) {
+      const k = w.k || 1;
+      const bob = w.A * Math.sin((2 * Math.PI * t) / 5.6 + w.ph) * live;
+      const ry = w.ry * Math.sin((2 * Math.PI * t) / 8 + w.ph) * live, rx = w.rx * live;
+      w.el.style.transform = `perspective(2200px) translateY(${bob.toFixed(2)}px) rotate(${(w.rot * live).toFixed(2)}deg) rotateY(${ry.toFixed(2)}deg) rotateX(${rx.toFixed(2)}deg)`;
+      const sx = 960 + (w.cx - c.x) * c.s * k, sy = 540 + (w.cy - c.y) * c.s * k;
+      const edge = Math.max(Math.abs(sx - 960) - (w.w * c.s * k) / 2, Math.abs(sy - 540) - (w.h * c.s * k) / 2);
+      const blur = clamp01((edge - 220) / 480) * 10 * focusAmt;
+      w.el.style.filter = blur > 0.15 ? `blur(${blur.toFixed(2)}px)` : "none";
+    }
+    for (const [el, x, y, dx, dy, f] of blobs) {
+      el.style.transform = `translate(${(x + dx * Math.sin(t * f * 2 * Math.PI * 0.6)).toFixed(1)}px, ${(y + dy * Math.cos(t * f * 2 * Math.PI * 0.5)).toFixed(1)}px)`;
+    }
+  }
+
+  // one driver: every frame is computed from the time alone
+  const clock = { t: 0 };
+  function draw(t) { drawFrags(t); drawNight(t); drawDay(t); }
+  tl.to(clock, { t: 30, duration: 30, ease: "none", onUpdate: () => draw(clock.t) }, 0);
+
+  // ------------------------------------------------------------------ NIGHT tweens
+  tl.fromTo("#hair", { scaleX: 0, opacity: 1 }, { scaleX: 1, duration: 1.0, ease: "expo.inOut" }, 0.3);
+  tl.to("#hair", { opacity: 0, duration: 0.35, ease: "power2.in" }, 1.25);
+  tl.set("#tick", { opacity: 1 }, 0.55).set("#tick", { opacity: 0 }, 0.85).set("#tick", { opacity: 1 }, 1.05);
+  tl.to("#tick", { opacity: 0, scaleY: 0.2, duration: 0.2, ease: "power2.in" }, 1.32);
+
+  const enter = (sel, at, o = {}) => tl.fromTo(sel, { opacity: 0, y: o.y ?? 46, filter: `blur(${o.blur ?? 14}px)` },
+    { opacity: 1, y: 0, filter: "blur(0px)", duration: o.d ?? 0.7, ease: o.ease ?? "expo.out", stagger: o.st ?? 0.09 }, at);
+  const leave = (sel, at, o = {}) => tl.to(sel, { opacity: 0, y: o.y ?? -26, filter: "blur(10px)", duration: o.d ?? 0.3, ease: "power2.in", stagger: o.st ?? 0.035 }, at);
+
+  // 64 farmers. (64 counts up)  + Synthetic co-op
+  tl.fromTo("#n64", { opacity: 0, scale: 1.25, filter: "blur(16px)" }, { opacity: 1, scale: 1, filter: "blur(0px)", duration: 0.6, ease: "expo.out" }, 1.4);
+  tl.fromTo("#n64", { innerText: 1 }, { innerText: 64, snap: { innerText: 1 }, duration: 0.62, ease: "power2.out" }, 1.4);
+  enter("#p1 .w:nth-child(2)", 1.62, { y: 0, blur: 18, d: 0.75, ease: "power3.out" });
+  tl.fromTo("#tagSynth", { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.5, ease: "power2.out" }, 1.95);
+  leave("#p1 .w", 2.95);
+  tl.to("#tagSynth", { opacity: 0, duration: 0.25, ease: "power2.in" }, 2.95);
+  // one shoebox of slips.
+  enter("#p2 .w", 3.2, { st: 0.075 });
+  leave("#p2 .w", 4.55, { y: 0, st: 0.03 });
+  // the one slip
+  tl.fromTo("#slipWhite", { opacity: 0, scale: 0.6, rotation: -14, filter: "blur(10px)" }, { opacity: 1, scale: 1, rotation: -5, filter: "blur(0px)", duration: 0.8, ease: "expo.out" }, 4.95);
+  tl.fromTo("#slipHalo", { opacity: 0, scale: 0.6 }, { opacity: 1, scale: 1, duration: 1.2, ease: "power2.out" }, 5.0);
+  tl.fromTo("#nightGlow", { opacity: 0 }, { opacity: 1, duration: 1.6, ease: "sine.inOut" }, 5.2);
+  // one pink copy.
+  tl.fromTo("#slipPink", { opacity: 0, x: 0, y: 0, rotation: -5 }, { opacity: 1, x: 36, y: 26, rotation: 7, duration: 0.6, ease: "expo.out" }, 7.55);
+  enter("#p3 .w", 7.9, { y: 30, st: 0.08 });
+  tl.fromTo("#p3 .acc-pink", { textShadow: "0 0 0px rgba(247,182,202,0)" }, { textShadow: "0 0 26px rgba(247,182,202,0.75)", duration: 0.4, ease: "power2.out" }, 8.1);
+  tl.to("#p3 .acc-pink", { opacity: 0.35, duration: 0.05, repeat: 5, yoyo: true, ease: "none" }, 8.5);
+  leave("#p3 .w", 9.4);
+  // count it once.
+  enter("#p4 .w", 9.72, { y: 30, st: 0.1, ease: "power4.out" });
+  tl.to("#slipPink", { x: 0, y: 0, rotation: -5, opacity: 0, duration: 0.55, ease: "power3.inOut" }, 10.0);
+  tl.fromTo("#p4 .acc-pod", { textShadow: "0 0 0px rgba(156,140,255,0)" }, { textShadow: "0 0 26px rgba(156,140,255,0.7)", duration: 0.5, ease: "power2.out" }, 10.6);
+  leave("#p4 .w", 11.05);
+  // the ring around one figure
+  tl.to("#slipWhite", { opacity: 0, scale: 0.4, duration: 0.45, ease: "power2.in" }, 11.35);
+  tl.to("#slipHalo", { opacity: 0, duration: 0.5, ease: "power2.in" }, 11.35);
+  const RING_LEN = 2 * Math.PI * 300;
+  tl.fromTo("#ring", { strokeDasharray: RING_LEN, strokeDashoffset: RING_LEN }, { strokeDashoffset: 0, duration: 0.6, ease: "power2.inOut" }, 12.85);
+  tl.fromTo("#amount", { opacity: 0, scale: 0.94, filter: "blur(12px)" }, { opacity: 1, scale: 1, filter: "blur(0px)", duration: 0.7, ease: "expo.out" }, 13.12);
+  tl.fromTo("#tagSim1", { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.5, ease: "power2.out" }, 13.4);
+  tl.fromTo("#ringSvg", { opacity: 1 }, { opacity: 0.72, duration: 0.35, yoyo: true, repeat: 1, ease: "sine.inOut" }, 13.6);
+  tl.to(["#amount", "#tagSim1"], { opacity: 0, filter: "blur(8px)", duration: 0.28, ease: "power2.in" }, 14.28);
+  tl.fromTo("#cam1", { scale: 1 }, { scale: 1.06, duration: 9.4, ease: "sine.inOut" }, 5.0);
+
+  // ------------------------------------------------------------------ THE TURN: daylight opens out of the ring
+  tl.fromTo("#dayInner", { clipPath: "circle(0px at 960px 500px)" }, { clipPath: "circle(297px at 960px 500px)", duration: 0.4, ease: "power3.out" }, 14.45);
+  tl.to("#dayInner", { clipPath: "circle(1250px at 960px 500px)", duration: 0.8, ease: "expo.inOut" }, 14.95);
+  tl.to("#ringSvg", { scale: 1250 / 300, opacity: 0, duration: 0.8, ease: "expo.inOut" }, 14.95);
+  tl.set("#dayInner", { clipPath: "none" }, 15.8);
+  tl.fromTo("#tracedSmall", { opacity: 0, scale: 1.12, filter: "blur(10px)" }, { opacity: 1, scale: 1, filter: "blur(0px)", duration: 0.9, ease: "power3.out" }, 15.3);
+  tl.to("#tracedSmall", { opacity: 0, y: -12, filter: "blur(6px)", duration: 0.35, ease: "power2.in" }, 16.4);
+
+  // ------------------------------------------------------------------ DAY tweens
+  tl.fromTo("#worldFade", { opacity: 0, filter: "blur(16px)" }, { opacity: 1, filter: "blur(0px)", duration: 0.9, ease: "power2.out" }, 16.45);
+  tl.set("#worldFade", { filter: "none" }, 17.4);
+  const kwIn = (sel, at) => tl.fromTo(`${sel} span`, { yPercent: 108 }, { yPercent: 0, duration: 0.75, ease: "expo.out" }, at);
+  const kwOut = (sel, at) => tl.to(`${sel} span`, { yPercent: -108, duration: 0.32, ease: "power3.in" }, at);
+  // read: the handwritten figure, a line, Claude's reading of it
+  kwIn("#kw1", 16.75);
+  const HL = 2 * (98 + 55) + 10, HLL = $("#hlLead").getTotalLength();
+  // a pen stroke: the gap is longer than the dash so a round cap never shows before the stroke starts
+  const pen = (sel, L, at, dur, ease) => tl.fromTo(sel, { strokeDasharray: `${L} ${L + 40}`, strokeDashoffset: L + 20 }, { strokeDashoffset: 0, duration: dur, ease }, at);
+  pen("#hlRect", HL, 17.2, 0.55, "power2.inOut");
+  pen("#hlLead", HLL, 17.68, 0.4, "power2.out");
+  tl.fromTo("#c1 .in", { opacity: 0, y: 34, scale: 0.96 }, { opacity: 1, y: 0, scale: 1, duration: 0.75, ease: "expo.out" }, 17.88);
+  tl.fromTo("#hlDot", { opacity: 0 }, { opacity: 1, duration: 0.15 }, 18.02);
+  kwOut("#kw1", 18.85);
+  // checked.
+  kwIn("#kw2", 20.15);
+  tl.fromTo("#tagSim2", { opacity: 0, x: -14 }, { opacity: 1, x: 0, duration: 0.5, ease: "power2.out" }, 20.4);
+  tl.fromTo("#pulseW2", { opacity: 0.95, scale: 1 }, { opacity: 0, scale: 1.18, duration: 0.8, ease: "power2.out", repeat: 1, repeatDelay: 0.15 }, 20.65);
+  kwOut("#kw2", 21.7);
+  // paid.
+  kwIn("#kw3", 22.95);
+  tl.fromTo("#pulseW3", { opacity: 0.95, scale: 1 }, { opacity: 0, scale: 1.22, duration: 0.8, ease: "power2.out", repeat: 1, repeatDelay: 0.15 }, 23.35);
+  kwOut("#kw3", 24.65);
+  // the trace: the pencil mark to the paid amount
+  const LA = $("#traceA").getTotalLength(), LB = $("#traceB").getTotalLength();
+  tl.fromTo("#nodeA", { opacity: 0 }, { opacity: 1, duration: 0.2 }, 25.5);
+  pen("#traceA", LA, 25.55, 0.8, "power2.inOut");
+  tl.fromTo("#nodeB", { opacity: 0 }, { opacity: 1, duration: 0.2 }, 26.28);
+  pen("#traceB", LB, 26.3, 0.35, "power2.out");
+  tl.fromTo("#nodeC", { opacity: 0 }, { opacity: 1, duration: 0.2 }, 26.6);
+  tl.set("#traceA", { strokeDasharray: "none" }, 26.4).set("#traceB", { strokeDasharray: "none" }, 26.7);
+  // Every peso, traced.
+  tl.to("#tagSim2", { opacity: 0, duration: 0.3, ease: "power2.in" }, 26.8);
+  // the veil leaves only a ghost of the windows, so no PayPal value is legible behind the end line
+  tl.fromTo("#veil", { opacity: 0 }, { opacity: 0.92, duration: 0.6, ease: "power2.inOut" }, 26.85);
+  tl.fromTo("#worldFade", { filter: "blur(0px)" }, { filter: "blur(18px)", duration: 0.6, ease: "power2.inOut", immediateRender: false }, 26.85);
+  enter("#end .w", 27.05, { y: 40, st: 0.12, d: 0.8 });
+  tl.fromTo("#endLine", { scaleX: 0 }, { scaleX: 1, duration: 0.55, ease: "power3.inOut" }, 27.6);
+  leave("#end .w", 28.3, { y: -20, st: 0.04 });
+  tl.to("#veil", { opacity: 1, duration: 0.4, ease: "power2.in" }, 28.3);
+  // Fair Split
+  // the mark is the film's metaphor: one jade dot, threads fanning out
+  tl.fromTo("#mark", { opacity: 0, scale: 0.6, rotation: -12 }, { opacity: 1, scale: 1, rotation: 0, duration: 0.8, ease: "back.out(1.6)" }, 28.5);
+  tl.fromTo("#markDot", { scale: 0, transformOrigin: "50% 50%" }, { scale: 1, duration: 0.45, ease: "back.out(3)" }, 28.75);
+  pen("#markPath", $("#markPath").getTotalLength(), 28.9, 0.55, "power2.out");
+  tl.fromTo("#nameText", { opacity: 0, x: -30, filter: "blur(10px)" }, { opacity: 1, x: 0, filter: "blur(0px)", duration: 0.9, ease: "expo.out" }, 28.66);
+  tl.fromTo("#nameSub", { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.6, ease: "power3.out" }, 29.05);
+
+  draw(0);
+  window.__timelines["opening"] = tl;
+})();
+</script>
+</body>
+</html>
