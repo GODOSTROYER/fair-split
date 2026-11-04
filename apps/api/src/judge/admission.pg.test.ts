@@ -57,3 +57,27 @@ it("HD6-6: a third live session from one network replays lane_full without joini
     .where(eq(schema.ledgerEntries.workspaceId, third?.workspaceId ?? ""));
   expect(entries.at(-1)?.payload).toMatchObject({ rail: "replay", replayReason: "lane_full" });
 }, 60_000);
+
+it("HD6-5: a fourth claimed workspace is queued without cloning at the test cap of three", async () => {
+  t = await createTestApp({ db: "postgres", clock: new Date(), env: { FS_TEST_JUDGE_CLAIMED_MAX: "3" } });
+  vi.spyOn(judgeRuntime(t.deps), "refillSoon").mockImplementation(() => {});
+  for (let i = 1; i <= 3; i++) expect((await start(t, `198.18.1.${i}`)).status).toBe(201);
+  const before = await t.deps.db.select({ id: schema.workspaces.id }).from(schema.workspaces);
+  const r = await start(t, "198.18.1.4");
+  expect(r.body).toMatchObject({ code: "QUEUED", retryAfterMs: expect.any(Number) });
+  const after = await t.deps.db.select({ id: schema.workspaces.id }).from(schema.workspaces);
+  expect(after).toHaveLength(before.length);
+}, 60_000);
+
+it("HD6-5: global starts stay bounded across distinct networks", async () => {
+  t = await createTestApp({
+    db: "postgres",
+    clock: new Date(),
+    env: { FS_TEST_JUDGE_STARTS_PER_MINUTE: "3" },
+  });
+  vi.spyOn(judgeRuntime(t.deps), "refillSoon").mockImplementation(() => {});
+  for (let i = 1; i <= 3; i++) expect((await start(t, `198.18.2.${i}`)).status).toBe(201);
+  const r = await start(t, "198.18.2.4");
+  expect(r.status).toBe(429);
+  expect(Number(r.headers.get("retry-after"))).toBeGreaterThan(0);
+}, 60_000);

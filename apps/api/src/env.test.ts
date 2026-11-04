@@ -111,6 +111,18 @@ describe("env: boot refusals (S3.13)", () => {
     expect(parseEnv(PROD).production).toBe(true);
   });
 
+  it("HD6-5: admission test knobs are refused outside local test simulator mode", () => {
+    for (const name of ["FS_TEST_JUDGE_CLAIMED_MAX", "FS_TEST_JUDGE_STARTS_PER_MINUTE"]) {
+      for (const env of [
+        { NODE_ENV: "production" },
+        { NODE_ENV: "test", PP_MODE: "sandbox" },
+        { NODE_ENV: "test", RENDER: "true" },
+      ]) {
+        expect(refusal({ ...env, [name]: "3" }).join(" ")).toContain(`${name} is allowed only`);
+      }
+    }
+  });
+
   it("rejects malformed secrets without echoing their values", () => {
     const problems = refusal({
       FS_COOKIE_SECRET: "short",

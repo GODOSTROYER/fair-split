@@ -63,6 +63,8 @@ const Raw = z.object({
   FS_TRUSTED_EDGE: nonEmpty,
   /** Local simulator e2e stacks may lift only the shared hourly cap; never accepted in production. */
   FS_TEST_JUDGE_HOURLY_MAX: z.coerce.number().int().min(1).max(40).optional(),
+  FS_TEST_JUDGE_CLAIMED_MAX: z.coerce.number().int().min(1).max(200).optional(),
+  FS_TEST_JUDGE_STARTS_PER_MINUTE: z.coerce.number().int().min(1).max(60).optional(),
 
   DATABASE_URL: nonEmpty,
   /** A direct (non-pooled) URL for the LISTEN connection; defaults to DATABASE_URL. */
@@ -128,6 +130,8 @@ export interface ApiEnv {
   trustedEdge: TrustedEdge;
   /** FS_TEST_JUDGE_HOURLY_MAX: test simulator only; unset preserves the production quota. */
   judgeHourlyMax?: number | undefined;
+  judgeClaimedMax: number;
+  judgeStartsPerMinute: number;
   database: {
     url: string | undefined;
     listenUrl: string | undefined;
@@ -198,6 +202,11 @@ export function parseEnv(source: EnvSource = process.env): ApiEnv {
     problems.push(
       "FS_TEST_JUDGE_HOURLY_MAX is allowed only with NODE_ENV=test, PP_MODE=simulator and off Render",
     );
+  }
+  for (const name of ["FS_TEST_JUDGE_CLAIMED_MAX", "FS_TEST_JUDGE_STARTS_PER_MINUTE"] as const) {
+    if (r[name] !== undefined && (r.NODE_ENV !== "test" || r.PP_MODE !== "simulator" || r.RENDER)) {
+      problems.push(`${name} is allowed only with NODE_ENV=test, PP_MODE=simulator and off Render`);
+    }
   }
 
   const ppEnv = r.PP_ENV ?? r.PAYPAL_ENV;
@@ -325,6 +334,8 @@ export function parseEnv(source: EnvSource = process.env): ApiEnv {
     logLevel: r.LOG_LEVEL,
     trustedEdge,
     judgeHourlyMax: r.FS_TEST_JUDGE_HOURLY_MAX,
+    judgeClaimedMax: r.FS_TEST_JUDGE_CLAIMED_MAX ?? 200,
+    judgeStartsPerMinute: r.FS_TEST_JUDGE_STARTS_PER_MINUTE ?? 60,
     database: {
       url: r.DATABASE_URL,
       listenUrl: r.LISTEN_DATABASE_URL ?? r.DATABASE_URL,

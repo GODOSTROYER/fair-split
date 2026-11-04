@@ -14,7 +14,7 @@ import { TASKS } from "@fairsplit/contracts";
 import { appendLedger, type DbOrTx, schema, type Tx, uuidv7, workspaceScope } from "@fairsplit/db";
 import { enqueue } from "@fairsplit/outbox";
 import { getSnapshot } from "@fairsplit/seed";
-import { and, desc, eq, gt, isNotNull, sql } from "drizzle-orm";
+import { and, count, desc, eq, gt, isNotNull, sql } from "drizzle-orm";
 import { readJudgeCookie, setJudgeCookie } from "../credentials/issue/judge-cookie.js";
 import { CONSOLE_PERSONA, mintBearerToken, revokeWorkspaceTokens } from "../credentials/issue/tokens.js";
 import type { JudgeSessionCredential } from "../credentials/verify/index.js";
@@ -143,6 +143,16 @@ export async function startJudgeSession(c: AppContext, deps: AppDeps): Promise<S
     }
   }
 
+  const admission = deps.rateLimits.takeAll([
+    [{ ...RATE_RULES.judgeSessionGlobal, limit: deps.env.judgeStartsPerMinute }, "all"],
+    [RATE_RULES.judgeSessionPerNetworkDay, ip],
+  ]);
+  if (!admission.ok)
+    throw problem.rateLimited(
+      admission.retryAfterMs,
+      "Judge sessions are busy. Try again shortly or view the public showcase Proof.",
+    );
+
   // 3. Live or replay, from fresh flags and counts (over quota is a labelled replay, never a refusal).
   let rail = await judgeRail(deps, { workspaceId: NO_WORKSPACE, sessionId, step: "session" });
 
@@ -153,6 +163,20 @@ export async function startJudgeSession(c: AppContext, deps: AppDeps): Promise<S
   let queuePosition: number | null = null;
   const started = await deps.db
     .transaction(async (tx) => {
+      // Serialize admission before any claim/clone, including concurrent processes sharing this database.
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended('fs:judge-admission',0))`);
+      const w = schema.workspaces;
+      const [claimed] = await tx
+        .select({ n: count() })
+        .from(w)
+        .where(and(eq(w.kind, "judge"), isNotNull(w.claimedAt), gt(w.expiresAt, now)));
+      if ((claimed?.n ?? 0) >= deps.env.judgeClaimedMax) {
+        throw new ApiProblem(
+          "QUEUED",
+          "Judge workspaces are busy. Try again shortly or view the public showcase Proof.",
+          { retryAfterMs: 60_000 },
+        );
+      }
       let claim = await claimPooledWorkspace(tx);
       if (!claim) {
         if (!rt.tryEnterClone()) {
