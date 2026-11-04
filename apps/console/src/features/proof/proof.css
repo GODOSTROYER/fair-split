@@ -1436,3 +1436,11 @@
     padding: 16px 12px 12px;
   }
 }
+
+/* Source-run statuses do not carry this run's confirmed-money jade. */
+.pf-tierbar__bar[data-replayed] .pf-tierbar__seg[data-tier="paypal"],
+.pf-tiers[data-replayed] .pf-tier[data-tier="paypal"] .pf-tier__swatch {
+  background: var(--fs-ink-3);
+  border-color: var(--fs-ink-3);
+  box-shadow: none;
+}

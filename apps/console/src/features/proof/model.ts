@@ -91,6 +91,7 @@ export type ItemSource = "bundle" | "webhook" | "status_check" | "post_response"
 
 /** One item's status as a live run knows it (a judge session's own run, over its SSE stream). */
 export interface LiveItem {
+  readonly provenance?: string | undefined;
   readonly status: PayoutItemStatus;
   readonly payoutItemId: string | null;
   readonly eventId: string | null;
@@ -99,6 +100,7 @@ export interface LiveItem {
 }
 
 export interface ProofItemView {
+  readonly provenance?: string | undefined;
   readonly senderItemId: string;
   readonly memberNo: string | null;
   readonly amountCents: number;
@@ -125,6 +127,7 @@ export function receiversWithheld(bundle: Pick<ProofBundle, "batch">): boolean {
 function viewOf(item: ProofItem): ProofItemView {
   return {
     senderItemId: item.senderItemId,
+    provenance: item.provenance,
     memberNo: memberOfItem(item.senderItemId),
     amountCents: item.amountCents,
     receiver: item.receiver,
@@ -152,6 +155,7 @@ export function mergeItems(
     return {
       ...base,
       status: known.status,
+      provenance: known.provenance ?? base.provenance,
       payoutItemId: known.payoutItemId ?? item.payoutItemId,
       eventId: known.eventId,
       source: known.source,
@@ -170,6 +174,7 @@ export function liveItems(items: readonly ProofItem[], live: ReadonlyMap<string,
     return {
       ...viewOf(item),
       status: known?.status ?? "SUBMITTED",
+      provenance: known?.provenance ?? item.provenance,
       payoutItemId: known?.payoutItemId ?? null,
       eventId: known?.eventId ?? null,
       source: known?.source ?? "bundle",

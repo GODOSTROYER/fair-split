@@ -1,3 +1,4 @@
+import { payoutStatus } from "./payout-replay.js";
 // One run-log row per event (design §5, S1.7 W-TR-08): plain words first, then the event name, IDs, source and
 // signature result in caption type, in one of three lanes (Machine, People, PayPal). The ribbon shows the
 // newest row of each lane; W-TR-08's full log uses the same rows. Never a raw state name: every status word
@@ -9,7 +10,6 @@ import {
   INVOICE_STATUS_LABELS,
   type LogLane,
   PAY_RUN_RANK,
-  PAYOUT_ITEM_STATUS_LABELS,
   type Provenance,
   pickLabel,
   RUN_STATE_LABELS,
@@ -219,37 +219,31 @@ export function describeEvent(event: RunEvent, ctx: DescribeContext): LogRow | n
       const p = event.payload;
       const name = ctx.memberName(p.memberNo);
       const amount = ctx.itemAmount(p.senderItemId);
-      const status = pickLabel(PAYOUT_ITEM_STATUS_LABELS[p.to], "en");
-      const words =
-        event.provenance === "replay"
-          ? `${name}: Replayed (labelled), simulated ${p.to.toLowerCase()}`
-          : p.to === "SUCCESS"
-            ? join(`Paid ${name} ${amount ?? ""}`.trim())
-            : p.to === "UNCLAIMED"
-              ? `${name}'s address has no PayPal account. Parked`
-              : p.to === "RETURNED" && p.source === "cancel"
-                ? `${name}: returned to the co-op's simulated PayPal balance`
-                : `${name}: ${status.toLowerCase()}`;
-      const eventName =
-        event.provenance === "replay"
-          ? null
-          : p.to === "SUCCESS"
-            ? "PAYMENT.PAYOUTS-ITEM.SUCCEEDED"
-            : p.to === "PENDING"
-              ? null
-              : `PAYMENT.PAYOUTS-ITEM.${p.to === "RETURNED" && p.source === "cancel" ? "CANCELED" : p.to}`;
+      const presentation = payoutStatus({ itemStatus: p.to, provenance: event.provenance });
+      const status = presentation.statusWord;
+      const words = presentation.replayed
+        ? `${name}: ${presentation.statusWord}`
+        : p.to === "SUCCESS"
+          ? join(`Paid ${name} ${amount ?? ""} (${presentation.simulatedLabel})`.trim())
+          : p.to === "UNCLAIMED"
+            ? `${name}'s address has no PayPal account. Parked`
+            : p.to === "RETURNED" && p.source === "cancel"
+              ? `${name}: returned to the co-op's simulated PayPal balance`
+              : `${name}: ${status.toLowerCase()}`;
+      const eventName = presentation.replayed
+        ? null
+        : p.to === "SUCCESS"
+          ? "PAYMENT.PAYOUTS-ITEM.SUCCEEDED"
+          : p.to === "PENDING"
+            ? null
+            : `PAYMENT.PAYOUTS-ITEM.${p.to === "RETURNED" && p.source === "cancel" ? "CANCELED" : p.to}`;
       // The whole item ID: it is what a person matches against PayPal's own records.
       const item = p.payoutItemId ? `item ${p.payoutItemId}` : null;
       return {
         ...base,
         lane: "PAYPAL",
         words,
-        detail: join(
-          eventName,
-          item,
-          event.provenance === "replay" ? "Replayed status" : itemSource(p.source),
-          note,
-        ),
+        detail: join(eventName, item, presentation.replayed ? "Replayed status" : itemSource(p.source), note),
       };
     }
     case "hold.raised": {

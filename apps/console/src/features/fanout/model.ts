@@ -7,6 +7,7 @@
 
 import type { MemberLineState, PayoutItemStatus, SeasonSnapshot } from "@fairsplit/contracts";
 import type { LogRow } from "../../data/describe.js";
+import { currentPayoutItem, payoutStatus } from "../../data/payout-replay.js";
 import { atLeast, type RunItem, type RunView } from "../../data/run-view.js";
 import { format } from "../../lib/format.js";
 import { engineOutput, splitBasis } from "../split/model.js";
@@ -53,6 +54,8 @@ export interface FanThread {
   readonly name: string;
   readonly cents: number;
   readonly status: PayoutItemStatus | null;
+  readonly replayed: boolean;
+  readonly statusWord: string;
   readonly tone: ThreadTone;
   /** How much of the path is drawn: 0, the 70% "sent" mark, or 1 once PayPal confirmed it. */
   readonly progress: number;
@@ -215,7 +218,7 @@ function curve(x0: number, y0: number, x1: number, y1: number): string {
 function batchItems(snapshot: SeasonSnapshot, view: RunView) {
   const seeded = snapshot.run.items;
   return seeded.map((s) => {
-    const live = Object.values(view.items).find((i) => i.memberNo === s.memberNo);
+    const live = currentPayoutItem(view, s.memberNo);
     return {
       memberNo: s.memberNo,
       senderItemId: live?.senderItemId ?? s.senderItemId,
@@ -246,15 +249,28 @@ export function fanView(snapshot: SeasonSnapshot, view: RunView): FanView {
     const y1 = stubY + FAN.stub.h / 2;
     const lineState = view.lines[item.memberNo]?.state;
     const status = item.live?.status ?? null;
+    const presentation = payoutStatus({
+      ...(status ? { itemStatus: status } : { state: lineState ?? "READY" }),
+      view,
+      memberNo: item.memberNo,
+      senderItemId: item.senderItemId,
+    });
     const tone = threadTone(status, item.live, lineState);
+    // A current cash decision retracts the old thread, regardless of the source payout's provenance.
+    const replayed = presentation.replayed && tone !== "moved";
     return {
       senderItemId: item.senderItemId,
       memberNo: item.memberNo,
       name: names.get(item.memberNo) ?? item.memberNo,
       cents: item.cents,
       status,
+      replayed,
+      statusWord:
+        tone === "moved"
+          ? payoutStatus({ state: lineState ?? "OFF_RAIL_DUE", paypal: false }).statusWord
+          : presentation.statusWord,
       tone,
-      progress: progressOf(tone),
+      progress: replayed ? FAN.sentAt : progressOf(tone),
       width,
       d: curve(FAN.bar.x1, y0, FAN.endX, y1),
       capAt: pointAtLength(FAN.bar.x1, y0, FAN.endX, y1, FAN.sentAt),
@@ -264,8 +280,15 @@ export function fanView(snapshot: SeasonSnapshot, view: RunView): FanView {
       eventId: item.live?.eventId ?? null,
       at: item.live?.at ?? null,
       source: item.live?.source ?? null,
-      amountState:
-        tone === "landed" ? "landed" : tone === "unsent" ? (approved ? "ink" : "pencil") : "hollow",
+      amountState: replayed
+        ? "hollow"
+        : tone === "landed"
+          ? "landed"
+          : tone === "unsent"
+            ? approved
+              ? "ink"
+              : "pencil"
+            : "hollow",
     };
   });
 

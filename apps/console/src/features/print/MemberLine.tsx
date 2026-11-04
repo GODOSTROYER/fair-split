@@ -4,12 +4,13 @@
 // PayPal or exact cash at the run's recorded rate.
 
 import type { Lang, SeasonSnapshot, SnapshotMember } from "@fairsplit/contracts";
-import { AmountDisplay, Glyph, ReceiptBar, type SegmentId, Slab, StatusChip } from "@fairsplit/ui-web";
+import { AmountDisplay, Chip, Glyph, ReceiptBar, type SegmentId, Slab, StatusChip } from "@fairsplit/ui-web";
 import { useState } from "react";
 import { AppLink } from "../../chrome/AppLink.js";
 import { CommandNotice } from "../../chrome/CommandNotice.js";
 import { rowTime } from "../../data/describe.js";
 import { useCommand } from "../../data/hooks.js";
+import { payoutStatus } from "../../data/payout-replay.js";
 import type { RunView } from "../../data/run-view.js";
 import { format } from "../../lib/format.js";
 import { provenanceFooter } from "../../lib/provenance.js";
@@ -47,6 +48,13 @@ export function MemberLine({ snapshot, view, member, row, state, live, printHref
   const pairing = useCommand("createPairing");
   const fx = snapshot.fx.centavosPerCent;
   const cash = isCashLine(row);
+  const payout = payoutStatus({
+    state: row.state,
+    view,
+    memberNo: row.memberNo,
+    paypal: !cash,
+    replayed: row.replayed,
+  });
   const amount = { display: format.money(row.netCents), spoken: format.amountSpoken(row.netCents, "en") };
   const estimate = cash ? undefined : format.pesoEstimate(row.netCents, fx, "en");
   const exactCash = cash ? format.money(cashCentavos(row.netCents, fx), "PHP") : null;
@@ -70,13 +78,24 @@ export function MemberLine({ snapshot, view, member, row, state, live, printHref
             {row.memberNo}, {LINE.langName[member.lang]}
           </p>
         </div>
-        <StatusChip
-          state={state === "cash-due" ? "OFF_RAIL_DUE" : row.state}
-          surface="console"
-          testId="W-TR-09.status"
-        />
+        {payout.simulatedLabel ? (
+          <Chip
+            tone={payout.tone}
+            glyph={payout.replayed ? "rail" : row.state === "PAID" ? "ms:check" : "rail"}
+            testId="W-TR-09.status"
+          >
+            {payout.statusWord}
+          </Chip>
+        ) : (
+          <StatusChip
+            state={state === "cash-due" ? "OFF_RAIL_DUE" : row.state}
+            surface="console"
+            testId="W-TR-09.status"
+          />
+        )}
       </header>
 
+      {payout.detail && <p className="fs-t-caption">{payout.detail}</p>}
       <div className="fsr-line__amount" data-amount-state={row.amountState} data-testid="W-TR-09.amount">
         <AmountDisplay
           amount={amount}
@@ -228,13 +247,7 @@ export function MemberLine({ snapshot, view, member, row, state, live, printHref
           )}
           {pairing.error && <CommandNotice error={pairing.error} testId="W-TR-09.pair.error" />}
         </div>
-        <AppLink
-          href={printHref}
-          className="fs-flat"
-          target="_blank"
-          rel="noopener"
-          data-testid="W-TR-09.print"
-        >
+        <AppLink href={printHref} className="fs-flat" data-testid="W-TR-09.print">
           <Glyph name="ms:print" size={18} />
           {LINE.print}
         </AppLink>

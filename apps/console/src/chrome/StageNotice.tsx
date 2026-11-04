@@ -50,7 +50,7 @@ export interface StageNoticeInput {
 }
 
 const REPLAY_REASON_COPY: Readonly<Record<ReplayReason, string>> = {
-  kill_switch: "Simulated PayPal calls are paused by the co-op.",
+  kill_switch: "Simulated PayPal calls are switched off for this session.",
   simulator_not_running: "The simulated PayPal sandbox is unavailable.",
   balance_unknown: "The simulated PayPal balance is not available.",
   hourly_cap: "This hour's simulated payout allowance is used.",

@@ -305,7 +305,7 @@ export const LINE = {
   signedBy: (who: string) => `${who} signed the batch`,
   holdRaised: (label: string) => `${label} raised by the engine`,
   holdResolved: (label: string, who: string) => `${label} resolved by ${who}`,
-  paypalNotice: "PayPal notice, webhook",
+  paypalNotice: "Simulated PayPal sandbox notice, webhook",
   ourCancel: "Our cancel",
   creditName: "Returned multa",
   machineTranslated: en("W-JG-01.machineTranslated"),
@@ -318,11 +318,11 @@ export const LINE = {
   langName: { ceb: "Cebuano", fil: "Filipino", en: "English" },
   sms: {
     ceb: (p: SmsParts) =>
-      `${p.coop}: ${p.name}, ${p.status}: ${p.amount}${smsRail(p, ", cash sa bodega", " sa PayPal")}. Resibo ${p.slips}. Pangutana: Treasurer ${p.treasurer}.`,
+      `${p.coop}: ${p.name}, ${p.status}: ${p.amount}${smsRail(p, ", cash sa bodega", " sa simulated PayPal sandbox")}. Resibo ${p.slips}. Pangutana: Treasurer ${p.treasurer}.`,
     fil: (p: SmsParts) =>
-      `${p.coop}: ${p.name}, ${p.status}: ${p.amount}${smsRail(p, ", cash sa bodega", " sa PayPal")}. Resibo ${p.slips}. Tanong: Treasurer ${p.treasurer}.`,
+      `${p.coop}: ${p.name}, ${p.status}: ${p.amount}${smsRail(p, ", cash sa bodega", " sa simulated PayPal sandbox")}. Resibo ${p.slips}. Tanong: Treasurer ${p.treasurer}.`,
     en: (p: SmsParts) =>
-      `${p.coop}: ${p.name}, ${p.status}: ${p.amount}${smsRail(p, ", in cash at the bodega", " to your PayPal")}. Slips ${p.slips}. Questions: Treasurer ${p.treasurer}.`,
+      `${p.coop}: ${p.name}, ${p.status}: ${p.amount}${smsRail(p, ", in cash at the bodega", " through the simulated PayPal sandbox")}. Slips ${p.slips}. Questions: Treasurer ${p.treasurer}.`,
   },
   pair: "Pair a phone",
   pairOffline: "Pairing a phone needs the live run. This is the seeded showcase.",
@@ -350,7 +350,7 @@ export const LINE = {
   printSynthetic: "Synthetic sample. No real farmer was paid.",
   printButton: "Print",
   printBack: "Back to the line",
-  printPaypal: "Paid by PayPal. This copy is for the member's records.",
+  printPaypal: "Paid through the simulated PayPal sandbox. This copy is for the member's records.",
   printPaypalWaiting:
     "Sent through the simulated PayPal sandbox. Paid once the simulated PayPal sandbox confirms it.",
   printHeld: "Still checking. This line prints its amount once every hold on it is decided.",

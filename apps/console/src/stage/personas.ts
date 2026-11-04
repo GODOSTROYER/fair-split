@@ -4,6 +4,7 @@
 import { MEMBER_LINE_LABELS, type ScreenId, type SeasonSnapshot } from "@fairsplit/contracts";
 import type { MessageKey } from "@fairsplit/i18n";
 import type { FramePersona } from "../data/adapter.js";
+import { payoutStatus } from "../data/payout-replay.js";
 import { atLeast, type RunView } from "../data/run-view.js";
 
 /** The hero member the Member tab follows (register §2). */
@@ -37,20 +38,8 @@ export function personaInfo(persona: FramePersona, snapshot: SeasonSnapshot | un
 export function personaStatus(persona: FramePersona, view: RunView | undefined): string | null {
   if (persona === "member") {
     const state = view?.lines[HERO_MEMBER]?.state ?? "COMPUTED";
-    const replayed =
-      Object.values(view?.items ?? {}).some(
-        (item) => item.memberNo === HERO_MEMBER && item.provenance === "replay",
-      ) ||
-      view?.events.some(
-        (event) =>
-          event.type === "item.updated" &&
-          event.payload.memberNo === HERO_MEMBER &&
-          event.provenance === "replay",
-      );
-    if (replayed) return "Replayed (labelled), Simulated PayPal sandbox";
-    return state === "PAID"
-      ? `${MEMBER_LINE_LABELS[state].ceb} (Simulated PayPal sandbox)`
-      : MEMBER_LINE_LABELS[state].ceb;
+    return payoutStatus({ state, view, memberNo: HERO_MEMBER, statusWord: MEMBER_LINE_LABELS[state].ceb })
+      .statusWord;
   }
   if (
     persona === "chair" &&

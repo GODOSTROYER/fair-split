@@ -1,16 +1,14 @@
-import { payoutReplayed, payoutReplaySummary } from "../../data/payout-replay.js";
+import { payoutReplayed, payoutReplaySummary, payoutStatus } from "../../data/payout-replay.js";
 // The chain (S1.8): six plates on one rule, in their real order. Each plate states its fact in a line, carries the
 // check "Verify in your browser" runs for it, and expands in place to show its IDs and hashes. Plate 4 holds every
 // member's line (and MM-7's trace), plate 6 the payout items as our record of PayPal's notices.
 
-import {
-  PAYOUT_ITEM_STATUS_LABELS,
-  type PayoutItemStatus,
-  type PlateName,
-  type ProofBundle,
-  type Provenance,
-  pickLabel,
-  type SnapshotSlip,
+import type {
+  PayoutItemStatus,
+  PlateName,
+  ProofBundle,
+  Provenance,
+  SnapshotSlip,
 } from "@fairsplit/contracts";
 import { Chip, type ChipTone, Glyph, type GlyphName } from "@fairsplit/ui-web";
 import { type CSSProperties, type ReactNode, useEffect, useId, useState } from "react";
@@ -369,7 +367,6 @@ function PlateBody({ plate, ...p }: ChainProps & { readonly plate: PlateName }) 
             ]}
           />
           <Lines
-            replayed={p.replayed || payoutReplayed(undefined, bundle)}
             bundle={bundle}
             items={p.items}
             lineStates={p.lineStates}
@@ -463,12 +460,19 @@ function Items({ bundle, items, names, rail, replayed = payoutReplayed(undefined
           </thead>
           <tbody>
             {items.map((item) => {
+              const presentation = payoutStatus({
+                itemStatus: item.status,
+                bundle,
+                memberNo: item.memberNo,
+                senderItemId: item.senderItemId,
+                provenance: item.provenance,
+              });
               const tone = ITEM_TONE[item.status];
               const label = item.memberNo ? names?.get(item.memberNo) : undefined;
               return (
                 <tr
                   key={item.senderItemId}
-                  data-state={item.status}
+                  data-state={presentation.replayed ? "replay" : item.status}
                   data-testid={`W-PF-01.item.${item.senderItemId}`}
                 >
                   <th scope="row" className="fs-t-hash">
@@ -477,22 +481,19 @@ function Items({ bundle, items, names, rail, replayed = payoutReplayed(undefined
                   {names && <td>{label?.name ?? ""}</td>}
                   {names && <td className="pf-table__receiver">{label?.receiverMasked ?? ""}</td>}
                   <td data-numeric="">
-                    <span
-                      className="fs-t-figure"
-                      data-amount-state={item.status === "SUCCESS" ? "landed" : "hollow"}
-                    >
+                    <span className="fs-t-figure" data-amount-state={presentation.amountState}>
                       {format.money(item.amountCents)}
                     </span>
                   </td>
                   <td>
-                    <Chip tone={tone.tone} glyph={tone.glyph}>
-                      {replayed
-                        ? "Replayed (labelled)"
-                        : pickLabel(PAYOUT_ITEM_STATUS_LABELS[item.status], "en")}
+                    <Chip tone={presentation.tone} glyph={presentation.replayed ? "rail" : tone.glyph}>
+                      {presentation.statusWord}
                     </Chip>
                   </td>
                   <td className="fs-t-hash">{item.payoutItemId ?? "Not yet"}</td>
-                  <td className="fs-t-hash">{replayed ? "Replayed, simulated" : noticeOf(item)}</td>
+                  <td className="fs-t-hash">
+                    {presentation.replayed ? "Replayed, simulated" : noticeOf(item)}
+                  </td>
                 </tr>
               );
             })}

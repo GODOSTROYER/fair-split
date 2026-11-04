@@ -1,3 +1,4 @@
+import { payoutStatus } from "../../data/payout-replay.js";
 // SplitGrid's cell renderers (S2.7): pencil and ink values, the kilos-per-tree bar, confidence rings, rule chips,
 // the hatched cash cell and the status cell. Rows never hold a slab. A cell washes jade only when PayPal changed
 // it (a verified item notice) and pencil only when the engine recomputed it; both wash only for live events,
@@ -482,8 +483,11 @@ const STATUS_LOOK: Readonly<
 export function statusWords(row: SplitRow): string {
   if (row.status.kind === "held") return SPLIT.held;
   if (row.status.kind === "reserved") return SPLIT.reserved;
-  if (row.replayed) return "Replayed (labelled, simulated)";
-  return en(`console.status.${row.state}`);
+  return payoutStatus({
+    state: row.state,
+    replayed: row.replayed,
+    paypal: row.rail === "PAYPAL" && !row.movedToCash,
+  }).statusWord;
 }
 
 export function StatusCell({ data, context }: Props) {
@@ -515,7 +519,7 @@ export function StatusCell({ data, context }: Props) {
       <span
         className="fsr-status"
         data-tone={look.tone}
-        data-state={data.status.kind === "line" ? data.state : data.status.kind}
+        data-state={data.replayed ? "replay" : data.status.kind === "line" ? data.state : data.status.kind}
         data-testid={`W-TR-05.status.${data.memberNo}`}
       >
         <Glyph name={look.glyph} size={16} />

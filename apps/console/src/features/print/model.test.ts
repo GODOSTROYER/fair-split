@@ -106,7 +106,7 @@ describe("why the number is the number", () => {
     const history = lineHistory(snapshot, viewOf(world), "M-014").map((h) => h.words);
     expect(history).toContain("Analyn signed the batch");
     expect(history).toContain("Ernesto signed the batch");
-    expect(history.at(-1)).toBe("Paid");
+    expect(history.at(-1)).toBe("Paid (Simulated PayPal sandbox)");
   });
 });
 
@@ -120,17 +120,18 @@ describe("the SMS preview (never sent)", () => {
     expect(smsSegments(307)).toBe(3);
   });
 
-  it("Nang Celing's, in Cebuano, fits one message and names her slips", () => {
+  it("Nang Celing's labelled simulated SMS names her slips and reports its two-message cost", () => {
     const view = showcaseView(snapshot);
     const member = snapshot.members.find((m) => m.memberNo === "M-014");
     if (!member) throw new Error("no M-014");
     const row = rowOf(view, "M-014");
     const text = smsText(snapshot, member, row, "paid", "ceb");
-    expect(text).toMatch(/Nang Celing, Bayad na: US\$64\.45/);
+    expect(text).toMatch(/Nang Celing, Bayad na \(Simulated PayPal sandbox\): US\$64\.45/);
     expect(text).toMatch(/P4,028/);
     expect(text).not.toMatch(/₱/);
     const septets = gsm7Length(text);
     expect(septets).not.toBeNull();
-    expect(septets ?? 999).toBeLessThanOrEqual(160);
+    expect(smsSegments(septets ?? 999)).toBe(2);
+    expect(text).toContain("simulated PayPal sandbox");
   });
 });

@@ -8,10 +8,17 @@ import { seedSnapshot } from "../../test/world.js";
 import { decidedWords } from "./index.js";
 
 const snapshot = seedSnapshot();
+const base = showcaseView(snapshot);
+const replayView = {
+  ...base,
+  items: Object.fromEntries(
+    Object.entries(base.items).map(([id, item]) => [id, { ...item, provenance: "replay" as const }]),
+  ),
+};
 
 describe("split review after a payout replay", () => {
   it("inv.i8.split-replay: displays the labelled replay instead of Paid or a jade confirmation", () => {
-    const row = splitRows(snapshot, showcaseView(snapshot), true).find((r) => r.memberNo === "M-014");
+    const row = splitRows(snapshot, replayView).find((r) => r.memberNo === "M-014");
     if (!row) throw new Error("M-014 required");
     const props = {
       data: { kind: "line", ...row } as GridRow,
@@ -22,7 +29,7 @@ describe("split review after a payout replay", () => {
         <StatusCell {...props} />
       </UiProvider>,
     );
-    expect(container.textContent).toBe("Replayed (labelled, simulated)");
+    expect(container.textContent).toBe("Replayed (labelled), Simulated PayPal sandbox");
     expect(container.querySelector('[data-tone="jade"]')).toBeNull();
     expect(container.querySelector(".fsr-cell__wash")).toBeNull();
     expect(row.amountState).not.toBe("landed");
@@ -37,9 +44,9 @@ describe("split review after a payout replay", () => {
   });
 
   it("keeps cash statuses distinct from replayed PayPal statuses", () => {
-    const row = splitRows(snapshot, showcaseView(snapshot), true).find((r) => r.rail === "CASH");
+    const row = splitRows(snapshot, replayView).find((r) => r.rail === "CASH");
     expect(row?.replayed).not.toBe(true);
-    const rerouted = splitRows(snapshot, showcaseView(snapshot), true).find((r) => r.movedToCash);
+    const rerouted = splitRows(snapshot, replayView).find((r) => r.movedToCash);
     expect(rerouted?.memberNo).toBe("M-031");
     expect(rerouted?.replayed).not.toBe(true);
   });

@@ -20,7 +20,7 @@ import type {
   SnapshotMember,
   SnapshotSlip,
 } from "@fairsplit/contracts";
-import { payoutReplayed } from "../../data/payout-replay.js";
+import { currentPayoutItem, payoutStatus } from "../../data/payout-replay.js";
 import {
   type AmountState,
   atLeast,
@@ -242,11 +242,7 @@ export function hasLines(view: RunView): boolean {
 }
 
 /** Every member line on the computation the run's decisions match, ordered by member number. */
-export function splitRows(
-  snapshot: SeasonSnapshot,
-  view: RunView,
-  replayed = payoutReplayed(view),
-): SplitRow[] {
+export function splitRows(snapshot: SeasonSnapshot, view: RunView): SplitRow[] {
   if (!hasLines(view)) return [];
   const basis = splitBasis(view);
   const output = engineOutput(snapshot, basis);
@@ -315,9 +311,14 @@ export function splitRows(
       const live = view.lines[line.memberNo];
       // Jade is money PayPal confirmed: a PAID line takes its cause and evidence from the verified item, whatever
       // bookkeeping event moved the line after it.
-      const item = Object.values(view.items).find((i) => i.memberNo === line.memberNo);
-      const rowReplayed =
-        replayed && line.rail === "PAYPAL" && !CASH_STATES.includes(state) && item !== undefined;
+      const item = currentPayoutItem(view, line.memberNo);
+      const presentation = payoutStatus({
+        state,
+        view,
+        memberNo: line.memberNo,
+        paypal: line.rail === "PAYPAL" && !CASH_STATES.includes(state),
+      });
+      const rowReplayed = presentation.replayed;
       const landed = !rowReplayed && state === "PAID" && item?.status === "SUCCESS";
       return {
         memberNo: line.memberNo,
@@ -330,7 +331,7 @@ export function splitRows(
         state,
         replayed: rowReplayed,
         status,
-        amountState: rowReplayed ? "ink" : lineAmountState(view, line.memberNo),
+        amountState: rowReplayed ? presentation.amountState : lineAmountState(view, line.memberNo),
         partsState: approved ? "ink" : "pencil",
         verifiedG: line.verifiedG,
         grade1G: line.grade1G,

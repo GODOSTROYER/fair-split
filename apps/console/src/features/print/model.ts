@@ -13,6 +13,7 @@ import type {
 } from "@fairsplit/contracts";
 import { translate } from "@fairsplit/i18n";
 import type { MoneyView, StatementLineView } from "@fairsplit/ui-web";
+import { payoutStatus } from "../../data/payout-replay.js";
 import { atLeast, type RunView } from "../../data/run-view.js";
 import { format } from "../../lib/format.js";
 import { type SplitRow, splitRows } from "../split/model.js";
@@ -145,14 +146,14 @@ export function lineHistory(snapshot: SeasonSnapshot, view: RunView, memberNo: s
     if (item)
       rows.push({
         id: "seed-sent",
-        words: translate("en", "console.status.SUBMITTED"),
+        words: payoutStatus({ state: "SUBMITTED", view, memberNo }).statusWord,
         detail: LINE.seeded,
         at: null,
       });
     if (state)
       rows.push({
         id: "seed-state",
-        words: translate("en", `console.status.${state}`),
+        words: payoutStatus({ state, view, memberNo }).statusWord,
         detail: LINE.seeded,
         at: null,
       });
@@ -180,18 +181,22 @@ function historyRow(
   switch (e.type) {
     case "line.state":
       if (e.payload.memberNo !== memberNo) return null;
-      return { id: e.id, words: translate("en", `console.status.${e.payload.to}`), detail: null, at: e.at };
+      {
+        const status = payoutStatus({ state: e.payload.to, provenance: e.provenance });
+        return { id: e.id, words: status.statusWord, detail: status.detail, at: e.at };
+      }
     case "item.updated":
       if (e.payload.memberNo !== memberNo) return null;
       return {
         id: e.id,
-        words: translate("en", `console.status.${statusLine(e.payload.to)}`),
+        words: payoutStatus({ itemStatus: e.payload.to, provenance: e.provenance }).statusWord,
         detail:
-          e.payload.source === "webhook"
+          payoutStatus({ itemStatus: e.payload.to, provenance: e.provenance }).detail ??
+          (e.payload.source === "webhook"
             ? LINE.paypalNotice
             : e.payload.source === "cancel"
               ? LINE.ourCancel
-              : null,
+              : null),
         at: e.at,
       };
     case "hold.raised":
@@ -216,29 +221,6 @@ function historyRow(
       return null;
   }
 }
-
-function statusLine(to: string): MemberLineState {
-  switch (to) {
-    case "SUCCESS":
-      return "PAID";
-    case "UNCLAIMED":
-      return "UNCLAIMED";
-    case "RETURNED":
-      return "RETURNED";
-    case "ONHOLD":
-      return "PAYPAL_HELD";
-    case "FAILED":
-    case "BLOCKED":
-      return "NEEDS_ACTION";
-    case "REFUNDED":
-    case "REVERSED":
-      return "REVERSED";
-    default:
-      return "PAYPAL_PENDING";
-  }
-}
-
-// ------------------------------------------------------------------------------------------ SMS preview (GSM-7)
 
 const GSM7_BASIC =
   "@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞÆæßÉ !\"#¤%&'()*+,-./0123456789:;<=>?¡ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ§¿abcdefghijklmnopqrstuvwxyzäöñüà";
@@ -281,8 +263,14 @@ export function smsText(
   lang: Lang,
 ): string {
   const fx = snapshot.fx.centavosPerCent;
-  const status = translate(lang, `status.${SMS_STATUS[state]}`);
   const cash = isCashLine(row);
+  const presentation = payoutStatus({
+    state: SMS_STATUS[state],
+    replayed: row.replayed,
+    paypal: !cash,
+    statusWord: translate(lang, `status.${SMS_STATUS[state]}`),
+  });
+  const status = presentation.statusWord;
   const amount = cash
     ? format.money(cashCentavos(row.netCents, fx), "PHP")
     : `${format.money(row.netCents)} (${format.pesoEstimate(row.netCents, fx, lang)})`;
@@ -298,5 +286,5 @@ export function smsText(
     slips,
     treasurer,
   });
-  return text.replaceAll("₱", "P");
+  return `${text}${presentation.detail ? ` ${presentation.detail}` : ""}`.replaceAll("₱", "P");
 }

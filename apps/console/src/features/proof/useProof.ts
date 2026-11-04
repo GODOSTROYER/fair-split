@@ -88,6 +88,7 @@ function liveMap(view: RunView | undefined): Map<string, LiveItem> {
   for (const item of Object.values(view.items)) {
     map.set(item.senderItemId, {
       status: item.status,
+      provenance: item.provenance,
       payoutItemId: item.payoutItemId,
       eventId: item.eventId,
       source: item.source,

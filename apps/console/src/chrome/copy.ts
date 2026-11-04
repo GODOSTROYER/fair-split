@@ -89,8 +89,9 @@ export const STAGE_NOTICE = {
   aiOff: "Live slip reading is off. The labelled seed stand-in still plays.",
   // S1.6's words for the API's replay reasons `circuit_open` and `balance_low`.
   circuit: "The simulated PayPal rate limit paused calls. For 6 minutes, PayPal steps use a labelled replay.",
-  balanceLow: "The simulated balance is low. Payouts pause until it's topped up; everything else works.",
-  paypalOff: "PayPal calls are off. PayPal steps replay the last run, labelled.",
+  balanceLow:
+    "The simulated PayPal balance is low. This run's payouts replay, labelled, until it's topped up.",
+  paypalOff: "Simulated PayPal calls are off. This run's payout steps wait; nothing is replayed for them.",
   payoutsOff: "Payouts are paused by the co-op. Everything else works.",
   autoplay: "Autoplay is driving. Any key or click hands it back to you.",
   paused: "Paused. You're driving.",
