@@ -141,6 +141,13 @@
       "when": 1793516400001,
       "tag": "0019_webhook_delivery",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1793792205468,
+      "tag": "0020_ledger_link_revoked_idx",
+      "breakpoints": true
     }
   ]
 }
