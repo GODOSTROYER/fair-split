@@ -1,7 +1,7 @@
 # Cloud T4: Android APK build on Linux
 
 Branch `cloud/apk-linux`, cut from `origin/main` at `3e1ec112`. Handoff task T4 (`docs/handoff/cloud.md` on
-`cloud/handoff`). Status: **in progress** (build running).
+`cloud/handoff`). Status: **in progress** (APK built; size experiments running).
 
 ## Toolchain (installed in the session, outside the repo)
 
@@ -72,4 +72,60 @@ files from the killed run were kept (`node_modules/**/android/.cxx`), so the rer
 
 ## Results
 
-Pending.
+**An R8 release APK built** (`BUILD SUCCESSFUL in 1h 3m 46s`, 22:21 to 23:25 UTC, load average 37 at the start and
+14 at the end; it resumed the native objects of the OOM-killed run, so a clean build on this shared machine takes
+longer). R8 ran (`:app:minifyReleaseWithR8`), resources were shrunk, and every APK passes
+`zipalign -c -P 16 4` (16 KB page alignment for the uncompressed native libraries).
+
+Signed with the throwaway key (`apksigner sign`, then `apksigner verify`: v2 and v3 schemes, one signer):
+`CN=build-check, OU=throwaway, O=Fair Split build-check`, certificate SHA-256
+`6133d30a2c8839844bef83648a872170780527a92e774f2963ab235d6c078e6d` (RSA 2048, valid 30 days, PKCS12 in the
+session's scratch folder; never in the repo, not pushed anywhere).
+
+### Size per ABI against the 35 MB budget
+
+The budget is the design direction's "APK ≤ 35 MB per ABI, including armeabi-v7a" (performance budgets; also
+S2 and the plan). Real split APKs from `splits.abi` (one build, init script), signed with build-check. MB = 2^20 bytes.
+
+| APK                   |       Bytes |     MB | Native libs (stored) | Budget                | SHA-256                                                            |
+| --------------------- | ----------: | -----: | -------------------: | --------------------- | ------------------------------------------------------------------ |
+| arm64-v8a             |  44,413,810 |  42.36 |             29.25 MB | **over by 7.36 MB**   | `b7f496fc467553bae5a401f0f1acca355eec1f6f71e01769f3b99a608a4266ae` |
+| armeabi-v7a           |  34,681,778 |  33.08 |             19.95 MB | within (1.92 MB left) | `73786382ed51590e5debab4b7c87bcbabbfb195141a392d6510c7cd2c4be5f31` |
+| x86_64                |  47,137,554 |  44.95 |             31.82 MB | **over by 9.95 MB**   | `9aafb74594ec09a06e5c111b8bf4fd8cbfc5732ec62ccf3aeec57c88413bf06b` |
+| x86                   |  47,080,114 |  44.90 |             31.78 MB | **over by 9.90 MB**   | `903a3f3c7db40b2ba752c9678f6f0006b9b0e25242a7e63b11ee57edf3f22384` |
+| universal (four ABIs) | 132,788,454 | 126.64 |            112.80 MB | n/a (not per ABI)     | `cdccade27ef3fa67d365e15cde4e146345cfbd2194dcd2e9ec7d6b930ae50a55` |
+
+The hashes are of these build-check-signed files; any other key gives other hashes (the workflow prints its own).
+Signing is deterministic: the workflow's sign step, run locally with the same key on the same unsigned APK, gave
+the same universal hash.
+
+Where the arm64-v8a APK's 42.4 MB goes (stored bytes): native libraries 30.7 MB (`libreactnative` 7.0 MB,
+`libbarhopper_v3` 4.9 MB, `libhermesvm` 2.7 MB, `libexpo-sqlite` 1.9 MB, `libreanimated` 1.7 MB,
+`libexpo-modules-core` 1.6 MB, `libc++_shared` 1.3 MB, `libworklets` 1.3 MB, …); `assets/` 6.4 MB (the Hermes
+bundle 5.4 MB, ML Kit barcode models 0.9 MB, the six fonts 0.15 MB); `classes*.dex` 5.0 MB; `resources.arsc`
+1.1 MB; `res/` 0.5 MB. The native libraries are **stored uncompressed** (`expo.useLegacyPackaging=false`, the
+SDK 58 default) so they can be memory-mapped and page-aligned; that is why they cost their full size in the APK.
+`libbarhopper_v3` is the bundled ML Kit barcode scanner (expo-camera `barcodeScannerEnabled: true`).
+
+### Other findings in the built APK
+
+- `org.fairsplit.app`, versionName 0.1.0, versionCode 1, compileSdk 37, targetSdk 36, minSdk 24.
+- **JS bundle over its budget.** `assets/index.android.bundle` is Hermes bytecode (magic `c6 1f bc 03`) of
+  5,414,480 bytes against the design direction's "JS bundle ≤ 3 MB". The budget does not say whether it means the JS
+  source or the shipped bytecode; this is the shipped file. Measuring the minified JS source was not done.
+- **`SYSTEM_ALERT_WINDOW` ships in the release manifest.** It comes from the Expo prebuild template's main
+  `AndroidManifest.xml` (template default permissions), not from a library. The app config's least-privilege
+  comment ("no microphone anywhere, and nothing writes to shared storage") is honoured (`RECORD_AUDIO` and
+  `WRITE_EXTERNAL_STORAGE` are absent), but the draw-over-other-apps permission is not needed by a release build.
+  Fix, if WS-APP agrees: add `"android.permission.SYSTEM_ALERT_WINDOW"` to `android.blockedPermissions` in
+  `apps/mobile/app.config.ts` (it also removes it from the dev-client build; check the dev menu still opens).
+  Not changed here: it is a product decision, not a build problem.
+- `expo-dev-client` classes ship in the release dex (`expo.modules.devlauncher`: 6 classes; `expo.modules.devmenu`:
+  package present), as Expo's release stubs. Small; noted for the size budget only.
+- Other permissions come from libraries (camera, biometrics, notifications with FCM `c2dm.RECEIVE`, launcher badge
+  permissions from expo-notifications' ShortcutBadger, `READ_EXTERNAL_STORAGE` capped at SDK 32 by
+  expo-image-picker, `FOREGROUND_SERVICE_MEDIA_PLAYBACK` from expo-audio's `enableBackgroundPlayback`).
+
+### Experiment: compressed native libraries
+
+Pending (the run was cut by a container restart; rerunning).
