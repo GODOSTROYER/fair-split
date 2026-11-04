@@ -26,6 +26,8 @@ export interface SessionState {
   /** Why the start failed ("failed"), or why the last Reset did not go through ("active"). */
   readonly error: CommandError | null;
   readonly pressing?: boolean;
+  /** Boot renewed this saved visit; its financial screens await their streamed history. */
+  readonly resumed?: boolean;
 }
 
 const NONE: SessionState = { status: "none", session: null, error: null };
@@ -103,7 +105,7 @@ export class SessionStore {
           const session = sessionOf(resumed);
           this.adapter.setToken(resumed.consoleToken);
           this.saveVisit(session);
-          this.set({ status: "active", session, error: null });
+          this.set({ status: "active", session, error: null, resumed: true });
           this.scheduleRenewal(session);
           return session;
         })

@@ -18,6 +18,7 @@ import type { RunView } from "../../../data/run-view.js";
 import type { SessionState } from "../../../data/session.js";
 import type { PaypalRail } from "../../../lib/env.js";
 import { davaoIsoDate } from "../../proof/davao.js";
+import { hasLines } from "../model.js";
 
 export type RunAccess = "pending" | "allowed" | "missing";
 
@@ -25,9 +26,15 @@ export function runAccess(
   runSlug: string,
   session: SessionState,
   snapshot: SeasonSnapshot | undefined,
+  view?: RunView,
+  failed = false,
 ): RunAccess {
   if (session.status === "resuming" || session.status === "starting" || !snapshot) return "pending";
-  if (session.session) return session.session.runSlug === runSlug ? "allowed" : "missing";
+  if (session.session) {
+    if (session.session.runSlug !== runSlug) return "missing";
+    if (session.resumed && !failed && (!view || !hasLines(view))) return "pending";
+    return "allowed";
+  }
   return runSlug === snapshot.run.runSlug ? "allowed" : "missing";
 }
 
@@ -59,7 +66,7 @@ export function useRunData(runSlug: string): RunData {
   const run = useRunView(runSlug);
   const stage = useStageRun();
   const session = useJudgeSession();
-  const access = runAccess(runSlug, session, snapshot.data);
+  const access = runAccess(runSlug, session, snapshot.data, run.data, Boolean(run.error || snapshot.error));
   const live = stage.inSession && stage.runSlug === runSlug;
   useRunStream(live ? runSlug : null);
   const rail = usePaypalRail() ?? "simulator";
