@@ -350,6 +350,44 @@ describe("season and slip reads (W-TR-01, W-TR-03, W-TR-04)", () => {
 // rather than changing the 30 s default for ordinary command tests.
 const SLOW = { timeout: 120_000 };
 describe("setFlag: the kill switch", SLOW, () => {
+  it("HD6-9: two frame tokens of one judge share ten flag changes per minute", async () => {
+    const g = await startRuns({ world: { kind: "showcase" } });
+    try {
+      const sessionId = randomUUID();
+      const tokens = await Promise.all(
+        [0, 1].map(() =>
+          g.t.credentials.frameToken({
+            workspaceId: g.world.workspaceId,
+            sessionId,
+            role: "treasurer",
+            persona: "analyn",
+          }),
+        ),
+      );
+      for (let i = 0; i < 10; i++) {
+        const token = tokens[i % 2];
+        if (!token) throw new Error("frame token");
+        await g.t.client(token).setFlag({ body: { flag: "kill_ai_live", on: i % 2 === 0 } });
+      }
+      const token = tokens[1];
+      if (!token) throw new Error("frame token");
+      await expect(
+        g.t.client(token).setFlag({ body: { flag: "kill_ai_live", on: true } }),
+      ).rejects.toMatchObject({ code: "RATE_LIMITED", status: 429 });
+      const flips = await g.t.deps.db
+        .select()
+        .from(schema.ledgerEntries)
+        .where(
+          and(
+            eq(schema.ledgerEntries.workspaceId, g.world.workspaceId),
+            eq(schema.ledgerEntries.kind, "flag.flipped"),
+          ),
+        );
+      expect(flips).toHaveLength(10);
+    } finally {
+      await g.close();
+    }
+  });
   it("FORBIDDEN for anyone but the treasurer (or the judge)", async () => {
     for (const token of [h.tokens.clerk, h.tokens.chair, h.tokens.member]) {
       await expect(

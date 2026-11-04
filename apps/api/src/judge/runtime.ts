@@ -38,6 +38,7 @@ export const JUDGE_RATE_RULES = {
   /** The operator pairing officers' phones outside Judge Mode. */
   opsPairing: { name: "opsPairing", limit: 20, windowMs: 600_000 },
   keys: { name: "judgeKeys", limit: 10, windowMs: 600_000 },
+  flags: { name: "judgeFlags", limit: 10, windowMs: 60_000 },
   /** The public "What's real" view: per hashed IP (the view itself is cached for 2 s). */
   publicLane: { name: "judgeLaneView", limit: 60, windowMs: 60_000 },
 } as const satisfies Record<string, RateRule>;

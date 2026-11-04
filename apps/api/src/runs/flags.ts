@@ -17,9 +17,11 @@ import {
 } from "@fairsplit/db";
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import { killEnv } from "../env.js";
+import { assertJudgeLedgerRoom } from "../judge/ledger-room.js";
+import { JUDGE_RATE_RULES } from "../judge/runtime.js";
 import type { CommandHandler } from "../lib/command.js";
 import type { AppDeps } from "../lib/context.js";
-import { ApiProblem } from "../lib/problem.js";
+import { ApiProblem, problem } from "../lib/problem.js";
 import { resumeStalledPosts, wakeWaitingPosts } from "../money/resume.js";
 import { allow, CAN, personaId } from "./access.js";
 import { emit, factLedger, noteSha256 } from "./events.js";
@@ -216,6 +218,12 @@ export const setFlagHandler: CommandHandler<"setFlag"> = async (ctx) => {
   const at = ctx.now();
   const by = personaId(ctx.credential);
   const { deps, scope } = ctx;
+  const credential = ctx.credential;
+  const key = credential.sessionId
+    ? `judge:${credential.sessionId}`
+    : `tok:${credential.kind === "judge_session" ? credential.sessionId : credential.tokenId}`;
+  const limit = deps.rateLimits.take(JUDGE_RATE_RULES.flags, key);
+  if (!limit.ok) throw problem.rateLimited(limit.retryAfterMs);
   await withWorkspaceTx(deps.db, scope, async (tx) => {
     const t = schema.systemFlags;
     const [prev] = await tx
@@ -223,6 +231,7 @@ export const setFlagHandler: CommandHandler<"setFlag"> = async (ctx) => {
       .from(t)
       .where(and(eq(t.workspaceId, scope.workspaceId), eq(t.flag, flag)));
     if ((prev?.on ?? false) === on) return;
+    await assertJudgeLedgerRoom(tx, scope.workspaceId);
     await tx
       .insert(t)
       .values({ workspaceId: scope.workspaceId, flag, on, setBy: by, reason: null, setAt: at })
