@@ -2,8 +2,8 @@
  * Theme, type scale and motion preferences for the app (C-18: React Native StyleSheet with token objects).
  * `FsThemeProvider` / `useFs()` match the IC-09 names so the swap to @fairsplit/ui-native is mechanical.
  *
- * One theme per surface (approved plan): the app is Adlaw, light, for daylight reading on a budget phone; Tablea
- * exists for the console and for a stage frame that asks for it (`?theme=tablea`).
+ * One theme per surface (approved plan, ADR-0016): the app is Adlaw, shown as Hayag (day), light, for daylight reading
+ * on a budget phone; Tablea, shown as Gabii (night), is the theme switch's other slot (`?theme=tablea`).
  */
 import * as Device from "expo-device";
 import { createContext, type ReactNode, useContext, useEffect, useMemo, useState } from "react";
@@ -13,15 +13,17 @@ import { type FsTokens, type ThemeName, themes } from "../_shims/tokens.native";
 import { bootQuery } from "../platform/query";
 
 const MONEY: TextStyle["fontVariant"] = [...FIGURE_VARIANT];
+/** Amounts read as money: proportional lining figures (ADR-0016); aligned figures and hashes stay tabular. */
+const AMOUNT: TextStyle["fontVariant"] = ["lining-nums", "proportional-nums"];
 
 /**
  * App type roles (design §2.3). Console roles are 14/20; the app leads with legibility for members on budget
  * phones in daylight, so UI body is 16/22 and statement prose is never below 18 (19/28).
  */
 export const typeScale = {
-  amountHero: { fontFamily: fontFamily.amount, fontSize: 48, lineHeight: 52, fontVariant: MONEY },
-  amountL: { fontFamily: fontFamily.amount, fontSize: 32, lineHeight: 36, fontVariant: MONEY },
-  amountM: { fontFamily: fontFamily.amount, fontSize: 22, lineHeight: 26, fontVariant: MONEY },
+  amountHero: { fontFamily: fontFamily.amount, fontSize: 48, lineHeight: 52, fontVariant: AMOUNT },
+  amountL: { fontFamily: fontFamily.amount, fontSize: 32, lineHeight: 36, fontVariant: AMOUNT },
+  amountM: { fontFamily: fontFamily.amount, fontSize: 22, lineHeight: 26, fontVariant: AMOUNT },
   title1: { fontFamily: fontFamily.strong, fontSize: 28, lineHeight: 34 },
   title2: { fontFamily: fontFamily.strong, fontSize: 20, lineHeight: 26 },
   body: { fontFamily: fontFamily.ui, fontSize: 16, lineHeight: 22 },
@@ -35,6 +37,8 @@ export const typeScale = {
   statementLead: { fontFamily: fontFamily.statement, fontSize: 22, lineHeight: 30 },
   statementBody: { fontFamily: fontFamily.statement, fontSize: 19, lineHeight: 28 },
   statementStrong: { fontFamily: fontFamily.statementBold, fontSize: 19, lineHeight: 28 },
+  /** "Bayad na" and "Gisusi pa" inside their pills (ADR-0016). */
+  statementStatus: { fontFamily: fontFamily.statementBold, fontSize: 18, lineHeight: 22 },
 } satisfies Record<string, TextStyle>;
 
 export type TypeRole = keyof typeof typeScale;

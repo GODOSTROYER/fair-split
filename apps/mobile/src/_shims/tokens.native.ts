@@ -1,16 +1,20 @@
 /**
  * TEMPORARY SHIM: replace with @fairsplit/tokens (generated `tokens.native.ts`) after WS-DS merges.
  *
- * Mirrors design direction §2 with the contrast corrections in S2.2 (ink-3, hatch, pencil-faint, canary-border),
- * C-18 (React Native StyleSheet with `tokens.native.ts`) and the IC-09 shape: `tablea` and `adlaw` objects of hex,
- * numbers and font names for `FsThemeProvider` / `useFs()`.
+ * Mirrors design direction v2 (ADR-0016, "Hayag"), C-18 (React Native StyleSheet with `tokens.native.ts`) and the
+ * IC-09 shape: `tablea` and `adlaw` objects of hex, numbers and font names for `FsThemeProvider` / `useFs()`. The
+ * slot keys stay: `adlaw` is Hayag (day), the app's default; `tablea` is Gabii (night), the theme switch's other
+ * slot. Every colour role equals the generated module's (tokens.drift.test.ts reads that file and holds the two
+ * together); `hollowFill` and `ballpoint` are the app's own.
  */
 
 export type ThemeName = "adlaw" | "tablea";
 
 export interface SlabFace {
   face: string;
+  /** The slab's bottom lip (v2: the lip replaces the skewed right and bottom edges). */
   edgeRight: string;
+  /** The lip's 1 px under-edge. */
   edgeBottom: string;
   label: string;
 }
@@ -39,6 +43,7 @@ export interface FsColors {
   redFace: string;
   onRedFace: string;
   redWash: string;
+  /** A person's hand: the focus ring, the needle, selection (ballpoint indigo in v2). */
   pod: string;
   hatch: string;
   steelLine: string;
@@ -46,8 +51,26 @@ export interface FsColors {
   copyWhite: string;
   copyPink: string;
   copyYellow: string;
-  scrim: string;
   pencilWash: string;
+  scrim: string;
+  highlight: string;
+  drawerHighlight: string;
+  slabChalkFace: string;
+  slabChalkRight: string;
+  slabChalkBottom: string;
+  slabChalkLabel: string;
+  slabJadeFace: string;
+  slabJadeRight: string;
+  slabJadeBottom: string;
+  slabJadeLabel: string;
+  paperInk: string;
+  bezel: string;
+  /** Decorative outlines (chips, slip thumbnails); never a control's only boundary. */
+  ruleStrong: string;
+  /** A row or cell a person has selected. */
+  podWash: string;
+  /** The one earned glow: a ring on a Bayad na face, one beat after the simulated PayPal confirms. */
+  jadeHalo: string;
   /**
    * Money in flight on member surfaces (S2.2 "hollow-fill"): ink mixed 65% over plate, drawn with a 2 px ink stroke
    * so a hollow amount stays legible in daylight yet reads clearly lighter than landed ink.
@@ -57,106 +80,174 @@ export interface FsColors {
   ballpoint: string;
 }
 
+/** Elevation for RN `boxShadow` (New Architecture; the web export reads it as CSS). */
+export interface FsShadows {
+  /** Evidence paper: still the strongest shadow. */
+  paper: string;
+  /** Chips, tiles, inline cards. */
+  e1: string;
+  /** Panels and the statement card. */
+  e2: string;
+  /** Sheets and dialogs. */
+  e3: string;
+  /** The jade halo ring, one beat after the simulated PayPal confirms. */
+  halo: string;
+}
+
 export interface FsTokens {
   name: ThemeName;
+  /** "Hayag (day)" or "Gabii (night)". */
+  display: string;
   dark: boolean;
   color: FsColors;
   slab: { chalk: SlabFace; jade: SlabFace };
-  /** Evidence casts the only shadow (design §2.4); RN `boxShadow` needs the New Architecture. */
+  /** Evidence paper's shadow (kept for the callers that read it by this name). */
   shadowPaper: string;
+  shadow: FsShadows;
 }
+
+const HAYAG_PAPER =
+  "0px 1px 1px rgba(11, 18, 32, 0.08), 0px 14px 28px -12px rgba(11, 18, 32, 0.28), 0px 0px 0px 1px rgba(11, 18, 32, 0.05)";
 
 export const adlaw: FsTokens = {
   name: "adlaw",
+  display: "Hayag (day)",
   dark: false,
   color: {
-    ground: "#EEEEEA",
+    ground: "#F3F5F8",
     plate: "#FFFFFF",
-    plate2: "#F6F6F3",
-    rule: "#D8D4CD",
-    ink: "#1C1511",
-    ink2: "#4E453E",
-    ink3: "#6F665E",
-    pencil: "#4C5761",
-    pencilFaint: "#5E6871",
-    jade: "#2FD3A0",
-    onJade: "#1C1511",
-    jadeText: "#0A7553",
-    jadeFlushBorder: "#0F6F53",
-    jadeWash: "#DEF8F0",
-    canary: "#F2DA4E",
-    onCanary: "#1C1511",
-    canaryText: "#7F6200",
-    canaryWash: "#FFF3BF",
-    canaryBorder: "#7F6200",
-    red: "#BF2A1C",
-    redFace: "#BF2A1C",
+    plate2: "#F7F8FA",
+    rule: "#E3E7EE",
+    ink: "#0B1220",
+    ink2: "#3A4456",
+    ink3: "#5A6476",
+    pencil: "#4A5A73",
+    pencilFaint: "#5D6A80",
+    jade: "#14CC90",
+    onJade: "#0B1220",
+    jadeText: "#06724F",
+    jadeFlushBorder: "#0A9467",
+    jadeWash: "#DEF8EF",
+    canary: "#FFA41B",
+    onCanary: "#0B1220",
+    canaryText: "#8A5300",
+    canaryWash: "#FFF2DF",
+    canaryBorder: "#B56A00",
+    red: "#CF2A27",
+    redFace: "#D42A26",
     onRedFace: "#FFFFFF",
-    redWash: "#FCE6E3",
-    pod: "#C85A00",
-    hatch: "#B7B0A7",
-    steelLine: "#8A9096",
-    steelFace: "#D5D8DB",
+    redWash: "#FDECEB",
+    pod: "#4A2FD6",
+    hatch: "#A4AEBC",
+    steelLine: "#7E8898",
+    steelFace: "#E6EAF0",
     copyWhite: "#FFFFFF",
     copyPink: "#F4C9D4",
     copyYellow: "#F5E27A",
-    scrim: "rgba(28, 21, 17, 0.40)",
-    pencilWash: "#EDEEEF",
-    hollowFill: "#6B6764",
+    pencilWash: "#EDEFF1",
+    scrim: "rgba(11, 18, 32, 0.32)",
+    highlight: "rgba(255, 255, 255, 0.45)",
+    drawerHighlight: "#FFFFFF",
+    slabChalkFace: "#4A2FD6",
+    slabChalkRight: "#3722B0",
+    slabChalkBottom: "#29188A",
+    slabChalkLabel: "#FFFFFF",
+    slabJadeFace: "#14CC90",
+    slabJadeRight: "#0A9467",
+    slabJadeBottom: "#06724F",
+    slabJadeLabel: "#0B1220",
+    paperInk: "#0B1220",
+    bezel: "#141A24",
+    ruleStrong: "#CBD2DC",
+    podWash: "#F1EEFC",
+    jadeHalo: "rgba(20, 204, 144, 0.16)",
+    hollowFill: "#60656E",
     ballpoint: "#1E3A8A",
   },
   slab: {
-    // Adlaw's chalk slab is the ink face (design §2.5).
-    chalk: { face: "#1C1511", edgeRight: "#4A3F38", edgeBottom: "#2B2420", label: "#FFFFFF" },
-    jade: { face: "#2FD3A0", edgeRight: "#1F9E78", edgeBottom: "#12704F", label: "#1C1511" },
+    // The person's decision slab is ballpoint indigo with a white label (ADR-0016).
+    chalk: { face: "#4A2FD6", edgeRight: "#3722B0", edgeBottom: "#29188A", label: "#FFFFFF" },
+    jade: { face: "#14CC90", edgeRight: "#0A9467", edgeBottom: "#06724F", label: "#0B1220" },
   },
-  shadowPaper: "0px 1px 1px rgba(28, 21, 17, 0.10), 0px 10px 24px -10px rgba(28, 21, 17, 0.22)",
+  shadowPaper: HAYAG_PAPER,
+  shadow: {
+    paper: HAYAG_PAPER,
+    e1: "0px 1px 2px rgba(11, 18, 32, 0.05), 0px 0px 0px 1px rgba(11, 18, 32, 0.04)",
+    e2: "0px 1px 2px rgba(11, 18, 32, 0.05), 0px 12px 32px -12px rgba(11, 18, 32, 0.16)",
+    e3: "0px 2px 6px rgba(11, 18, 32, 0.06), 0px 28px 64px -20px rgba(11, 18, 32, 0.3)",
+    halo: "0px 0px 0px 6px rgba(20, 204, 144, 0.16)",
+  },
 };
+
+const GABII_PAPER = "0px 1px 1px rgba(0, 0, 0, 0.4), 0px 14px 30px -12px rgba(0, 0, 0, 0.65)";
 
 export const tablea: FsTokens = {
   name: "tablea",
+  display: "Gabii (night)",
   dark: true,
   color: {
-    ground: "#201712",
-    plate: "#2A1F18",
-    plate2: "#33271F",
-    rule: "#4A392D",
-    ink: "#F4EDE4",
-    ink2: "#BDB1A4",
-    ink3: "#9C9085",
-    pencil: "#A9B1B8",
-    pencilFaint: "#909498",
-    jade: "#2FD3A0",
-    onJade: "#201712",
-    jadeText: "#2FD3A0",
-    jadeFlushBorder: "#2FD3A0",
-    jadeWash: "#2B3F30",
-    canary: "#F2DA4E",
-    onCanary: "#201712",
-    canaryText: "#F2DA4E",
-    canaryWash: "#42351E",
-    canaryBorder: "#F2DA4E",
-    red: "#FF5A47",
-    redFace: "#D63A2C",
+    ground: "#090D18",
+    plate: "#10172A",
+    plate2: "#172036",
+    rule: "#25304A",
+    ink: "#F4F6FA",
+    ink2: "#C3C9D6",
+    ink3: "#8E98AE",
+    pencil: "#A7B4CB",
+    pencilFaint: "#8E9BB4",
+    jade: "#3DE6AE",
+    onJade: "#04170F",
+    jadeText: "#55EDBB",
+    jadeFlushBorder: "#3DE6AE",
+    jadeWash: "#16343C",
+    canary: "#FFA41B",
+    onCanary: "#090D18",
+    canaryText: "#FFB65C",
+    canaryWash: "#312B28",
+    canaryBorder: "#FFA41B",
+    red: "#FF7A72",
+    redFace: "#D2394A",
     onRedFace: "#FFFFFF",
-    redWash: "#48271F",
-    pod: "#FF8A2A",
-    hatch: "#624E41",
-    steelLine: "#7C8288",
-    steelFace: "#3B3F43",
+    redWash: "#2D2333",
+    pod: "#9C8CFF",
+    hatch: "#46557A",
+    steelLine: "#8996B4",
+    steelFace: "#222C44",
     copyWhite: "#FFFFFF",
     copyPink: "#F4C9D4",
     copyYellow: "#F5E27A",
-    scrim: "rgba(16, 11, 8, 0.64)",
-    pencilWash: "#39312B",
-    hollowFill: "#ADA59D",
+    pencilWash: "#222A3D",
+    scrim: "rgba(4, 6, 12, 0.7)",
+    highlight: "rgba(255, 255, 255, 0.16)",
+    drawerHighlight: "rgba(255, 255, 255, 0.08)",
+    slabChalkFace: "#5B43EA",
+    slabChalkRight: "#4630C9",
+    slabChalkBottom: "#2E1E94",
+    slabChalkLabel: "#FFFFFF",
+    slabJadeFace: "#3DE6AE",
+    slabJadeRight: "#26C48F",
+    slabJadeBottom: "#0F8A62",
+    slabJadeLabel: "#04170F",
+    paperInk: "#0B1220",
+    bezel: "#05070C",
+    ruleStrong: "#3A4763",
+    podWash: "#242748",
+    jadeHalo: "rgba(61, 230, 174, 0.22)",
+    hollowFill: "#A4A8B1",
     ballpoint: "#1E3A8A",
   },
   slab: {
-    chalk: { face: "#F4EDE4", edgeRight: "#B9AFA4", edgeBottom: "#8A8178", label: "#201712" },
-    jade: { face: "#2FD3A0", edgeRight: "#1F9E78", edgeBottom: "#12704F", label: "#201712" },
+    chalk: { face: "#5B43EA", edgeRight: "#4630C9", edgeBottom: "#2E1E94", label: "#FFFFFF" },
+    jade: { face: "#3DE6AE", edgeRight: "#26C48F", edgeBottom: "#0F8A62", label: "#04170F" },
   },
-  shadowPaper: "0px 1px 1px rgba(0, 0, 0, 0.35), 0px 12px 28px -10px rgba(0, 0, 0, 0.55)",
+  shadowPaper: GABII_PAPER,
+  shadow: {
+    paper: GABII_PAPER,
+    e1: "inset 0px 1px 0px rgba(255, 255, 255, 0.05), 0px 1px 0px rgba(0, 0, 0, 0.4), 0px 10px 30px -14px rgba(0, 0, 0, 0.7)",
+    e2: "inset 0px 1px 0px rgba(255, 255, 255, 0.07), 0px 24px 60px -20px rgba(0, 0, 0, 0.8)",
+    e3: "inset 0px 1px 0px rgba(255, 255, 255, 0.08), 0px 40px 90px -30px rgba(0, 0, 0, 0.85)",
+    halo: "0px 0px 0px 6px rgba(61, 230, 174, 0.22)",
+  },
 };
 
 export const themes: Readonly<Record<ThemeName, FsTokens>> = { adlaw, tablea };
@@ -175,13 +266,17 @@ export const space = {
   s96: 96,
 } as const;
 
-/** Radii: 0 for slabs, tiles, evidence and the statement card; 2 for plates, chips and inputs. */
-export const radius = { none: 0, plate: 2 } as const;
+/**
+ * Radii (ADR-0016): none for evidence paper and slip thumbnails, plate 2 for hairline plates, cell 6 for chips and
+ * keys, control 10 for inputs and small buttons, card 14 for slabs and cards, panel 22 for the statement card, pill
+ * for pills and segmented controls.
+ */
+export const radius = { none: 0, plate: 2, cell: 6, control: 10, card: 14, panel: 22, pill: 999 } as const;
 
 /** App targets (design §2.4): ≥48 dp, primary 56 dp, Paminawa and Pirmahi 64 dp, play/pause 72 dp. */
 export const target = { min: 48, primary: 56, hero: 64, play: 72 } as const;
 
-/** Slab edge depth in px: d1 reversible, d2 changes a line, d3 moves money or signs. */
+/** Slab lip depth in px (depth equals consequence): d1 reversible, d2 changes a line, d3 moves money or signs. */
 export const slabDepth = { d1: 3, d2: 5, d3: 8 } as const;
 
 /** Layers (S2.4): what sits above what, so sheets, snackbars and dialogs never fight. */

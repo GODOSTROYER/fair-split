@@ -161,6 +161,7 @@ export function CosignScreen() {
   const action = signable ? (
     <Button
       tall
+      variant="hand"
       icon="sign"
       label={tr("M-BD-01.sign")}
       onPress={() => router.push(signHref(c.runSlug))}
@@ -176,7 +177,7 @@ export function CosignScreen() {
       testID="M-BD-01.review-again"
     />
   ) : c.status === "offline" ? (
-    <Button tall icon="sign" label={tr("M-BD-01.sign")} disabled testID="M-BD-01.sign" />
+    <Button tall variant="hand" icon="sign" label={tr("M-BD-01.sign")} disabled testID="M-BD-01.sign" />
   ) : null;
   // The thumb zone holds the one way forward; with large text it joins the scroll instead (S1.12 reflow).
   const footer =

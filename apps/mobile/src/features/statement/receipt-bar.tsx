@@ -14,6 +14,7 @@ import { Pressable, StyleSheet, View } from "react-native";
 import Animated, { FadeIn, FadeOut, LinearTransition } from "react-native-reanimated";
 import type { StatementDTO } from "../../_shims/api-client";
 import type { AmountState, Lang } from "../../_shims/contracts";
+import { format } from "../../_shims/domain";
 import { SPRINGS } from "../../_shims/motion";
 import { radius, space, target } from "../../_shims/tokens.native";
 import {
@@ -177,18 +178,57 @@ function TraceBody({
     case "net":
       return (
         <>
+          {/* MM-7 drawn as the equation (ADR-0016): each part at a readable size, the operators between them, and
+              the paid amount after the equals sign; the figures are the statement's own lines. */}
           <View
             style={styles.equation}
             accessible
             accessibilityLabel={`${trace.terms.map((x) => `${x.op ?? ""} ${x.amount}`).join(" ")} = ${trace.total}`}
           >
             {trace.terms.map((x) => (
-              <Txt key={`${x.op}${x.amount}`} kind="figure" color="ink2">
-                {`${x.op ? `${x.op} ` : ""}${x.amount}`}
-              </Txt>
+              <View key={`${x.op}${x.amount}`} style={styles.term}>
+                {x.op ? (
+                  <Txt kind="amountM" color="ink3">
+                    {x.op}
+                  </Txt>
+                ) : null}
+                <Txt kind="amountM" color="ink2">
+                  {x.amount}
+                </Txt>
+              </View>
             ))}
-            <Txt kind="figure">{`= ${trace.total}`}</Txt>
+            <View style={styles.term}>
+              <Txt kind="amountM" color="ink3">
+                =
+              </Txt>
+              <Txt kind="amountM">{trace.total}</Txt>
+            </View>
           </View>
+          {/* The slips the line was weighed on, as chips: serial and verified kilos (her statement's own slips). */}
+          {dto.slips.length > 0 ? (
+            <View style={styles.slipChips} testID="M-MB-01.trace.net.slips">
+              {dto.slips.map((slip) => (
+                <View
+                  key={slip.serial}
+                  style={[
+                    styles.slipChip,
+                    { borderColor: t.color.ruleStrong, backgroundColor: t.color.plate },
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.slipChipPaper,
+                      { backgroundColor: t.color.copyWhite, borderColor: t.color.ruleStrong },
+                    ]}
+                  />
+                  <Txt kind="figureS">{slip.serial}</Txt>
+                  <Txt kind="caption" color="ink2">
+                    {format.kg(slip.netGrams, 2)}
+                  </Txt>
+                </View>
+              ))}
+            </View>
+          ) : null}
           <View style={styles.check}>
             <Glyph
               name={trace.conserved ? "check" : "info"}
@@ -448,7 +488,25 @@ const styles = StyleSheet.create({
   chevronOpen: { transform: [{ rotate: "180deg" }] },
   labelRow: { flexDirection: "row", alignItems: "center", gap: space.s8, flexWrap: "wrap" },
   trace: { gap: space.s12, paddingHorizontal: space.s8, paddingBottom: space.s16 },
-  equation: { flexDirection: "row", flexWrap: "wrap", gap: space.s8, alignItems: "baseline" },
+  equation: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    columnGap: space.s8,
+    rowGap: space.s4,
+    alignItems: "baseline",
+  },
+  term: { flexDirection: "row", alignItems: "baseline", gap: space.s8 },
+  slipChips: { flexDirection: "row", flexWrap: "wrap", gap: space.s8 },
+  slipChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space.s4,
+    minHeight: 28,
+    paddingHorizontal: space.s8,
+    borderWidth: 1,
+    borderRadius: radius.cell,
+  },
+  slipChipPaper: { width: 10, height: 13, borderWidth: 1 },
   check: { flexDirection: "row", alignItems: "flex-start", gap: space.s8 },
   bolted: { flexDirection: "row", alignItems: "flex-start", gap: space.s8 },
   flex: { flex: 1 },

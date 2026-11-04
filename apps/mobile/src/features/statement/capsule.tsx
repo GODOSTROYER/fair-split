@@ -25,6 +25,7 @@ import Animated, {
   useSharedValue,
   withDelay,
   withRepeat,
+  withSequence,
   withTiming,
 } from "react-native-reanimated";
 import Svg, { Path } from "react-native-svg";
@@ -42,8 +43,11 @@ import { Txt } from "../../ui/text";
 import { capsuleText, elapsedClock, type LineView, msOf } from "./line-view";
 import type { PaidSignal } from "./statement-store";
 
-/** The capsule's raised edge before PayPal presses it (design §7 M1: "its 5 px inset closes to 0"). */
+/** How far PayPal's press moves the pill down (design §7 M1: "its 5 px inset closes to 0"). */
 const EDGE = slabDepth.d2;
+/** The jade halo: one beat after the simulated PayPal confirms (TWEENS.halo, 520 ms, ease out). */
+const HALO_IN_MS = 180;
+const HALO_OUT_MS = 340;
 /** The capsule's least height: one line of the status word with its padding, above the 48 dp target. */
 const FACE_MIN = 52;
 const T = TIMELINE["MM-1"];
@@ -245,39 +249,29 @@ export function StatusCapsule({ view, mm1, testID }: { view: LineView; mm1: Mm1;
   };
   const reduced = motion.reduced;
 
-  // PayPal's press: the face travels (5, 5) and the edges collapse into it. Reduced motion: the face is set flush
-  // without travel and the edges fade as the jade comes in.
+  // PayPal's press: the pill settles down by its inset as the dashed outline floods jade (ADR-0016). Reduced
+  // motion: no travel; the jade comes in as a colour change.
   const travel = useAnimatedStyle(() => {
-    const d = EDGE * mm1.press.get();
-    return { transform: [{ translateX: d }, { translateY: d }] };
+    const d = reduced ? 0 : EDGE * mm1.press.get();
+    return { transform: [{ translateY: d }] };
   });
-  const right = useAnimatedStyle(() => {
-    const p = mm1.press.get();
-    return reduced
-      ? { opacity: 1 - mm1.flood.get(), transform: [{ skewY: "45deg" }] }
-      : {
-          opacity: 1,
-          transform: [
-            { translateX: EDGE * p },
-            { translateY: EDGE * p },
-            { skewY: "45deg" },
-            { scaleX: 1 - p },
-          ],
-        };
-  });
-  const bottom = useAnimatedStyle(() => {
-    const p = mm1.press.get();
-    return reduced
-      ? { opacity: 1 - mm1.flood.get(), transform: [{ skewX: "45deg" }] }
-      : {
-          opacity: 1,
-          transform: [
-            { translateX: EDGE * p },
-            { translateY: EDGE * p },
-            { skewX: "45deg" },
-            { scaleY: 1 - p },
-          ],
-        };
+  // One beat of jade halo once the simulated PayPal has confirmed: it grows and fades in full motion; reduced
+  // motion shows the ring still and fades it, with no growth.
+  const halo = useSharedValue(0);
+  const paidNow = view.capsule === "paid" && !carrying;
+  useEffect(() => {
+    if (!paidNow) return;
+    halo.set(
+      withSequence(
+        withTiming(1, { duration: reduced ? 0 : HALO_IN_MS }),
+        withTiming(0, { duration: reduced ? 150 : HALO_OUT_MS }),
+      ),
+    );
+  }, [paidNow, reduced, halo]);
+  const haloStyle = useAnimatedStyle(() => {
+    const k = halo.get();
+    const grow = reduced ? 6 : 8 * k;
+    return { opacity: k, top: -grow, left: -grow, right: -grow, bottom: EDGE - grow };
   });
   const scaleFlood = !reduced && !motion.low;
   const flood = useAnimatedStyle(() =>
@@ -302,24 +296,10 @@ export function StatusCapsule({ view, mm1, testID }: { view: LineView; mm1: Mm1;
       >
         <MomentMarker id="MM-1" phase={mm1.phase} />
         {box.w > 0 ? (
-          <>
-            <Animated.View
-              pointerEvents="none"
-              style={[
-                styles.edge,
-                { left: box.w, top: 0, width: EDGE, height: box.h, backgroundColor: t.color.rule },
-                right,
-              ]}
-            />
-            <Animated.View
-              pointerEvents="none"
-              style={[
-                styles.edge,
-                { left: 0, top: box.h, width: box.w, height: EDGE, backgroundColor: t.color.hatch },
-                bottom,
-              ]}
-            />
-          </>
+          <Animated.View
+            pointerEvents="none"
+            style={[styles.halo, { backgroundColor: t.color.jadeHalo }, haloStyle]}
+          />
         ) : null}
         <Animated.View
           onLayout={onFace}
@@ -327,9 +307,10 @@ export function StatusCapsule({ view, mm1, testID }: { view: LineView; mm1: Mm1;
             styles.face,
             {
               minHeight: carrying ? FACE_MIN : Math.max(FACE_MIN, held),
-              backgroundColor: t.color.plate2,
-              borderColor: t.color.rule,
+              backgroundColor: t.color.plate,
+              borderColor: t.color.jadeFlushBorder,
             },
+            view.capsule === "paid" ? null : styles.dashed,
             travel,
           ]}
         >
@@ -371,7 +352,7 @@ export function StatusCapsule({ view, mm1, testID }: { view: LineView; mm1: Mm1;
             {text.after ? (
               <>
                 <Glyph name="check" size={20} color={t.color.onJade} />
-                <Txt kind="bodyStrong" style={[styles.word, { color: t.color.onJade }]}>
+                <Txt kind="statementStatus" style={[styles.word, { color: t.color.onJade }]}>
                   {text.after}
                 </Txt>
               </>
@@ -411,7 +392,7 @@ export function StatusCapsule({ view, mm1, testID }: { view: LineView; mm1: Mm1;
           <Glyph name={STATUS_GLYPH[view.status]} size={20} color={fg} />
         </View>
         <View style={look === "cash" ? [styles.plate, styles.word, { backgroundColor: bg }] : styles.word}>
-          <Txt kind="bodyStrong" style={{ color: fg }}>
+          <Txt kind="statementStatus" style={{ color: fg }}>
             {view.word}
           </Txt>
         </View>
@@ -438,15 +419,22 @@ export function InviteRing({ mm1 }: { mm1: Mm1 }) {
 }
 
 const styles = StyleSheet.create({
-  slot: { paddingRight: EDGE, paddingBottom: EDGE, alignSelf: "stretch" },
-  edge: { position: "absolute", transformOrigin: "left top" },
+  slot: { paddingBottom: EDGE, alignSelf: "stretch" },
+  halo: { position: "absolute", borderRadius: radius.pill },
   face: {
     borderWidth: 1,
-    borderRadius: radius.none,
+    borderRadius: radius.pill,
     justifyContent: "center",
     overflow: "hidden",
   },
-  flood: { ...StyleSheet.absoluteFill, transformOrigin: "right bottom", borderWidth: 1 },
+  /** In flight: the 1.5 px dashed jade outline (not yet money anyone holds). */
+  dashed: { borderStyle: "dashed", borderWidth: 1.5 },
+  flood: {
+    ...StyleSheet.absoluteFill,
+    transformOrigin: "right bottom",
+    borderWidth: 1,
+    borderRadius: radius.pill,
+  },
   row: {
     flexDirection: "row",
     alignItems: "center",
@@ -459,7 +447,7 @@ const styles = StyleSheet.create({
   flat: {
     minHeight: FACE_MIN,
     borderWidth: 1,
-    borderRadius: radius.none,
+    borderRadius: radius.pill,
     justifyContent: "center",
     overflow: "hidden",
     alignSelf: "stretch",

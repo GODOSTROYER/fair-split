@@ -20,7 +20,7 @@
 import { useState } from "react";
 import { StyleSheet, useWindowDimensions, View } from "react-native";
 import Animated, { type SharedValue, useAnimatedStyle } from "react-native-reanimated";
-import Svg, { Line, Text as SvgText } from "react-native-svg";
+import Svg, { Line, Text as SvgText, TSpan } from "react-native-svg";
 import type { AmountState } from "../_shims/contracts";
 import { fontFamily } from "../_shims/fonts";
 import { radius, space } from "../_shims/tokens.native";
@@ -73,6 +73,32 @@ function spoken(srLabel: string | undefined) {
       } as const);
 }
 
+/** The hero amount's "US$" at half size, raised (ADR-0016); the text and its spoken label stay whole. */
+const CUR = { size: 0.5, rise: 0.36 } as const;
+
+/** "US$64.45" → ["US$", "64.45"]; text with no dollar prefix comes back whole. */
+export function currencyParts(text: string): readonly [prefix: string, figure: string] {
+  const m = /^(US\$)/.exec(text);
+  return m ? [m[1] ?? "", text.slice(m[0].length)] : ["", text];
+}
+
+/** The figure as SVG spans: the prefix small and raised on the hero, the digits at full size. */
+function FigureSpans({ text, fontSize, raise }: { text: string; fontSize: number; raise: boolean }) {
+  const [prefix, figure] = currencyParts(text);
+  if (!raise || !prefix) return <>{text}</>;
+  const rise = fontSize * CUR.rise;
+  return (
+    <>
+      <TSpan fontSize={fontSize * CUR.size} dy={-rise}>
+        {prefix}
+      </TSpan>
+      <TSpan fontSize={fontSize} dy={rise} dx={fontSize * 0.04}>
+        {figure}
+      </TSpan>
+    </>
+  );
+}
+
 function LargeAmount({
   text,
   srLabel,
@@ -103,8 +129,10 @@ function LargeAmount({
     y: box.lineHeight / 2 + box.fontSize * CAP_HALF,
     fontSize: box.fontSize,
     fontFamily: fontFamily.amount,
-    fontFeatureSettings: "'tnum' 1",
+    // Amounts read as money: proportional lining figures (ADR-0016).
+    fontFeatureSettings: "'pnum' 1, 'lnum' 1",
   } as const;
+  const raise = size === "hero";
   const layer = { width: box.width, height: box.height };
 
   return (
@@ -145,10 +173,10 @@ function LargeAmount({
                   fill covers the strokes of overlapping contours, so "$", "4" and "8" draw no inner lines. */}
               <Svg width={box.width} height={box.height}>
                 <SvgText {...common} fill="none" stroke={t.color.ink} strokeWidth={4} strokeLinejoin="round">
-                  {text}
+                  <FigureSpans text={text} fontSize={box.fontSize} raise={raise} />
                 </SvgText>
                 <SvgText {...common} fill={t.color.hollowFill}>
-                  {text}
+                  <FigureSpans text={text} fontSize={box.fontSize} raise={raise} />
                 </SvgText>
               </Svg>
             </Animated.View>
@@ -160,7 +188,7 @@ function LargeAmount({
           >
             <Svg width={box.width} height={box.height}>
               <SvgText {...common} fill={solidColour}>
-                {text}
+                <FigureSpans text={text} fontSize={box.fontSize} raise={raise} />
               </SvgText>
             </Svg>
           </Animated.View>
