@@ -16,7 +16,7 @@ import { SeasonText } from "../../chrome/SeasonText.js";
 import { Stamp } from "../../chrome/Stamp.js";
 import { isApiClientError } from "../../data/errors.js";
 import { useCommand, useJudgeSession, usePaypalRail, useStageRun } from "../../data/hooks.js";
-import { payoutReplayed } from "../../data/payout-replay.js";
+import { payoutReplayed, payoutStatus } from "../../data/payout-replay.js";
 import { atLeast } from "../../data/run-view.js";
 import { env } from "../../lib/env.js";
 import { useFocusAfterRemoval } from "../../lib/focus.js";
@@ -245,8 +245,19 @@ function Desk() {
 
   const settled = view?.state === "SETTLED" || view?.state === "CLOSED";
   const runLines = view ? splitRows(snapshot, view) : [];
+  // Each PayPal line asks the shared payout policy: only this run's confirmed money counts as paid by PayPal.
+  const payouts = runLines
+    .filter((line) => line.rail === "PAYPAL" && !line.movedToCash)
+    .map((line) => payoutStatus({ state: line.state, view, memberNo: line.memberNo }));
+  const replayedPayouts = payouts.some((payout) => payout.replayed);
   const title = settled
-    ? `Season ${season} is paid: ${runLines.filter((line) => line.rail === "PAYPAL" && line.state === "PAID").length} by PayPal, ${runLines.filter((line) => line.rail === "CASH" || line.movedToCash).length} in cash.`
+    ? FIRST_VIEW_COPY.settled(season, {
+        replayed: replayedPayouts,
+        paypal: replayedPayouts
+          ? payouts.length
+          : payouts.filter((payout) => payout.amountState === "landed").length,
+        cash: runLines.filter((line) => line.rail === "CASH" || line.movedToCash).length,
+      })
     : funded
       ? FIRST_VIEW_COPY.titleFunded(season)
       : t("W-JG-01.ready", { season });

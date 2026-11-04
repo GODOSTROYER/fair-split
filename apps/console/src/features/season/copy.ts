@@ -95,6 +95,14 @@ export const FIRST_VIEW_COPY = {
   pending: "Recording the payment, then reading the invoice back.",
   funded: "Funded. The slips decide each member's share.",
   movedOn: "The invoice is paid. The run has moved on.",
+  /** A settled run's title: PayPal counts only payouts its own evidence confirmed; a replay says so. */
+  settled: (
+    season: string,
+    c: { readonly paypal: number; readonly cash: number; readonly replayed: boolean },
+  ) =>
+    c.replayed
+      ? `Season ${season} is settled: ${c.paypal} payout statuses replayed (labelled), ${c.cash} in cash.`
+      : `Season ${season} is paid: ${c.paypal} by PayPal, ${c.cash} in cash.`,
   openNext: "Go to the next step",
   rules: "The rules, bolted before the first slip",
   openCard: "Open the rate card",

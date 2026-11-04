@@ -2,9 +2,11 @@
 // calls; the first press starts the session and MM-S plays on the invoice's event (full and reduced); a refusal
 // reads in the console's words; autoplay presses with a visible cursor and stops before the keys.
 
+import { getSnapshot } from "@fairsplit/api-client/seed";
 import { act, configure, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { getResponse, HttpResponse, http } from "msw";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { RunView } from "../../data/run-view.js";
 import {
   clearMomentTrace,
   createTestWorld,
@@ -84,6 +86,29 @@ describe("W-JG-01 first view", { timeout: 60_000 }, () => {
     );
     expect(screen.getByTestId("W-JG-01.markPaid").textContent).toMatch(/Marked paid by Analyn/);
     expect(screen.getByTestId("W-JG-01.status").textContent).not.toMatch(/plays next/);
+  });
+
+  it("inv.i8.a settled run whose payouts replayed names the replay, never PayPal payments", async () => {
+    const world = createTestWorld();
+    world.markPaid();
+    world.resolveAll();
+    world.sign("treasurer");
+    world.cosign();
+    world.payCash("M-031");
+    const view = await renderConsole({ path: "/judge", world });
+    await view.startSession();
+    await waitFor(() => expect(screen.getByTestId("W-JG-01.title").textContent).toMatch(/by PayPal/));
+    const key = ["run", getSnapshot().run.runSlug];
+    const live = view.runtime.client.getQueryData<RunView>(key);
+    if (!live) throw new Error("the settled run must be cached");
+    const items = Object.entries(live.items).map(([id, item]) => [id, { ...item, provenance: "replay" }]);
+    act(() => view.runtime.client.setQueryData(key, { ...live, items: Object.fromEntries(items) }));
+    await waitFor(() =>
+      expect(screen.getByTestId("W-JG-01.title").textContent).toBe(
+        "Season 2026-A is settled: 7 payout statuses replayed (labelled), 57 in cash.",
+      ),
+    );
+    expect(screen.getByTestId("W-JG-01.status").textContent).toMatch(/^Replayed payouts/);
   });
 
   it("shows the showcase with no calls: the desk, the bolted card, Claude's draft in pencil, the invoice hollow", async () => {
