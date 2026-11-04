@@ -1,0 +1,259 @@
+@font-face {
+  font-family: "FS Sans";
+  src: url("assets/fonts/FSSans-VF.woff2") format("woff2");
+  font-weight: 200 900;
+}
+@font-face {
+  font-family: "FS Sans";
+  src: url("assets/fonts/FSSansPeso.woff2") format("woff2");
+  unicode-range: U+20B1;
+}
+@font-face {
+  font-family: "Atkinson Next";
+  src: url("assets/fonts/AtkinsonNext-VF.woff2") format("woff2");
+  font-weight: 200 800;
+}
+@font-face {
+  font-family: "FS Stencil";
+  src: url("assets/fonts/FSStencil.woff2") format("woff2");
+  font-weight: 100 900;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  background: #201712;
+  color: #f4ede4;
+  font-family: "FS Sans", sans-serif;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+#root {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+.clip {
+  position: absolute;
+  inset: 0;
+}
+.scene {
+  position: absolute;
+  inset: 0;
+  background: #201712;
+  padding: 54px 96px 240px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 2px solid #4a392d;
+  padding-bottom: 20px;
+  font-size: 28px;
+  color: #bdb1a4;
+}
+.season {
+  font-family: "FS Stencil", sans-serif;
+  font-weight: 800;
+  font-size: 32px;
+}
+.content {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 24px;
+}
+.pending {
+  border: 2px solid #bdb1a4;
+  background: #2a1f18;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 56px;
+  gap: 22px;
+}
+.pending h2 {
+  font-size: 52px;
+  font-weight: 660;
+  line-height: 1.12;
+  margin: 0;
+  max-width: 1400px;
+}
+.pending p {
+  font-size: 28px;
+  color: #bdb1a4;
+  margin: 0;
+  max-width: 1420px;
+}
+.pending .brief {
+  font-size: 30px;
+  line-height: 1.35;
+  color: #f4ede4;
+}
+.editorial {
+  font-size: 28px;
+  color: #bdb1a4;
+}
+.headline {
+  font-size: 104px;
+  line-height: 1.02;
+  font-weight: 800;
+  font-stretch: 75%;
+  max-width: 1320px;
+  margin: 0;
+}
+.tagline {
+  font-size: 48px;
+  margin: 0;
+  line-height: 1.15;
+  max-width: 1450px;
+}
+.evidence {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 28px;
+  font-size: 26px;
+  line-height: 1.25;
+  max-width: 1728px;
+}
+.evidence p {
+  margin: 0;
+}
+.persona {
+  position: absolute;
+  top: auto;
+  right: auto;
+  left: 96px;
+  bottom: 14px;
+  padding: 12px 20px;
+  background: #201712;
+  color: #f4ede4;
+  border: 2px solid #bdb1a4;
+  font-size: 28px;
+}
+.simulation {
+  position: absolute;
+  right: 96px;
+  top: 126px;
+  background: #201712;
+  border: 2px solid #bdb1a4;
+  padding: 10px 18px;
+  font-size: 28px;
+  color: #f4ede4;
+}
+.disclosure {
+  position: absolute;
+  left: 96px;
+  right: 96px;
+  bottom: 170px;
+  font-size: 25px;
+  color: #f4ede4;
+  background: #201712;
+  padding: 12px 0;
+  line-height: 1.2;
+}
+.caption {
+  position: absolute;
+  top: auto;
+  left: 192px;
+  right: 192px;
+  bottom: 62px;
+  height: 98px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 20;
+  margin: 0;
+}
+.caption {
+  background: #201712;
+  color: #f4ede4;
+  text-align: center;
+  font-size: 44px;
+  line-height: 1.12;
+  font-weight: 560;
+  padding: 8px 20px;
+  margin: 0;
+}
+.footage {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #201712;
+}
+.media-slot {
+  position: absolute;
+  inset: 0;
+}
+.phone .footage {
+  object-fit: contain;
+}
+.architecture {
+  width: 100%;
+  height: 610px;
+  display: block;
+}
+.limits-list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  font-size: 36px;
+  line-height: 1.2;
+  margin: 0;
+  max-width: 1550px;
+}
+.limits-list p {
+  margin: 0;
+}
+.statement {
+  font-family: "Atkinson Next", sans-serif;
+  font-size: 34px;
+}
+.figure {
+  font-family: "FS Sans", sans-serif;
+}
+.speed {
+  position: absolute;
+  top: auto;
+  left: auto;
+  right: 96px;
+  bottom: 14px;
+  background: #201712;
+  padding: 12px 20px;
+  font-size: 28px;
+  border: 2px solid #bdb1a4;
+}
+.title-layout {
+  display: grid;
+  grid-template-columns: 1fr 660px;
+  gap: 48px;
+  flex: 1;
+  min-height: 0;
+}
+.title-layout .pending {
+  padding: 32px;
+}
+.title-layout .pending h2 {
+  font-size: 38px;
+}
+.title-layout .pending .brief {
+  font-size: 26px;
+}
+.title-layout .pending p {
+  font-size: 24px;
+}
+.title-copy {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 32px;
+}
