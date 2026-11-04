@@ -3,7 +3,7 @@
 # `expo prebuild` (the android/ folder is generated here and never committed), then `./gradlew assembleRelease`
 # with R8 and resource shrinking on (expo-build-properties in apps/mobile/app.config.ts). No Expo login, no EAS.
 #
-# Signing. When all four repository secrets exist, the APK is re-signed with that key by apksigner (v1 to v3):
+# Signing. When all four repository secrets exist, the APK is re-signed with that key by apksigner (v2 and v3):
 #   ANDROID_KEYSTORE_BASE64   the keystore file, base64-encoded (PKCS12 or JKS)
 #   ANDROID_KEYSTORE_PASSWORD the keystore password
 #   ANDROID_KEY_ALIAS         the key's alias in that keystore
@@ -11,7 +11,7 @@
 # Otherwise the APK keeps the debug signature the generated project gives release builds, and the artifact's name
 # says "not-release-signed". The keystore is decoded into $RUNNER_TEMP and deleted at the end of the job.
 #
-# The job writes the APK's SHA-256, its size against the 35 MB budget and the native libraries per ABI to the job
+# The job writes the APK's SHA-256 and each ABI's estimated size against the 35 MB per-ABI budget to the job
 # summary. Every action is pinned by full commit SHA (the tag and its date in the trailing comment). setup-java and
 # upload-artifact are not in docs/versions.md yet: a deps PR records them (docs/reports/cloud-apk-linux.md).
 name: android-apk
@@ -156,7 +156,7 @@ jobs:
             apk="$out_dir/fair-split-$version-$short_sha-$label.apk"
             "$BUILD_TOOLS/apksigner" sign --ks "$keystore" --ks-key-alias "$ANDROID_KEY_ALIAS" \
               --ks-pass env:ANDROID_KEYSTORE_PASSWORD --key-pass env:ANDROID_KEY_PASSWORD \
-              --out "$apk" "$src"
+              --v4-signing-enabled false --out "$apk" "$src"
             rm -f "$keystore"
           else
             label=not-release-signed
@@ -172,7 +172,11 @@ jobs:
             echo "artifact=fair-split-apk-$short_sha-$label"
           } >> "$GITHUB_OUTPUT"
 
-      - name: Summary (SHA-256, size against the 35 MB budget, native libraries per ABI)
+      # The budget is per ABI (design direction, performance budgets: "APK <= 35 MB per ABI, including armeabi-v7a").
+      # The job builds one universal APK, so each ABI's size is estimated as the universal APK minus the other three
+      # ABIs' native libraries. Against real split APKs (splits.abi, 4 Nov 2026) the estimate was 0.74 to 0.77 MB
+      # high, so it is an upper bound.
+      - name: Summary (SHA-256, per-ABI size against the 35 MB budget)
         env:
           APK: ${{ steps.sign.outputs.apk }}
           LABEL: ${{ steps.sign.outputs.label }}
@@ -182,30 +186,35 @@ jobs:
           sha="$(sha256sum "$APK" | cut -d' ' -f1)"
           size="$(stat -c %s "$APK")"
           mib() { awk -v b="$1" 'BEGIN { printf "%.2f", b / 1048576 }'; }
-          verdict="within"
-          if [ "$size" -gt "$APK_BUDGET_BYTES" ]; then
-            verdict="OVER"
-            echo "::warning::APK is $(mib "$size") MB, over the 35 MB budget."
-          fi
+          signer="$("$BUILD_TOOLS/apksigner" verify --print-certs "$APK" | sed -n 's/^.*certificate DN: //p' | sed -n 1p)"
+          listing="$(zipinfo -l "$APK")"
           {
             echo "## Android APK ($LABEL)"
             echo
             echo "| | |"
             echo "| --- | --- |"
-            echo "| File | \`$(basename "$APK")\` |"
+            echo "| File | \`$(basename "$APK")\` (universal: all four ABIs) |"
             echo "| SHA-256 | \`$sha\` |"
-            echo "| Size | $size bytes ($(mib "$size") MB), $verdict the 35 MB budget |"
-            echo "| Signer | $("$BUILD_TOOLS/apksigner" verify --print-certs "$APK" | sed -n 's/^Signer #1 certificate DN: //p' | head -n 1) |"
+            echo "| Size | $size bytes ($(mib "$size") MB) |"
+            echo "| Signer | $signer |"
             echo
-            echo "Universal APK (all four ABIs). Native libraries inside it, per ABI:"
+            echo "Per ABI, against the 35 MB budget (estimate: the universal APK minus the other ABIs' native libraries):"
             echo
-            echo "| ABI | Uncompressed | Stored in the APK |"
-            echo "| --- | --- | --- |"
-            for abi in arm64-v8a armeabi-v7a x86_64 x86; do
-              { zipinfo -l "$APK" "lib/$abi/*" 2>/dev/null || true; } \
-                | awk -v abi="$abi" '$1 ~ /^-/ { u += $4; c += $6 } END { printf "| %s | %.2f MB | %.2f MB |\n", abi, u / 1048576, c / 1048576 }'
-            done
+            echo "| ABI | Estimated APK | Budget | Native libraries (stored) |"
+            echo "| --- | --- | --- | --- |"
           } >> "$GITHUB_STEP_SUMMARY"
+          for abi in arm64-v8a armeabi-v7a x86_64 x86; do
+            read -r own other < <(awk -v abi="$abi" '$1 ~ /^-/ && $NF ~ /^lib\// {
+                if (index($NF, "lib/" abi "/") == 1) own += $6; else other += $6
+              } END { printf "%d %d\n", own, other }' <<< "$listing")
+            estimate=$((size - other))
+            verdict="within"
+            if [ "$estimate" -gt "$APK_BUDGET_BYTES" ]; then
+              verdict="**over**"
+              echo "::warning::$abi: about $(mib "$estimate") MB, over the 35 MB per-ABI budget."
+            fi
+            echo "| $abi | $(mib "$estimate") MB | $verdict | $(mib "$own") MB |" >> "$GITHUB_STEP_SUMMARY"
+          done
           echo "$sha  $(basename "$APK")" > "$APK.sha256"
 
       - name: Upload the APK
