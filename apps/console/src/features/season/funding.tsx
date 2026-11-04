@@ -268,6 +268,18 @@ export function FundingBlock({
 }: FundingBlockProps) {
   const t = useT();
   const container = useRef<HTMLElement>(null);
+  const attachMomentRoot = moment.rootProps.ref;
+  const containerRef = useCallback(
+    (node: HTMLElement | null) => {
+      container.current = node;
+      const detach = attachMomentRoot(node);
+      return () => {
+        detach?.();
+        if (container.current === node) container.current = null;
+      };
+    },
+    [attachMomentRoot],
+  );
   const from = useRef<HTMLSpanElement>(null);
   const to = useRef<HTMLSpanElement>(null);
   const d = useArcPath(container, from, to);
@@ -291,13 +303,13 @@ export function FundingBlock({
   });
   return (
     <section
-      ref={container}
       className="fsc-fund"
       data-layout={layout}
       data-compact={compact ? "" : undefined}
       data-testid={`${screen}.funding`}
       aria-label={SEASON_COPY.arcCaption}
       {...moment.rootProps}
+      ref={containerRef}
     >
       <article
         className="fsc-fund__plate fsc-fund__invoice"
