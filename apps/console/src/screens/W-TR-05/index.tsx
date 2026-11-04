@@ -6,6 +6,7 @@
 // W-TR-09; the route renders those, this screen marks their row.
 
 import { webRoutes } from "@fairsplit/contracts";
+import { Glyph, HonestyTag } from "@fairsplit/ui-web";
 import { useRouter } from "@tanstack/react-router";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { AppLink } from "../../chrome/AppLink.js";
@@ -14,7 +15,7 @@ import { RunRouteGate } from "../../chrome/Fallbacks.js";
 import { PrintBed } from "../../chrome/PrintBed.js";
 import { ScreenRoot } from "../../chrome/ScreenRoot.js";
 import { payoutReplayed } from "../../data/payout-replay.js";
-import type { GridContext } from "../../features/split/cells.js";
+import { type GridContext, statusLabel } from "../../features/split/cells.js";
 import {
   basisEventId,
   decisionRows,
@@ -44,11 +45,8 @@ import type { SplitScreenProps } from "../contract.js";
 import "../../features/split/shared/runs.css";
 import "../../features/split/split.css";
 
-const BASIS_NOTE = {
-  read: "after reading, before slip 0462 is entered",
-  byHand: "after slip 0462 by hand",
-  resolved: "with every decision so far",
-} as const;
+/** States after which the grid's statuses come from the simulated PayPal sandbox (the batch has posted). */
+const POSTED = ["APPROVED", "POSTING", "POSTED", "SETTLING", "NEEDS_FOLLOW_UP", "SETTLED", "CLOSED"];
 
 export function Screen({ runSlug, hold, member }: SplitScreenProps) {
   const router = useRouter();
@@ -146,12 +144,34 @@ export function Screen({ runSlug, hold, member }: SplitScreenProps) {
   else if (!hasLines(view)) state = "empty";
   else state = "ready";
 
+  const season = snapshot?.season.label ?? null;
+  const posted = view ? POSTED.includes(view.state) : false;
+  // The grid holds simulated PayPal statuses (posted, or any line already with the rail): one tag covers it.
+  const simulated = posted || rows.some((r) => statusLabel(r) !== null);
   const title = (
-    <header className="fsr-screen__head">
-      <h1 id="W-TR-05-title" className="fs-t-title-1">
-        {en("W-TR-05.title")}
+    <header className="fsr-screen__head fsr-split__head">
+      <h1 id="W-TR-05-title" className="fsr-split__title fs-t-title-1">
+        {SPLIT.title}
+        {season && <span className="fsr-split__context"> {season}</span>}
       </h1>
-      <p className="fsr-screen__slug fs-t-hash">{runSlug}</p>
+      {snapshot && view && hasLines(view) ? (
+        <p className="fsr-split__provenance fs-t-micro" data-testid="W-TR-05.provenance">
+          {SPLIT.provenanceLine(
+            runSlug,
+            rows.length,
+            format.hashGroups(snapshot.rateCard.sha256),
+            SPLIT.basis[splitBasis(view)],
+          )}
+          {view.origin === "showcase" ? ` · ${provenanceFooter({ kind: "seeded" })}` : ""}
+        </p>
+      ) : (
+        <p className="fsr-screen__slug fs-t-micro">{runSlug}</p>
+      )}
+      {simulated && (
+        <HonestyTag className="fsr-split__tag" testId="W-TR-05.simulated">
+          Simulated PayPal sandbox
+        </HonestyTag>
+      )}
     </header>
   );
 
@@ -222,15 +242,12 @@ export function Screen({ runSlug, hold, member }: SplitScreenProps) {
         seeded ? holdHeadline(card.kind, seeded.serials[0] ?? "", name) : name,
       ),
     };
-  } else if (
-    open.holds === 0 &&
-    open.byHand === 0 &&
-    !["APPROVED", "POSTING", "POSTED", "SETTLING", "NEEDS_FOLLOW_UP", "SETTLED", "CLOSED"].includes(
-      view.state,
-    )
-  ) {
+  } else if (open.holds === 0 && open.byHand === 0 && !POSTED.includes(view.state)) {
     next = { kind: "approve", href: webRoutes.approve(runSlug), words: SPLIT.approveLink };
   }
+  // The reading before the last decision moved it: slip 0457 counted twice, once the by-hand slip is in.
+  const was =
+    basis === "resolved" ? format.percentBp(engineOutput(snapshot, "byHand").massBalance.shrinkBp) : null;
 
   return (
     <ScreenRoot id="W-TR-05" state={state} className="fsr-screen fsr-split" labelledBy="W-TR-05-title">
@@ -243,6 +260,7 @@ export function Screen({ runSlug, hold, member }: SplitScreenProps) {
       <SplitHeader
         dial={dial}
         swing={live.isLive(basisEventId(view, basis))}
+        was={was}
         pools={{
           premiumCents: output.conservation.premiumPoolCents,
           bonusCents: output.conservation.bonusPoolCents,
@@ -254,31 +272,33 @@ export function Screen({ runSlug, hold, member }: SplitScreenProps) {
         counts={filterCounts(rows)}
         filter={filter}
         onFilter={setFilter}
+        railsPlanned={!posted}
         decidedWords={decidedWords(view.state, replayed)}
         proof={
-          <div className="fsr-split__foot">
-            <p className="fsr-split__totals fs-t-caption" data-testid="W-TR-05.totals">
-              <span className="fsr-split__check" data-balanced={totals.balanced ? "" : undefined}>
-                {totals.balanced ? SPLIT.balanced : SPLIT.unbalanced}
-              </span>{" "}
-              {en("W-TR-05.totals", { gross: format.amount(totals.grossCents) })}
-            </p>
-            <p className="fsr-split__provenance fs-t-caption" data-testid="W-TR-05.provenance">
-              {provenanceFooter({ kind: "engine", rateCardSha256: snapshot.rateCard.sha256 })},{" "}
-              {BASIS_NOTE[basis]}.
-              {view.origin === "showcase" ? ` ${provenanceFooter({ kind: "seeded" })}.` : ""}
-            </p>
-          </div>
+          <p
+            className="fsr-split__totals fs-t-label"
+            data-testid="W-TR-05.totals"
+            data-balanced={totals.balanced ? "" : undefined}
+            title={SPLIT.balancedTitle(format.amount(totals.grossCents))}
+          >
+            <Glyph name={totals.balanced ? "ms:check" : "ms:help"} size={14} />
+            {totals.balanced ? SPLIT.balanced : SPLIT.unbalanced}
+          </p>
         }
         columns={
           <button
             type="button"
-            className="fsr-chip fsr-chip--columns fs-t-label"
+            className="fsr-columns fs-flat"
             aria-pressed={allColumns}
+            aria-label={allColumns ? SPLIT.fewerColumns : SPLIT.allColumns}
+            title={allColumns ? SPLIT.fewerColumns : SPLIT.allColumns}
             onClick={() => setAllColumns((v) => !v)}
             data-testid="W-TR-05.allColumns"
           >
-            {allColumns ? SPLIT.fewerColumns : SPLIT.allColumns}
+            <Glyph name={allColumns ? "ms:expand-less" : "ms:expand-more"} size={18} />
+            <span className="fs-t-label" aria-hidden>
+              {SPLIT.columns}
+            </span>
           </button>
         }
       />
@@ -297,11 +317,7 @@ export function Screen({ runSlug, hold, member }: SplitScreenProps) {
 
 /** What the bench says once every hold is decided, by how far the run has gone since. */
 export function decidedWords(state: string, replayed = false): string {
-  if (
-    replayed &&
-    ["APPROVED", "POSTING", "POSTED", "SETTLING", "NEEDS_FOLLOW_UP", "SETTLED", "CLOSED"].includes(state)
-  )
-    return "Every hold is decided and both keys signed. Payout statuses are replayed (labelled) from an earlier simulated PayPal sandbox run.";
+  if (replayed && POSTED.includes(state)) return SPLIT.decidedReplayed;
   if (state === "SETTLED" || state === "CLOSED") return SPLIT.decidedSettled;
   if (state === "TREASURER_APPROVED" || state === "AWAITING_BOARD") return SPLIT.decidedKey1;
   if (["APPROVED", "POSTING", "POSTED", "SETTLING", "NEEDS_FOLLOW_UP"].includes(state))

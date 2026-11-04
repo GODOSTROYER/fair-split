@@ -60,10 +60,13 @@ describe("payout replay provenance", () => {
 });
 
 it("inv.i8.simulated payout copy names its rail with sentence case", () => {
-  for (const text of [SPLIT.decidedApproved, FANOUT.waiting("10:00"), FANOUT.waitingSeeded]) {
+  for (const text of [FANOUT.waiting("10:00"), FANOUT.waitingSeeded]) {
     expect(text).toContain(". The simulated PayPal sandbox");
     expect(text).not.toContain(". the ");
   }
+  // Split review's decided words are counts, not a sentence about PayPal: the screen's honesty tag carries the
+  // rail once the batch posts (W-TR-05.simulated), and nothing there claims a confirmation.
+  expect(SPLIT.decidedApproved).not.toMatch(/PayPal|confirm/i);
   for (const text of [
     FANOUT.rheaWhy("Rhea", "US$26.65"),
     FANOUT.rerouted("Rhea", "30 Oct"),

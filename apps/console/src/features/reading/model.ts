@@ -439,7 +439,7 @@ export function statusSentence({
     return `Photo ${id} was read on ${when}. Its four rows count in the season's kilos.`;
   }
   if (!started) {
-    return `Photo ${id} waits on the desk. The labelled seed stand-in plays once Lantern Bay's invoice is paid.`;
+    return `Photo ${id} waits on the desk until the invoice is paid.`;
   }
   const done = readCount(rows);
   if (reading && done === 0 && readingPhoto && readingPhoto !== id) {
@@ -452,7 +452,7 @@ export function statusSentence({
   const parts: string[] = [
     reading && done < rows.length
       ? `Reading photo ${id}: ${rows.length} slips.`
-      : `Photo ${id}: ${done} of ${rows.length} slips read.`,
+      : `Photo ${id} · ${done}/${rows.length} read.`,
   ];
   for (const row of rows) {
     if (!row) continue;
@@ -468,7 +468,7 @@ export function statusSentence({
       const slip = snapshot.slips.find((s) => s.serial === row.serial);
       parts.push(
         slip?.artifacts.includes("WATER_STAIN")
-          ? `Slip ${row.serial} needs a person: a water stain covers one digit.`
+          ? `Slip ${row.serial} needs a person: a stain hides one digit.`
           : `Slip ${row.serial} needs a person to confirm the doubtful seed stand-in value.`,
       );
     }

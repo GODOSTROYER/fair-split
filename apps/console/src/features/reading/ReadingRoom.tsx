@@ -17,11 +17,10 @@ import { useRunEvents, useStageRun } from "../../data/hooks.js";
 import { focusAndReveal } from "../../lib/focus.js";
 import { format } from "../../lib/format.js";
 import { useMoment } from "../../lib/moment.js";
-import { CLAUDE_MODEL } from "../../lib/provenance.js";
 import { useShortcut } from "../../lib/shortcuts.js";
 import { useOptionalStage } from "../../stage/context.js";
 import { useOnline } from "../season/online.js";
-import { SeasonMark } from "../season/parts.js";
+import { DotMatrix } from "../split/shared/DotMatrix.js";
 import { ConfirmZoomRead, RequestRescan } from "./Actions.js";
 import { Beds, type Landing } from "./Beds.js";
 import { Bench, type BenchZoom, FIT, zoomOnSlip } from "./Bench.js";
@@ -298,10 +297,16 @@ export function ReadingRoom({
   const treasurer = snapshot.officers.find((o) => o.role === "TREASURER") ?? null;
   const clerk = snapshot.officers.find((o) => o.role === "CLERK")?.shortName ?? "the clerk";
   const recorded = format.dateShort(snapshot.run.recordedOn);
+  // The provenance tag: its short word shows, the canonical sentence is its accessible name (spec §2.2).
   const footer =
-    photo.set === "EARLIER" && photo.readOn
-      ? READING_COPY.earlierFooter(format.date(photo.readOn))
-      : READING_COPY.footer(CLAUDE_MODEL, recorded);
+    photo.set === "EARLIER" && photo.readOn ? (
+      <span>{READING_COPY.earlierFooter(format.dateShort(photo.readOn))}</span>
+    ) : (
+      <span>
+        {READING_COPY.standInTag}
+        <span className="fs-sr">{READING_COPY.standInRest}</span>
+      </span>
+    );
   const toConfirm = state === "confirm-one" ? confirmRow(rows) : null;
   const confirmHold = toConfirm && view ? confirmHoldFor(view, snapshot, toConfirm.serial) : undefined;
 
@@ -314,9 +319,9 @@ export function ReadingRoom({
   return (
     <ScreenRoot id="W-TR-03" state={state} labelledBy="fsc-read-title" className="fsc-read">
       <header className="fsc-read__head">
-        <SeasonMark snapshot={snapshot} testId="W-TR-03.mark" coop={false} />
         <h1 id="fsc-read-title" className="fs-t-title-1">
           {READING_COPY.title}
+          <span className="fsc-read__context"> {season}</span>
         </h1>
       </header>
 
@@ -337,11 +342,6 @@ export function ReadingRoom({
             onZoom={setZoom}
             mode={mode}
             testId="W-TR-03.bench"
-            aside={
-              <p className="fs-t-label fsc-read__progress" data-testid="W-TR-03.film.progress">
-                {READING_COPY.progress(progress.read, progress.total)}
-              </p>
-            }
           />
           <Filmstrip
             season={season}
@@ -352,6 +352,29 @@ export function ReadingRoom({
           />
         </div>
         <div className="fsc-read__side" data-testid="W-TR-03.side">
+          {/* The screen's instrument: the slips read, in dot-matrix, the stand-in's tag beside it (spec §3.4). */}
+          <div className="fsc-read__counter">
+            <p className="fsc-read__progress" data-testid="W-TR-03.film.progress">
+              <DotMatrix
+                value={READING_COPY.progressDots(progress.read, progress.total)}
+                pitch={7}
+                label={READING_COPY.progress(progress.read, progress.total)}
+                decorative
+              />
+              <span className="fs-sr">{READING_COPY.progress(progress.read, progress.total)}</span>
+            </p>
+            <span className="fsc-read__counter-unit fs-t-micro" aria-hidden>
+              {READING_COPY.progressUnit}
+            </span>
+            <span
+              id="fsc-reading-provenance"
+              className="fsc-read__provenance fs-honesty fs-t-micro"
+              data-testid="W-TR-03.footer"
+            >
+              <Glyph name="pencil" size={12} />
+              {footer}
+            </span>
+          </div>
           <ExhibitLink season={season} />
           <p className="fsc-read__status" role="status" data-testid="W-TR-03.status" data-state={state}>
             <Glyph
@@ -384,14 +407,6 @@ export function ReadingRoom({
             notice={(serial) => quarantineNotice(snapshot, serial)}
             testId="W-TR-03.beds"
           />
-          <p
-            id="fsc-reading-provenance"
-            className="fsc-read__provenance fs-t-caption"
-            data-testid="W-TR-03.footer"
-          >
-            <Glyph name="pencil" size={14} />
-            <span>{footer}</span>
-          </p>
           {toConfirm?.zoomAgreed && (
             <ConfirmZoomRead
               season={season}

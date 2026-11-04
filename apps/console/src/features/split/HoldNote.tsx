@@ -1,6 +1,6 @@
-// The inline hold summary under the held H1 row (ADR-0016, decision.md §3, graft 2 from B): one line in the grid
-// with the white and pink slip thumbnails and "Slip 0457 is here twice. The white original and the pink duplicate
-// match on 4 of 4 fields.", and one quiet "Open H1" that opens the existing drawer. It carries no decision slab:
+// The inline hold summary under the held H1 row (ADR-0016, decision.md §3, graft 2 from B; unslop spec §3.6): one
+// line in the grid with the white and pink slip thumbnails, "Slip 0457 ×2" and the micro facts "4/4 fields match ·
+// 42.00 kg", and one quiet "Open H1" that opens the existing drawer. It carries no decision slab:
 // the drawer stays the only place to decide, so no role selector there becomes ambiguous. The serial, the copies
 // and the count all come from the row's own slips and the seed's sheets (holds/model.ts twinRows), never typed.
 
@@ -22,6 +22,8 @@ export interface HoldNoteRow {
   /** Fields the two copies share, compared as written; null when a sheet is not in the seed. */
   readonly matched: number | null;
   readonly fields: number;
+  /** The net kilos both copies carry, as written on the white original ("42.00"); null without the sheet. */
+  readonly netKg: string | null;
 }
 
 /** A serial that sits on one line twice, as a white original and a pink duplicate. */
@@ -59,6 +61,7 @@ export function holdNote(
       pink,
       matched: twins ? twins.filter((t) => t.match).length : null,
       fields: twins ? twins.length : 4,
+      netKg: a?.boxes["8"] || null,
     };
   }
   return null;
@@ -75,10 +78,15 @@ export function HoldNoteView({ note, onOpen }: { readonly note: HoldNoteRow; rea
         ))}
       </span>
       <p className="fsr-note__words fs-t-body">
-        <b>Slip {note.serial} is here twice.</b>{" "}
-        {note.matched === null
-          ? "A white original and a pink duplicate."
-          : `The white original and the pink duplicate match on ${note.matched} of ${note.fields} fields.`}
+        <b>Slip {note.serial} ×2</b>{" "}
+        <span className="fsr-note__micro fs-t-micro">
+          {note.matched === null
+            ? "white original · pink copy"
+            : [
+                `${note.matched}/${note.fields} fields match`,
+                ...(note.netKg ? [`${note.netKg} kg`] : []),
+              ].join(" · ")}
+        </span>
       </p>
       <button
         type="button"

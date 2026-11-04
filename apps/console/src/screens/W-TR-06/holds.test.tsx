@@ -78,11 +78,16 @@ describe("W-TR-06 hold drawer", () => {
       expect(sinceOpen()).toEqual(["glide-in", "converge", "pairs", "ready"]);
       expect(screen.getByTestId("W-TR-06.card.gate").textContent).toBe("Blocks approval. Changes kilos.");
       const card = screen.getByTestId("W-TR-06.card");
-      expect(card.textContent).toMatch(
-        /Slip 0457 is in two photos: the white original \(B\) and the pink duplicate \(D\)\. Counting both moves US\$17\.94 from 63 members to Nong Dioning and puts shrink at 2\.05%, over the 2\.0% limit\./,
-      );
+      // One engine line plus the decision (unslop spec §3.7); the copies' photos are their captions.
+      expect(card.textContent).toMatch(/Counting both moves US\$17\.94 from 63 members to Nong Dioning\./);
+      expect(card.textContent).toMatch(/\+US\$17\.94 to 63 members · shrink 1\.62%/);
+      expect(card.textContent).toMatch(/B · white original/);
+      expect(card.textContent).toMatch(/D · pink duplicate/);
       expect(card.textContent).toMatch(/The second image is the office's pink copy of the same receipt\./);
-      expect(screen.getByTestId("W-TR-06.twin.verdict").textContent).toBe("4 of 4 fields match. Same slip.");
+      expect(screen.getByTestId("W-TR-06.twin.verdict").textContent).toBe("4/4 fields match");
+      expect(screen.getByTestId("W-TR-06.twin.verdict").getAttribute("title")).toBe(
+        "4 of 4 fields match. Same slip.",
+      );
       const twin = screen.getByTestId("W-TR-06.twin");
       expect(twin.dataset.lit).toBe("");
       // Canary is a person's decision: the matching field pairs light in turn (serial, date, member, net kg,
@@ -130,9 +135,10 @@ describe("W-TR-06 hold drawer", () => {
       ]);
       expect(view.world.hold("H1")?.state).toBe("RESOLVED");
       expect(screen.getByTestId("W-TR-06.dial.status").dataset.status).toBe("INSIDE");
-      expect(screen.getByTestId("W-TR-06.result").textContent).toMatch(
-        /Returned to 63 members: US\$17\.94\./,
-      );
+      // The outcome leads the decided drawer: the delta, the card renamed for what was decided, the old reading.
+      expect(screen.getByTestId("W-TR-06.result").textContent).toBe("+US$17.94 back to 63 members");
+      expect(document.getElementById("W-TR-06.card-title")?.textContent).toBe("Slip 0457, counted once");
+      expect(screen.getByTestId("W-TR-06.dialBlock").textContent).toMatch(/was 2\.05%/);
       expect(screen.getByTestId("W-TR-06.card.resolution").textContent).toMatch(/Resolved by AS/);
       expect(screen.getByTestId("W-TR-06.next").textContent).toBe("Next: hold H2");
       await expectNoAxeViolations(screen.getByTestId("W-TR-06.drawer"));
@@ -321,10 +327,11 @@ describe("W-TR-06 hold drawer", () => {
     async () => {
       const view = await inReview(webRoutes.holdDrawer(RUN, "H2"));
       await waitFor(() => expect(stateOf()).toBe("open"), WAIT);
+      expect(document.getElementById("W-TR-06.card-title")?.textContent).toBe("Merlyn Ponce: 2.14 kg a tree");
       expect(screen.getByTestId("W-TR-06.card").textContent).toMatch(
-        /Merlyn Ponce: 300\.0 kg from 140 registered trees is 2\.14 kg a tree\. The limit is 1\.6\./,
+        /300\.0 kg from 140 registered trees\. The limit is 1\.6 kg a tree\./,
       );
-      expect(screen.getByTestId("W-TR-06.plot.P-053-B").textContent).toMatch(/not in the registry yet/);
+      expect(screen.getByTestId("W-TR-06.plot.P-053-B").textContent).toMatch(/Not registered/);
       expect(screen.getByTestId("W-TR-06.yield.now").textContent).toBe("2.14 kg a tree now");
       await expectNoAxeViolations(screen.getByTestId("W-TR-06.drawer"));
       press("W-TR-06.registerPlot");
@@ -353,10 +360,13 @@ describe("W-TR-06 hold drawer", () => {
       const marks = screen.getByTestId("W-TR-06.norule");
       expect(marks.textContent).toMatch(/Hauling ₱91\.20.*Matches R2/);
       expect(marks.textContent).toMatch(/Multa \(absent GA\) ₱200.*No rule/);
+      expect(screen.getByTestId("W-TR-06.card").textContent).toMatch(
+        /Multa \(absent GA\) ₱200 matches no Schedule A rule\..*\+US\$3\.20 correction credit from the co-op/,
+      );
       press("W-TR-06.returnCredit");
       await waitFor(() => expect(stateOf()).toBe("resolved"), WAIT);
       expect(screen.getByTestId("W-TR-06.result").textContent).toMatch(
-        /Returned as a US\$3\.20 credit paid by the co-op\./,
+        /^\+US\$3\.20 credit, paid by the co-op$/,
       );
       await waitFor(
         () =>

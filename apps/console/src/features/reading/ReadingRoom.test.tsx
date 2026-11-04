@@ -81,9 +81,13 @@ describe("W-TR-03 reading room", { timeout: 60_000 }, () => {
     expect(screen.getByTestId("W-TR-03.status").textContent).toMatch(/waits on the desk/);
     expect(within(screen.getByTestId("W-TR-03.film")).getAllByRole("link")).toHaveLength(12);
     expect(screen.getByTestId("W-TR-03.beds.row.0425").dataset.state).toBe("waiting");
-    expect(screen.getByTestId("W-TR-03.footer").textContent).toMatch(
-      /^Seed stand-in, not a Claude recording\. Amounts are computed by the engine, never by the model\.$/,
-    );
+    // One stand-in tag, its canonical phrase whole (the tail for screen readers), no sentence beside it.
+    expect(screen.getByTestId("W-TR-03.footer").textContent).toBe("Seed stand-in, not a Claude recording");
+    expect(screen.getByTestId("W-TR-03.footer").classList.contains("fs-honesty")).toBe(true);
+    // The instrument: slips read in dot-matrix, the words for screen readers.
+    expect(
+      screen.getByTestId("W-TR-03.film.progress").querySelector("svg.fsr-dm")?.getAttribute("data-value"),
+    ).toBe("0/48");
     await expectNoAxeViolations(r.container);
     r.unmount();
   });

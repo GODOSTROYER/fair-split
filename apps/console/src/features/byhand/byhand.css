@@ -18,16 +18,29 @@
 
 .fsc-hand__head {
   display: grid;
-  gap: 8px;
+  gap: 4px;
 }
 
 .fsc-hand__head h1 {
   margin: 0;
 }
 
+/* "Slip 0462 by hand": the grey part says what the screen does; the slip's owner is micro beneath. */
+.fsc-hand__context {
+  color: var(--fs-ink-3);
+  font-weight: 450;
+}
+
+.fsc-hand__who {
+  margin: 0;
+  color: var(--fs-ink-3);
+}
+
+/* One line, the stand-in's reading as a figure, the stand-in tag (spec §3.5). */
 .fsc-hand__prompt {
   display: flex;
-  align-items: flex-start;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
   max-width: 62ch;
   margin: 0;
@@ -38,7 +51,10 @@
 
 .fsc-hand__prompt .fs-glyph {
   flex: none;
-  margin-top: 3px;
+  color: var(--fs-steel-line);
+}
+
+.fsc-hand__reading {
   color: var(--fs-pencil);
 }
 

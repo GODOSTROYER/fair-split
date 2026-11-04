@@ -307,7 +307,8 @@ export function Beds({
             ))}
         </ul>
       )}
-      <p id={`${testId}-keys`} className="fs-t-caption fsc-beds__keys">
+      {/* The keys live in the shortcuts sheet and here for screen readers only (spec §3.4): no visible hint. */}
+      <p id={`${testId}-keys`} className="fs-sr">
         {started ? READING_COPY.bedsKeys : READING_COPY.waiting}
       </p>
     </section>

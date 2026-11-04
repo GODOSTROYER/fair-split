@@ -49,25 +49,95 @@
   background: var(--fs-plate-2);
 }
 
-.fsr-hold__result {
+/* Once decided, the outcome leads the drawer ("+US$17.94 back to 63 members"), then the next hold as its one
+   action, then the card with the evidence and the decider's stamp (UI gate round 1). */
+.fsr-hold-screen > .fsr-hold__result {
+  order: -2;
   margin: 0;
+}
+
+.fsr-hold-screen > .fsr-hold__next {
+  order: -1;
 }
 
 .fsr-hold__result .fs-print__value {
   color: var(--fs-ink);
 }
 
+.fsr-hold__go {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--fs-space-8);
+  text-decoration: none;
+}
+
+/* The set has a back arrow only; the next step points forward. */
+.fsr-hold__arrow {
+  transform: scaleX(-1);
+}
+
+/* The gate as the spec's status pill: a white face, a hairline ring, colour only in the marigold dot. */
+.fsr-hold .fs-hold__gate {
+  min-height: 24px;
+  padding: 0 10px 0 9px;
+  border-color: var(--fs-rule-strong);
+  background: var(--fs-plate);
+}
+
+.fsr-hold .fs-hold__gate > .fs-glyph {
+  display: none;
+}
+
+.fsr-hold .fs-hold__gate::before {
+  content: "";
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--fs-canary);
+}
+
+/* A decided hold no longer gates anything: its gate pill steps aside for the stamp. */
+.fsr-hold.fs-hold:is([data-state="resolved"], [data-state="excluded"]) .fs-hold__gate {
+  display: none;
+}
+
+/* The seed's sentence carries its provenance as the stand-in tag (dashed steel, pencil, micro), not a heading. */
+.fsr-hold .fs-hold__voice[data-voice="seeded"] dt {
+  flex: none;
+  justify-self: start;
+  height: 20px;
+  padding: 0 8px 0 6px;
+  border: 1px dashed var(--fs-steel-line);
+  border-radius: var(--fs-radius-pill);
+  color: var(--fs-ink-3);
+  font-stretch: 87.5%;
+  white-space: nowrap;
+}
+
+.fsr-hold .fs-hold__voice[data-voice="seeded"] dd {
+  color: var(--fs-ink-2);
+}
+
+/* The dial, small, with its state pill beside it. */
 .fsr-hold__dial {
   display: flex;
   align-items: center;
   gap: var(--fs-space-16);
   padding: var(--fs-space-12) var(--fs-space-16);
+  border-radius: var(--fs-radius-card);
   box-shadow: inset 0 0 0 1px var(--fs-rule);
 }
 
 .fsr-hold__dial p {
   margin: 0;
   max-width: 34ch;
+}
+
+.fsr-hold__dial-state {
+  display: grid;
+  justify-items: start;
+  gap: var(--fs-space-4);
 }
 
 /* ------------------------------------------------------------------ MM-3: the two copies of slip 0457 */
@@ -95,7 +165,7 @@
 }
 
 .fsr-twin__caption {
-  color: var(--fs-ink-2);
+  color: var(--fs-ink-3);
 }
 
 /* The centre line the two copies converge on: the engine's alignment, so pencil. */
@@ -306,6 +376,10 @@
   align-items: center;
   gap: var(--fs-space-8);
   margin: 0;
+  color: var(--fs-ink);
+}
+
+.fsr-twin .fsr-twin__verdict > .fs-glyph {
   color: var(--fs-ink-2);
 }
 
@@ -374,6 +448,34 @@
 
 .fsr-plots p {
   margin: 0;
+}
+
+.fsr-plots__title {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--fs-space-4);
+}
+
+/* Not in the registry yet: the status pill with the marigold dot (a person registers it). */
+.fsr-plots__pending {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 24px;
+  padding: 0 10px 0 9px;
+  border-radius: var(--fs-radius-pill);
+  background: var(--fs-plate);
+  box-shadow: inset 0 0 0 1px var(--fs-rule-strong);
+  color: var(--fs-ink);
+}
+
+.fsr-plots__pending::before {
+  content: "";
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--fs-canary);
 }
 
 .fsr-plots ul {
@@ -449,6 +551,29 @@
   color: var(--fs-canary-text);
 }
 
+/* Schedule A's closed list as four rule chips; the rule the slip uses is in ink, the rest in ink-3. */
+.fsr-norule__rules {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--fs-space-4) var(--fs-space-8);
+}
+
+.fsr-norule__rule {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  padding: 0 6px;
+  border-radius: var(--fs-radius-cell);
+  background: var(--fs-plate-2);
+  box-shadow: inset 0 0 0 1px var(--fs-rule);
+  color: var(--fs-ink-3);
+}
+
+.fsr-norule__rule[data-used] {
+  color: var(--fs-ink);
+}
+
 /* ------------------------------------------------------------------ "These are two deliveries": a reason first */
 
 .fsr-reason {
@@ -468,4 +593,9 @@
   flex-wrap: wrap;
   align-items: center;
   gap: var(--fs-space-16);
+}
+
+/* The stand-in tag's pencil, in steel like the tag's dash (last: it outranks the other glyph rules). */
+.fsr-hold .fs-hold__voice[data-voice="seeded"] dt .fs-glyph {
+  color: var(--fs-steel-line);
 }

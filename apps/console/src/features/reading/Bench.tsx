@@ -153,23 +153,29 @@ export function Bench({ photo, slips, band, outline, zoom, onZoom, mode, testId,
           <button
             type="button"
             className="fsc-zoom-button"
+            data-icon=""
             onClick={() => zoomTo(step - 1)}
             aria-disabled={step <= 0 ? true : undefined}
+            aria-label={READING_COPY.zoomOut}
+            title={READING_COPY.zoomOut}
             data-testid={`${testId}.zoomOut`}
           >
-            {READING_COPY.zoomOut}
+            <span aria-hidden>{READING_COPY.zoomOutMark}</span>
           </button>
-          <span className="fsc-bench__scale fs-t-figure" aria-live="polite" data-testid={`${testId}.scale`}>
+          <span className="fsc-bench__scale fs-t-micro" aria-live="polite" data-testid={`${testId}.scale`}>
             {READING_COPY.zoomLevel(s.toFixed(1))}
           </span>
           <button
             type="button"
             className="fsc-zoom-button"
+            data-icon=""
             onClick={() => zoomTo(step + 1)}
             aria-disabled={step >= ZOOM_STEPS.length - 1 ? true : undefined}
+            aria-label={READING_COPY.zoomIn}
+            title={READING_COPY.zoomIn}
             data-testid={`${testId}.zoomIn`}
           >
-            {READING_COPY.zoomIn}
+            <span aria-hidden>{READING_COPY.zoomInMark}</span>
           </button>
           <button
             type="button"
@@ -230,9 +236,8 @@ export function Bench({ photo, slips, band, outline, zoom, onZoom, mode, testId,
         </Paper>
       </div>
       {photoExhibit(photo.photoId) && (
-        <p className="fs-t-caption fsc-bench__source">
-          {photoExhibit(photo.photoId)?.label}. Photos A–L are composed in code from synthetic hero flats and
-          code-drawn slips.
+        <p className="fs-t-micro fsc-bench__source" title={READING_COPY.sourceTitle}>
+          {photoExhibit(photo.photoId)?.label}
         </p>
       )}
     </section>

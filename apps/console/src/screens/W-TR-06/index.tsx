@@ -35,13 +35,12 @@ import {
   yieldFacts,
 } from "../../features/holds/model.js";
 import { basisEventId, isOpenHold, massBalanceView, splitBasis } from "../../features/split/model.js";
-import { Dial, dialLabel } from "../../features/split/SplitHeader.js";
-import { en, HOLDS } from "../../features/split/shared/copy.js";
+import { Dial, DialState } from "../../features/split/SplitHeader.js";
+import { en, HOLDS, SPLIT } from "../../features/split/shared/copy.js";
 import { stampFor } from "../../features/split/shared/people.js";
 import { useLiveEvents, useRunData } from "../../features/split/shared/run-data.js";
 import { useMomentScript, usePhaseSync } from "../../features/split/shared/script.js";
 import { useMoment } from "../../lib/moment.js";
-import { provenanceFooter } from "../../lib/provenance.js";
 import type { ScreenState } from "../../lib/screens.js";
 import type { HoldDrawerProps } from "../contract.js";
 import "../../features/split/shared/runs.css";
@@ -242,6 +241,11 @@ export function Screen({ runSlug, holdId }: HoldDrawerProps) {
       const d = duplicateFacts(facts, seeded);
       const [a, b] = slipCopies(snapshot, d.serial);
       const dial = massBalanceView(snapshot, view);
+      // Once counted once, the reading it moved from stays beside it as micro ("was 2.05%").
+      const was =
+        hold.state === "RESOLVED" && hold.resolution === "COUNT_ONCE" && d.shrinkBoth !== dial.display
+          ? d.shrinkBoth
+          : null;
       evidence = (
         <>
           {a && b && (
@@ -258,17 +262,13 @@ export function Screen({ runSlug, holdId }: HoldDrawerProps) {
             <Dial
               dial={dial}
               swing={live.isLive(basisEventId(view, splitBasis(view)))}
-              size={112}
+              size={96}
               testId="W-TR-06.dial"
             />
-            <p className="fs-t-caption">
-              <span className="fsr-muted">{HOLDS.shrinkNow}: </span>
-              <span data-testid="W-TR-06.dial.status" data-status={dial.status}>
-                {dial.status === "PENDING"
-                  ? dialLabel(dial)
-                  : `${dial.display}, ${dialLabel(dial).toLowerCase()}`}
-              </span>
-            </p>
+            <div className="fsr-hold__dial-state">
+              <DialState dial={dial} testId="W-TR-06.dial.status" />
+              {was && <span className="fs-t-micro fsr-muted">{SPLIT.dialWas(was)}</span>}
+            </div>
           </div>
         </>
       );
@@ -282,8 +282,8 @@ export function Screen({ runSlug, holdId }: HoldDrawerProps) {
         },
         {
           kind: "flat",
-          label: en("W-TR-06.H1.flat"),
-          note: en("W-TR-06.H1.flatNote"),
+          label: HOLDS.twoDeliveries,
+          note: HOLDS.twoDeliveriesNote,
           testId: "W-TR-06.twoDeliveries",
           onSelect: () => setReasonOpen(true),
         },
@@ -401,15 +401,15 @@ export function Screen({ runSlug, holdId }: HoldDrawerProps) {
             </div>
           </form>
         )}
+        {/* The outcome leads the drawer once decided (holds.css orders it first): what changed, then the next hold. */}
         {showResult && (
           <Print
             value={result}
             provenance="engine"
             state="ink"
-            typeRole="label"
+            typeRole="title-2"
             as="p"
             reveal={script.busy}
-            footer={provenanceFooter({ kind: "engine", rateCardSha256: snapshot.rateCard.sha256 })}
             className="fsr-hold__result"
             testId="W-TR-06.result"
           />
@@ -432,11 +432,18 @@ function NextLink({
 }: {
   readonly next: { readonly href: string; readonly words: string; readonly kind: string };
 }) {
+  // After a decision the next one is the drawer's one action: a full-size secondary with an arrow.
   return (
-    <p className="fsr-next" data-kind={next.kind === "approve" ? "approve" : "hold"}>
-      <span className="fsr-next__mark" aria-hidden />
-      <AppLink href={next.href} className="fs-link fs-t-label" data-testid="W-TR-06.next" data-focus-after="">
+    <p className="fsr-next fsr-hold__next" data-kind={next.kind === "approve" ? "approve" : "hold"}>
+      <AppLink
+        href={next.href}
+        className="fs-flat fsr-hold__go"
+        data-size="l"
+        data-testid="W-TR-06.next"
+        data-focus-after=""
+      >
         {next.words}
+        <Glyph name="ms:arrow-back" size={18} className="fsr-hold__arrow" />
       </AppLink>
     </p>
   );

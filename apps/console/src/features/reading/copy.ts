@@ -16,7 +16,10 @@ export const READING_COPY = {
   benchKeys: "Plus and minus zoom; arrow keys move around the photo.",
   zoomIn: "Zoom in",
   zoomOut: "Zoom out",
+  zoomInMark: "+",
+  zoomOutMark: "−",
   zoomFit: "Fit",
+  sourceTitle: "Photos A–L are composed in code from synthetic hero flats and code-drawn slips.",
   zoomLevel: (scale: string) => `${scale}×`,
   beds: (id: string) => `Rows read from photo ${id}`,
   bedsKeys:
@@ -35,9 +38,15 @@ export const READING_COPY = {
   byHand: (serial: string) => `Enter slip ${serial} by hand`,
   entered: (name: string) => `Entered by ${name}`,
   readTwice: "Seed stand-in, not a Claude recording",
-  footer: (_model: string, _date: string) =>
-    "Seed stand-in, not a Claude recording. Amounts are computed by the engine, never by the model.",
-  earlierFooter: (date: string) => `Read on ${date}, earlier this season. Seeded sample.`,
+  /** The canonical phrase, once per surface: the stand-in tag's whole text (its tail for screen readers). */
+  footer: (_model: string, _date: string) => "Seed stand-in, not a Claude recording",
+  /** The stand-in tag: "Seed stand-in" shows; the pinned phrase is whole for screen readers and text. */
+  standInTag: "Seed stand-in",
+  standInRest: ", not a Claude recording",
+  earlierFooter: (date: string) => `Seeded sample · read ${date}`,
+  /** The instrument: "48/48" in dots, "slips read" beside it. */
+  progressDots: (read: number, total: number) => `${read}/${total}`,
+  progressUnit: "slips read",
   stateOffline: "You're offline. Rows already read stay; new ones arrive when the connection returns.",
   stateLivePaused: "Live reading is paused for today (budget cap). The labelled seed stand-in still plays.",
   illegible: "Too blurred to read",

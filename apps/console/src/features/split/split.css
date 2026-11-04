@@ -29,29 +29,131 @@
   margin-bottom: var(--fs-space-16);
 }
 
+/* ------------------------------------------------------------------ the header: a factual name, one micro line */
+
+/* "Split review 2026-A" with the season in grey (reel 3's "October 2026"); the run, its lines and the engine's
+   provenance once, as micro; the honesty tag top-right once the grid holds simulated PayPal statuses. */
+.fsr-split__head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--fs-space-4) var(--fs-space-16);
+}
+
+.fsr-split__title {
+  margin: 0;
+}
+
+.fsr-split__context {
+  color: var(--fs-ink-3);
+  font-weight: 450;
+}
+
+.fsr-split__head > .fsr-split__provenance,
+.fsr-split__head > .fsr-screen__slug {
+  grid-column: 1;
+  margin: 0;
+  color: var(--fs-ink-3);
+}
+
+.fsr-split__tag {
+  grid-row: 1;
+  grid-column: 2;
+}
+
 /* ------------------------------------------------------------------ the bench */
 
+/* One short band: the instrument, the pool, the open decisions; the filters beneath it. The lines get the rest. */
 .fsr-bench {
   display: grid;
-  grid-template-columns: auto minmax(180px, auto) minmax(0, 1fr);
-  align-items: start;
-  gap: var(--fs-space-32) 40px;
-  padding-bottom: var(--fs-space-24);
-  border-bottom: 1px solid var(--fs-rule);
+  grid-template-columns: auto auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--fs-space-16) var(--fs-space-48);
 }
 
 .fsr-bench__dial {
-  display: grid;
-  justify-items: center;
-  gap: var(--fs-space-4);
+  grid-row: 1;
+  grid-column: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--fs-space-16);
 }
 
-.fsr-bench__dial-note {
+/* The bench's dial is the tick ring alone: its reading is the dot-matrix beside it, and the Mirrored table carries
+   every word for screen readers. */
+.fsr-bench .fs-dial__caption {
+  display: none;
+}
+
+.fsr-bench .fs-dial {
+  margin: 0;
+}
+
+.fsr-bench__reading {
+  display: grid;
+  justify-items: start;
+  gap: var(--fs-space-8);
+}
+
+.fsr-bench__label,
+.fsr-pools__label {
+  margin: 0;
   color: var(--fs-ink-2);
 }
 
-.fsr-bench__dial-note[data-status="OUTSIDE"] {
-  color: var(--fs-canary-text);
+/* The reading: dot-matrix digits, the unit and the limit set beside them in type, never in dots. */
+.fsr-reading {
+  display: grid;
+  justify-items: start;
+  gap: var(--fs-space-4);
+}
+
+.fsr-reading__value {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: var(--fs-space-4);
+}
+
+.fsr-reading__unit {
+  color: var(--fs-ink-3);
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.fsr-reading__micro {
+  color: var(--fs-ink-3);
+}
+
+/* The dial's state: over the limit is a person's decision (a marigold dot in a white pill); inside is a checked
+   fact (a check and the word in ink, no pill); waiting names its slip. */
+.fsr-dialstate {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 24px;
+  margin: 0;
+  color: var(--fs-ink);
+  white-space: nowrap;
+}
+
+.fsr-dialstate[data-status="OUTSIDE"] {
+  padding: 0 10px 0 9px;
+  border-radius: var(--fs-radius-pill);
+  background: var(--fs-plate);
+  box-shadow: inset 0 0 0 1px var(--fs-rule-strong);
+}
+
+.fsr-dialstate[data-status="OUTSIDE"]::before {
+  content: "";
+  flex: none;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--fs-canary);
+}
+
+.fsr-dialstate[data-status="PENDING"] {
+  color: var(--fs-ink-2);
 }
 
 /* Waiting for slip 0462: the drawing is dimmed, its caption text keeps the token contrast (ink-3 ≥ 4.5:1). */
@@ -76,17 +178,14 @@
 /* The pool: the screen's money at amount-l, in pencil (the engine's figure; nobody has signed), its two parts on
    one line, then the balance check and the provenance of every figure on the screen. */
 .fsr-pools {
+  grid-row: 1;
+  grid-column: 2;
   display: grid;
-  align-content: start;
+  align-content: center;
+  justify-items: start;
   gap: var(--fs-space-4);
   min-width: 0;
-  max-width: 400px;
   margin: 0;
-  padding-top: var(--fs-space-4);
-}
-
-.fsr-pools__label {
-  color: var(--fs-ink-3);
 }
 
 .fsr-pools__total {
@@ -99,16 +198,18 @@
   color: var(--fs-ink);
 }
 
+/* The pool's two parts on one line, label then figure, then the balance check. */
 .fsr-pools__parts {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--fs-space-4) var(--fs-space-24);
-  margin: var(--fs-space-4) 0 0;
+  gap: var(--fs-space-4) var(--fs-space-16);
+  margin: 0;
 }
 
 .fsr-pools__item {
-  display: grid;
-  gap: 2px;
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--fs-space-8);
 }
 
 .fsr-pools dt {
@@ -126,35 +227,56 @@
   color: var(--fs-pencil);
 }
 
-.fsr-pools__note {
-  color: var(--fs-ink-3);
-}
-
+/* The open decisions: counts as the panel's header, the next one linked under it. */
 .fsr-bench__summary {
+  grid-row: 1;
+  grid-column: 3;
   display: grid;
   justify-items: start;
-  align-content: start;
-  gap: var(--fs-space-12);
-  padding-top: var(--fs-space-8);
+  align-content: center;
+  gap: var(--fs-space-8);
+  min-width: 0;
 }
 
-.fsr-chips {
+.fsr-bench__count {
+  margin: 0;
+}
+
+.fsr-bench__tools {
+  grid-row: 2;
+  grid-column: 1 / -1;
   display: flex;
   flex-wrap: wrap;
-  gap: var(--fs-space-8);
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--fs-space-8) var(--fs-space-16);
+}
+
+/* The filters: one segmented control, counts in micro, colour only in a dot (Held) or the hatch (Cash). */
+.fsr-chips {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 2px;
   min-inline-size: 0;
-  margin: var(--fs-space-4) 0 0;
-  padding: 0;
+  margin: 0;
+  padding: 2px;
   border: 0;
+  border-radius: var(--fs-radius-pill);
+  background: var(--fs-plate-2);
+  box-shadow: inset 0 0 0 1px var(--fs-rule);
 }
 
 .fsr-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   min-height: 32px;
   padding: 0 var(--fs-space-12);
-  border: 1px solid var(--fs-rule-strong);
+  border: 0;
   border-radius: var(--fs-radius-pill);
   background: transparent;
   color: var(--fs-ink-2);
+  white-space: nowrap;
   cursor: pointer;
 }
 
@@ -162,22 +284,52 @@
   color: var(--fs-ink);
 }
 
-/* The chosen filter is an ink-filled pill (a segmented control); the Held chip carries the marigold dot. */
-.fsr-chip[aria-pressed="true"] {
-  border-color: var(--fs-ink);
-  background: var(--fs-ink);
-  color: var(--fs-plate);
+.fsr-chip__count {
+  color: var(--fs-ink-3);
 }
 
-.fsr-chip[data-testid="W-TR-05.filter.held"]::before {
+/* The chosen segment is a white face on the porcelain track. */
+.fsr-chip[aria-pressed="true"] {
+  background: var(--fs-plate);
+  box-shadow: var(--fs-shadow-e1);
+  color: var(--fs-ink);
+}
+
+.fsr-chip[aria-pressed="true"] .fsr-chip__count {
+  color: var(--fs-ink-2);
+}
+
+.fsr-chip[data-filter="held"]::before {
   content: "";
-  display: inline-block;
+  flex: none;
   width: 6px;
   height: 6px;
-  margin-right: 6px;
   border-radius: 50%;
   background: var(--fs-canary);
-  vertical-align: 2px;
+}
+
+.fsr-chip[data-filter="cash"]::before {
+  content: "";
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  background:
+    repeating-linear-gradient(-45deg, var(--fs-hatch) 0 1.5px, transparent 1.5px 4px), var(--fs-plate);
+  box-shadow: inset 0 0 0 1px var(--fs-rule-strong);
+}
+
+/* "Columns": the secondary figures behind one quiet control. */
+.fsr-columns.fs-flat {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--fs-space-4);
+  min-height: 32px;
+  padding: 0 var(--fs-space-12) 0 var(--fs-space-8);
+}
+
+.fsr-columns[aria-pressed="true"] {
+  box-shadow: inset 0 0 0 1px var(--fs-ink);
 }
 
 /* ------------------------------------------------------------------ the grid */
@@ -197,10 +349,6 @@
   min-height: 360px;
 }
 
-.fsr-chip--columns {
-  justify-self: start;
-}
-
 .fsr-grid .ag-root-wrapper {
   border-color: var(--fs-rule);
 }
@@ -218,7 +366,7 @@
   align-items: center;
 }
 
-/* Held and reserved rows: the marigold wash and a 3 px marigold bar on the left (a person decides). */
+/* Held and reserved rows: a 3 px marigold bar on the left (a person decides); the row itself stays white. */
 .fsr-grid .ag-row.fsr-row--held {
   background: var(--fs-canary-wash);
 }
@@ -236,10 +384,10 @@
 .fsr-grid .fsr-row--totals .ag-cell {
   border-top: 1px solid var(--fs-rule-strong);
   background: var(--fs-plate-2);
-  font-weight: 650;
+  font-weight: 560;
 }
 
-/* The inline hold note under H1: the held row's wash continues, one line, a quiet way into the drawer. */
+/* The inline hold note under H1: the held row's bar continues, one line, a quiet way into the drawer. */
 .fsr-grid .ag-row.fsr-row--note {
   background: var(--fs-canary-wash);
   box-shadow: inset 3px 0 0 var(--fs-canary);
@@ -276,7 +424,7 @@
   border-radius: 2px;
   box-shadow: var(--fs-shadow-paper);
   color: var(--fs-paper-ink);
-  font-weight: 650;
+  font-weight: 520;
   font-size: 0.75rem;
   line-height: 1;
 }
@@ -292,7 +440,12 @@
 
 .fsr-note__words b {
   color: var(--fs-ink);
-  font-weight: 680;
+  font-weight: 560;
+}
+
+.fsr-note__micro {
+  margin-left: var(--fs-space-8);
+  color: var(--fs-ink-3);
 }
 
 .fsr-note__open.fs-flat {
@@ -310,7 +463,7 @@
   border-radius: var(--fs-radius-cell);
   background: var(--fs-copy-pink);
   color: var(--fs-paper-ink);
-  font-weight: 650;
+  font-weight: 520;
   font-variant-numeric: tabular-nums lining-nums;
   white-space: nowrap;
 }
@@ -365,7 +518,7 @@
   }
 }
 
-/* Member: name, number and the statement language. */
+/* Member: the name at body size, the number as micro (the statement language lives on the member's line). */
 .fsr-member {
   display: grid;
   min-width: 0;
@@ -375,18 +528,14 @@
 .fsr-member__name {
   overflow: hidden;
   color: var(--fs-ink);
+  line-height: 1.15;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .fsr-member__meta {
-  display: inline-flex;
-  gap: var(--fs-space-8);
   color: var(--fs-ink-3);
-}
-
-.fsr-member__lang {
-  color: var(--fs-ink-2);
+  line-height: 1.15;
 }
 
 /* Slips: the line's own sheets as 24 × 18 crops of their top corner (the red serial, Jessie's first entries),
@@ -498,14 +647,15 @@
   text-underline-offset: 4px;
 }
 
-/* Net is the line's answer: ink at 700 (pencil until the keys, as every engine figure). */
+/* Net is the line's answer, the one scanned column: figure-net, 87.5/600 (pencil until the keys, as every engine
+   figure). Money is never bold beyond it. */
 .fsr-amount--net {
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .fsr-amount--total {
   color: var(--fs-ink);
-  font-weight: 600;
+  font-weight: 560;
 }
 
 .fsr-kaltas {
@@ -560,7 +710,7 @@
 }
 
 /* Status: a glyph and a word, coloured only by what is true now. The words never clip mid-word: a long status
-   (a held line and its hold, or "Reserved, never redistributed.") wraps to a second line inside the 40 px row. */
+   (a replayed PayPal status) wraps to a second line inside the 40 px row. */
 .fsr-status {
   display: inline-flex;
   align-items: center;
@@ -598,8 +748,19 @@
   color: var(--fs-ink-2);
 }
 
+/* Held and reserved: colour lives in a 6 px marigold dot, never in the icon or the word (unslop spec §1.8). */
 .fsr-status[data-tone="canary"] > .fs-glyph {
-  color: var(--fs-canary-text);
+  display: none;
+}
+
+.fsr-status[data-tone="canary"]::before {
+  content: "";
+  flex: none;
+  width: 6px;
+  height: 6px;
+  margin-inline: 5px;
+  border-radius: 50%;
+  background: var(--fs-canary);
 }
 
 .fsr-status[data-tone="pencil"] {
@@ -615,10 +776,13 @@
   color: var(--fs-red);
 }
 
-/* PayPal confirmed it: jade flush, the only jade in the grid. */
+/* PayPal confirmed it: the one filled pill, jade face, ink word and check, its 1 px ring (spec §1.8). */
 .fsr-status[data-tone="jade"] {
-  padding: 2px 8px 2px 6px;
+  gap: 6px;
+  min-height: 24px;
+  padding: 0 10px 0 8px;
   border: 1px solid var(--fs-jade-flush-border);
+  border-radius: var(--fs-radius-pill);
   background: var(--fs-jade);
   color: var(--fs-on-jade);
 }
@@ -627,84 +791,81 @@
   color: var(--fs-on-jade);
 }
 
+/* Cash: a white pill with a 10 px hatch swatch where the dot would be; the word stays clear of the hatch. */
 .fsr-status[data-tone="hatch"] {
-  padding: 2px 8px 2px 6px;
-  background:
-    repeating-linear-gradient(-45deg, var(--fs-hatch) 0 1.5px, transparent 1.5px 6px), var(--fs-plate);
-  box-shadow: inset 0 0 0 1px var(--fs-rule);
+  gap: 6px;
+  min-height: 24px;
+  padding: 0 10px 0 9px;
+  border-radius: var(--fs-radius-pill);
+  background: var(--fs-plate);
+  box-shadow: inset 0 0 0 1px var(--fs-rule-strong);
 }
 
+.fsr-status[data-tone="hatch"] > .fs-glyph {
+  display: none;
+}
+
+.fsr-status[data-tone="hatch"]::before {
+  content: "";
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  background:
+    repeating-linear-gradient(-45deg, var(--fs-hatch) 0 1.5px, transparent 1.5px 4px), var(--fs-plate);
+  box-shadow: inset 0 0 0 1px var(--fs-rule-strong);
+}
+
+/* The filled H-tag: the hold's label on the marigold face (the held row's one filled mark). */
 .fsr-status__hold {
   padding: 0 5px;
   border: 1px solid var(--fs-canary-border);
-  border-radius: var(--fs-radius-cell);
+  border-radius: 5px;
   background: var(--fs-canary);
   color: var(--fs-on-canary);
-  font-weight: 700;
+  font-weight: 560;
 }
 
-/* ------------------------------------------------------------------ footer */
+/* ------------------------------------------------------------------ the balance check */
 
-.fsr-split__foot {
-  display: grid;
-  gap: var(--fs-space-4);
-}
-
-/* Under the pool: the balance check and the provenance of every figure on the screen. */
-.fsr-pools > .fsr-split__foot {
-  margin-top: var(--fs-space-8);
-}
-
+/* A checked fact: a check and the word in ink, no pill (its equations in its title). */
 .fsr-split__totals {
-  margin: 0;
-  color: var(--fs-ink-2);
-}
-
-.fsr-split__check {
   display: inline-flex;
   align-items: center;
   gap: var(--fs-space-4);
-  padding: 0 6px;
-  border: 1px solid var(--fs-ink-3);
-  border-radius: var(--fs-radius-pill);
+  margin: var(--fs-space-4) 0 0;
   color: var(--fs-ink);
 }
 
-.fsr-split__check:not([data-balanced]) {
-  border-color: var(--fs-red);
+.fsr-split__totals:not([data-balanced]) {
   color: var(--fs-red);
 }
 
-.fsr-split__provenance {
-  margin: 0;
-  color: var(--fs-ink-3);
+/* A narrower screen (1,280 px laptops, or a narrow window): the bench keeps its one row, with tighter gaps. */
+@container (max-width: 1100px) {
+  .fsr-bench {
+    column-gap: var(--fs-space-32);
+  }
 }
 
-/* Beside an open drawer, or in a narrow window, the screen is narrow: the decisions and filters run as one
-   wrapping row beneath the dial and the pool, and the dial draws smaller, so the grid keeps its height. */
-@container (max-width: 960px) {
+/* Beside an open drawer: the dial and the pool on one row, the decisions and the filters beneath. */
+@container (max-width: 820px) {
   .fsr-bench {
     grid-template-columns: auto minmax(0, 1fr);
-    gap: var(--fs-space-16) var(--fs-space-24);
-    padding-bottom: var(--fs-space-16);
+    gap: var(--fs-space-12) var(--fs-space-24);
   }
 
-  .fsr-bench__dial .fs-dial svg {
-    width: 120px;
-    height: auto;
+  .fsr-bench__tools {
+    grid-row: 3;
   }
 
   .fsr-bench__summary {
+    grid-row: 2;
+    grid-column: 1 / -1;
     display: flex;
     flex-wrap: wrap;
-    grid-column: 1 / -1;
     align-items: center;
     gap: var(--fs-space-8) var(--fs-space-16);
-    padding-top: 0;
-  }
-
-  .fsr-bench__summary .fsr-chips {
-    margin: 0;
   }
 }
 

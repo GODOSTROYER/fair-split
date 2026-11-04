@@ -59,9 +59,14 @@ describe("W-TR-04 by hand", { timeout: 60_000 }, () => {
     const view = await renderConsole({ path: BY_HAND });
     const root = await screen.findByTestId("W-TR-04");
     expect(root.dataset.state).toBe("empty");
+    // One line, the stand-in's reading, the stand-in tag (its canonical phrase whole); the slip's owner is the
+    // header's micro line.
     expect(screen.getByTestId("W-TR-04.prompt").textContent).toBe(
-      "Slip 0462, Arnel Sumampao. A water stain covers one digit of the gross weight. Seed stand-in, not a Claude recording: 6?.80 (placeholder score 0.40).",
+      "A stain hides one digit. 6?.80 Seed stand-in, not a Claude recording",
     );
+    expect(screen.getByTestId("W-TR-04.prompt").querySelector(".fs-honesty")).not.toBeNull();
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Slip 0462 by hand");
+    expect(document.querySelector(".fsc-hand__who")?.textContent).toBe("Arnel Sumampao · M-060");
     expect(screen.getByTestId<HTMLInputElement>("W-TR-04.input").value).toBe("6▢.80");
     expect(screen.getByTestId<HTMLInputElement>("W-TR-04.input").disabled).toBe(true);
     expect(screen.getByTestId("W-TR-04.commit").dataset.state).toBe("unavailable");
@@ -78,7 +83,7 @@ describe("W-TR-04 by hand", { timeout: 60_000 }, () => {
     const lines = [...logbook.querySelectorAll<SVGGElement>("[data-line]")].map((g) => g.dataset.line);
     expect(lines).toEqual(["5", "6", "7", "8", "9"]);
     expect(logbook.querySelector("[data-band]")?.getAttribute("data-line")).toBe("7");
-    expect(screen.getByText("Logbook page 14, lines 5 to 9: the second witness")).toBeTruthy();
+    expect(screen.getByText("logbook p. 14 · lines 5–9 · witness")).toBeTruthy();
     // The crop sits above the logbook; the prompt, the field and the slab beside them.
     const evidence = screen.getByTestId("W-TR-04.evidence");
     expect(evidence.contains(screen.getByTestId("W-TR-04.crop"))).toBe(true);

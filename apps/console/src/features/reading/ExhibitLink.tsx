@@ -22,16 +22,22 @@ export function ExhibitLink({
   const navigate = useNavigate();
   return (
     <a
-      className="fs-link fs-t-caption"
+      className={children ? "fs-link fs-t-caption" : "fs-link fs-t-label fsc-read__exhibit"}
       href={`${webRoutes.reading(season)}#${EXHIBIT_TITLE}`}
       aria-label={children ? EXHIBIT_NAME : undefined}
+      title="Recorded 1 Nov 2026. Open the exhibit"
       onClick={async (event) => {
         event.preventDefault();
         if (!exhibitTitle()) await navigate({ to: webRoutes.reading(season) });
         focusInto(exhibitTitle, exhibitTitle);
       }}
     >
-      {children ?? EXHIBIT_NAME}
+      {children ?? (
+        <>
+          Claude's real readings of 10 hero slips
+          <span className="fs-sr">, recorded 1 Nov 2026. Open the exhibit</span>
+        </>
+      )}
     </a>
   );
 }

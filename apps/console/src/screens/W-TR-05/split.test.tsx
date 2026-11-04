@@ -56,7 +56,9 @@ describe("W-TR-05 split review", () => {
       expect(stateOf()).toBe("ready");
       expect(screen.getByTestId("W-TR-05.totals.balanced").dataset.tone).toBe("ink");
       expect(screen.getByTestId("W-TR-05.totals.net").textContent).toBe("4,218.17");
-      expect(screen.getByTestId("W-TR-05.totals").textContent).toMatch(
+      // A checked fact: "Balanced" with a check, its equations on demand (the title), not a sentence on the bench.
+      expect(screen.getByTestId("W-TR-05.totals").textContent).toBe("Balanced");
+      expect(screen.getByTestId("W-TR-05.totals").getAttribute("title")).toMatch(
         /Gross = pool, to the cent \(4,273\.50\)/,
       );
       const celing = screen.getByTestId("W-TR-05.net.M-014");
@@ -65,9 +67,12 @@ describe("W-TR-05 split review", () => {
       expect(screen.getByTestId("W-TR-05.status.M-014").dataset.tone).toBe("jade");
       expect(screen.getByTestId("W-TR-05.status.M-053").dataset.tone).toBe("hatch");
       expect(screen.getByTestId("W-TR-05.dial.status").dataset.status).toBe("INSIDE");
+      // Provenance once, in the header's micro line; the grid holds simulated PayPal statuses, so the tag shows.
       expect(screen.getByTestId("W-TR-05.provenance").textContent).toMatch(
-        /Computed by engine v1, rate card f2d7 026d/,
+        /64 lines · engine v1 · rate card f2d7 026d/,
       );
+      expect(screen.getByTestId("W-TR-05.simulated").textContent).toBe("Simulated PayPal sandbox");
+      expect(screen.getByTestId("W-TR-05.filter.paypal").textContent).not.toMatch(/planned/);
       // axe on a filtered grid: the same structure (row and column headers, labels), fewer rows to walk.
       fireEvent.click(screen.getByTestId("W-TR-05.filter.paypal"));
       await gridRows(7);
@@ -106,10 +111,15 @@ describe("W-TR-05 split review", () => {
         expect(within(grid).getByRole("columnheader", { name: /confidence/i })).toBeTruthy(),
       );
       fireEvent.click(screen.getByTestId("W-TR-05.allColumns"));
-      expect(screen.getByTestId("W-TR-05.summary").textContent).toBe("3 holds, 1 by hand");
+      expect(screen.getByTestId("W-TR-05.summary").textContent).toBe("3 holds open · 1 by hand");
       expect(screen.getByTestId("W-TR-05.next").textContent).toBe("Enter slip 0462 by hand");
       expect(screen.getByTestId("W-TR-05.filter.held").textContent).toBe("Held 3");
-      expect(screen.getByTestId("W-TR-05.filter.cash").textContent).toBe("Cash 56");
+      // Before the keys the rails are a plan, and say so; nothing PayPal is on the screen yet, so no tag.
+      expect(screen.getByTestId("W-TR-05.filter.cash").textContent).toBe("Cash 56 planned");
+      expect(screen.queryByTestId("W-TR-05.simulated")).toBeNull();
+      // The console is English: a held line reads "Held", its hold beside it.
+      expect(screen.getByTestId("W-TR-05.status.M-007").textContent).toBe("Held H1");
+      expect(screen.getByTestId("W-TR-05.status.M-018").textContent).toBe("Reserved H3");
       expect(screen.getByTestId("W-TR-05.status.M-007").dataset.state).toBe("held");
       expect(screen.getByTestId("W-TR-05.status.M-018").dataset.state).toBe("reserved");
       expect(screen.getByTestId("W-TR-05.dial.status").dataset.status).toBe("PENDING");
@@ -147,7 +157,9 @@ describe("W-TR-05 split review", () => {
       );
       expect(document.querySelectorAll(".fsr-cell__wash[data-cause='paypal']")).toHaveLength(0);
       expect(screen.getByTestId("W-TR-05.dial.status").dataset.status).toBe("INSIDE");
-      expect(screen.getByTestId("W-TR-05.summary").textContent).toBe("2 holds, 0 by hand");
+      expect(screen.getByTestId("W-TR-05.summary").textContent).toBe("2 holds open");
+      // The instrument reads the new value, the old one as micro.
+      expect(screen.getByTestId("W-TR-05.reading").textContent).toMatch(/limit ±2\.0% · was 2\.05%/);
     },
     SLOW,
   );

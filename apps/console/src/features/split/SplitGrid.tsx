@@ -1,7 +1,7 @@
 // SplitGrid (S2.7, S1.7 W-TR-05): every member line in AG Grid Community, themed from the tokens. Ten columns by
 // default (minimum confidence waits behind "All columns": sixty of the 64 lines were read earlier and have none);
-// five in a narrow container (Member, Verified kg, Kaltas, Net, Status), and four beside an open drawer, so
-// Status always reads whole. The lines a person must still decide are pinned above the rest, in the order the run
+// five in a narrow container (Member, Verified kg, Net, Rail, Status), and four beside an open drawer (Member, Net,
+// Rail, Status), so the money, its rail and its state read at every width and Status always reads whole. The lines a person must still decide are pinned above the rest, in the order the run
 // pill walks them, and the totals are pinned beneath. Held rows carry a 3 px canary rule. A row opens its hold
 // (W-TR-06) or its line (W-TR-09) on click or Enter. AG Grid is its own lazy chunk (./SplitAgGrid.tsx, with
 // theme/grid.ts): it loads once the container has a size, and the static table prints the lines until it has.
@@ -56,10 +56,13 @@ export type GridColumn =
   | "rail"
   | "status";
 
-/** S1.6: five columns when the container is under 1,180 px. */
-export const NARROW_COLUMNS: readonly GridColumn[] = ["member", "kg", "kaltas", "net", "status"];
+/**
+ * S1.6: five columns when the container is under 1,180 px. Member, Net, Rail and Status hold at every desktop width
+ * (UI gate round 1): the money, how it travels and its state; the other figures wait behind "Columns".
+ */
+export const NARROW_COLUMNS: readonly GridColumn[] = ["member", "kg", "net", "rail", "status"];
 /** Beside an open drawer (a 560 px drawer pushes the grid under 760 px): Status keeps its words whole. */
-export const SLIM_COLUMNS: readonly GridColumn[] = ["member", "kg", "net", "status"];
+export const SLIM_COLUMNS: readonly GridColumn[] = ["member", "net", "rail", "status"];
 export const SLIM_BELOW_PX = 760;
 
 /** The grid's column set: every column, the default ten, five in a narrow container, four beside a drawer. */
@@ -192,13 +195,12 @@ const ALL: readonly GridColumn[] = [
 const DEFAULT: readonly GridColumn[] = ALL.filter((c) => c !== "confidence");
 
 /**
- * In the five-column set Verified kg and Kaltas keep fixed widths, so Member, Net and Status take the slack and no
- * empty band opens between Verified kg and Kaltas (1,470 px). `flex: null` clears the default set's flex: AG Grid
- * keeps a stateful attribute that a new definition leaves undefined.
+ * In the five-column set Verified kg keeps a fixed width, so Member, Net and Status take the slack and no empty
+ * band opens beside it (1,470 px). `flex: null` clears the default set's flex: AG Grid keeps a stateful attribute
+ * that a new definition leaves undefined.
  */
 export const NARROW_FIXED: Partial<Record<GridColumn, ColDef<GridRow>>> = {
   kg: { width: 150, flex: null, minWidth: undefined },
-  kaltas: { width: 168, flex: null, minWidth: undefined },
 };
 
 const SETS: Readonly<Record<ColumnSet, readonly GridColumn[]>> = {

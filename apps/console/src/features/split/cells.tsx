@@ -106,13 +106,8 @@ export function MemberCell({ data }: Props) {
   return (
     <Cell className="fsr-cell--member" testId={`W-TR-05.row.${data.memberNo}`}>
       <span className="fsr-member">
-        <span className="fsr-member__name fs-t-label">{data.name}</span>
-        <span className="fsr-member__meta fs-t-caption">
-          <span>{data.memberNo}</span>
-          <span className="fsr-member__lang" title="Statement language">
-            {data.lang}
-          </span>
-        </span>
+        <span className="fsr-member__name fs-t-body">{data.name}</span>
+        <span className="fsr-member__meta fs-t-micro">{data.memberNo}</span>
       </span>
     </Cell>
   );
@@ -221,7 +216,10 @@ export function KgCell({ data, context }: Props) {
           <span className="fsr-kg__limit" />
         </span>
         {data.overYield && (
-          <span className="fsr-kg__note fs-t-caption">
+          <span
+            className="fsr-kg__note fs-t-micro"
+            title={SPLIT.perTreeOverTitle(data.kgPerTree, context.yieldLimit)}
+          >
             {SPLIT.perTreeOver(data.kgPerTree, context.yieldLimit)}
           </span>
         )}
@@ -505,10 +503,22 @@ function linePayout(row: SplitRow) {
   });
 }
 
+/**
+ * A line's status word as the grid shows it. A PayPal-derived word is short ("Paid"): the screen's one honesty tag
+ * covers the grid once the batch posts (unslop spec §2.2: one tag per container, never per row), and the label
+ * stays in the cell for screen readers (`statusLabel`). A replayed status keeps its whole replay words.
+ */
 export function statusWords(row: SplitRow): string {
   if (row.status.kind === "held") return SPLIT.held;
   if (row.status.kind === "reserved") return SPLIT.reserved;
-  return linePayout(row).statusWord;
+  return linePayout(row).word;
+}
+
+/** The simulated rail's label a short PayPal word carries for screen readers, or null. */
+export function statusLabel(row: SplitRow): string | null {
+  if (row.status.kind !== "line") return null;
+  const payout = linePayout(row);
+  return payout.simulatedLabel && !payout.replayed ? ` (${payout.simulatedLabel})` : null;
 }
 
 /**
@@ -557,9 +567,13 @@ export function StatusCell({ data, context }: Props) {
         data-testid={`W-TR-05.status.${data.memberNo}`}
       >
         <Glyph name={look.glyph} size={16} />
-        <span className="fsr-status__text">
-          <span className={data.status.kind === "reserved" ? "fs-t-caption" : "fs-t-label"}>
+        <span
+          className="fsr-status__text"
+          title={data.status.kind === "reserved" ? SPLIT.reservedTitle : undefined}
+        >
+          <span className="fs-t-label">
             {statusWords(data)}
+            {statusLabel(data) && <span className="fs-sr">{statusLabel(data)}</span>}
           </span>
           {data.status.kind !== "line" && (
             <>

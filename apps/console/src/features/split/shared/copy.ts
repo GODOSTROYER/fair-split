@@ -13,17 +13,44 @@ export const SPLIT = {
   empty: "No lines yet. They appear once the slips are read.",
   emptyLink: "Open the reading room",
   declined: "The simulated PayPal sandbox declined the batch: the balance is too low. Nothing was sent.",
-  allDecided: "Every hold is decided. The batch is ready for two keys.",
-  decidedKey1: "Every hold is decided. Analyn signed; the batch waits for Ernesto.",
-  decidedApproved:
-    "Every hold is decided and both keys signed. The simulated PayPal sandbox confirms each payment as it lands.",
-  decidedSettled: "Every hold was decided and the run is settled.",
+  allDecided: "Every hold decided",
+  decidedKey1: "Every hold decided · Analyn signed",
+  decidedApproved: "Every hold decided · both keys signed",
+  decidedSettled: "Every hold decided · settled",
+  /** A replay run never promises fresh simulator confirmations (inv.i8). */
+  decidedReplayed: "Every hold decided · both keys signed · payouts replayed (labelled)",
+  /** The open decisions as counts: "3 holds open · 1 by hand". Nothing that is zero is said. */
+  summary: (holds: number, byHand: number) =>
+    [
+      ...(holds > 0 ? [holds === 1 ? "1 hold open" : `${holds} holds open`] : []),
+      ...(byHand > 0 ? [`${byHand} by hand`] : []),
+    ].join(" · "),
   approveLink: "Open Approve",
   nextHold: (label: string, title: string) => `Open ${label}: ${title}`,
   byHandNext: (slip: string) => `Enter slip ${slip} by hand`,
   filters: "Filter lines",
+  filter: { all: "All", held: "Held", byHand: "By hand", paypal: "PayPal", cash: "Cash" },
+  /** The rail filters before the batch posts: the lines' planned rails, not payments. */
+  railPlanned: "planned",
+  railPlannedTitle: "Rails as planned: nothing is sent before both keys sign",
   allColumns: "All columns",
   fewerColumns: "Fewer columns",
+  columns: "Columns",
+  title: "Split review",
+  /** The header's one provenance line: run, lines, engine and rate card, and what the lines include. */
+  provenanceLine: (run: string, lines: number, sha: string, basis: string) =>
+    `${run} · ${lines} lines · engine v1 · rate card ${sha} · ${basis}`,
+  basis: {
+    read: "before slip 0462",
+    byHand: "after slip 0462 by hand",
+    resolved: "every decision so far",
+  },
+  balancedTitle: (gross: string) =>
+    `Gross = pool, to the cent (${gross}). Net + ruled deductions − credits = pool.`,
+  premiumLock: "R0 · never deducted",
+  dialWas: (was: string) => `was ${was}`,
+  dialLimit: (limit: string) => `limit ±${limit}`,
+  dialSpoken: (value: string) => `Mass balance ${value} percent`,
   totalsLines: (n: number) => `${n} lines`,
   slipCount: (n: number) => (n === 1 ? "1 slip" : `${n} slips`),
   showAll: (n: number) => `Show all ${n} lines`,
@@ -37,15 +64,18 @@ export const SPLIT = {
   creditReturned: "Returned multa",
   confidenceUnknown: "Read earlier this season",
   byHand: "By hand",
-  perTreeOver: (kg: string, limit: string) => `${kg} a tree, over ${limit}`,
+  perTreeOver: (kg: string, _limit: string) => `${kg} kg/tree`,
+  perTreeOverTitle: (kg: string, limit: string) => `${kg} kg a tree, over the ${limit} limit`,
   movedToCash: "Moved to cash",
-  reserved: "Reserved, never redistributed.",
-  held: "Gisusi pa",
+  /** The console is English: "Held" and "Reserved"; Cebuano ("Gisusi pa") lives on the phone. */
+  reserved: "Reserved",
+  reservedTitle: "Reserved, never redistributed",
+  held: "Held",
   openLine: (name: string) => `Open ${name}'s line`,
   openHold: (label: string, name: string) => `Open hold ${label} on ${name}'s line`,
   dialPending: (slip: string) => `Waits for slip ${slip}`,
-  dialInside: "Inside the limit",
-  dialOutside: "Over the limit",
+  dialInside: "Inside limit",
+  dialOutside: "Over limit",
   massBalanceCaption: (verified: string, shipped: string) =>
     `${verified} verified against ${shipped} shipped`,
   provenance: "Lines",
@@ -60,20 +90,38 @@ export const HOLDS = {
   slipMeta: (serial: string) => `Slip ${serial}`,
   back: "Back to the split",
   resolvedNote: "Decided. The engine recomputed every line.",
-  overrideNote:
-    "Counted as two deliveries, an override: Ernesto co-signs it with the batch (Schedule A, R5).",
+  overrideNote: "Two deliveries, an override: Ernesto co-signs it with the batch (R5).",
+  // One line plus the decision (unslop spec §3.7). Every figure arrives from the engine's facts.
+  h1Engine: (amount: string, members: number, name: string) =>
+    `Counting both moves ${amount} from ${members} members to ${name}.`,
+  h1EngineInside: (amount: string, members: number, shrink: string, limit: string) =>
+    `Counting both moves ${amount} from ${members} members. Shrink ${shrink}, inside the ${limit} limit until slip 0462 is in.`,
+  h1Effect: (amount: string, members: number, shrink: string) =>
+    `+${amount} to ${members} members · shrink ${shrink}`,
   h1EffectInside: (amount: string, members: number) =>
-    `Counting it once returns ${amount} to ${members} members. Enter slip 0462 first to see the mass balance it settles.`,
-  yieldEffect: (plot: string) =>
-    `Registering ${plot} adds its trees to her yield check. Her kilos and pay don't change.`,
-  creditReturned: (credit: string) => `Returned as a ${credit} credit paid by the co-op.`,
+    `+${amount} to ${members} members. Enter slip 0462 first to see the mass balance it settles.`,
+  h1TitleOnce: (slip: string) => `Slip ${slip}, counted once`,
+  h1TitleTwo: (slip: string) => `Slip ${slip}, two deliveries`,
+  h1Returned: (amount: string, members: number) => `+${amount} back to ${members} members`,
+  h2Title: (name: string, perTree: string) => `${name}: ${perTree} kg a tree`,
+  h2TitleDone: (name: string) => `${name}, plot registered`,
+  h2Engine: (kg: string, trees: number, limit: string) =>
+    `${kg} from ${trees} registered trees. The limit is ${limit} kg a tree.`,
+  h3Title: (slip: string) => `Slip ${slip}, a fine with no rule`,
+  h3TitleDone: (slip: string) => `Slip ${slip}, fine returned`,
+  h3Engine: (mark: string) => `${mark} matches no Schedule A rule.`,
+  yieldEffect: (_plot: string) => "Her kilos and pay don't change.",
+  creditReturned: (credit: string) => `+${credit} credit, paid by the co-op`,
   ruleOk: (rule: string) => `Matches ${rule}`,
+  twoDeliveries: "Two deliveries",
+  twoDeliveriesNote: "A reason, then the Chair",
   twoDeliveriesTitle: "Why are these two deliveries?",
   twoDeliveriesHint: "Say what the clerk or the member told you. The Chair reads this before he signs.",
   reasonLabel: "Reason",
   reasonSubmit: "Count both, with this reason",
   reasonCancel: "Keep it open",
-  fieldsMatch: (n: number, total: number) =>
+  fieldsMatch: (n: number, total: number) => `${n}/${total} fields match`,
+  fieldsMatchSpoken: (n: number, total: number) =>
     n === total ? `${n} of ${total} fields match. Same slip.` : `${n} of ${total} fields match.`,
   compareCaption: "The two copies, field by field",
   field: { serial: "Serial", date: "Date", member: "Member", net: "Net kg" },
@@ -81,25 +129,15 @@ export const HOLDS = {
   copyPink: "pink duplicate",
   copyYellow: "yellow copy",
   photo: (id: string) => `Photo ${id}`,
+  copyCaption: (id: string, copy: string) => `${id} · ${copy}`,
   slipAlt: (serial: string, copy: string, photo: string) => `Slip ${serial}, ${copy}, photo ${photo}`,
   shrinkNow: "Mass balance now",
   shrinkInside: (shrink: string, limit: string) => `Shrink ${shrink}, inside the ${limit} limit.`,
-  h1EngineInside: (
-    slip: string,
-    photoA: string,
-    photoB: string,
-    amount: string,
-    members: number,
-    name: string,
-    shrink: string,
-    limit: string,
-  ) =>
-    `Slip ${slip} is in two photos: the white original (${photoA}) and the pink duplicate (${photoB}). Counting both moves ${amount} from ${members} members to ${name}. Shrink reads ${shrink}, inside the ${limit} limit, because slip 0462 is not entered yet.`,
   plotsTitle: "Registered plots",
-  plotRegistered: (no: string, ha: string, trees: number) => `${no}, ${ha} ha, ${trees} trees`,
-  plotPending: (no: string, ha: string, trees: number) =>
-    `${no}, ${ha} ha, ${trees} trees, not in the registry yet`,
-  plotPrivate: "The plot point stays private.",
+  plotRegistered: (no: string, ha: string, trees: number) => `${no} · ${ha} ha · ${trees} trees`,
+  plotPending: (no: string, ha: string, trees: number) => `${no} · ${ha} ha · ${trees} trees`,
+  plotNotRegistered: "Not registered",
+  plotPrivate: "Plot points stay private",
   plotForm: "The plot to register",
   plotNo: "Plot",
   plotArea: "Area (ha)",
@@ -111,8 +149,14 @@ export const HOLDS = {
   markNoRule: "No rule",
   closedList:
     "Schedule A is a closed list: CBU (R1), hauling (R2), a loan with an Authority to Deduct (R3), an advance with a voucher (R4).",
-  creditEffect: (credit: string) =>
-    `Returns ${credit} to him as a correction credit paid by the co-op. Nobody else's line changes.`,
+  closedListLabel: "Schedule A",
+  rules: [
+    { id: "R1", name: "CBU" },
+    { id: "R2", name: "hauling" },
+    { id: "R3", name: "loan" },
+    { id: "R4", name: "advance" },
+  ],
+  creditEffect: (credit: string) => `+${credit} correction credit from the co-op · others unchanged`,
   byHandTitle: (slip: string) => `Slip ${slip} needs a person`,
   byHandLink: (slip: string) => `Enter slip ${slip} by hand`,
   byHandDone: (slip: string) => `Slip ${slip} was entered by hand.`,

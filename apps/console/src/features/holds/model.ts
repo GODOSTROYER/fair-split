@@ -299,49 +299,42 @@ export interface Voices {
   readonly effect: string | null;
 }
 
-/** Both voices for a hold card. Digits only ever come from the engine's facts. */
+/**
+ * Both voices for a hold card (unslop spec §3.7: one line plus the decision). The title names the hold, or once it
+ * is decided, what was decided; the engine's line is one sentence; the effect is the money's delta. Digits only
+ * ever come from the engine's facts.
+ */
 export function voices(snapshot: SeasonSnapshot, view: RunView, hold: RunHold): Voices {
   const seeded = seededHold(snapshot, hold);
   const facts = factsFor(snapshot, view, hold);
   const member = memberOf(snapshot, hold.memberNo);
   const claude = seeded?.claudeLine ?? null;
+  const decided = hold.state === "RESOLVED";
   switch (hold.kind) {
     case "DUPLICATE_SLIP": {
       const d = duplicateFacts(facts, seeded);
       const name = member?.consoleName ?? hold.memberNo ?? "";
-      const engineLine = d.bothInside
-        ? HOLDS.h1EngineInside(d.serial, d.photoA, d.photoB, d.moved, d.others, name, d.shrinkBoth, d.limit)
-        : en("W-TR-06.H1.engine", {
-            slip: d.serial,
-            photoA: d.photoA,
-            photoB: d.photoB,
-            amount: d.moved,
-            members: d.others,
-            name,
-            shrink: d.shrinkBoth,
-            limit: d.limit,
-          });
       return {
-        title: en("W-TR-06.H1.title", { slip: d.serial }),
-        engineLine,
+        title: decided
+          ? hold.resolution === "TWO_DELIVERIES"
+            ? HOLDS.h1TitleTwo(d.serial)
+            : HOLDS.h1TitleOnce(d.serial)
+          : en("W-TR-06.H1.title", { slip: d.serial }),
+        engineLine: d.bothInside
+          ? HOLDS.h1EngineInside(d.moved, d.others, d.shrinkBoth, d.limit)
+          : HOLDS.h1Engine(d.moved, d.others, name),
         claudeLine: claude ?? en("W-TR-06.H1.claude"),
         effect: d.bothInside
           ? HOLDS.h1EffectInside(d.moved, d.others)
-          : en("W-TR-06.H1.effect", { amount: d.moved, members: d.others, shrink: d.shrinkOnce }),
+          : HOLDS.h1Effect(d.moved, d.others, d.shrinkOnce),
       };
     }
     case "IMPLAUSIBLE_YIELD": {
       const y = yieldFacts(snapshot, hold, member);
       const name = member?.displayName ?? hold.memberNo ?? "";
       return {
-        title: en("W-TR-06.H2.title", { name }),
-        engineLine: en("W-TR-06.H2.engine", {
-          name,
-          kg: y.kg,
-          trees: y.trees,
-          perTree: `${y.perTree} kg`,
-          limit: y.limit,
-        }),
+        title: decided ? HOLDS.h2TitleDone(name) : HOLDS.h2Title(name, y.perTree),
+        engineLine: HOLDS.h2Engine(y.kg, y.trees, y.limit),
         claudeLine: claude ?? en("W-TR-06.H2.claude"),
         effect: y.pendingPlot ? HOLDS.yieldEffect(y.pendingPlot.plotNo) : null,
       };
@@ -349,14 +342,8 @@ export function voices(snapshot: SeasonSnapshot, view: RunView, hold: RunHold): 
     case "NO_RULE": {
       const n = noRuleFacts(snapshot, hold, facts);
       return {
-        title: en("W-TR-06.H3.title", { slip: n.serial }),
-        engineLine: en("W-TR-06.H3.engine", {
-          multa: n.written,
-          slip: n.serial,
-          name: member?.consoleName ?? hold.memberNo ?? "",
-          credit: n.credit,
-          hauling: n.hauling,
-        }),
+        title: decided ? HOLDS.h3TitleDone(n.serial) : HOLDS.h3Title(n.serial),
+        engineLine: HOLDS.h3Engine(n.text || n.written),
         claudeLine: claude ?? en("W-TR-06.H3.claude"),
         effect: HOLDS.creditEffect(n.credit),
       };
@@ -384,7 +371,7 @@ export function resultLine(
     case "DUPLICATE_SLIP": {
       const d = duplicateFacts(facts, seededHold(snapshot, hold));
       if (resolution === "TWO_DELIVERIES") return HOLDS.overrideNote;
-      return en("W-TR-06.H1.returned", { members: d.others, amount: d.moved });
+      return HOLDS.h1Returned(d.moved, d.others);
     }
     case "IMPLAUSIBLE_YIELD": {
       const y = yieldFacts(snapshot, hold, memberOf(snapshot, hold.memberNo));

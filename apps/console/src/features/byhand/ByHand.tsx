@@ -32,7 +32,6 @@ import { useNextStep, usePrefocus } from "../../stage/context.js";
 import { byHandHoldFor } from "../reading/model.js";
 import { SlipPaper } from "../reading/SlipPaper.js";
 import { boxFor } from "../reading/slip.js";
-import { SeasonMark } from "../season/parts.js";
 import { BY_HAND_COPY } from "./copy.js";
 import { resolveFieldId } from "./field-id.js";
 import { LogbookPaper, logbookWindow } from "./LogbookPaper.js";
@@ -82,9 +81,9 @@ function NothingByHand({ snapshot, serial }: { readonly snapshot: SeasonSnapshot
   return (
     <ScreenRoot id="W-TR-04" state="empty" labelledBy="fsc-hand-title" className="fsc-hand">
       <header className="fsc-hand__head">
-        <SeasonMark snapshot={snapshot} testId="W-TR-04.mark" />
         <h1 id="fsc-hand-title" className="fs-t-title-1">
           {BY_HAND_COPY.title(serial)}
+          <span className="fsc-hand__context"> {BY_HAND_COPY.titleContext}</span>
         </h1>
         <p className="fsc-hand__prompt" data-testid="W-TR-04.prompt">
           {BY_HAND_COPY.noNeed(serial)}{" "}
@@ -306,10 +305,20 @@ function ByHandField({
   };
 
   const member = snapshot.members.find((m) => m.memberNo === field.slip.memberNo);
-  const score = field.score !== null ? field.score.toFixed(2) : null;
-  const prompt = mask
-    ? BY_HAND_COPY.prompt(serial, member?.displayName ?? field.slip.memberNo, field.reading, score)
-    : BY_HAND_COPY.promptPlain(serial, member?.displayName ?? field.slip.memberNo, field.reading);
+  // One line, the stand-in's reading as a figure, and the stand-in tag (its canonical phrase whole for readers).
+  const prompt = (
+    <>
+      <span>{mask ? BY_HAND_COPY.promptLine : BY_HAND_COPY.promptLinePlain}</span>{" "}
+      <span className="fsc-hand__reading fs-t-figure">{field.reading}</span>{" "}
+      <span className="fsc-hand__tag fs-honesty fs-t-micro">
+        <Glyph name="pencil" size={12} />
+        <span>
+          {BY_HAND_COPY.standInTag}
+          <span className="fs-sr">{BY_HAND_COPY.standInRest}</span>
+        </span>
+      </span>
+    </>
+  );
   const enteredBy = entered?.enteredBy ?? hold?.resolvedBy ?? null;
   const officer =
     snapshot.officers.find((o) => o.initials === enteredBy) ??
@@ -328,16 +337,19 @@ function ByHandField({
   return (
     <ScreenRoot id="W-TR-04" state={state} labelledBy="fsc-hand-title" className="fsc-hand">
       <header className="fsc-hand__head">
-        <SeasonMark snapshot={snapshot} testId="W-TR-04.mark" coop={false} />
         <h1 id="fsc-hand-title" className="fs-t-title-1">
           {BY_HAND_COPY.title(serial)}
+          <span className="fsc-hand__context"> {BY_HAND_COPY.titleContext}</span>
         </h1>
+        <p className="fsc-hand__who fs-t-micro">
+          {BY_HAND_COPY.who(member?.displayName ?? field.slip.memberNo, field.slip.memberNo)}
+        </p>
       </header>
 
       <div className="fsc-hand__body" {...moment.rootProps} data-motion={mode}>
         <div className="fsc-hand__evidence" data-testid="W-TR-04.evidence">
           <figure className="fsc-hand__figure">
-            <figcaption className="fs-t-caption fsc-hand__muted">{BY_HAND_COPY.crop}</figcaption>
+            <figcaption className="fs-t-micro fsc-hand__muted">{BY_HAND_COPY.crop(serial)}</figcaption>
             <Paper alt={BY_HAND_COPY.cropAlt(serial)} className="fsc-hand__crop" testId="W-TR-04.crop">
               <div
                 className="fsc-hand__crop-frame"
@@ -349,7 +361,7 @@ function ByHandField({
           </figure>
           {witness && lines && (
             <figure className="fsc-hand__figure">
-              <figcaption className="fs-t-caption fsc-hand__muted">
+              <figcaption className="fs-t-micro fsc-hand__muted">
                 {BY_HAND_COPY.logbook(witness.page.page, lines.from, lines.to)}
               </figcaption>
               <Paper
@@ -370,8 +382,7 @@ function ByHandField({
           data-testid="W-TR-04.entry"
         >
           <p className="fsc-hand__prompt" data-testid="W-TR-04.prompt">
-            <Glyph name="pencil" size={16} />
-            <span>{prompt}</span>
+            {prompt}
           </p>
           {committed ? (
             // Focusable from script only: the field's focus lands here when the value prints in ink.
@@ -456,7 +467,8 @@ function ByHandField({
                   data-testid="W-TR-04.input"
                 />
               </div>
-              <p id={hintId} className="fs-t-caption fsc-hand__muted">
+              {/* The caret in the box says it; the hint stays for screen readers (spec §3.5). */}
+              <p id={hintId} className="fs-sr">
                 {whole ? BY_HAND_COPY.inputHintWhole : BY_HAND_COPY.inputHint}
               </p>
               <p

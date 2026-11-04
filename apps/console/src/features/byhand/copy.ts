@@ -2,21 +2,30 @@
 // slip's text, the logbook's, or kilos arithmetic on them; nothing here is money.
 
 export const BY_HAND_COPY = {
-  title: (serial: string) => `Slip ${serial}, by hand`,
-  prompt: (serial: string, name: string, reading: string, score: string | null) =>
-    `Slip ${serial}, ${name}. A water stain covers one digit of the gross weight. Seed stand-in, not a Claude recording: ${reading}${score ? ` (placeholder score ${score})` : ""}.`,
-  promptPlain: (serial: string, name: string, reading: string) =>
-    `Slip ${serial}, ${name}. Seed stand-in, not a Claude recording: the gross weight is unclear (${reading}).`,
+  title: (serial: string) => `Slip ${serial}`,
+  /** The header's grey context: what this screen does. */
+  titleContext: "by hand",
+  /** The header's micro line: who the slip belongs to. */
+  who: (name: string, memberNo: string) => `${name} · ${memberNo}`,
+  /** The one line (spec §3.5), the reading as a figure, then the stand-in tag ("placeholder score" is cut). */
+  promptLine: "A stain hides one digit.",
+  promptLinePlain: "The gross weight is unclear.",
+  standInTag: "Seed stand-in",
+  standInRest: ", not a Claude recording",
+  /** The prompt as its words read in order (the tag's tail is for screen readers). */
+  prompt: (_serial: string, _name: string, reading: string, _score: string | null) =>
+    `A stain hides one digit. ${reading} Seed stand-in, not a Claude recording`,
+  promptPlain: (_serial: string, _name: string, reading: string) =>
+    `The gross weight is unclear. ${reading} Seed stand-in, not a Claude recording`,
   noNeed: (serial: string) =>
     `Slip ${serial} needs nothing by hand: the seed stand-in has no doubtful field.`,
   openReading: "Open it in the reading room",
-  crop: "The slip, three times its size in the photo",
+  crop: (serial: string) => `slip ${serial} · 3×`,
   cropAlt: (serial: string) => `Slip ${serial}: gross, tare and net, under a water stain`,
-  logbook: (page: number, from: number, to: number) =>
-    `Logbook page ${page}, lines ${from} to ${to}: the second witness`,
+  logbook: (page: number, from: number, to: number) => `logbook p. ${page} · lines ${from}–${to} · witness`,
   logbookAlt: (page: number, line: number, net: string) =>
     `Logbook page ${page}, line ${line}: ${net} kg net, in the clerk's hand`,
-  inputLabel: (serial: string) => `Gross kilos on slip ${serial}`,
+  inputLabel: (_serial: string) => "Gross kg",
   inputHint: "Type the hidden digit. The rest is already filled in from the slip.",
   inputHintWhole: "Type the gross kilos as written on the slip, with two decimals.",
   typeWhole: "Type the whole value",
@@ -31,7 +40,7 @@ export const BY_HAND_COPY = {
   enter: (value: string) => `Enter ${value}`,
   enterAnyway: (value: string) => `Enter ${value} anyway`,
   enterSr: (value: string, serial: string) => `Enter ${value} kilos for slip ${serial}, changes a line`,
-  needDigit: "Type the hidden digit first.",
+  needDigit: "Digit needed",
   needValue: "Type the gross kilos first.",
   checkBoth: "Check the slip and the logbook first.",
   notRead: (serial: string) =>
