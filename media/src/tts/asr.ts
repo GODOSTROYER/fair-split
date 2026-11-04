@@ -80,14 +80,19 @@ export function spellNumerals(s: string): string {
 
 /** Lower case, numerals spelled out, no punctuation or tags, single spaces. */
 export function normaliseForCer(s: string): string {
-  return spellNumerals(s)
-    .replace(/<[^>]+>/g, " ")
-    .toLowerCase()
-    .normalize("NFKD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(/[^\p{L}\p{N}\s]/gu, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+  return (
+    spellNumerals(s)
+      .replace(/<[^>]+>/g, " ")
+      .toLowerCase()
+      .normalize("NFKD")
+      .replace(/[̀-ͯ]/g, "")
+      // Cebuano's reduplicated compound has both spellings in the independent PAY transcripts.
+      // Keep this lexical: joining arbitrary hyphens would change number and slip token boundaries.
+      .replace(/\bgibana-bana\b/g, "gibanabana")
+      .replace(/[^\p{L}\p{N}\s]/gu, " ")
+      .replace(/\s+/g, " ")
+      .trim()
+  );
 }
 
 /** Character error rate: Levenshtein distance between normalised strings over the reference length. */

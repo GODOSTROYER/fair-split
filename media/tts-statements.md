@@ -1,4 +1,115 @@
-# AU3 round 3: partial publication, hero PAY still refused
+# AU3 round 4: M-014 Cebuano complete; 59/101 verified clips
+
+All people, payroll and audio are synthetic. PayPal-derived facts are **Simulated PayPal sandbox**.
+Seeded readings are a **Seed stand-in, not a Claude recording**; the audit agent remains paused.
+Nothing claims Claude drafted an invoice. Native pronunciation and naturalness review remains open.
+
+## Result at 2026-11-04T11:11:53.678Z
+
+**M-014 Cebuano is 9/9. 59/101 planned variants are independently verified and published**
+(30 added this round). The API full-completion test is enabled and passes. Missing clips retain
+the labelled device voice. This is a partial release of the full plan, not 101-clip completion.
+The 42 remaining variants are 32 quality refusals and 10 waiting on service.
+
+| Planned request, original order | Verified/planned |
+| ------------------------------- | ---------------: |
+| M-014:ceb                       |              9/9 |
+| M-014:fil                       |              5/9 |
+| M-014:en                        |              6/9 |
+| M-007:ceb                       |              7/9 |
+| M-060:fil                       |              4/9 |
+| M-018:ceb                       |             4/10 |
+| M-039:en                        |              3/9 |
+| M-022:ceb                       |              5/9 |
+| M-002:ceb                       |              6/9 |
+| M-031:en                        |             5/10 |
+| M-053:ceb                       |              5/9 |
+
+## PAY diagnosis and proof
+
+The frozen NET_PHP anchor contains `gibanabana`; an independently transcribed, correctly spoken
+marked take spells the same compound `gibana-bana`. Punctuation normalization split it into two tokens,
+so the unchanged contiguous-anchor rule refused it. `normaliseForCer` now canonicalizes only that
+explicit hyphenated spelling, before punctuation removal. It does not join arbitrary words or number
+hyphens, translate fee wording, infer a number, or alter the frozen text.
+
+Tests first reproduced that refusal. A nearest-neighbor negative also exposed an existing weakness:
+the old CER gate could accept twenty-nine instead of twenty-eight inside a long amount anchor.
+Alignment now additionally requires identical English number-word sequences within each anchor.
+Wrong peso amounts, changed dollar cents and translated fee wording remain refused. CER stays **0.12**;
+unique, contiguous, measured, monotonic, non-overlapping and in-bounds timestamp checks remain intact.
+
+Published PAY: `audio/M-014/ceb/s07-PAY-951cf7877220.m4a`, **32 kbps mono AAC**, 22,070 ms.
+Source: original cached marked PAY-only request, Vindemiatrix, normal STYLE_NOTE, TTS 3.8;
+WAV cache `d9813392be76d9090d5bf03efb6707e233c9c23129e27ebd0e41d8856dab4dbb`, cut 0.06-22.13 s.
+AAC SHA-256: `d04a5aea555d4d1c156809f066beb361cd4a0561b3814833dbc49859e9d7a966`.
+Independent ASR: gemini-2.5-flash, CER **0.01**, method relative-silence-duration.
+Measured onsets: NET_USD 4,607 ms; NET_PHP 10,977 ms; FX_FEE 18,497 ms.
+The normal pipeline replayed this exact marked take from a scratch cache with network calls disabled;
+the quota ledger hash stayed unchanged. Original WAVs, rejected AACs and transcripts remain intact.
+
+Before recovering the marked take, the older three-voice helper generated three fresh verbatim PAY
+retakes (Achird, Vindemiatrix, Gacrux), all refused. This was one request beyond the intended two;
+all reservations remain counted. No further PAY generation ran after the hero was complete.
+
+## Both quota windows and remaining work
+
+The pre-reset plan stopped at 2026-11-04T07:12:59.006Z on `TTS request failed (no status):
+Unable to make request: TypeError: fetch failed`. After the 08:00 UTC reset, the normal plan resumed;
+it stopped at 2026-11-04T10:11:37.230Z on TTS HTTP 503 high demand. A bounded continuation then
+retained one pool through the original request order, allowing later requests after transient service
+refusals (at most six such failures). Highest-first ASR remained 3.8 -> 3.6 -> 2.5, with its existing
+outage circuits, per-account exclusions, per-key caps and SDK retries off. No paid model or billing.
+
+Final cloud outcome: **service_unavailable**, at **2026-11-04T11:09:35.113Z**.
+Exact final refusal: AsrUnavailableError: ASR service unavailable after bounded backoff; stopped to preserve free quota. Cached takes retained. {"error":{"code":503,"message":"This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.","status":"UNAVAILABLE"}}
+
+Next quota reset: **5 November 2026, 08:00 UTC / 13:30 IST**. Quota was not exhausted; service and quality refusals remain.
+Service or account-access recovery has **no known time**; a daily reset does not promise recovery or
+correct speech. Quality failures need a new verified take or independent timestamp transcription,
+not a lowered gate. `audio/statement-validation.json` lists each remaining sentence's reason and
+next eligibility, every key/model reservation and account-specific access refusal.
+
+| Pacific quota day | Model                | Counted reservations |
+| ----------------- | -------------------- | -------------------: |
+| 2026-11-03        | gemini-3.8-flash-tts |                    5 |
+| 2026-11-03        | gemini-3.8-flash     |                    4 |
+| 2026-11-03        | gemini-3.6-flash     |                    4 |
+| 2026-11-03        | gemini-2.5-flash     |                    2 |
+| 2026-11-04        | gemini-3.8-flash-tts |                   63 |
+| 2026-11-04        | gemini-3.8-flash     |                    8 |
+| 2026-11-04        | gemini-3.6-flash     |                  113 |
+| 2026-11-04        | gemini-2.5-flash     |                   37 |
+
+These remain self-imposed 10-per-key/model/day caps, not measured Google entitlements. Refusals and
+transport failures count; none was refunded. Model-specific 404s exclude only that account/model pair.
+The final cache-only pass added **0** clips with **zero network requests**
+and an unchanged real quota ledger. Its time is separate from the cloud-stop time.
+
+## Verification and resume
+
+- Tests-first RED: enabled API completion test failed specifically on missing PAY; spelling regression
+  failed on gibana-bana tokenization; wrong-amount regression failed before numeric sequence tightening.
+- Media suite: **379 passed**, 33 files. API media suite: **39 passed**, five files, no skipped completion guard.
+- Independent offline audit: all 59 AAC hashes, exact timed ASR caches, strict alignments and offsets match.
+  The original 34 manifest entries are semantically unchanged; all added audio is 32 kbps mono AAC.
+- Both package typechecks, Biome, dependency gate and per-scope ownership checks pass (builder report).
+- No WAV committed, no frozen export or threshold changed, no dependency or ADR added.
+- Keep ignored `.env`, `media/.cache/tts/` and `media/audio/.quota.json`; never print a key.
+
+When service/account access and quota permit, resume in original plan order; exact verified clips skip:
+
+```powershell
+corepack pnpm --filter @fairsplit/media tts statements
+```
+
+Do not repeatedly restart against the same observed outages. The API completion guard must stay enabled.
+Native review remains open. English BONUS and other good-text/bad-timestamp candidates can be independently
+transcribed again from retained AAC bytes; do not stretch their timestamps or generate unnecessary speech.
+
+---
+
+# Historical round 3: partial publication, hero PAY still refused
 
 All people, payroll and audio are synthetic. PayPal-derived facts are **Simulated PayPal sandbox**.
 Seeded AI notes are a labelled stand-in for Claude; nothing claims a live Claude reading or a Claude-drafted invoice.
