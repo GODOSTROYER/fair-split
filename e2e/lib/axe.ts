@@ -11,7 +11,18 @@ const source = readFileSync(engine, "utf8");
 
 export async function axeScreen(page: Page, screen: string) {
   // Test-runtime evaluation works under the shipped script-src 'self' policy; do not relax that policy.
-  for (const frame of page.frames()) await frame.evaluate(source);
+  for (const frame of page.frames()) {
+    // Visible includes entrance/result fades. Scan their actual resting colors, without disabling motion.
+    await frame.evaluate(async () => {
+      await Promise.all(
+        document
+          .getAnimations()
+          .filter((animation) => Number.isFinite(animation.effect?.getComputedTiming().endTime))
+          .map((animation) => animation.finished),
+      );
+    });
+    await frame.evaluate(source);
+  }
   const violations = await page.evaluate(async () => {
     const axe = (
       window as unknown as {
