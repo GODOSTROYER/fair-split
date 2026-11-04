@@ -17,6 +17,8 @@ export interface LaneEntryInput {
   /** e.g. "invoice", "post", "cancel", "resend". */
   step: string;
   sessionId: string | null;
+  /** Hashed /64 (or IPv4) key for session admission; never a raw address. */
+  networkKey?: string;
 }
 
 interface Entry extends LaneEntryInput {
@@ -116,6 +118,12 @@ export class LiveLane {
     this.#entries.push({ ...e, key, joinedAt: now, headSince: null, until: null, leased: false });
     this.#sweep(now);
     return this.#index(key);
+  }
+
+  /** Active initial live bursts from this network. Expired and Reset reservations no longer count. */
+  networkDepth(networkKey: string): number {
+    this.#sweep(this.#clock.nowMs());
+    return new Set(this.#entries.filter((e) => e.networkKey === networkKey).map((e) => e.workspaceId)).size;
   }
 
   /** Takes the lane if it is this burst's turn (joining first if needed); otherwise reports the position. */

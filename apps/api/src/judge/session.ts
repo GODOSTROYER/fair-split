@@ -23,7 +23,7 @@ import type { AppContext, AppDeps } from "../lib/context.js";
 import { ApiProblem, problem } from "../lib/problem.js";
 import { RATE_RULES } from "../lib/rate-limit.js";
 import { claimCloned, claimPooledWorkspace, cloneWorkspace, workspaceInUse } from "./pool.js";
-import { judgeRail, type RailDecision } from "./quota.js";
+import { judgeRail, type RailDecision, replayDecision } from "./quota.js";
 import { JUDGE_RATE_RULES, judgeRuntime } from "./runtime.js";
 
 /** Readers of a not-yet-claimed workspace see only env-wide kill switches (no workspace flag rows exist). */
@@ -144,96 +144,116 @@ export async function startJudgeSession(c: AppContext, deps: AppDeps): Promise<S
   }
 
   // 3. Live or replay, from fresh flags and counts (over quota is a labelled replay, never a refusal).
-  const rail = await judgeRail(deps, { workspaceId: NO_WORKSPACE, sessionId, step: "session" });
-  const runProvenance = rail.mode === "live" ? deps.paypal.provenance : ("replay" as const);
+  let rail = await judgeRail(deps, { workspaceId: NO_WORKSPACE, sessionId, step: "session" });
 
   // 4. One transaction: claim (or clone and claim) the workspace, make the run, mint the console token, record,
   //    enqueue. The claim's 24 h are the database's (WS-DATA's claimJudgeWorkspace); the cookie ends with it.
   let cloned = false;
-  const started = await deps.db.transaction(async (tx) => {
-    let claim = await claimPooledWorkspace(tx);
-    if (!claim) {
-      if (!rt.tryEnterClone()) {
-        throw new ApiProblem("QUEUED", "Preparing a fresh workspace. You're next; try again in a moment.", {
-          retryAfterMs: 3_000,
-          details: { reason: "PREPARING_WORKSPACE" },
-        });
+  let joinedWorkspace: string | null = null;
+  let queuePosition: number | null = null;
+  const started = await deps.db
+    .transaction(async (tx) => {
+      let claim = await claimPooledWorkspace(tx);
+      if (!claim) {
+        if (!rt.tryEnterClone()) {
+          throw new ApiProblem("QUEUED", "Preparing a fresh workspace. You're next; try again in a moment.", {
+            retryAfterMs: 3_000,
+            details: { reason: "PREPARING_WORKSPACE" },
+          });
+        }
+        try {
+          claim = await claimCloned(tx, await cloneWorkspace(tx));
+          cloned = true;
+        } finally {
+          rt.leaveClone();
+        }
       }
-      try {
-        claim = await claimCloned(tx, await cloneWorkspace(tx));
-        cloned = true;
-      } finally {
-        rt.leaveClone();
-      }
-    }
-    let workspaceId = claim.workspaceId;
-    // lock order (db/tx.ts): the workspace lock before this workspace's rows and ledger
-    await tx.execute(sqlLock(workspaceId));
-    let basis = await runBasis(tx, workspaceId);
-    if (!basis && !cloned) {
-      // A damaged pooled workspace is retired: its claim is ended at once (never handed to a judge) and the
-      // hourly purge removes it once its expiry passes (the database never moves an expiry earlier).
-      await tx
-        .update(schema.workspaces)
-        .set({ claimedAt: null })
-        .where(eq(schema.workspaces.id, workspaceId));
-      deps.logger.warn({ workspaceId }, "retired a pooled judge workspace without a ratified season");
-      claim = await claimCloned(tx, await cloneWorkspace(tx));
-      workspaceId = claim.workspaceId;
-      cloned = true;
+      let workspaceId = claim.workspaceId;
+      // lock order (db/tx.ts): the workspace lock before this workspace's rows and ledger
       await tx.execute(sqlLock(workspaceId));
-      basis = await runBasis(tx, workspaceId);
-    }
-    const expiresAt = claim.expiresAt;
-    if (!basis) throw problem.internal("A fresh judge workspace could not be prepared.");
-    const scope = workspaceScope({ workspaceId, actor: sessionActor(sessionId), via: "session" });
-    const fx = getSnapshot().fx;
-    const runId = uuidv7();
-    const [run] = await tx
-      .insert(schema.payRuns)
-      .values({
-        id: runId,
+      let basis = await runBasis(tx, workspaceId);
+      if (!basis && !cloned) {
+        // A damaged pooled workspace is retired: its claim is ended at once (never handed to a judge) and the
+        // hourly purge removes it once its expiry passes (the database never moves an expiry earlier).
+        await tx
+          .update(schema.workspaces)
+          .set({ claimedAt: null })
+          .where(eq(schema.workspaces.id, workspaceId));
+        deps.logger.warn({ workspaceId }, "retired a pooled judge workspace without a ratified season");
+        claim = await claimCloned(tx, await cloneWorkspace(tx));
+        workspaceId = claim.workspaceId;
+        cloned = true;
+        await tx.execute(sqlLock(workspaceId));
+        basis = await runBasis(tx, workspaceId);
+      }
+      const expiresAt = claim.expiresAt;
+      if (!basis) throw problem.internal("A fresh judge workspace could not be prepared.");
+      if (rail.mode === "live") {
+        // The existing test-only simulator quota knob also lets the local e2e crowd share one loopback network.
+        // It is rejected off NODE_ENV=test/simulator or on Render by env.ts.
+        const networkMax = deps.env.judgeHourlyMax ?? 2;
+        if (rt.lane.networkDepth(ip) >= networkMax) {
+          rail = replayDecision("lane_full", rail.rail, rail.quota);
+        } else {
+          // Check + reserve synchronously before yielding, so concurrent sessions cannot exceed the network cap.
+          queuePosition = rt.lane.join({ workspaceId, step: "invoice", sessionId, networkKey: ip });
+          if (queuePosition === null) rail = replayDecision("lane_full", rail.rail, rail.quota);
+          else joinedWorkspace = workspaceId;
+        }
+      }
+      const runProvenance = rail.mode === "live" ? deps.paypal.provenance : ("replay" as const);
+      const scope = workspaceScope({ workspaceId, actor: sessionActor(sessionId), via: "session" });
+      const fx = getSnapshot().fx;
+      const runId = uuidv7();
+      const [run] = await tx
+        .insert(schema.payRuns)
+        .values({
+          id: runId,
+          workspaceId,
+          seasonId: basis.seasonId,
+          lotId: basis.lotId,
+          rateCardId: basis.rateCardId,
+          seasonCode: basis.seasonCode,
+          currency: basis.currency,
+          fxNum: BigInt(fx.centavosPerCent.num),
+          fxDen: BigInt(fx.centavosPerCent.den),
+          fxSource: `Seeded reference rate (${fx.display}), for display and peso ledger items only`,
+          rateCardSha256: basis.rateCardSha256,
+          provenance: runProvenance,
+        })
+        .returning({ id: schema.payRuns.id, runSlug: schema.payRuns.runSlug });
+      if (!run) throw problem.internal("The run could not be created.");
+      const consoleToken = await mintBearerToken(tx, {
         workspaceId,
-        seasonId: basis.seasonId,
-        lotId: basis.lotId,
-        rateCardId: basis.rateCardId,
-        seasonCode: basis.seasonCode,
-        currency: basis.currency,
-        fxNum: BigInt(fx.centavosPerCent.num),
-        fxDen: BigInt(fx.centavosPerCent.den),
-        fxSource: `Seeded reference rate (${fx.display}), for display and peso ledger items only`,
-        rateCardSha256: basis.rateCardSha256,
-        provenance: runProvenance,
-      })
-      .returning({ id: schema.payRuns.id, runSlug: schema.payRuns.runSlug });
-    if (!run) throw problem.internal("The run could not be created.");
-    const consoleToken = await mintBearerToken(tx, {
-      workspaceId,
-      kind: "frame",
-      ...CONSOLE_PERSONA,
-      sessionId,
-      now,
-      workspaceExpiresAt: expiresAt,
-    });
-    await appendLedger(tx, scope, {
-      kind: "judge.session.started",
-      payload: {
+        kind: "frame",
+        ...CONSOLE_PERSONA,
         sessionId,
+        now,
+        workspaceExpiresAt: expiresAt,
+      });
+      await appendLedger(tx, scope, {
+        kind: "judge.session.started",
+        payload: {
+          sessionId,
+          runId,
+          workspace: cloned ? "cloned" : "pooled",
+          rail: rail.mode,
+          ...(rail.reason ? { replayReason: rail.reason } : {}),
+        },
         runId,
-        workspace: cloned ? "cloned" : "pooled",
-        rail: rail.mode,
-        ...(rail.reason ? { replayReason: rail.reason } : {}),
-      },
-      runId,
-      at: now,
+        at: now,
+      });
+      // Claude's invoice turn (S4: session start enqueues it). The recording replays through the live lattice;
+      // every PayPal step it reaches asks money/rail.ts (a fresh `judgeRail`, the live lane) before any PayPal call,
+      // and a session decided replay replays its run to the end, calling PayPal not once.
+      const turn = { runId, purpose: "DRAFT_INVOICE" as const, holdId: null, turn: 0 };
+      await enqueue(tx, "agentTurn", turn, TASKS.agentTurn.dedupeKey(turn), { workspaceId });
+      return { workspaceId, runId, runSlug: run.runSlug, consoleToken, expiresAt };
+    })
+    .catch((error: unknown) => {
+      if (joinedWorkspace) rt.lane.releaseWorkspace(joinedWorkspace);
+      throw error;
     });
-    // Claude's invoice turn (S4: session start enqueues it). The recording replays through the live lattice;
-    // every PayPal step it reaches asks money/rail.ts (a fresh `judgeRail`, the live lane) before any PayPal call,
-    // and a session decided replay replays its run to the end, calling PayPal not once.
-    const turn = { runId, purpose: "DRAFT_INVOICE" as const, holdId: null, turn: 0 };
-    await enqueue(tx, "agentTurn", turn, TASKS.agentTurn.dedupeKey(turn), { workspaceId });
-    return { workspaceId, runId, runSlug: run.runSlug, consoleToken, expiresAt };
-  });
 
   setJudgeCookie(c, deps, {
     sessionId,
@@ -241,10 +261,6 @@ export async function startJudgeSession(c: AppContext, deps: AppDeps): Promise<S
     now,
     expiresAt: started.expiresAt,
   });
-  const queuePosition =
-    rail.mode === "live"
-      ? rt.lane.join({ workspaceId: started.workspaceId, step: "invoice", sessionId })
-      : null;
   rt.refillSoon();
   deps.logger.info(
     { sessionId, workspaceId: started.workspaceId, runSlug: started.runSlug, rail: rail.mode, cloned },

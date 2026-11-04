@@ -60,9 +60,34 @@ export function clientIp(c: AppContext): string | null {
 export function hashedClientIp(keys: CredentialKeys, ip: string | null, now: Date): string {
   const day = now.toISOString().slice(0, 10);
   return createHmac("sha256", keys.hmacKey("ip-hash"))
-    .update(`${ip ?? "unknown"}|${day}`)
+    .update(`${networkAddress(ip) ?? "unknown"}|${day}`)
     .digest("hex")
     .slice(0, 32);
+}
+
+/** Throttle identities are IPv4 addresses or canonical IPv6 /64s; never retain the raw address. */
+function networkAddress(ip: string | null): string | null {
+  const address = bare(ip);
+  if (!address || isIP(address) === 4) return address;
+  // URL canonicalizes embedded dotted IPv4 and compressed/upper-case IPv6 without changing bare().
+  const canonical = new URL(`http://[${address}]/`).hostname.slice(1, -1);
+  const [left = "", right] = canonical.split("::");
+  const prefix = left ? left.split(":") : [];
+  const suffix = right ? right.split(":") : [];
+  const words =
+    right === undefined
+      ? prefix
+      : [...prefix, ...Array(8 - prefix.length - suffix.length).fill("0"), ...suffix];
+  const nums = words.map((word) => Number.parseInt(word, 16));
+  if (nums.slice(0, 5).every((word) => word === 0) && nums[5] === 0xffff) {
+    const hi = nums[6] ?? 0;
+    const lo = nums[7] ?? 0;
+    return `${hi >> 8}.${hi & 255}.${lo >> 8}.${lo & 255}`;
+  }
+  return `${nums
+    .slice(0, 4)
+    .map((word) => word.toString(16).padStart(4, "0"))
+    .join(":")}::/64`;
 }
 
 /** The hashed client address of this request: the key every per-IP throttle takes. */
