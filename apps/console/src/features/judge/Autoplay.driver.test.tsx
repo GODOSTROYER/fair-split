@@ -116,6 +116,73 @@ it("follows the real reading step before the next four-second action tick withou
   expect(sign).not.toHaveBeenCalled();
 });
 
+it("keeps the actual funding arc mounted until funded, then follows reading without another tick", async () => {
+  vi.useFakeTimers();
+  const navigate = vi.fn();
+  state.next = {
+    id: "reading",
+    text: "Reading",
+    to: "/season/2026-A/reading",
+    actor: "machine",
+    screen: "W-TR-03",
+  };
+  let fundingLanded = () => {};
+  function Host() {
+    const [phase, setPhase] = useState("arc");
+    fundingLanded = () => setPhase("funded");
+    return (
+      <>
+        <div data-moment="MM-S" data-moment-phase={phase} />
+        <button type="button" data-testid="W-JG-01.runPill.next" onClick={navigate}>
+          Reading
+        </button>
+        <StageAutoplay />
+      </>
+    );
+  }
+  render(<Host />);
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(4_000);
+  });
+  expect(navigate).not.toHaveBeenCalled();
+  await act(async () => {
+    fundingLanded();
+  });
+  expect(navigate).toHaveBeenCalledTimes(1);
+});
+
+it("cancels the funding observer when autoplay unmounts before funded", async () => {
+  vi.useFakeTimers();
+  const navigate = vi.fn();
+  state.next = {
+    id: "reading",
+    text: "Reading",
+    to: "/season/2026-A/reading",
+    actor: "machine",
+    screen: "W-TR-03",
+  };
+  const view = render(
+    <>
+      <div data-moment="MM-S" data-moment-phase="arc" />
+      <button type="button" data-testid="W-JG-01.runPill.next" onClick={navigate}>
+        Reading
+      </button>
+      <StageAutoplay />
+    </>,
+  );
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(100);
+  });
+  expect(navigate).not.toHaveBeenCalled();
+  const funding = view.container.querySelector('[data-moment="MM-S"]');
+  view.unmount();
+  await act(async () => {
+    funding?.setAttribute("data-moment-phase", "funded");
+    await vi.advanceTimersByTimeAsync(4_000);
+  });
+  expect(navigate).not.toHaveBeenCalled();
+});
+
 it("follows a settled route promptly while keeping four seconds between actions", async () => {
   vi.useFakeTimers();
   const actions: number[] = [];

@@ -115,11 +115,32 @@ function Autoplay({ stage }: { readonly stage: StageApi }) {
     const link = resolveTarget(document, [PILL_LINK]);
     if (!link) return;
     let cancelled = false;
+    let following = false;
+    let cursorReady = false;
+    const funding = document.querySelector('[data-moment="MM-S"]');
+    const follow = () => {
+      if (
+        cancelled ||
+        following ||
+        !cursorReady ||
+        (funding && funding.getAttribute("data-moment-phase") !== "funded")
+      )
+        return;
+      following = true;
+      observer?.disconnect();
+      if (link.isConnected) link.click();
+    };
+    // Even the reduced cursor must leave the real funding arc on screen until its funded phase lands.
+    const observer = funding ? new MutationObserver(follow) : null;
+    if (funding) observer?.observe(funding, { attributes: true, attributeFilter: ["data-moment-phase"] });
+    // Let cursor travel overlap the arc; landing the funding never buys an extra delay before the reading.
     void moveTo(link).then(() => {
-      if (!cancelled && link.isConnected) link.click();
+      cursorReady = true;
+      follow();
     });
     return () => {
       cancelled = true;
+      observer?.disconnect();
     };
   }, [autoplay, next.id, next.to, pathname, search, moveTo]);
 
@@ -203,9 +224,12 @@ function Autoplay({ stage }: { readonly stage: StageApi }) {
           const comparison = document
             .querySelector('[data-testid="W-TR-06"] [data-moment="MM-3"]')
             ?.getAttribute("data-moment-phase");
+          const funding = document.querySelector('[data-moment="MM-S"]')?.getAttribute("data-moment-phase");
           // Watch the actual row finish before removing its room, and the actual field comparison before
           // pressing Count it once. Idle/history never holds navigation; these checks invent no phases.
           const momentPending =
+            (plan.kind === "go" &&
+              (funding === "arc" || (step.id === "reading" && funding != null && funding !== "funded"))) ||
             (plan.kind === "go" && printing != null && PRINTING_PHASES.has(printing)) ||
             (plan.kind === "press" && step.id === "holds" && comparison != null && comparison !== "ready");
           // A press still in flight (the first view waits for the session's invoice): wait, up to a ceiling.
