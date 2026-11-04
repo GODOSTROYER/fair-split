@@ -37,7 +37,7 @@ import { useApp } from "../../state/app";
 import { useFs } from "../../theme/theme";
 import { Glyph } from "../../ui/glyph";
 import { spring, TIMELINE } from "../../ui/motion";
-import { Button, Hatch, SurfaceLabels } from "../../ui/primitives";
+import { Button, Hatch, HonestyPill, SurfaceLabels } from "../../ui/primitives";
 import { Txt } from "../../ui/text";
 import { lineView } from "./line-view";
 import { canPlay, paminawaScreenState, SLOW_RATE } from "./paminawa-machine";
@@ -212,12 +212,14 @@ export function PaminawaPanel({ onClose, auto = false }: { onClose(): void; auto
             <SurfaceLabels screen="M-MB-03" />
             <LangBar testID="M-MB-03" />
             {label ? (
-              <View style={styles.voice} testID="M-MB-03.voice" dataSet={{ state: plan.mode }}>
-                <Glyph name={plan.mode === "text-only" ? "info" : "listen"} size={18} color={t.color.ink2} />
-                <Txt kind="body" color="ink2" style={styles.flex}>
-                  {label}
-                </Txt>
-              </View>
+              // Round 2: the voice is labelled with the honesty tag family's "Synthetic voice" tag, not a sentence.
+              <HonestyPill
+                testID="M-MB-03.voice"
+                dataSet={{ state: plan.mode }}
+                glyph={plan.mode === "text-only" ? "info" : "listen"}
+              >
+                {label}
+              </HonestyPill>
             ) : null}
             {!online ? (
               <Txt kind="caption" color="ink2" testID="M-MB-03.offline">
@@ -291,7 +293,14 @@ export function PaminawaPanel({ onClose, auto = false }: { onClose(): void; auto
             onPress={() => (playingNow ? player.pause() : player.play())}
             style={({ pressed }) => [
               styles.play,
-              { backgroundColor: !playable ? t.color.plate : pressed ? t.color.ink2 : t.color.ink },
+              // Round 2: the same indigo play circle as the statement's Paminawa button.
+              {
+                backgroundColor: !playable
+                  ? t.color.plate
+                  : pressed
+                    ? t.slab.chalk.edgeRight
+                    : t.slab.chalk.face,
+              },
               !playable && { borderColor: t.color.rule, borderWidth: 1 },
             ]}
           >
@@ -299,7 +308,7 @@ export function PaminawaPanel({ onClose, auto = false }: { onClose(): void; auto
             <Glyph
               name={playingNow ? "pause" : "play"}
               size={32}
-              color={playable ? t.color.plate : t.color.ink3}
+              color={playable ? t.slab.chalk.label : t.color.ink3}
             />
           </Pressable>
           <View style={styles.side}>
@@ -386,7 +395,7 @@ const styles = StyleSheet.create({
     height: target.play,
     alignItems: "center",
     justifyContent: "center",
-    borderRadius: radius.plate,
+    borderRadius: radius.pill,
     overflow: "hidden",
   },
   side: { flex: 1, gap: space.s8 },
@@ -401,6 +410,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: space.s12,
     paddingVertical: space.s8,
     borderWidth: 1,
-    borderRadius: radius.plate,
+    borderRadius: radius.pill,
   },
 });

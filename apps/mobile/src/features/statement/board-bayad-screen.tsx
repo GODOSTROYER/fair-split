@@ -4,19 +4,22 @@
  * run: the PayPal payouts, the seal with how many keys have closed it, and the Proof page where anyone can check
  * every payment. Read only; nothing here moves money. Its figures keep the amount grammar (`runAmountState`): pencil
  * until both keys are in, then ink, as the Chair sees the same figures on M-BD-01.
+ *
+ * UI gate round 2: full-bleed on white like the member's statement, and the PayPal payouts carry the one honesty
+ * tag under the line that names them.
  */
 import { useCallback, useEffect, useState } from "react";
 import { Linking, StyleSheet, View } from "react-native";
 import type { CosignRequestDTO } from "../../_shims/api-client";
 import { format } from "../../_shims/domain";
 import { runSlug } from "../../_shims/seed";
-import { radius, space } from "../../_shims/tokens.native";
+import { space } from "../../_shims/tokens.native";
+import { railLabel } from "../../lib/payout-status";
 import { apiOrigin } from "../../services/build";
 import { useApp } from "../../state/app";
-import { useFs } from "../../theme/theme";
 import { AmountDisplay } from "../../ui/amount";
 import { Screen } from "../../ui/chrome";
-import { Button, HashText, Rule, SectionTitle } from "../../ui/primitives";
+import { Button, HashText, HonestyPill, Rule, SectionTitle } from "../../ui/primitives";
 import { SealView } from "../../ui/seal-view";
 import { EmptyState, Skeleton } from "../../ui/states";
 import { Txt } from "../../ui/text";
@@ -25,8 +28,7 @@ import { COLUMN } from "./parts";
 import { useT } from "./use-t";
 
 export function BoardBayadScreen() {
-  const { api } = useApp();
-  const { t } = useFs();
+  const { api, lang } = useApp();
   const tr = useT();
   const [run, setRun] = useState<CosignRequestDTO | null>(null);
   const [failed, setFailed] = useState(false);
@@ -43,7 +45,7 @@ export function BoardBayadScreen() {
 
   if (!run) {
     return (
-      <Screen testID="M-MB-01" state={failed ? "error" : "loading"} contentStyle={COLUMN}>
+      <Screen testID="M-MB-01" state={failed ? "error" : "loading"} contentStyle={COLUMN} surface="plate">
         {failed ? (
           <EmptyState
             glyph="wifiOff"
@@ -70,11 +72,11 @@ export function BoardBayadScreen() {
   const origin = apiOrigin();
   const proofUrl = `${origin ?? ""}/proof/${run.runSlug}`;
   return (
-    <Screen testID="M-MB-01" state="run-summary" contentStyle={COLUMN}>
+    <Screen testID="M-MB-01" state="run-summary" contentStyle={COLUMN} surface="plate">
       <Txt kind="title1" accessibilityRole="header">
         {tr("M-MB-01.season", { code: run.seasonCode })}
       </Txt>
-      <View style={[styles.card, { backgroundColor: t.color.plate }]}>
+      <View style={styles.card}>
         <AmountDisplay
           size="l"
           text={format.usd(run.totalCents)}
@@ -85,6 +87,11 @@ export function BoardBayadScreen() {
         <Txt kind="body" color="ink2">
           {tr("M-MB-01.runRequest", { season: run.seasonCode, n: run.itemCount })}
         </Txt>
+        {run.rail === "simulated" ? (
+          <HonestyPill testID="M-MB-01.runRail">
+            {railLabel(run.rail, "simulated_rail", lang).chip}
+          </HonestyPill>
+        ) : null}
         <Rule />
         <SectionTitle>{tr("M-MB-01.runItems")}</SectionTitle>
         <View style={styles.items}>
@@ -135,7 +142,7 @@ export function BoardBayadScreen() {
 }
 
 const styles = StyleSheet.create({
-  card: { padding: space.s16, gap: space.s12, borderRadius: radius.none },
+  card: { gap: space.s12 },
   items: { gap: space.s4 },
   item: { flexDirection: "row", alignItems: "center", minHeight: 32 },
   sealRow: { flexDirection: "row", alignItems: "center", gap: space.s12 },

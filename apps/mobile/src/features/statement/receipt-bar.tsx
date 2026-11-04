@@ -8,6 +8,9 @@
  * (`expanded`, `glide`) to say where it comes from, down to her slips; a slip opens the zoom. All figures come from
  * `lib/figures` (I1); the words wrap them. Every amount keeps the amount grammar (`receiptStates`): the parts in the
  * ink of the officers who approved them, the net as the hero reads it, hollow until PayPal or the clerk settles it.
+ *
+ * UI gate round 2: no raw rate-card id on her phone ("CBU · R1 · Schedule A"); the fees row folds to its two
+ * published rates and opens to the sentence; captions in statement ink 2 (7:1 or better).
  */
 import type { ReactNode } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
@@ -96,7 +99,7 @@ function Row({
         <View style={styles.rowText}>
           {typeof label === "string" ? <Txt kind={strong ? "bodyStrong" : "body"}>{label}</Txt> : label}
           {note ? (
-            <Txt kind="caption" color="ink2">
+            <Txt kind="micro" color="statementInk2">
               {note}
             </Txt>
           ) : null}
@@ -233,10 +236,10 @@ function TraceBody({
           <View style={styles.check}>
             <Glyph
               name={trace.conserved ? "check" : "info"}
-              size={20}
+              size={18}
               color={trace.conserved ? t.color.ink : t.color.canaryText}
             />
-            <Txt kind="body" color={trace.conserved ? "ink" : "canaryText"} style={styles.flex}>
+            <Txt kind="body" color={trace.conserved ? "statementInk2" : "canaryText"} style={styles.flex}>
               {trace.conserved ? tr("M-MB-01.traceNet") : tr("M-MB-01.traceNetOff", { name: treasurer })}
             </Txt>
           </View>
@@ -245,9 +248,13 @@ function TraceBody({
     case "fees":
       return (
         <>
+          <Sentence
+            lang={lang}
+            segments={figures(tr("M-MB-01.fees", { paypal: trace.paypal, gcash: trace.gcash }))}
+          />
           <Sentence lang={lang} segments={figures(tr("M-MB-01.traceFees", { rate: trace.rate }))} />
           {trace.sources.map((s) => (
-            <Txt key={s} kind="caption" color="ink2" lang="en">
+            <Txt key={s} kind="micro" color="statementInk2" lang="en">
               {s}
             </Txt>
           ))}
@@ -265,7 +272,7 @@ function TraceBody({
                   tr(trace.beforeFirstSlip ? "M-MB-01.traceDeduction" : "M-MB-01.traceDeductionPlain", {
                     label: trace.label,
                     rule: trace.rule,
-                    card: trace.card,
+                    card: tr("M-MB-01.ruleRef"),
                     date: trace.ratifiedOn,
                   }),
                 )}
@@ -346,7 +353,7 @@ export function ReceiptBar({
       </View>
       <Sentence
         kind="figureS"
-        color="ink2"
+        color="statementInk2"
         segments={figures(tr("M-MB-01.share", { kg: share.kg, coopKg: share.coopKg }))}
       />
 
@@ -401,9 +408,9 @@ export function ReceiptBar({
                     <RuleChip ruleId={r.ruleId ?? ""} />
                   </View>
                 }
-                note={tr("M-MB-01.ruleRef", { card: dto.rateCard.id })}
+                note={tr("M-MB-01.ruleRef")}
                 amount={part(r.amount)}
-                srLabel={`${r.label ?? ""}, ${r.spoken}, ${r.ruleId ?? ""}, ${dto.rateCard.id}`}
+                srLabel={`${r.label ?? ""}, ${r.spoken}, ${r.ruleId ?? ""}, ${tr("M-MB-01.ruleRef")}`}
               >
                 {body(r.id)}
               </Row>
@@ -448,11 +455,9 @@ export function ReceiptBar({
             open={stateOf("fees")}
             onPress={onSegment}
             label={
-              <Sentence
-                kind="body"
-                color="ink2"
-                segments={figures(tr("M-MB-01.fees", { paypal: fees.paypal, gcash: fees.gcash }))}
-              />
+              <Txt kind="figureS" color="statementInk2">
+                {tr("M-MB-01.feesShort", { paypal: fees.paypal, gcash: fees.gcash })}
+              </Txt>
             }
             srLabel={tr("M-MB-01.fees", { paypal: fees.paypal, gcash: fees.gcash })}
           >

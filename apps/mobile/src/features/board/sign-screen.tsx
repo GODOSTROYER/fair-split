@@ -4,6 +4,10 @@
  * quarter), release inside, then the fingerprint or device PIN, then an Ed25519 signature over the JCS payload with
  * `fs-ernesto-a1`. A judge's browser signs with a labelled demo key. "Can't hold?" and TalkBack take the dialog.
  * When the key is in, rings 3–4 engrave, the seal lands, and the amount turns from pencil to ink.
+ *
+ * UI gate round 2 (unslop spec §3.9): one language on the screen (no English stacked under the header, the caption
+ * or the result; a note that blocks him keeps its gloss), the hash and "compare" as one mono line, the honesty tag
+ * under the amount it covers, the demo key as its tag, and "Can't hold?" as a quiet link.
  */
 import { router, useFocusEffect } from "expo-router";
 import { useCallback } from "react";
@@ -119,7 +123,11 @@ export function SignScreen() {
         <Txt kind="title2" accessibilityRole="header">
           {tr("M-BD-02.title")}
         </Txt>
-        <Gloss text={gloss("M-BD-02.title")} />
+        {dto ? (
+          <Txt kind="micro" color="ink2">
+            {tr("M-BD-02.meta", { season: dto.seasonCode, name: people.chair.first })}
+          </Txt>
+        ) : null}
       </View>
     </View>
   );
@@ -183,11 +191,10 @@ export function SignScreen() {
       {done ? (
         <View style={styles.doneZone} testID="M-BD-02.signed" accessibilityLiveRegion="polite">
           <Txt kind="bodyStrong">{tr("M-BD-02.signed", { key: key?.keyId ?? nextKeyId })}</Txt>
-          <Gloss text={gloss("M-BD-02.signed", { key: key?.keyId ?? nextKeyId })} />
           {demoKey ? (
-            <Txt kind="caption" color="ink2" testID="M-BD-02.demo-key">
+            <HonestyPill testID="M-BD-02.demo-key" glyph="lock">
               {tr("common.demoKey")}
-            </Txt>
+            </HonestyPill>
           ) : null}
           <Button tall variant="quiet" label={tr("M-BD-02.done")} onPress={back} testID="M-BD-02.done" />
         </View>
@@ -214,7 +221,6 @@ export function SignScreen() {
               {caption}
             </Txt>
           ) : null}
-          {!blocked ? <Gloss text={gloss(captionKey)} align="center" /> : null}
           <Slab
             // A slab that goes flush (the batch changed, the request closed) is a new slab: the shared Slab would
             // otherwise keep its dialog open and act on an armed release (I4; the shell is asked to stop that too).
@@ -282,9 +288,12 @@ export function SignScreen() {
               testID="M-BD-02.retry"
             />
           ) : null}
-          <Txt kind="caption" color="ink3" align="center" testID="M-BD-02.key" selectable>
-            {keyLine}
-          </Txt>
+          <View style={styles.keyRow} testID="M-BD-02.key" accessible accessibilityLabel={keyLine}>
+            {demoKey ? <HonestyPill glyph="lock">{tr("common.demoKey")}</HonestyPill> : null}
+            <Txt kind="micro" color="ink2" selectable>
+              {demoKey ? (key?.keyId ?? null) : keyLine}
+            </Txt>
+          </View>
         </>
       )}
     </View>
@@ -297,9 +306,6 @@ export function SignScreen() {
       footer={compact ? undefined : thumb}
       contentStyle={[styles.content, compact ? { paddingBottom: insets.bottom + space.s24 } : null]}
     >
-      {dto.rail === "simulated" ? (
-        <HonestyPill testID="M-BD-02.rail">{railLabel(dto.rail, "simulated_rail", lang).chip}</HonestyPill>
-      ) : null}
       <View {...mm5.rootProps} style={styles.moment} collapsable={false}>
         <MomentMarker id="MM-5" phase={mm5.phase} />
         {header}
@@ -322,7 +328,7 @@ export function SignScreen() {
             >
               {`${format.hash(ownHash, 2)} … ${format.hash(ownHash.slice(-8))}`}
             </Txt>
-            <Txt kind="caption" color="ink3" align="center">
+            <Txt kind="micro" color="ink2" align="center">
               {tr("M-BD-02.compare")}
             </Txt>
           </View>
@@ -338,6 +344,13 @@ export function SignScreen() {
             <Txt kind="body" color="ink2" align="center">
               {tr("M-BD-01.count", { n: dto.itemCount })}
             </Txt>
+            {dto.rail === "simulated" ? (
+              <View style={styles.tagRow}>
+                <HonestyPill testID="M-BD-02.rail">
+                  {railLabel(dto.rail, "simulated_rail", lang).chip}
+                </HonestyPill>
+              </View>
+            ) : null}
           </View>
         </View>
         {phase === "sealed" || phase === "inked" ? (
@@ -346,7 +359,6 @@ export function SignScreen() {
             <InkStamp initials={people.chair.initials} label={people.chair.name} />
             <View style={styles.flex}>
               <Txt kind="bodyStrong">{tr("M-BD-02.sealed", { a: treasurer, b: people.chair.first })}</Txt>
-              <Gloss text={gloss("M-BD-02.sealed", { a: treasurer, b: people.chair.first })} />
             </View>
           </View>
         ) : null}
@@ -355,7 +367,6 @@ export function SignScreen() {
             <Txt kind="body" color="ink2">
               {tr("M-BD-02.next", { n: dto.itemCount })}
             </Txt>
-            <Gloss text={gloss("M-BD-02.next", { n: dto.itemCount })} />
           </View>
         ) : null}
         {compact ? thumb : null}
@@ -390,6 +401,14 @@ const styles = StyleSheet.create({
   },
   hash: { gap: space.s2, alignItems: "center" },
   amount: { gap: space.s4, alignItems: "center", alignSelf: "stretch" },
+  tagRow: { flexDirection: "row", justifyContent: "center", marginTop: space.s4 },
+  keyRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: space.s8,
+  },
   approved: { flexDirection: "row", alignItems: "center", gap: space.s8 },
   thumb: {
     gap: space.s8,

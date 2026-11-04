@@ -5,6 +5,10 @@
  * binds besides the payouts; key 1 and the treasurer's presence; the payouts; and the flat "Ipabalik kang Analyn",
  * which needs a reason. The thumb zone holds the way to the sign sheet (M-BD-02). Nothing here signs, and nothing is
  * ever queued: offline, it says so and waits. A batch, lines or payload the phone refuses clacks once (MM-5 mismatch).
+ *
+ * UI gate round 2 (unslop spec §3.9): one language on the screen. Only the one line that says why him keeps its
+ * English gloss (and the notes in the status banner); the header, the count, the key lines and the seal's captions
+ * do not. The honesty tag sits under the amount it covers; the seal's captions are mono lines.
  */
 import { router, useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -189,9 +193,6 @@ export function CosignScreen() {
 
   return (
     <Screen testID="M-BD-01" state={c.status} footer={footer} contentStyle={styles.content}>
-      {dto.rail === "simulated" ? (
-        <HonestyPill testID="M-BD-01.rail">{railLabel(dto.rail, "simulated_rail", lang).chip}</HonestyPill>
-      ) : null}
       {showPush ? <SimulatedPush dto={dto} /> : null}
       <StatusBanner />
 
@@ -199,7 +200,6 @@ export function CosignScreen() {
         <Txt kind="title2" accessibilityRole="header">
           {tr("M-BD-01.heading", { season: dto.seasonCode })}
         </Txt>
-        <Gloss text={gloss("M-BD-01.heading", { season: dto.seasonCode })} />
         <SignedAmount
           text={amount}
           srLabel={format.amountSpoken(dto.totalCents)}
@@ -207,10 +207,16 @@ export function CosignScreen() {
           live={c.engrave}
           testID="M-BD-01.amount"
         />
-        <Txt kind="body" color="ink2">
-          {tr("M-BD-01.count", { n: dto.itemCount })}
-        </Txt>
-        <Gloss text={gloss("M-BD-01.count", { n: dto.itemCount })} />
+        <View style={styles.countRow}>
+          <Txt kind="body" color="ink2">
+            {tr("M-BD-01.count", { n: dto.itemCount })}
+          </Txt>
+          {dto.rail === "simulated" ? (
+            <HonestyPill testID="M-BD-01.rail">
+              {railLabel(dto.rail, "simulated_rail", lang).chip}
+            </HonestyPill>
+          ) : null}
+        </View>
         <Sentence segments={figures(tr(whyKey(dto), { threshold }))} testID="M-BD-01.why" />
         <Gloss text={gloss(whyKey(dto), { threshold })} testID="M-BD-01.why.gloss" />
       </View>
@@ -243,20 +249,13 @@ export function CosignScreen() {
             <Txt kind="label" color="ink2" align="center">
               {tr("M-BD-01.seal")}
             </Txt>
-            <Txt kind="caption" color="ink2" align="center" testID="M-BD-01.computed">
+            <Txt kind="micro" color="ink2" align="center" testID="M-BD-01.computed">
               {tr("M-BD-01.computed", { n: recomputed?.itemCount ?? dto.items.length })}
             </Txt>
-            <Gloss
-              text={gloss("M-BD-01.computed", { n: recomputed?.itemCount ?? dto.items.length })}
-              align="center"
-            />
             {linesArgs ? (
-              <>
-                <Txt kind="caption" color="ink2" align="center" testID="M-BD-01.lines">
-                  {tr("M-BD-01.lines", linesArgs)}
-                </Txt>
-                <Gloss text={gloss("M-BD-01.lines", linesArgs)} align="center" />
-              </>
+              <Txt kind="micro" color="ink2" align="center" testID="M-BD-01.lines">
+                {tr("M-BD-01.lines", linesArgs)}
+              </Txt>
             ) : null}
           </>
         ) : (
@@ -275,7 +274,6 @@ export function CosignScreen() {
                 ? tr("M-BD-01.key1", { name: treasurer })
                 : tr("M-BD-01.waitingKey1", { name: treasurer })}
             </Txt>
-            <Gloss text={gloss(c.key1 ? "M-BD-01.key1" : "M-BD-01.waitingKey1", { name: treasurer })} />
           </View>
         </View>
         {signed ? (
@@ -310,11 +308,11 @@ export function CosignScreen() {
       ) : null}
 
       <View style={styles.meta}>
-        <Txt kind="caption" color="ink3" selectable>
+        <Txt kind="micro" color="ink2" selectable>
           {tr("M-BD-01.batch", { batch: dto.senderBatchId })}
         </Txt>
         {signable ? (
-          <Txt kind="caption" color="ink3" testID="M-BD-01.expires">
+          <Txt kind="micro" color="ink2" testID="M-BD-01.expires">
             {tr("M-BD-01.expires", {
               time: `${format.dayMonth(dto.expiresAt, lang)} ${format.time(dto.expiresAt)}`,
             })}
@@ -495,6 +493,7 @@ const styles = StyleSheet.create({
   content: { maxWidth: 560, width: "100%", alignSelf: "center" },
   loading: { gap: space.s24 },
   lead: { gap: space.s8 },
+  countRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: space.s8 },
   section: { gap: space.s4 },
   plate: {
     alignItems: "center",

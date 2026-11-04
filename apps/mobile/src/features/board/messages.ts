@@ -253,6 +253,8 @@ export const messages = defineMessages({
 
   /* M-BD-02 sign */
   "M-BD-02.title": { ceb: "Pirmahi ang batch", fil: "Pirmahan ang batch", en: "Sign the batch" },
+  /** Round 2: the sign sheet's one mono line under its header, data joined by " · ". */
+  "M-BD-02.meta": same("{season} · {name}"),
   "M-BD-02.slab": { ceb: "Pirmahi", fil: "Pirmahan", en: "Sign" },
   "M-BD-02.caption.biometric": {
     ceb: "Kupti, dayon gamita ang inyong fingerprint.",
@@ -264,10 +266,11 @@ export const messages = defineMessages({
     fil: "Pindutin nang matagal, saka gamitin ang fingerprint o PIN ng telepono.",
     en: "Hold, then use your fingerprint or the phone's PIN.",
   },
+  // Round 2: shortened by deleting its second sentence; the "Demo key (this browser)" tag under the slab says it.
   "M-BD-02.caption.demo": {
-    ceb: "Kupti aron mopirma. Kini nga browser mopirma gamit ang demo key.",
-    fil: "Pindutin nang matagal para pumirma. Pipirma ang browser na ito gamit ang demo key.",
-    en: "Hold to sign. This browser signs with a demo key.",
+    ceb: "Kupti aron mopirma.",
+    fil: "Pindutin nang matagal para pumirma.",
+    en: "Hold to sign.",
   },
   "M-BD-02.another": {
     ceb: "Dili makakupti? Pirmahi sa laing paagi",

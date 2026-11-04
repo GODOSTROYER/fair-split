@@ -28,7 +28,8 @@ export const COLUMN = { width: "100%", maxWidth: 640, alignSelf: "center" } as c
 
 /**
  * The member's language row, and the English gloss switch on the screens that show statement sentences
- * (`glossable`) when the language is not English.
+ * (`glossable`) when the language is not English. Round 2: one row that wraps, the switch a pill the height of the
+ * language control beside it.
  */
 export function LangBar({ testID, glossable = true }: { testID: string; glossable?: boolean }) {
   const { lang } = useApp();
@@ -55,12 +56,12 @@ export function LangBar({ testID, glossable = true }: { testID: string; glossabl
               style={[
                 styles.gloss,
                 {
-                  borderColor: gloss ? t.color.ink : t.color.rule,
+                  borderColor: gloss ? t.color.ink : t.color.ruleStrong,
                   backgroundColor: gloss ? t.color.ink : t.color.plate,
                 },
               ]}
             >
-              <Txt kind="label" style={{ color: gloss ? t.color.plate : t.color.ink }}>
+              <Txt kind="label" style={{ color: gloss ? t.color.plate : t.color.ink2 }}>
                 {tr("M-MB-01.glossOn")}
               </Txt>
             </View>
@@ -148,15 +149,15 @@ export function HistoryMark({ mark, by }: { mark: Mark; by: readonly string[] })
 }
 
 const styles = StyleSheet.create({
-  bar: { gap: space.s8 },
+  bar: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: space.s8 },
   row: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: space.s8 },
   glossTap: { minHeight: target.min, justifyContent: "center" },
   gloss: {
-    minHeight: 32,
+    minHeight: 36,
     justifyContent: "center",
-    paddingHorizontal: space.s12,
+    paddingHorizontal: space.s16,
     borderWidth: 1,
-    borderRadius: radius.plate,
+    borderRadius: radius.pill,
   },
   glossed: { gap: space.s4 },
   glossText: { fontFamily: fontFamily.statement },

@@ -22,7 +22,6 @@ import { StyleSheet, useWindowDimensions, View } from "react-native";
 import Animated, { type SharedValue, useAnimatedStyle } from "react-native-reanimated";
 import Svg, { Line, Text as SvgText, TSpan } from "react-native-svg";
 import type { AmountState } from "../_shims/contracts";
-import { fontFamily } from "../_shims/fonts";
 import { radius, space } from "../_shims/tokens.native";
 import { typeScale, useFs } from "../theme/theme";
 import {
@@ -83,13 +82,24 @@ export function currencyParts(text: string): readonly [prefix: string, figure: s
 }
 
 /** The figure as SVG spans: the prefix small and raised on the hero, the digits at full size. */
-function FigureSpans({ text, fontSize, raise }: { text: string; fontSize: number; raise: boolean }) {
+function FigureSpans({
+  text,
+  fontSize,
+  raise,
+  prefixFill,
+}: {
+  text: string;
+  fontSize: number;
+  raise: boolean;
+  /** Round 2: the "US$" is quieter than the digits (statement ink 2, 9.8:1), as on the console. */
+  prefixFill?: string;
+}) {
   const [prefix, figure] = currencyParts(text);
   if (!raise || !prefix) return <>{text}</>;
   const rise = fontSize * CUR.rise;
   return (
     <>
-      <TSpan fontSize={fontSize * CUR.size} dy={-rise}>
+      <TSpan fontSize={fontSize * CUR.size} dy={-rise} fill={prefixFill}>
         {prefix}
       </TSpan>
       <TSpan fontSize={fontSize} dy={rise} dx={fontSize * 0.04}>
@@ -129,7 +139,8 @@ function LargeAmount({
     x: AMOUNT_PAD / 2,
     y: box.lineHeight / 2 + box.fontSize * CAP_HALF,
     fontSize: box.fontSize,
-    fontFamily: fontFamily.amount,
+    // The role's face (round 2: the figure cut, 87.5/500), so the drawn figure is the measured one.
+    fontFamily: typeScale[role].fontFamily,
     // Amounts read as money: proportional lining figures (ADR-0016).
     fontFeatureSettings: "'pnum' 1, 'lnum' 1",
   } as const;
@@ -174,7 +185,12 @@ function LargeAmount({
                   cross-fade changes nothing a member reads; the capsule beside it says where the money is. */}
               <Svg width={box.width} height={box.height}>
                 <SvgText {...common} fill={t.color.ink}>
-                  <FigureSpans text={text} fontSize={box.fontSize} raise={raise} />
+                  <FigureSpans
+                    text={text}
+                    fontSize={box.fontSize}
+                    raise={raise}
+                    prefixFill={t.color.statementInk2}
+                  />
                 </SvgText>
               </Svg>
             </Animated.View>
@@ -186,7 +202,12 @@ function LargeAmount({
           >
             <Svg width={box.width} height={box.height}>
               <SvgText {...common} fill={solidColour}>
-                <FigureSpans text={text} fontSize={box.fontSize} raise={raise} />
+                <FigureSpans
+                  text={text}
+                  fontSize={box.fontSize}
+                  raise={raise}
+                  prefixFill={t.color.statementInk2}
+                />
               </SvgText>
             </Svg>
           </Animated.View>

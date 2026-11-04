@@ -21,9 +21,11 @@ const AMOUNT: TextStyle["fontVariant"] = ["lining-nums", "proportional-nums"];
  * phones in daylight, so UI body is 16/22 and statement prose is never below 18 (19/28).
  */
 export const typeScale = {
-  amountHero: { fontFamily: fontFamily.amount, fontSize: 48, lineHeight: 52, fontVariant: AMOUNT },
-  amountL: { fontFamily: fontFamily.amount, fontSize: 32, lineHeight: 36, fontVariant: AMOUNT },
-  amountM: { fontFamily: fontFamily.amount, fontSize: 22, lineHeight: 26, fontVariant: AMOUNT },
+  // UI gate round 2: money is never bold. Every amount is the console's one numeral, FS Sans 87.5/500 (the figure
+  // cut), set large; its size and the small raised "US$" do the work.
+  amountHero: { fontFamily: fontFamily.figure, fontSize: 56, lineHeight: 60, fontVariant: AMOUNT },
+  amountL: { fontFamily: fontFamily.figure, fontSize: 32, lineHeight: 36, fontVariant: AMOUNT },
+  amountM: { fontFamily: fontFamily.figure, fontSize: 22, lineHeight: 26, fontVariant: AMOUNT },
   title1: { fontFamily: fontFamily.strong, fontSize: 28, lineHeight: 34 },
   title2: { fontFamily: fontFamily.strong, fontSize: 20, lineHeight: 26 },
   body: { fontFamily: fontFamily.ui, fontSize: 16, lineHeight: 22 },
@@ -32,13 +34,26 @@ export const typeScale = {
   figureS: { fontFamily: fontFamily.figure, fontSize: 14, lineHeight: 20, fontVariant: MONEY },
   label: { fontFamily: fontFamily.figure, fontSize: 14, lineHeight: 18 },
   caption: { fontFamily: fontFamily.ui, fontSize: 12, lineHeight: 16 },
+  /**
+   * The mono data line (UI gate round 2, the console's `fs-t-micro`): the figure cut's tabular set, 13/18 on the
+   * phone (one step over the console's 12, for budget screens in daylight). Data joined by " · ", never prose.
+   */
+  micro: {
+    fontFamily: fontFamily.figure,
+    fontSize: 13,
+    lineHeight: 18,
+    fontVariant: MONEY,
+    letterSpacing: 0.13,
+  },
   hash: { fontFamily: fontFamily.figure, fontSize: 13, lineHeight: 18, fontVariant: MONEY },
   slab: { fontFamily: fontFamily.strong, fontSize: 17, lineHeight: 20 },
   statementLead: { fontFamily: fontFamily.statement, fontSize: 22, lineHeight: 30 },
   statementBody: { fontFamily: fontFamily.statement, fontSize: 19, lineHeight: 28 },
   statementStrong: { fontFamily: fontFamily.statementBold, fontSize: 19, lineHeight: 28 },
   /** "Bayad na" and "Gisusi pa" inside their pills (ADR-0016). */
-  statementStatus: { fontFamily: fontFamily.statementBold, fontSize: 18, lineHeight: 22 },
+  statementStatus: { fontFamily: fontFamily.statementBold, fontSize: 17, lineHeight: 22 },
+  /** The member's name as the statement's factual header (round 2: a header, not a greeting). */
+  statementName: { fontFamily: fontFamily.statementBold, fontSize: 26, lineHeight: 32 },
 } satisfies Record<string, TextStyle>;
 
 export type TypeRole = keyof typeof typeScale;

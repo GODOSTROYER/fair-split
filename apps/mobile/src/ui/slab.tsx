@@ -610,5 +610,6 @@ const styles = StyleSheet.create({
   stepped: { flexDirection: "row", alignItems: "center", gap: space.s4, marginTop: space.s8 },
   step: { flex: 1, height: 8, borderWidth: 1 },
   below: { marginTop: space.s4 },
-  another: { alignSelf: "flex-start", marginTop: space.s4 },
+  // Round 2: "Can't hold?" is a quiet link centred under the full-width slab.
+  another: { alignSelf: "center", marginTop: space.s4 },
 });

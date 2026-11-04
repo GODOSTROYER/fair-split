@@ -14,6 +14,10 @@
  *
  * Every other state is flush: canary when a person decides (never an error), hatched for cash, red only when PayPal
  * failed, each with a glyph and a word.
+ *
+ * UI gate round 2: the capsule is a pill that hugs its words, not a full-width plate. Every flush state is a white
+ * pill whose colour lives only in its dot (the console's status pill); the jade face stays the one filled pill, for
+ * money the simulated PayPal confirmed.
  */
 import { useEffect, useRef, useState } from "react";
 import { type LayoutChangeEvent, StyleSheet, View } from "react-native";
@@ -38,7 +42,7 @@ import { useFs } from "../../theme/theme";
 import { Glyph } from "../../ui/glyph";
 import { MomentMarker, type MomentPhase, useMoment } from "../../ui/moment";
 import { reducedFade, TIMELINE, tween } from "../../ui/motion";
-import { Hatch } from "../../ui/primitives";
+import { StatusDot } from "../../ui/primitives";
 import { Txt } from "../../ui/text";
 import { capsuleText, elapsedClock, type LineView, msOf } from "./line-view";
 import type { PaidSignal } from "./statement-store";
@@ -48,8 +52,8 @@ const EDGE = slabDepth.d2;
 /** The jade halo: one beat after the simulated PayPal confirms (TWEENS.halo, 520 ms, ease out). */
 const HALO_IN_MS = 180;
 const HALO_OUT_MS = 340;
-/** The capsule's least height: one line of the status word with its padding, above the 48 dp target. */
-const FACE_MIN = 52;
+/** The capsule's least height: one line of the status word with its padding (round 2: a pill, not a plate). */
+const FACE_MIN = 40;
 const T = TIMELINE["MM-1"];
 /** Confirmations already played on this phone: a remount never replays one (motion is evidence, MM-6). */
 const PLAYED = new Set<string>();
@@ -202,7 +206,7 @@ function PendingRing({ color, since, spinning }: { color: string; since: number;
   const style = useAnimatedStyle(() => ({ transform: [{ rotate: `${spin.get() * 180}deg` }] }));
   return (
     <Animated.View style={style}>
-      <Svg width={18} height={18} viewBox="0 0 18 18">
+      <Svg width={16} height={16} viewBox="0 0 18 18">
         <Path
           d="M9 2a7 7 0 0 1 6.06 3.5 M9 16a7 7 0 0 1-6.06-3.5"
           stroke={color}
@@ -351,7 +355,7 @@ export function StatusCapsule({ view, mm1, testID }: { view: LineView; mm1: Mm1;
           >
             {text.after ? (
               <>
-                <Glyph name="check" size={20} color={t.color.onJade} />
+                <Glyph name="check" size={18} color={t.color.onJade} />
                 <Txt kind="statementStatus" style={[styles.word, { color: t.color.onJade }]}>
                   {text.after}
                 </Txt>
@@ -365,33 +369,22 @@ export function StatusCapsule({ view, mm1, testID }: { view: LineView; mm1: Mm1;
 
   const look =
     view.tone === "decide" || view.tone === "failure" || view.tone === "cash" ? view.tone : "neutral";
-  const bg =
-    look === "decide"
-      ? t.color.canaryWash
-      : look === "failure"
-        ? t.color.redWash
-        : look === "cash"
-          ? t.color.plate
-          : t.color.plate2;
-  const border = look === "decide" ? t.color.canaryBorder : look === "failure" ? t.color.red : t.color.rule;
   const fg = look === "failure" ? t.color.red : t.color.ink;
+  // The glyph stays for its meaning (STATUS_GLYPH) in the accessibility tree's data; on screen the dot says it.
+  const glyph = STATUS_GLYPH[view.status];
   return (
     <View
       testID={testID}
-      dataSet={{ state: view.capsule, tone: view.tone }}
+      dataSet={{ state: view.capsule, tone: view.tone, glyph }}
       accessible
       accessibilityRole="text"
       accessibilityLiveRegion="polite"
       accessibilityLabel={view.word}
-      style={[styles.flat, { borderColor: border, backgroundColor: bg }]}
+      style={[styles.flat, { borderColor: t.color.ruleStrong, backgroundColor: t.color.plate }]}
     >
-      {look === "cash" ? <Hatch /> : null}
       <View style={styles.row} importantForAccessibility="no-hide-descendants">
-        {/* On the hatch, the glyph and the word sit on small plates so the lines never cross them (design §2.5). */}
-        <View style={look === "cash" ? [styles.plate, { backgroundColor: bg }] : null}>
-          <Glyph name={STATUS_GLYPH[view.status]} size={20} color={fg} />
-        </View>
-        <View style={look === "cash" ? [styles.plate, styles.word, { backgroundColor: bg }] : styles.word}>
+        <StatusDot tone={look} size={10} />
+        <View style={styles.word}>
           <Txt kind="statementStatus" style={{ color: fg }}>
             {view.word}
           </Txt>
@@ -401,25 +394,34 @@ export function StatusCapsule({ view, mm1, testID }: { view: LineView; mm1: Mm1;
   );
 }
 
-/** The 1 px ink ring that pulses once around Paminawa at MM-1's `invite` (400 ms, then gone). */
-export function InviteRing({ mm1 }: { mm1: Mm1 }) {
+/**
+ * The 1 px ink ring that pulses once around Paminawa at MM-1's `invite` (400 ms, then gone). Round 2: Paminawa is
+ * a play circle, so the ring is a circle around it (`round`).
+ */
+export function InviteRing({ mm1, round = false }: { mm1: Mm1; round?: boolean }) {
   const { t } = useFs();
   const style = useAnimatedStyle(() => {
     const k = mm1.invite.get();
     const out = 2 + 6 * k;
+    const lip = round ? 0 : slabDepth.d1;
     return {
       opacity: k <= 0 || k >= 1 ? 0 : Math.sin(Math.PI * k),
       top: -out,
       left: -out,
-      right: -out + slabDepth.d1,
-      bottom: -out + slabDepth.d1,
+      right: -out + lip,
+      bottom: -out + lip,
     };
   });
-  return <Animated.View pointerEvents="none" style={[styles.invite, { borderColor: t.color.ink }, style]} />;
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={[styles.invite, round ? styles.inviteRound : null, { borderColor: t.color.ink }, style]}
+    />
+  );
 }
 
 const styles = StyleSheet.create({
-  slot: { paddingBottom: EDGE, alignSelf: "stretch" },
+  slot: { paddingBottom: EDGE, alignSelf: "flex-start", maxWidth: "100%" },
   halo: { position: "absolute", borderRadius: radius.pill },
   face: {
     borderWidth: 1,
@@ -439,20 +441,22 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: space.s8,
-    paddingHorizontal: space.s16,
-    paddingVertical: space.s12,
+    paddingLeft: space.s12,
+    paddingRight: space.s16,
+    paddingVertical: space.s8,
   },
   overlay: { position: "absolute", left: 0, right: 0, top: 0, bottom: 0 },
-  elapsed: { marginLeft: "auto" },
+  elapsed: { marginLeft: space.s4 },
   flat: {
     minHeight: FACE_MIN,
     borderWidth: 1,
     borderRadius: radius.pill,
     justifyContent: "center",
     overflow: "hidden",
-    alignSelf: "stretch",
+    alignSelf: "flex-start",
+    maxWidth: "100%",
   },
-  plate: { paddingHorizontal: space.s4, paddingVertical: space.s2 },
   word: { flexShrink: 1 },
   invite: { position: "absolute", borderWidth: 1 },
+  inviteRound: { borderRadius: radius.pill },
 });

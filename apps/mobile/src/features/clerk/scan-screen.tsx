@@ -98,9 +98,10 @@ export function ScanScreen() {
         testID="M-CL-01"
         state={state}
         topInset={false}
-        contentStyle={{ paddingBottom: DOCK + space.s24 }}
+        contentStyle={{ paddingBottom: space.s32 }}
         footer={
-          <View style={styles.dock} pointerEvents="box-none">
+          // Round 2: the scan slab sits on its own bar in the thumb zone, so it never covers what scrolls under it.
+          <View style={[styles.dock, { backgroundColor: t.color.ground, borderTopColor: t.color.rule }]}>
             <Slab
               label={
                 flow.busy
@@ -294,7 +295,12 @@ function StatusLine({
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  dock: { position: "absolute", right: space.s16, bottom: space.s16 },
+  dock: {
+    alignItems: "flex-end",
+    paddingHorizontal: space.s16,
+    paddingVertical: space.s12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+  },
   plate: { borderRadius: radius.plate, paddingHorizontal: space.s12 },
   seeAll: { alignSelf: "flex-start", marginTop: space.s4 },
   stationCompact: { alignSelf: "flex-start", maxWidth: "100%" },

@@ -14,6 +14,10 @@ import { defineMessages, type MessageArgs, type MessageKey, same, translateIn } 
 export const messages = defineMessages({
   /* ------------------------------------------------------------ M-MB-01 Bayad: header and language */
   "M-MB-01.season": same("Season {code}"),
+  /** Round 2: the statement's factual header line, data joined by " · " (her number, the season, the co-op). */
+  "M-MB-01.headMeta": same("{no} · {season} · {coop}"),
+  /** Round 2: a PayPal line's peso estimate, the estimate's own figure; the spoken label keeps "about … (estimate)". */
+  "M-MB-01.about": same("≈ {peso}"),
   "M-MB-01.glossOn": { ceb: "Ipakita ang English", fil: "Ipakita ang English", en: "Show English" },
   "M-MB-01.glossHint": {
     ceb: "English ilalom sa matag sentence",
@@ -143,13 +147,16 @@ export const messages = defineMessages({
     en: "Fine on slip {slip} with no rule",
   },
   "M-MB-01.net": { ceb: "Inyong bayad", fil: "Inyong bayad", en: "Your pay" },
-  "M-MB-01.ruleRef": same("{card}, Schedule A"),
+  /** Round 2: never a raw rate-card id on her phone; the rule chip beside it names the rule. */
+  "M-MB-01.ruleRef": same("Schedule A"),
   "M-MB-01.minus": { ceb: "minus {amount}", fil: "bawas {amount}", en: "minus {amount}" },
   "M-MB-01.fees": {
     ceb: "PayPal: {paypal} kung ilisan sa peso. GCash: {gcash} kung ibalhin. Dili kini kaltas sa co-op.",
     fil: "PayPal: {paypal} kapag pinalitan sa piso. GCash: {gcash} kapag inilipat. Hindi ito kaltas ng co-op.",
     en: "PayPal: {paypal} to change it to pesos. GCash: {gcash} to move it there. Not a co-op deduction.",
   },
+  /** Round 2: the fees row folded to its two published rates; the sentence opens with the row. */
+  "M-MB-01.feesShort": same("PayPal {paypal} · GCash {gcash}"),
   "M-MB-01.tapHint": {
     ceb: "Tuplia aron makita kung asa kini gikan",
     fil: "Pindutin para makita kung saan ito galing",

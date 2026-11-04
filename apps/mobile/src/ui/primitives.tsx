@@ -17,7 +17,7 @@ import Svg, { Path } from "react-native-svg";
 import type { MemberStatus } from "../_shims/contracts";
 import { fontFamily } from "../_shims/fonts";
 import { pendingReview } from "../_shims/i18n";
-import { radius, slabDepth, space, target } from "../_shims/tokens.native";
+import { radius, space, target } from "../_shims/tokens.native";
 import { STATUS_GLYPH, STATUS_TONE, type StatusTone } from "../lib/item-status";
 import { useApp } from "../state/app";
 import { useFs } from "../theme/theme";
@@ -29,8 +29,9 @@ import { Txt, useT } from "./text";
 export interface ButtonProps extends Omit<PressableProps, "children" | "style"> {
   label: string;
   /**
-   * "hand": a person's decision, the indigo slab face on its d2 lip (ADR-0016). "quiet": a reversible step (d1),
-   * a plate face with a steel-line edge on its 3 px lip ("Human na" after signing).
+   * UI gate round 2: one flat primary and one outline secondary, as on the console. "hand" and "filled" are the
+   * primary (the indigo face, radius 12, no lip, no glow); "quiet" and "tonal" are the secondary (white, a 1 px
+   * outline); "text" is a quiet underlined link.
    */
   variant?: "filled" | "hand" | "quiet" | "tonal" | "text";
   icon?: GlyphName;
@@ -41,58 +42,40 @@ export interface ButtonProps extends Omit<PressableProps, "children" | "style"> 
 
 export function Button({ label, variant = "filled", icon, tall, style, disabled, ...rest }: ButtonProps) {
   const { t } = useFs();
-  const hand = variant === "hand";
-  const quiet = variant === "quiet";
-  const face = hand
-    ? t.slab.chalk.face
-    : quiet
-      ? t.color.plate
-      : variant === "filled"
-        ? t.color.ink
-        : variant === "tonal"
-          ? t.color.plate2
-          : "transparent";
-  const fg = hand ? t.slab.chalk.label : variant === "filled" ? t.color.plate : t.color.ink;
+  const primary = variant === "hand" || variant === "filled";
+  const outline = variant === "quiet" || variant === "tonal";
+  const text = variant === "text";
+  const face = primary ? t.slab.chalk.face : outline ? t.color.plate : "transparent";
+  const fg = primary ? t.slab.chalk.label : t.color.ink;
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityState={{ disabled: !!disabled }}
       disabled={disabled}
-      hitSlop={variant === "text" ? 8 : 0}
+      hitSlop={text ? 8 : 0}
       {...rest}
       style={({ pressed }) => [
         styles.button,
         {
           minHeight: tall ? target.primary : target.min,
           backgroundColor: face,
-          borderColor: variant === "tonal" ? t.color.rule : quiet ? t.color.steelLine : "transparent",
-          paddingHorizontal: variant === "text" ? space.s8 : space.s16,
+          borderColor: outline ? t.color.ruleStrong : "transparent",
+          paddingHorizontal: text ? space.s4 : space.s16,
           opacity: disabled ? 0.55 : 1,
         },
-        hand
+        text ? styles.textButton : null,
+        // The press moves a quarter of the old lip and darkens the face a step; no shadow, no glow.
+        pressed && !disabled
           ? {
-              borderRadius: radius.card,
-              marginBottom: slabDepth.d2,
-              boxShadow: `0px ${slabDepth.d2}px 0px ${t.slab.chalk.edgeRight}, 0px ${slabDepth.d2}px 0px 1px ${t.slab.chalk.edgeBottom}`,
+              transform: [{ translateY: 1 }],
+              backgroundColor: primary ? t.slab.chalk.edgeRight : t.color.pencilWash,
             }
           : null,
-        quiet
-          ? {
-              borderRadius: radius.card,
-              marginBottom: slabDepth.d1,
-              boxShadow: `0px ${slabDepth.d1}px 0px ${t.color.ruleStrong}`,
-            }
-          : null,
-        pressed && hand ? { transform: [{ translateY: slabDepth.d2 }], boxShadow: "none" } : null,
-        pressed && quiet ? { transform: [{ translateY: slabDepth.d1 }], boxShadow: "none" } : null,
-        pressed &&
-          !hand &&
-          !quiet && { backgroundColor: variant === "filled" ? t.color.ink2 : t.color.pencilWash },
         style,
       ]}
     >
-      {icon ? <Glyph name={icon} size={20} color={fg} /> : null}
-      <Txt kind={variant === "text" ? "bodyStrong" : "slab"} style={{ color: fg }}>
+      {icon ? <Glyph name={icon} size={text ? 18 : 20} color={fg} /> : null}
+      <Txt kind={text ? "label" : "slab"} style={[{ color: fg }, text ? styles.link : null]}>
         {label}
       </Txt>
     </Pressable>
@@ -236,24 +219,34 @@ export function Banner({
 
 /* ------------------------------------------------------------------ labels */
 
+/** The tag's own glyph: a 10 px dashed circle, "not real, or not yet" (UI gate round 2, the console's tag). */
+function DashedRing() {
+  const { t } = useFs();
+  return <View style={[styles.ring, { borderColor: t.color.steelLine }]} />;
+}
+
 /**
- * The honesty chip, "Simulated PayPal sandbox" and its kin (I8, ADR-0016): the dashed steel pill, an ink-3 glyph,
- * ink-2 words. The same mark on the Member, Chair and Clerk screens.
+ * The one honesty tag (UI gate round 2, the console's `HonestyTag`): 24 dp, a 1 px dashed steel outline with no
+ * fill, a 10 px dashed circle (or the family's own glyph: key, translate, voice) and the words in the mono micro
+ * role. "Simulated PayPal sandbox" and its kin (I8, ADR-0016), the same on the Member, Chair and Clerk screens. It
+ * never sits inside a sentence and never wraps a sentence beside it.
  */
 export function HonestyPill({
   children,
   testID,
-  glyph = "info",
+  glyph,
+  dataSet,
 }: {
   children: ReactNode;
   testID?: string;
   glyph?: GlyphName;
+  dataSet?: Record<string, string>;
 }) {
   const fs = useFs();
   return (
-    <View testID={testID} style={[styles.demoLabel, styles.honest, { borderColor: fs.t.color.steelLine }]}>
-      <Glyph name={glyph} size={14} color={fs.t.color.ink3} />
-      <Txt kind="caption" color="ink2">
+    <View testID={testID} dataSet={dataSet} style={[styles.tag, { borderColor: fs.t.color.steelLine }]}>
+      {glyph ? <Glyph name={glyph} size={12} color={fs.t.color.ink3} /> : <DashedRing />}
+      <Txt kind="micro" color="ink2" style={styles.tagWords}>
         {children}
       </Txt>
     </View>
@@ -267,12 +260,9 @@ export function DemoLabel() {
   const fs = useFs();
   if (!demo) return null;
   return (
-    <View
-      testID="demo-label"
-      style={[styles.demoLabel, styles.honest, { borderColor: fs.t.color.steelLine }]}
-    >
-      <Glyph name="info" size={14} color={fs.t.color.ink3} />
-      <Txt kind="caption" color="ink2">
+    <View testID="demo-label" style={[styles.tag, { borderColor: fs.t.color.steelLine }]}>
+      <DashedRing />
+      <Txt kind="micro" color="ink2" style={styles.tagWords}>
         {t("common.demoData")}
       </Txt>
     </View>
@@ -281,8 +271,7 @@ export function DemoLabel() {
 
 /**
  * OD-2 (S1.6): "Machine-translated, pending native review" while the language is Cebuano or Filipino
- * (`pendingReview`). Machine output is pencil (design §1): the translate glyph and the words in pencil, on a dashed
- * edge, beside the demo label.
+ * (`pendingReview`). Round 2: the one honesty tag with the family's translate glyph, beside the demo label.
  */
 export function MachineTranslatedNote({ testID }: { testID?: string }) {
   const { lang } = useApp();
@@ -295,10 +284,10 @@ export function MachineTranslatedNote({ testID }: { testID?: string }) {
       accessible
       accessibilityRole="text"
       accessibilityLabel={t("common.machineTranslated")}
-      style={[styles.demoLabel, styles.machine, styles.honest, { borderColor: fs.t.color.steelLine }]}
+      style={[styles.tag, styles.machine, { borderColor: fs.t.color.steelLine }]}
     >
-      <Glyph name="translate" size={14} color={fs.t.color.pencil} />
-      <Txt kind="caption" style={{ color: fs.t.color.pencil, flexShrink: 1 }}>
+      <Glyph name="translate" size={12} color={fs.t.color.ink3} />
+      <Txt kind="micro" color="ink2" style={styles.tagWords}>
         {t("common.machineTranslated")}
       </Txt>
     </View>
@@ -339,24 +328,26 @@ export function SectionTitle({ children }: { children: ReactNode }) {
 export function StatusChip({
   label,
   tone,
-  glyph,
   testID,
   state,
 }: {
   label: string;
   tone: StatusTone;
+  /** Kept for callers; round 2 draws the state as a dot (✓ only on confirmed money). */
   glyph?: GlyphName;
   testID?: string;
   state?: string;
 }) {
   const { t } = useFs();
+  // UI gate round 2 (the console's pill): white with a 1 px rule, and the colour lives only in the dot. Confirmed
+  // money is the one filled pill (jade, ✓); money in flight is a dashed jade outline.
   const look = {
     landed: { bg: t.color.jade, fg: t.color.onJade, border: t.color.jadeFlushBorder },
-    decide: { bg: t.color.canaryWash, fg: t.color.ink, border: t.color.canaryBorder },
-    failure: { bg: t.color.redWash, fg: t.color.red, border: t.color.red },
-    cash: { bg: t.color.plate, fg: t.color.ink, border: t.color.rule },
-    pending: { bg: "transparent", fg: t.color.ink, border: t.color.jadeFlushBorder },
-    neutral: { bg: t.color.plate2, fg: t.color.ink2, border: t.color.rule },
+    pending: { bg: "transparent", fg: t.color.jadeText, border: t.color.jadeFlushBorder },
+    decide: { bg: t.color.plate, fg: t.color.ink, border: t.color.ruleStrong },
+    failure: { bg: t.color.plate, fg: t.color.red, border: t.color.ruleStrong },
+    cash: { bg: t.color.plate, fg: t.color.ink, border: t.color.ruleStrong },
+    neutral: { bg: t.color.plate, fg: t.color.ink2, border: t.color.ruleStrong },
   }[tone];
   return (
     <View
@@ -371,13 +362,51 @@ export function StatusChip({
         tone === "pending" ? styles.inFlight : null,
       ]}
     >
-      {tone === "cash" ? <Hatch /> : null}
-      {glyph ? <Glyph name={glyph} size={16} color={look.fg} /> : null}
+      {tone === "landed" ? <Glyph name="check" size={14} color={look.fg} /> : <StatusDot tone={tone} />}
       {/* The words wrap inside the chip (long Cebuano status words, 200% text); they are never cut off. */}
       <Txt kind="label" style={[styles.statusWords, { color: look.fg }]}>
         {label}
       </Txt>
     </View>
+  );
+}
+
+/**
+ * A status as a dot (UI gate round 2): marigold when a person decides, red only when PayPal failed, a hatch swatch
+ * for cash, a hollow jade ring while the money is with PayPal, steel otherwise. Always beside its word.
+ */
+export function StatusDot({ tone, size = 8 }: { tone: StatusTone; size?: number }) {
+  const { t } = useFs();
+  if (tone === "cash") {
+    return (
+      <View
+        style={[
+          styles.dot,
+          { width: size + 2, height: size + 2, borderRadius: 2, borderColor: t.color.hatch },
+        ]}
+      >
+        <Hatch />
+      </View>
+    );
+  }
+  const fill =
+    tone === "decide"
+      ? t.color.canary
+      : tone === "failure"
+        ? t.color.red
+        : tone === "landed"
+          ? t.color.jade
+          : tone === "pending"
+            ? "transparent"
+            : t.color.steelLine;
+  const ring = tone === "pending" || tone === "landed" ? t.color.jadeFlushBorder : fill;
+  return (
+    <View
+      style={[
+        styles.dot,
+        { width: size, height: size, borderRadius: size / 2, backgroundColor: fill, borderColor: ring },
+      ]}
+    />
   );
 }
 
@@ -498,14 +527,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
     alignSelf: "flex-start",
     maxWidth: "100%",
-    gap: space.s4,
+    gap: space.s8,
     minHeight: 28,
-    paddingHorizontal: space.s12,
-    paddingVertical: space.s4,
+    paddingLeft: space.s8 + 2,
+    paddingRight: space.s12,
+    paddingVertical: space.s2,
     borderWidth: 1,
     borderRadius: radius.pill,
     overflow: "hidden",
   },
+  dot: { borderWidth: 1, overflow: "hidden" },
   /** Money on its way: a 1.5 px dashed jade outline on a transparent face (not yet money anyone holds). */
   inFlight: { borderStyle: "dashed", borderWidth: 1.5 },
   statusWords: { flexShrink: 1 },
@@ -529,7 +560,25 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
   },
   machine: { flexShrink: 1, maxWidth: "100%" },
-  /** Not real, or not yet: the dashed steel honesty outline on a transparent face (ADR-0016). */
-  honest: { borderStyle: "dashed", backgroundColor: "transparent" },
+  /** Not real, or not yet: the one honesty tag, a dashed steel outline on a transparent face (round 2). */
+  tag: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    maxWidth: "100%",
+    gap: space.s4 + 2,
+    minHeight: 24,
+    paddingLeft: space.s8 - 2,
+    paddingRight: space.s8 + 2,
+    borderWidth: 1,
+    borderStyle: "dashed",
+    // A pill at one line (24 dp tall); a long Cebuano label that wraps becomes a rounded box, never a lozenge.
+    borderRadius: radius.control,
+    backgroundColor: "transparent",
+  },
+  tagWords: { flexShrink: 1 },
+  ring: { width: 10, height: 10, borderRadius: 5, borderWidth: 1, borderStyle: "dashed" },
+  textButton: { alignSelf: "flex-start" },
+  link: { textDecorationLine: "underline" },
   labels: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: space.s8 },
 });

@@ -113,6 +113,11 @@ export interface ScreenProps<S extends ScreenWithStates> {
   footer?: ReactNode;
   contentStyle?: ScrollViewProps["contentContainerStyle"];
   refreshControl?: ScrollViewProps["refreshControl"];
+  /**
+   * The screen's own surface. "ground" (porcelain) under cards; "plate" (white) for a full-bleed document, the
+   * member's statement (UI gate round 2: no card inside the phone, the statement is the screen).
+   */
+  surface?: "ground" | "plate";
 }
 
 /**
@@ -130,6 +135,7 @@ export function Screen<S extends ScreenWithStates>({
   footer,
   contentStyle,
   refreshControl,
+  surface = "ground",
 }: ScreenProps<S>) {
   const { t } = useFs();
   const insets = useSafeAreaInsets();
@@ -140,7 +146,7 @@ export function Screen<S extends ScreenWithStates>({
   );
   const pad = { paddingTop: topInset ? insets.top + space.s16 : space.s16 };
   return (
-    <View testID={testID} dataSet={{ state }} style={[styles.screen, { backgroundColor: t.color.ground }]}>
+    <View testID={testID} dataSet={{ state }} style={[styles.screen, { backgroundColor: t.color[surface] }]}>
       {scroll ? (
         <ScrollView
           refreshControl={refreshControl}
