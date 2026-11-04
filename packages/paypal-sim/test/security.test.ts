@@ -41,6 +41,23 @@ vi.mock("node:crypto", async (importOriginal) => {
 const quiet = { speed: 0, logger: () => {} } as const;
 const PUBLIC = "https://fs.example.org";
 
+describe("HD6-1b bounded standalone pay page", () => {
+  it("refuses a one-megabyte form with 413 before parsing it", async () => {
+    const sim = await newSim();
+    try {
+      const response = await sim.publicFetch(
+        new Request(`${sim.pagesBaseUrl}/sim/invoice/missing/pay`, {
+          method: "POST",
+          body: "a&".repeat(512 * 1024),
+        }),
+      );
+      expect(response.status).toBe(413);
+    } finally {
+      await sim.close();
+    }
+  });
+});
+
 describe("SSRF: the simulator delivers only to its host app (finding 1)", () => {
   const open: (Receiver | Simulator)[] = [];
   afterEach(async () => {

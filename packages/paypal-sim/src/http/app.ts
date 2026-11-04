@@ -435,7 +435,9 @@ function publicPages(sim: Simulator): Hono<{ Bindings: SimEnv }> {
   pages.post("/sim/invoice/:id/pay", async (c) => {
     const id = c.req.param("id");
     const wantsJson = (c.req.header("accept") ?? "").includes("application/json");
-    const form = new URLSearchParams(await c.req.text());
+    const body = await boundedPayPageBody(c.req.raw);
+    if (body === null) return json(413, { error: "Pay form exceeds 4096 bytes", simulated: true });
+    const form = new URLSearchParams(body);
     const refuse = (message: string): Response =>
       wantsJson
         ? json(422, { error: message, simulated: true })
@@ -455,6 +457,26 @@ function publicPages(sim: Simulator): Hono<{ Bindings: SimEnv }> {
     }
   });
   return pages;
+}
+
+/** Public pay forms contain no fields. Never buffer or decode an unbounded anonymous request. */
+async function boundedPayPageBody(request: Request): Promise<string | null> {
+  const limit = 4096;
+  if (Number(request.headers.get("content-length") ?? "0") > limit) return null;
+  if (!request.body) return "";
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) return Buffer.concat(chunks, size).toString("utf8");
+    size += value.byteLength;
+    if (size > limit) {
+      await reader.cancel().catch(() => undefined);
+      return null;
+    }
+    chunks.push(value);
+  }
 }
 
 /** An admin request's JSON body when it is an object; anything else (none, unparsable, an array) reads as {}. */
