@@ -59,4 +59,29 @@ describe("HD6-2 bounded sliding windows", () => {
     ).toBe(false);
     expect(limiter.peek(one, "duplicate").ok).toBe(true);
   });
+
+  it("HD6-13: refunding an expired reservation cannot remove a newer successful slot", () => {
+    const clock = createFakeClock();
+    const limiter = createKeyedRateLimiter(clock);
+    const one = { name: "reservation", limit: 1, windowMs: 1_000 };
+    const reservedAt = clock.nowMs();
+    limiter.take(one, "all");
+    clock.advance(1_001);
+    expect(limiter.take(one, "all").ok).toBe(true);
+    limiter.refund(one, "all", reservedAt);
+    expect(limiter.peek(one, "all").ok).toBe(false);
+  });
+
+  it("HD6-13: refunding an older in-window reservation preserves the newer slot's expiry", () => {
+    const clock = createFakeClock();
+    const limiter = createKeyedRateLimiter(clock);
+    const two = { name: "reservation", limit: 2, windowMs: 1_000 };
+    const reservedAt = clock.nowMs();
+    limiter.take(two, "all");
+    clock.advance(500);
+    limiter.take(two, "all");
+    limiter.refund(two, "all", reservedAt);
+    clock.advance(501);
+    expect(limiter.peek(two, "all")).toEqual({ ok: true, remaining: 1 });
+  });
 });

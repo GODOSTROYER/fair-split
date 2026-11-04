@@ -11,16 +11,19 @@ export interface RateRule {
 }
 
 export type RateDecision = { ok: true; remaining: number } | { ok: false; retryAfterMs: number };
+export type ReservedRateDecision =
+  | { ok: true; remaining: number; takenAtMs: number }
+  | { ok: false; retryAfterMs: number };
 
 export interface KeyedRateLimiter {
   /** Take one slot for `key` under `rule`. */
   take(rule: RateRule, key: string): RateDecision;
   /** Atomically consume all pairs, or consume none. Duplicate pairs count as separate slots. */
-  takeAll(pairs: readonly (readonly [RateRule, string])[]): RateDecision;
+  takeAll(pairs: readonly (readonly [RateRule, string])[]): ReservedRateDecision;
   /** Check without consuming or creating a key. */
   peek(rule: RateRule, key: string): RateDecision;
-  /** Return the most recently consumed slot (failed work only). */
-  refund(rule: RateRule, key: string): void;
+  /** Return a failed reservation's slot; its exact time protects newer slots after long failures. */
+  refund(rule: RateRule, key: string, takenAtMs?: number): void;
   /** Forget every window (tests, judge reset). */
   reset(): void;
   readonly size: number;
@@ -110,11 +113,15 @@ export function createKeyedRateLimiter(clock: Clock, hooks: { onSweep?: () => vo
         remaining = Math.min(remaining, rule.limit - value.hits.length);
       }
       for (const value of pending.values()) touch(value.rule, value.key, value.hits, now);
-      return { ok: true, remaining };
+      return { ok: true, remaining, takenAtMs: now };
     },
-    refund(rule, key) {
+    refund(rule, key, takenAtMs) {
       const hits = hitsFor(rule, key, clock.nowMs());
-      hits.pop();
+      if (takenAtMs === undefined) hits.pop();
+      else {
+        const at = hits.lastIndexOf(takenAtMs);
+        if (at >= 0) hits.splice(at, 1);
+      }
       if (hits.length === 0) windows.delete(idOf(rule, key));
     },
     reset() {
