@@ -38,6 +38,7 @@ describe("autoplay's plan", () => {
   });
 
   it("watches while the machine reads and while PayPal confirms", () => {
+    expect(planStep(step("recording", "/judge"), at("/judge"))).toEqual({ kind: "wait" });
     expect(planStep(step("reading", "/season/2026-A/reading"), at("/season/2026-A/reading")).kind).toBe(
       "wait",
     );

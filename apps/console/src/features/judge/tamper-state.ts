@@ -1,10 +1,5 @@
 import type { RunEvent } from "@fairsplit/contracts";
+import { voidedByChange } from "../approve/model.js";
 export function tamperWasRefused(events: readonly RunEvent[]): boolean {
-  return events.some(
-    (event) =>
-      event.type === "run.state" &&
-      event.payload.from === "APPROVED" &&
-      event.payload.to === "IN_REVIEW" &&
-      event.payload.cause.ref === "DIGEST_MISMATCH",
-  );
+  return voidedByChange({ events }) !== null;
 }

@@ -7,6 +7,7 @@ export const RATECARD_COPY = {
     `${resolution}, ratified ${date}, before the first slip. These rules are a labelled seed stand-in, not a Claude recording; the Secretary and the Chair signed them; the hash bolted them.`,
   schedule: "Schedule A",
   scheduleLede: "Printed from the ratified card. Point at a rule to see the clause it was read from.",
+  tryDeduction: "Try adding a deduction: the card is bolted.",
   readFooter: (_model: string, page: number) =>
     `Seed stand-in, not a Claude recording. Seeded quote on page ${page}.`,
   readFooterIdle: (_model: string) =>
@@ -20,7 +21,11 @@ export const RATECARD_COPY = {
   addCommit: "Add to Schedule A",
   addCommitSr: (resolution: string, date: string) =>
     `Add to Schedule A. Bolted: ${resolution} was ratified on ${date} and its rules don't change this season.`,
-  refused: "Refused by the server, citing the hash",
+  refused: "Refused: this season’s rules are bolted.",
+  /** The refusal plate's words; the hash it cites is `refusalHash`, printed apart (never in the body). */
+  refusalBody: (rateCard: string, allowed: string, season: string) =>
+    `Closed list. ${rateCard}, Schedule A, allows only ${allowed}. A new deduction needs a new Board resolution for Season ${season}.`,
+  refusalHash: (hashGroups: string) => `Rate card ${hashGroups}.`,
   propose: (season: string) => `Draft a proposal for ${season}`,
   proposeSr: "a draft that is not in force, can be undone",
   proposed: "Drafted below",

@@ -186,6 +186,7 @@ export function Beds({
                 data-active={active === serial ? "" : undefined}
                 data-copy={row?.copy}
                 data-testid={`${testId}.row.${serial}`}
+                aria-describedby="fsc-reading-provenance"
                 tabIndex={focusable === serial ? 0 : -1}
                 onFocus={() => onActive(serial)}
                 onKeyDown={(e) => onKeyDown(e, row, serial)}
@@ -215,11 +216,6 @@ export function Beds({
                     <td className="fsc-beds__member">
                       <span className="fsc-beds__print">{row.memberName}</span>
                       {row.memberNo && <span className="fsc-beds__no fs-t-caption">{row.memberNo}</span>}
-                      {row.standIn && (
-                        <span className="fsc-beds__no fs-t-caption">
-                          Seed stand-in, not a Claude recording
-                        </span>
-                      )}
                     </td>
                     <td className="fsc-beds__net" data-numeric="" data-flight-target={serial}>
                       {row.entered || row.confirmed ? (
@@ -281,7 +277,7 @@ export function Beds({
                     </td>
                     <td className="fsc-beds__print fs-t-figure">{row.grade}</td>
                     <td className="fsc-beds__ring">
-                      {row.score !== null ? (
+                      {!row.standIn && row.score !== null ? (
                         <>
                           <RingMark score={row.score} landing={landing !== undefined} />
                           <span className="fs-sr">{`${Math.round(row.score * 100)}%`}</span>

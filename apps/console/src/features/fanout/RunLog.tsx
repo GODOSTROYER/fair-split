@@ -4,6 +4,7 @@
 // it at the true receipt times, funding to each confirmed payment, with the median and the slowest.
 
 import { Glyph } from "@fairsplit/ui-web";
+import { Fragment } from "react";
 import { ScrollRegion } from "../../chrome/ScrollRegion.js";
 import { type LogRow, rowTime } from "../../data/describe.js";
 import { format } from "../../lib/format.js";
@@ -16,6 +17,44 @@ export interface RunLogProps {
   readonly isLive: (id: string) => boolean;
   /** Seeded history, labelled as such (the showcase run has no event stream). */
   readonly seeded: boolean;
+}
+
+function AmountWords({ words }: { readonly words: string }) {
+  return words.split(/(US\$[\d,]+\.\d{2})/).map((part, index) =>
+    part.startsWith("US$") ? (
+      <span className="fsr-log__amount" key={`${index}:${part}`}>
+        {part}
+      </span>
+    ) : (
+      <span key={`${index}:${part}`}>{part}</span>
+    ),
+  );
+}
+
+function EventName({ name }: { readonly name: string }) {
+  return name.split(/(?<=[.\-_])/).map((part, index) => (
+    <Fragment key={`${index}:${part}`}>
+      {part}
+      {/[.\-_]$/.test(part) && <wbr />}
+    </Fragment>
+  ));
+}
+
+/** A PayPal event name (PAYMENT.PAYOUTS-ITEM.SUCCEEDED) gets its own breakable line; internal types never print. */
+function EventDetail({ row }: { readonly row: LogRow }) {
+  const first = row.detail.split(", ")[0] ?? "";
+  const name = /^[A-Z]+[.\-_]/.test(first) ? first : null;
+  const detail = name ? row.detail.slice(first.length).replace(/^, /, "") : row.detail;
+  return (
+    <>
+      {name && (
+        <p className="fsr-log__event fs-t-caption">
+          <EventName name={name} />
+        </p>
+      )}
+      {detail && <p className="fsr-log__detail fs-t-caption">{detail}</p>}
+    </>
+  );
 }
 
 export function RunLog({ rows, isLive, seeded }: RunLogProps) {
@@ -55,9 +94,9 @@ export function RunLog({ rows, isLive, seeded }: RunLogProps) {
                     >
                       <p className="fsr-log__words fs-t-label">
                         {row.duplicate && <Glyph name="ms:restart-alt" size={14} />}
-                        {row.words}
+                        <AmountWords words={row.words} />
                       </p>
-                      {row.detail && <p className="fsr-log__detail fs-t-caption">{row.detail}</p>}
+                      <EventDetail row={row} />
                       <time className="fsr-log__time fs-t-caption" dateTime={row.at ?? undefined}>
                         {rowTime(row.at)}
                       </time>

@@ -7,6 +7,7 @@ import { resolve } from "node:path";
 import { act, configure, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { getResponse, HttpResponse, http } from "msw";
 import { describe, expect, it, vi } from "vitest";
+import { screenControl } from "../lib/focus.js";
 import { expectNoAxeViolations } from "../test/axe.js";
 import { focusAcrossRemoval } from "../test/focus.js";
 import { renderConsole } from "../test/render.js";
@@ -27,12 +28,86 @@ async function press(testId: string) {
 }
 
 describe("Judge stage", () => {
+  it("keeps a viewer's raise through co-sign cues and resets to Member", async () => {
+    const view = await renderConsole({ path: "/judge", viewport: { width: 1470 } });
+    await press("W-JG-01.markPaid");
+    await waitFor(() => expect(view.world.run.state).toBe("FUNDED"));
+    fireEvent.click(screen.getByTestId("W-JG-01.phoneTab"));
+    act(() => {
+      view.world.settle();
+      view.world.resolveAll();
+      view.world.sign("treasurer");
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId("W-JG-01.tab.chair").getAttribute("aria-selected")).toBe("true"),
+    );
+    expect(screen.getByTestId("W-JG-01.stage").dataset.raised).toBe("user");
+    act(() => view.world.cosign());
+    expect(screen.getByTestId("W-JG-01.stage").dataset.raised).toBe("user");
+    await act(async () => {
+      await view.runtime.session.reset();
+    });
+    expect(screen.getByTestId("W-JG-01.tab.member").getAttribute("aria-selected")).toBe("true");
+  });
+  it("ignores unrelated frame focus until the story names that persona", async () => {
+    const view = await renderConsole({ path: "/judge", viewport: { width: 1470 } });
+    const sendFocus = async () => {
+      for (const persona of ["chair", "clerk"]) {
+        const frame = (await screen.findByTestId(`W-JG-01.frame.${persona}`)) as HTMLIFrameElement;
+        act(() =>
+          window.dispatchEvent(
+            new MessageEvent("message", {
+              origin: window.location.origin,
+              source: frame.contentWindow,
+              data: { v: 1, t: "fs.focus", screenId: "M-BD-01" },
+            }),
+          ),
+        );
+        expect(screen.getByTestId("W-JG-01.tab.member").getAttribute("aria-selected")).toBe("true");
+        expect(screen.getByTestId("W-JG-01.stage").dataset.raised).toBeUndefined();
+      }
+    };
+    await sendFocus();
+    await press("W-JG-01.markPaid");
+    await waitFor(() => expect(view.world.run.state).toBe("FUNDED"));
+    await sendFocus();
+    act(() => view.world.advance(1));
+    await sendFocus();
+    act(() => view.world.settle());
+    await sendFocus();
+  });
+
+  it("lowers a moment when the next step has no persona, and resets scroll only for a pathname", async () => {
+    const view = await renderConsole({ path: "/judge", viewport: { width: 1470 } });
+    await press("W-JG-01.markPaid");
+    await waitFor(() => expect(view.world.run.state).toBe("FUNDED"));
+    act(() => {
+      view.world.settle();
+      view.world.resolveAll();
+      view.world.sign("treasurer");
+    });
+    await waitFor(() => expect(screen.getByTestId("W-JG-01.stage").dataset.raised).toBe("moment"));
+    act(() => view.world.cosign());
+    await waitFor(() => expect(screen.getByTestId("W-JG-01.stage").dataset.raised).toBeUndefined());
+    const slug = view.runtime.session.getState().session?.runSlug ?? "";
+    await view.navigate(`/runs/${slug}/split`);
+    const main = document.getElementById("fsc-main") as HTMLElement;
+    main.scrollTop = 400;
+    await view.navigate(`/runs/${slug}/approve`);
+    expect(main.scrollTop).toBe(0);
+    await view.navigate(`/runs/${slug}/split?hold=H1`);
+    main.scrollTop = 400;
+    await view.navigate(`/runs/${slug}/split?hold=H2`);
+    expect(main.scrollTop).toBe(400);
+  });
+
   it("opens on the first view with no session and no calls", async () => {
     const view = await renderConsole({ path: "/judge" });
     const callSpy = vi.spyOn(view.adapter, "call");
     const stage = screen.getByTestId("W-JG-01.stage");
     expect(stage.dataset.state).toBe("ready");
     expect(stage.dataset.layout).toBe("tab");
+    expect(screen.getByTestId("W-JG-01.ribbon").textContent).toMatch(/Davao time/);
     expect(screen.getByTestId("W-JG-01.runPill").dataset.step).toBe("mark-paid");
     expect(screen.getByTestId("W-JG-01.notice").textContent).toMatch(/simulated PayPal sandbox/i);
     expect(screen.getByTestId("W-JG-01.ribbon.paypal").textContent).toMatch(/FS-2026A-r37/);
@@ -691,6 +766,40 @@ describe("Judge stage", () => {
       expect(sampled.settled).toEqual([tab]);
     },
   );
+
+  it.each([
+    ["lowered into the ribbon", 1470, 956],
+    ["dimmed in the dock", 1920, 1080],
+  ])(
+    "a frame that focuses itself while the phone is %s hands focus to the screen's control",
+    async (_where, width, height) => {
+      // The Member app focuses its amount once it loads: focus (and the next Tab) must not stay in a hidden phone.
+      await renderConsole({ path: "/judge", viewport: { width, height } });
+      expect(screen.getByTestId("W-JG-01.stage").dataset.raised).toBeUndefined();
+      const frame = await screen.findByTestId("W-JG-01.frame.member");
+      // Its document takes focus (the page's focus is on the <iframe>), and the <iframe> hears it (Firefox).
+      act(() => {
+        frame.focus();
+        fireEvent.focus(frame);
+      });
+      const control = screenControl();
+      expect(control).toBeTruthy();
+      expect(document.activeElement).toBe(control);
+    },
+  );
+
+  it("a frame focused from inside (Chromium fires only the page's blur) is handed back to the screen too", async () => {
+    await renderConsole({ path: "/judge", viewport: { width: 1470, height: 956 } });
+    const frame = await screen.findByTestId("W-JG-01.frame.member");
+    // Its document takes focus and no focus event reaches the <iframe>: only document.activeElement says so.
+    act(() => frame.focus());
+    expect(document.activeElement).toBe(frame);
+    act(() => {
+      window.dispatchEvent(new FocusEvent("blur"));
+    });
+    await waitFor(() => expect(document.activeElement).toBe(screenControl()));
+    expect(document.activeElement).not.toBe(frame);
+  });
 
   it("Reset after a press PayPal queued (429) hands focus to the press in its commit, never to <body>", async () => {
     const world = createTestWorld();

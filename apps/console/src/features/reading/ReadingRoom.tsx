@@ -26,6 +26,7 @@ import { ConfirmZoomRead, RequestRescan } from "./Actions.js";
 import { Beds, type Landing } from "./Beds.js";
 import { Bench, type BenchZoom, FIT, zoomOnSlip } from "./Bench.js";
 import { READING_COPY } from "./copy.js";
+import { ExhibitLink } from "./ExhibitLink.js";
 import { Filmstrip } from "./Filmstrip.js";
 import { type Connector, type Flight, FlightLayer } from "./FlightLayer.js";
 import { HeroExhibits } from "./HeroExhibits.js";
@@ -351,6 +352,7 @@ export function ReadingRoom({
           />
         </div>
         <div className="fsc-read__side" data-testid="W-TR-03.side">
+          <ExhibitLink season={season} />
           <p className="fsc-read__status" role="status" data-testid="W-TR-03.status" data-state={state}>
             <Glyph
               name={state === "reading" ? "pencil" : state === "offline" ? "ms:wifi-off" : "triplicate-slip"}
@@ -382,6 +384,14 @@ export function ReadingRoom({
             notice={(serial) => quarantineNotice(snapshot, serial)}
             testId="W-TR-03.beds"
           />
+          <p
+            id="fsc-reading-provenance"
+            className="fsc-read__provenance fs-t-caption"
+            data-testid="W-TR-03.footer"
+          >
+            <Glyph name="pencil" size={14} />
+            <span>{footer}</span>
+          </p>
           {toConfirm?.zoomAgreed && (
             <ConfirmZoomRead
               season={season}
@@ -400,10 +410,6 @@ export function ReadingRoom({
       </div>
 
       <footer className="fsc-read__footer fs-t-caption">
-        <p className="fsc-read__provenance" data-testid="W-TR-03.footer">
-          <Glyph name="pencil" size={14} />
-          <span>{footer}</span>
-        </p>
         {replay.available && (
           <div className="fsc-read__replay" data-testid="W-TR-03.replay" data-state={replayState(replay)}>
             <span className="fsc-read__replay-note" role="status">

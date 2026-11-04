@@ -45,6 +45,7 @@ it("does not describe arming alone as a refused payout", () => {
     tamperWasRefused([
       {
         type: "run.state",
+        at: "2026-11-04T11:08:00.000Z",
         payload: { from: "APPROVED", to: "IN_REVIEW", cause: { code: "SEND_BACK", ref: "DIGEST_MISMATCH" } },
       },
     ] as never),

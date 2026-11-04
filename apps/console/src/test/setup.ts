@@ -39,6 +39,7 @@ if (!navigator.clipboard) {
 beforeEach(() => {
   try {
     window.localStorage.clear();
+    window.sessionStorage.clear();
   } catch {
     // storage may be blocked; nothing to clear
   }

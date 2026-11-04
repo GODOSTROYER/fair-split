@@ -2,9 +2,11 @@
 // calls; the first press starts the session and MM-S plays on the invoice's event (full and reduced); a refusal
 // reads in the console's words; autoplay presses with a visible cursor and stops before the keys.
 
+import { getSnapshot } from "@fairsplit/api-client/seed";
 import { act, configure, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { getResponse, HttpResponse, http } from "msw";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import type { RunView } from "../../data/run-view.js";
 import {
   clearMomentTrace,
   createTestWorld,
@@ -28,6 +30,87 @@ async function press(testId: string) {
 }
 
 describe("W-JG-01 first view", { timeout: 60_000 }, () => {
+  it("keeps the short invoice action and season code whole while preserving its accessible name", async () => {
+    await renderConsole({ path: "/judge" });
+    const button = screen.getByRole("button", { name: /Mark Lantern Bay.s invoice paid/ });
+    expect(button.textContent).toBe("Mark the invoice paid");
+    expect(screen.getByTestId("W-JG-01.invoice.draft").textContent).toContain(
+      "Invoice lines (seeded sample)",
+    );
+    expect(screen.getByTestId("W-JG-01.invoice.draft").textContent).toContain(
+      "Claude did not draft these lines",
+    );
+    const heading = screen.getByRole("heading", { name: /Season 2026-A is ready to pay/ });
+    expect(heading.querySelector(".fsc-nowrap")?.textContent).toBe("2026-A");
+  });
+
+  it("keeps the recording pill until the payment command answers", async () => {
+    let entered = false;
+    let finish: (() => void) | undefined;
+    const response = new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+    await renderConsole({
+      path: "/judge",
+      handlers: [
+        http.post("*/v1/runs/:slug/mark-paid", async () => {
+          entered = true;
+          await response;
+          return undefined;
+        }),
+      ],
+    });
+    await press("W-JG-01.markPaid");
+    await waitFor(() => expect(entered).toBe(true));
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    });
+    expect(screen.getByTestId("W-JG-01.runPill").dataset.step).toBe("recording");
+    finish?.();
+    await waitFor(() => expect(screen.getByTestId("W-JG-01.runPill").dataset.step).toBe("reading"));
+  });
+
+  it("a settled run names its actual rail counts and keeps the paid press as a record", async () => {
+    const world = createTestWorld();
+    world.markPaid();
+    world.resolveAll();
+    world.sign("treasurer");
+    world.cosign();
+    world.payCash("M-031");
+    const view = await renderConsole({ path: "/judge", world });
+    await view.startSession();
+    await waitFor(() =>
+      expect(screen.getByTestId("W-JG-01.title").textContent).toBe(
+        "Season 2026-A is paid: 7 by PayPal, 57 in cash.",
+      ),
+    );
+    expect(screen.getByTestId("W-JG-01.markPaid").textContent).toMatch(/Marked paid by Analyn/);
+    expect(screen.getByTestId("W-JG-01.status").textContent).not.toMatch(/plays next/);
+  });
+
+  it("inv.i8.a settled run whose payouts replayed names the replay, never PayPal payments", async () => {
+    const world = createTestWorld();
+    world.markPaid();
+    world.resolveAll();
+    world.sign("treasurer");
+    world.cosign();
+    world.payCash("M-031");
+    const view = await renderConsole({ path: "/judge", world });
+    await view.startSession();
+    await waitFor(() => expect(screen.getByTestId("W-JG-01.title").textContent).toMatch(/by PayPal/));
+    const key = ["run", getSnapshot().run.runSlug];
+    const live = view.runtime.client.getQueryData<RunView>(key);
+    if (!live) throw new Error("the settled run must be cached");
+    const items = Object.entries(live.items).map(([id, item]) => [id, { ...item, provenance: "replay" }]);
+    act(() => view.runtime.client.setQueryData(key, { ...live, items: Object.fromEntries(items) }));
+    await waitFor(() =>
+      expect(screen.getByTestId("W-JG-01.title").textContent).toBe(
+        "Season 2026-A is settled: 7 payout statuses replayed (labelled), 57 in cash.",
+      ),
+    );
+    expect(screen.getByTestId("W-JG-01.status").textContent).toMatch(/^Replayed payouts/);
+  });
+
   it("shows the showcase with no calls: the desk, the bolted card, Claude's draft in pencil, the invoice hollow", async () => {
     // The log is installed before the first render, so it sees anything the page sends while mounting.
     const log = recordRequests();
@@ -52,6 +135,36 @@ describe("W-JG-01 first view", { timeout: 60_000 }, () => {
     expect(screen.getByTestId("W-JG-01.markPaid").dataset.state).toBe("rest");
     expect(log.calls()).toEqual([]);
     await expectNoAxeViolations(view.container);
+  });
+
+  it("the desk's exhibit link opens the reading room and focuses the exhibit once its screen has drawn it", async () => {
+    await renderConsole({ path: "/judge" });
+    const link = within(screen.getByTestId("W-JG-01.desk")).getByRole("link", {
+      name: /Claude's real readings of 10 hero slips/,
+    });
+    // The reading room can commit after navigate() resolves (a lazy chunk, a transition): for a moment after the
+    // route changes, its exhibit heading is not in the document yet.
+    const lookup = document.getElementById.bind(document);
+    let drawn = false;
+    let lookups = 0;
+    const late = vi.spyOn(document, "getElementById").mockImplementation((id: string) => {
+      if (id !== "fsc-heroes-title") return lookup(id);
+      lookups += 1;
+      return drawn ? lookup(id) : null;
+    });
+    try {
+      link.focus();
+      await act(async () => {
+        fireEvent.click(link);
+      });
+      await screen.findByTestId("W-TR-03");
+      // The link has looked for the heading before the route changed and again after it: only now is it drawn.
+      await waitFor(() => expect(lookups).toBeGreaterThanOrEqual(2));
+      drawn = true;
+      await waitFor(() => expect(document.activeElement?.id).toBe("fsc-heroes-title"));
+    } finally {
+      late.mockRestore();
+    }
   });
 
   it("leads with the paper: at 1470 × 956 the desk lies beside the invoice, under the pool's strip", async () => {

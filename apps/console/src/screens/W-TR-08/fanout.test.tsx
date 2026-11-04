@@ -10,7 +10,15 @@ import { HttpResponse, http } from "msw";
 import { describe, expect, it } from "vitest";
 import { queryKeys } from "../../data/query.js";
 import { applyRunEvent, type RunView } from "../../data/run-view.js";
-import { clearMomentTrace, expectNoAxeViolations, renderConsole, tracedPhases } from "../../test/index.js";
+import { cashDayForRun } from "../../features/split/shared/run-data.js";
+import { format } from "../../lib/format.js";
+import {
+  clearMomentTrace,
+  expectNoAxeViolations,
+  renderConsole,
+  seedSnapshot,
+  tracedPhases,
+} from "../../test/index.js";
 
 const RUN = "2026A-r37";
 const SLOW = 120_000;
@@ -20,7 +28,11 @@ const stateOf = () => screen.queryByTestId("W-TR-08")?.dataset.state;
 const toneOf = (memberNo: string) => screen.getByTestId(`W-TR-08.thread.${memberNo}`).dataset.tone;
 
 async function approved(motion: "full" | "reduced" = "full") {
-  const view = await renderConsole({ path: webRoutes.fanout(RUN), viewport: { width: 1920 }, motion });
+  const view = await renderConsole({
+    path: webRoutes.fanout(RUN),
+    viewport: { width: 1920 },
+    motion,
+  });
   await view.startSession();
   act(() => {
     view.world.markPaid();
@@ -71,8 +83,11 @@ describe("W-TR-08 run: the honest fan-out", () => {
       expect(celing.querySelector(".fs-t-caption")?.textContent).toBe("Consolacion Bacus");
       expect(celing.querySelector(".fs-t-figure")?.getAttribute("data-amount-state")).toBe("landed");
       expect(screen.getByTestId("W-TR-08.chip.M-031").textContent).toBe("Parked");
+      const run = view.runtime.client.getQueryData<RunView>(queryKeys.run(RUN));
+      if (!run) throw new Error("fixture has no run");
+      const cashDay = format.dateShort(cashDayForRun(seedSnapshot(), run));
       expect(screen.getByTestId("W-TR-08.cashLabel").textContent).toBe(
-        "56 members, cash at the bodega on 30 OctUS$3,849.78",
+        `56 members, cash at the bodega on ${cashDay}US$3,849.78`,
       );
       const rhea = screen.getByTestId("W-TR-08.parked");
       expect(rhea.textContent).toMatch(

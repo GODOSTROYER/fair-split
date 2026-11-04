@@ -744,8 +744,17 @@
 
 /* Room beside the phone exists from 1280 px only; below it a moment raises the phone over the scrim (Stage.tsx). */
 @media (min-width: 1280px) {
-  .fsc-stage[data-layout="tab"][data-raised="moment"] .fsc-console__screen {
-    padding-right: calc(var(--fsc-phone-panel) + 48px);
+  .fsc-stage[data-layout="tab"][data-raised="moment"] .fsc-stage__body {
+    grid-template-columns: minmax(0, 1fr) var(--fsc-phone-panel);
+  }
+  .fsc-stage[data-layout="tab"][data-raised="moment"] .fsc-dock {
+    position: relative;
+    grid-column: 2;
+    grid-row: 1;
+    min-width: 0;
+  }
+  .fsc-stage[data-layout="tab"][data-raised="moment"] .fsc-dock__panel {
+    right: 0;
   }
 }
 
@@ -768,12 +777,13 @@
   max-height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
-  min-width: max-content;
+  min-width: 0;
   right: 24px;
   bottom: 0;
   z-index: 1;
   width: var(--fsc-phone-panel);
-  padding: 14px 10px 12px;
+  /* A 360 px screen and its 20 px bezel fit inside the fixed panel's border box. */
+  padding: 14px 8px 12px;
   border: 1px solid var(--fs-rule);
   border-bottom: 0;
   background: var(--fs-plate);
@@ -973,6 +983,15 @@
   grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(200px, 0.72fr);
   border-top: 1px solid var(--fs-rule);
   background: var(--fs-plate);
+}
+
+.fsc-ribbon__caption > p {
+  margin: 0;
+}
+
+.fsc-ribbon__zone {
+  margin-top: 4px;
+  color: var(--fs-ink-3);
 }
 
 .fsc-ribbon[data-phone] {
@@ -1399,4 +1418,37 @@
 
 .fsc-stage .fs-you__tag {
   font-size: 0.75rem;
+}
+
+@media (max-height: 899px) {
+  .fsc-ribbon__lane {
+    display: flex;
+    align-items: center;
+    padding: 10px 12px;
+  }
+  .fsc-ribbon__row {
+    min-width: 0;
+  }
+  .fsc-ribbon__words {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .fsc-ribbon__phone .fsc-ribbon__words {
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .fsc-ribbon__detail,
+  .fsc-ribbon__time,
+  .fsc-ribbon__action {
+    display: none;
+  }
+  .fsc-ribbon__name {
+    flex: none;
+  }
+  .fsc-ribbon__caption {
+    padding-bottom: 18px;
+  }
 }

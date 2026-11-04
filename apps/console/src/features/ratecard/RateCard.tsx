@@ -12,6 +12,8 @@ import { CommandNotice } from "../../chrome/CommandNotice.js";
 import { ScreenRoot } from "../../chrome/ScreenRoot.js";
 import { asRateCardRatified, isApiClientError } from "../../data/errors.js";
 import { useAdapter, useCommand, useJudgeSession } from "../../data/hooks.js";
+import { useAnnounce } from "../../lib/announce.js";
+import { focusAndReveal } from "../../lib/focus.js";
 import { format } from "../../lib/format.js";
 import { useMoment } from "../../lib/moment.js";
 import { CLAUDE_MODEL } from "../../lib/provenance.js";
@@ -23,7 +25,7 @@ import {
   clauseLines,
   nextSeason,
   type Refusal,
-  refusalText,
+  refusalParts,
   ruleTerms,
   type ScheduleRuleId,
   scheduleRules,
@@ -42,6 +44,7 @@ interface Proposal {
 export function RateCard({ snapshot }: { readonly snapshot: SeasonSnapshot }) {
   const t = useT();
   const mode = useMotionMode();
+  const announce = useAnnounce();
   const session = useJudgeSession();
   const adapter = useAdapter();
   const card = snapshot.rateCard;
@@ -129,6 +132,18 @@ export function RateCard({ snapshot }: { readonly snapshot: SeasonSnapshot }) {
   const refusing = moment.phase === "refuse" || moment.phase === "plate";
   const plateShown =
     refusal !== null && (moment.phase === "plate" || moment.phase === "done" || !moment.playing);
+  const plate = refusal ? refusalParts(card, refusal) : null;
+  const refusalHeading = useRef<HTMLHeadingElement>(null);
+  const announcedRefusal = useRef<Refusal | null>(null);
+  useEffect(() => {
+    if (!plateShown || !refusalHeading.current || announcedRefusal.current === refusal) return;
+    announcedRefusal.current = refusal;
+    focusAndReveal(refusalHeading.current);
+    refusalHeading.current
+      .closest(".fsc-rc__refusal")
+      ?.scrollIntoView({ block: "nearest", behavior: mode === "reduced" ? "instant" : "smooth" });
+    announce(RATECARD_COPY.refused);
+  }, [plateShown, refusal, announce, mode]);
   const labelId = useId();
   const amountId = useId();
   const season = snapshot.season.label;
@@ -155,6 +170,7 @@ export function RateCard({ snapshot }: { readonly snapshot: SeasonSnapshot }) {
                 {RATECARD_COPY.schedule}
               </h2>
               <p className="fs-t-caption fsc-rc__muted">{RATECARD_COPY.scheduleLede}</p>
+              <p className="fs-t-caption">{RATECARD_COPY.tryDeduction}</p>
             </header>
             <ol className="fsc-rc__rules" data-testid="W-TR-02.rules">
               {rules.map((rule) => (
@@ -256,16 +272,25 @@ export function RateCard({ snapshot }: { readonly snapshot: SeasonSnapshot }) {
               </div>
             )}
             <CommandNotice error={otherError} testId="W-TR-02.error" />
-            {plateShown && refusal && (
-              <div className="fsc-rc__refusal" role="alert" data-testid="W-TR-02.refusal">
+            {plateShown && plate && (
+              <section
+                className="fsc-rc__refusal"
+                aria-labelledby="fsc-rc-refusal-title"
+                data-testid="W-TR-02.refusal"
+              >
                 <span className="fsc-rc__refusal-bolt fsc-rc__refusal-bolt--l" aria-hidden />
                 <span className="fsc-rc__refusal-bolt fsc-rc__refusal-bolt--r" aria-hidden />
-                <p className="fsc-rc__refusal-word fs-t-label">
+                <h2
+                  id="fsc-rc-refusal-title"
+                  ref={refusalHeading}
+                  tabIndex={-1}
+                  className="fsc-rc__refusal-word fs-t-title-2"
+                >
                   <Glyph name="bolt" size={16} />
                   {RATECARD_COPY.refused}
-                </p>
+                </h2>
                 <p className="fsc-rc__refusal-text" data-reveal={mode === "reduced" ? "fade" : "wipe"}>
-                  {refusalText(card, refusal)}
+                  {plate.body} <span className="fs-t-caption">{plate.hash}</span>
                 </p>
                 <div className="fsc-rc__refusal-action">
                   <Slab
@@ -278,7 +303,7 @@ export function RateCard({ snapshot }: { readonly snapshot: SeasonSnapshot }) {
                     onCommit={() => setProposal({ label: label.trim(), amountText: amountText.trim() })}
                   />
                 </div>
-              </div>
+              </section>
             )}
           </section>
 

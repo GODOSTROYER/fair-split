@@ -11,10 +11,11 @@
 import type { LogLane, RunEvent } from "@fairsplit/contracts";
 import { Glyph, useT } from "@fairsplit/ui-web";
 import { useMemo, useState } from "react";
-import { describeEvent, type LogRow, latestByLane, rowTime } from "../data/describe.js";
+import { describeEvent, type LogRow, latestByLane } from "../data/describe.js";
 import { useDescribeContext, usePaypalRail, useRunEvents } from "../data/hooks.js";
 import { payoutStatus } from "../data/payout-replay.js";
 import type { RunView } from "../data/run-view.js";
+import { davaoShort } from "../features/proof/davao.js";
 import { env } from "../lib/env.js";
 import { PHONE_LANE, STAGE } from "./copy.js";
 
@@ -102,6 +103,7 @@ export function Ribbon({ view, seeded, phone = null, caption }: RibbonProps) {
             data-landed={jade ? "" : undefined}
             data-provenance={row?.provenance}
             data-testid={`W-JG-01.ribbon.${key}`}
+            title={row ? `${row.words}${row.detail ? `. ${row.detail}` : ""}` : undefined}
           >
             <p className="fsc-ribbon__name fs-t-caption">
               <span className="fsc-ribbon__mark" aria-hidden />
@@ -109,7 +111,7 @@ export function Ribbon({ view, seeded, phone = null, caption }: RibbonProps) {
               {key === "paypal" && rail === "simulator" ? `, ${PAYPAL_LANE_RAIL}` : ""}
               {row?.at && (
                 <time className="fsc-ribbon__time" dateTime={row.at}>
-                  {rowTime(row.at)}
+                  {davaoShort(row.at)}
                 </time>
               )}
             </p>
@@ -142,6 +144,7 @@ export function Ribbon({ view, seeded, phone = null, caption }: RibbonProps) {
           aria-controls="fsc-phone-panel"
           onClick={phone.onToggle}
           data-testid="W-JG-01.phoneTab"
+          title={phone.words}
         >
           <span className="fsc-ribbon__name fs-t-caption">
             <span className="fsc-ribbon__mark" aria-hidden />
@@ -154,11 +157,10 @@ export function Ribbon({ view, seeded, phone = null, caption }: RibbonProps) {
           </span>
         </button>
       )}
-      {caption && (
-        <p className="fsc-ribbon__caption fs-t-caption" data-testid="W-JG-01.caption">
-          {caption}
-        </p>
-      )}
+      <div className="fsc-ribbon__caption fs-t-caption">
+        {caption && <p data-testid="W-JG-01.caption">{caption}</p>}
+        <p className="fsc-ribbon__zone">{STAGE.zone}</p>
+      </div>
     </section>
   );
 }

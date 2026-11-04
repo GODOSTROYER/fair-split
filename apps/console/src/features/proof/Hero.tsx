@@ -9,6 +9,7 @@ import { Glyph, type GlyphName, Seal, Slab } from "@fairsplit/ui-web";
 import { type CSSProperties, type ReactNode, useEffect, useRef } from "react";
 import { CommandNotice } from "../../chrome/CommandNotice.js";
 import { DataTable, Mirrored } from "../../chrome/DataTable.js";
+import { SeasonText } from "../../chrome/SeasonText.js";
 import type { PaypalRail } from "../../lib/env.js";
 import { format } from "../../lib/format.js";
 import {
@@ -108,7 +109,9 @@ export function ProofHero({
         >
           {amount}
         </span>{" "}
-        <span className="pf-hero__after">{after.trim()}</span>
+        <span className="pf-hero__after">
+          <SeasonText text={after.trim()} season={seasonLabel} />
+        </span>
       </Title>
       {status}
       <p className="pf-hero__tagline">{FOOTER_COPY.tagline()}</p>

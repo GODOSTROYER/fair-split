@@ -10,8 +10,9 @@
 // live (the phone raised over the scrim), and keeps trying each frame while a browser refuses it.
 
 import { act, render } from "@testing-library/react";
-import { useRef, useState } from "react";
+import { StrictMode, useRef, useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { type StageApi, StageContext, usePrefocus } from "../stage/context.js";
 import { focusAcrossRemoval } from "../test/focus.js";
 import { fakeResizeObserver } from "../test/layout.js";
 import {
@@ -59,6 +60,61 @@ afterEach(() => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
   document.body.replaceChildren();
+});
+
+it("a screen's mount pre-focus leaves its scroller at the top", () => {
+  const scroll = vi.spyOn(HTMLElement.prototype, "scrollIntoView").mockImplementation(function (
+    this: HTMLElement,
+  ) {
+    const main = this.closest("main");
+    if (main) main.scrollTop = 400;
+  });
+  function Prefocused() {
+    const ref = useRef<HTMLButtonElement>(null);
+    usePrefocus(ref, "W-TR-07");
+    return (
+      <main style={{ overflow: "auto", height: 100 }}>
+        <button
+          type="button"
+          ref={(element) => {
+            ref.current = element;
+            if (element) box(element, { top: 2000 });
+          }}
+        >
+          Sign
+        </button>
+      </main>
+    );
+  }
+  const result = render(
+    <StrictMode>
+      <StageContext.Provider value={{ next: { id: "approve", screen: "W-TR-07" } } as StageApi}>
+        <Prefocused />
+      </StageContext.Provider>
+    </StrictMode>,
+  );
+  expect(result.container.querySelector("main")?.scrollTop).toBe(0);
+  expect(scroll).not.toHaveBeenCalled();
+});
+
+it("the router never restores a prior screen's scroll over the stage's pathname reset", async () => {
+  const { renderConsole } = await import("../test/render.js");
+  const view = await renderConsole({ path: "/season/2026-A/rate-card" });
+  const main = document.getElementById("fsc-main");
+  if (!main) throw new Error("the stage scroller is missing");
+  // A real scroll event makes the router cache this nested scroller before navigation.
+  main.scrollTop = 400;
+  main.dispatchEvent(new Event("scroll"));
+  await view.navigate("/runs/2026A-r37/approve");
+  await frames(2);
+  expect(main.scrollTop).toBe(0);
+
+  await view.navigate("/runs/2026A-r37/split?hold=H1");
+  main.scrollTop = 345;
+  main.dispatchEvent(new Event("scroll"));
+  await view.navigate("/runs/2026A-r37/split?hold=H2");
+  await frames(2);
+  expect(main.scrollTop).toBe(345);
 });
 
 /** A stage: a screen with two controls, a drawer beside it, the ribbon's lane. */
@@ -529,6 +585,22 @@ describe("focusInto", () => {
     cancelled.state.rendered = true;
     await frames(3);
     expect(document.activeElement).toBe(document.body);
+  });
+
+  it("a container given as a getter is looked for each frame: focus lands once the next screen draws it", async () => {
+    document.body.innerHTML = '<main id="fsc-main"><button id="first">First</button></main>';
+    const first = document.getElementById("first") as HTMLElement;
+    first.focus();
+    const exhibit = () => document.getElementById("exhibit");
+    focusInto(exhibit, exhibit);
+    await frames(2);
+    expect(document.activeElement).toBe(first);
+    const heading = document.createElement("h2");
+    heading.id = "exhibit";
+    heading.tabIndex = -1;
+    document.getElementById("fsc-main")?.append(heading);
+    await frames(2);
+    expect(document.activeElement).toBe(heading);
   });
 });
 
@@ -1007,6 +1079,26 @@ describe("useFocusGuard, the root's backstop", () => {
     // The person acts on it (a key while it holds focus): theirs from then on.
     payCash.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowDown", bubbles: true }));
     expect(rememberFocus()).toEqual({ el: payCash, key: focusKey(payCash) });
+  });
+
+  it("where it put focus is no one's for focusInto either: the exhibit the next screen draws later still takes it", async () => {
+    const view = render(<Screens />);
+    const link = view.getByTestId("fanout");
+    link.focus();
+    const exhibit = () => document.getElementById("exhibit");
+    focusInto(exhibit, exhibit);
+    act(() => {
+      link.click();
+    });
+    await frames(1);
+    const payCash = view.getByTestId("payCash");
+    expect(document.activeElement).toBe(payCash);
+    const heading = document.createElement("h2");
+    heading.id = "exhibit";
+    heading.tabIndex = -1;
+    document.body.append(heading);
+    await frames(2);
+    expect(document.activeElement).toBe(heading);
   });
 
   it("a focus moved on after it placed one is an opener again", async () => {

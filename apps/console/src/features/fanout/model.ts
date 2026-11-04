@@ -11,6 +11,7 @@ import type { LogRow } from "../../data/describe.js";
 import { currentPayoutItem, payoutStatus } from "../../data/payout-replay.js";
 import { atLeast, type RunItem, type RunView } from "../../data/run-view.js";
 import { format } from "../../lib/format.js";
+import { liveApprovals } from "../approve/model.js";
 import { engineOutput, splitBasis } from "../split/model.js";
 
 export const FAN = {
@@ -113,7 +114,7 @@ export interface FanView {
     readonly amountState: AmountState;
   };
   readonly members: number;
-  readonly sealHash: string;
+  readonly sealHash: string | null;
 }
 
 const MOVED_LINE_STATES: readonly MemberLineState[] = ["OFF_RAIL_DUE", "OFF_RAIL_PAID", "REROUTED"];
@@ -349,7 +350,10 @@ export function fanView(snapshot: SeasonSnapshot, view: RunView): FanView {
       amountState: allAttested ? "attested" : approved ? "hollow" : "pencil",
     },
     members: output.lines.length,
-    sealHash: snapshot.run.batchSha256,
+    sealHash:
+      liveApprovals(view).treasurer?.batchSha256 ??
+      liveApprovals(view).chair?.batchSha256 ??
+      (view.origin === "showcase" ? snapshot.run.batchSha256 : null),
   };
 }
 

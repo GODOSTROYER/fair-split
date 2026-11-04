@@ -66,7 +66,7 @@ function MovedLine({ line, live, maskId }: { line: CashLine; live: number | unde
 
 export function SplitFan({ fan, animate, drawing, mode, cashDay }: SplitFanProps) {
   const uid = useId().replaceAll(":", "");
-  const geometry = useMemo(() => seal(fan.sealHash, FAN.seal.size), [fan.sealHash]);
+  const geometry = useMemo(() => (fan.sealHash ? seal(fan.sealHash, FAN.seal.size) : null), [fan.sealHash]);
   const half = FAN.seal.size / 2;
   const hatchId = `fsr-fan-hatch-${uid}`;
   return (
@@ -96,8 +96,12 @@ export function SplitFan({ fan, animate, drawing, mode, cashDay }: SplitFanProps
         </defs>
 
         {/* The seal the two keys completed, and the bar of the run's net. */}
-        <g className="fsr-fan__seal" transform={`translate(${FAN.seal.cx - half} ${FAN.seal.cy - half})`}>
-          {geometry.rings.map((ring) => (
+        <g
+          className="fsr-fan__seal"
+          data-digest={fan.sealHash ?? undefined}
+          transform={`translate(${FAN.seal.cx - half} ${FAN.seal.cy - half})`}
+        >
+          {geometry?.rings.map((ring) => (
             <path
               key={ring.d.slice(0, 24)}
               d={ring.d}

@@ -724,26 +724,32 @@ export const FOCUS_INTO_PATIENCE_MS = 2000;
  * Moves focus into `container`, to `target()`: now (call it in the commit that made the container live), then
  * again each animation frame while it has not landed there, up to `patienceMs`. A browser refuses focus to a
  * control it does not render (visibility: hidden while a transition's delay runs) without a word, and the control
- * that held focus may be going inert, so focus would fall to <body>. It keeps trying only while focus is lost (on
- * <body>, or held under an inert subtree) or still where it was at the call; a focus the person moved somewhere
- * live is left alone. Returns the cancel (for the effect's cleanup).
+ * that held focus may be going inert, so focus would fall to <body>. A container given as a getter is looked for
+ * each time: the next screen may draw it a commit after its route changed. It keeps trying only while focus is
+ * lost (on <body>, or held under an inert subtree), still where it was at the call, or where the root's backstop
+ * put it (nobody chose that); a focus the person moved somewhere live is left alone. Returns the cancel (for the
+ * effect's cleanup).
  */
 export function focusInto(
-  container: HTMLElement,
+  container: HTMLElement | (() => HTMLElement | null),
   target: () => HTMLElement | null,
   patienceMs: number = FOCUS_INTO_PATIENCE_MS,
 ): () => void {
   const from = document.activeElement;
   const deadline = performance.now() + patienceMs;
+  const lookedFor = typeof container === "function";
   let frame = 0;
   const attempt = () => {
     frame = 0;
-    if (!container.isConnected) return;
+    const box = typeof container === "function" ? container() : container;
+    // A container given that has gone stops it; one looked for may not be drawn yet.
+    if (!lookedFor && !box?.isConnected) return;
+    const live = box?.isConnected ? box : null;
     const active = document.activeElement;
-    if (active && container.contains(active)) return;
-    if (!focusIsLost() && active !== from) return;
-    const el = target();
-    if (el && container.contains(el) && focusAndReveal(el)) return;
+    if (active && live?.contains(active)) return;
+    if (!focusIsLost() && active !== from && active !== placed) return;
+    const el = live ? target() : null;
+    if (el && live?.contains(el) && focusAndReveal(el)) return;
     if (performance.now() < deadline) frame = requestAnimationFrame(attempt);
   };
   attempt();

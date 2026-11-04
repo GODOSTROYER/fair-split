@@ -24,6 +24,13 @@ function runTo(step: (world: TestWorld) => void) {
 }
 
 describe("run pill (S1.6)", () => {
+  it("names the payment recording while the first press is in flight", () => {
+    expect(nextStep(firstView(snapshot), { ...CTX, pressing: true })).toMatchObject({
+      id: "recording",
+      actor: "paypal",
+      text: "Recording the payment in the simulated PayPal sandbox…",
+    });
+  });
   it("walks the judge's loop in order, each step with who acts next", () => {
     const first = nextStep(firstView(snapshot), { ...CTX, inSession: false });
     expect(first).toMatchObject({

@@ -3,9 +3,11 @@
 // a screen asks for it too while it shows that run, so the view stays live when the screen renders outside the
 // stage (tests, the print surface). The showcase run (no session) has no stream: it is the seeded end state.
 
-import type { RunEvent, SeasonSnapshot } from "@fairsplit/contracts";
+import { type RunEvent, type SeasonSnapshot, webRoutes } from "@fairsplit/contracts";
+import { useLocation } from "@tanstack/react-router";
 import { useCallback, useMemo, useRef, useState } from "react";
 import {
+  useJudgeSession,
   usePaypalRail,
   useRunEvents,
   useRunStream,
@@ -14,9 +16,51 @@ import {
   useStageRun,
 } from "../../../data/hooks.js";
 import type { RunView } from "../../../data/run-view.js";
+import type { SessionState } from "../../../data/session.js";
 import type { PaypalRail } from "../../../lib/env.js";
+import { davaoIsoDate } from "../../proof/davao.js";
+import { hasLines } from "../model.js";
+
+export type RunAccess = "pending" | "allowed" | "missing";
+
+export function runAccess(
+  runSlug: string,
+  session: SessionState,
+  snapshot: SeasonSnapshot | undefined,
+  view?: RunView,
+  failed = false,
+): RunAccess {
+  if (session.status === "resuming" || session.status === "starting" || !snapshot) return "pending";
+  if (session.session?.runSlug === runSlug) {
+    if (session.resumed && !failed && (!view || !hasLines(view))) return "pending";
+    return "allowed";
+  }
+  // The seeded showcase belongs to no visit: anyone may open it, in a session or not.
+  return runSlug === snapshot.run.runSlug ? "allowed" : "missing";
+}
+
+/** The same screen for the seeded showcase run, for a link from a run that belongs to another visit. */
+export function showcaseHref(
+  pathname: string,
+  runSlug: string,
+  snapshot: SeasonSnapshot | undefined,
+): string {
+  const from = `/runs/${encodeURIComponent(runSlug)}`;
+  if (!snapshot || !pathname.startsWith(from)) return webRoutes.judge();
+  return `/runs/${encodeURIComponent(snapshot.run.runSlug)}${pathname.slice(from.length)}`;
+}
+
+/** Preserve the seed's collection interval, anchored to this run's first recorded event in Davao. */
+export function cashDayForRun(snapshot: SeasonSnapshot, view: RunView): string {
+  const first = view.events[0];
+  if (!first) return snapshot.run.cashDay;
+  const start = davaoIsoDate(first.at);
+  const offset = Math.max(0, Date.parse(snapshot.run.cashDay) - Date.parse(snapshot.run.recordedOn));
+  return new Date(Date.parse(start) + offset).toISOString().slice(0, 10);
+}
 
 export interface RunData {
+  readonly access: RunAccess;
   readonly snapshot: SeasonSnapshot | undefined;
   readonly view: RunView | undefined;
   readonly loading: boolean;
@@ -25,6 +69,9 @@ export interface RunData {
   readonly live: boolean;
   /** ADR-0002: which PayPal rail labels every PayPal-derived value (I8). */
   readonly rail: PaypalRail;
+  readonly startFresh: (() => Promise<void>) | undefined;
+  /** Where "Open the showcase" goes from this route. */
+  readonly showcase: string;
   retry(): void;
 }
 
@@ -32,6 +79,9 @@ export function useRunData(runSlug: string): RunData {
   const snapshot = useSnapshot();
   const run = useRunView(runSlug);
   const stage = useStageRun();
+  const session = useJudgeSession();
+  const pathname = useLocation({ select: (location) => location.pathname });
+  const access = runAccess(runSlug, session, snapshot.data, run.data, Boolean(run.error || snapshot.error));
   const live = stage.inSession && stage.runSlug === runSlug;
   useRunStream(live ? runSlug : null);
   const rail = usePaypalRail() ?? "simulator";
@@ -42,12 +92,15 @@ export function useRunData(runSlug: string): RunData {
     void refetchRun();
   }, [refetchSnapshot, refetchRun]);
   return {
+    access,
     snapshot: snapshot.data,
-    view: run.data,
-    loading: snapshot.isPending || run.isPending,
+    view: access === "allowed" ? run.data : undefined,
+    loading: access === "pending" || snapshot.isPending || run.isPending,
     error: snapshot.error ?? run.error ?? null,
     live,
     rail,
+    startFresh: session.session ? session.reset : undefined,
+    showcase: showcaseHref(pathname, runSlug, snapshot.data),
     retry,
   };
 }

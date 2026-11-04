@@ -5,7 +5,7 @@
 
 import { feedback } from "@fairsplit/ui-web";
 import { act, configure, fireEvent, screen, waitFor, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   clearMomentTrace,
   createTestWorld,
@@ -64,14 +64,28 @@ describe("W-TR-02 rate card", { timeout: 60_000 }, () => {
   });
 
   it("MM-4: the 409 citing the hash shakes the bolted slab, clacks once, and prints the refusal plate", async () => {
+    const scrolling = vi.spyOn(Element.prototype, "scrollIntoView");
     const { view, clacks } = await refuse("full");
     expect(tracedPhases("MM-4")).toEqual(["refuse", "plate", "done"]);
     expect(feedback.log.filter((l) => l.event === "bolted.refuse").length).toBe(clacks + 1);
     expect(screen.getByTestId("W-TR-02").dataset.state).toBe("refused");
     expect(screen.getByTestId("W-TR-02.addCommit").dataset.state).toBe("bolted");
     const plate = screen.getByTestId("W-TR-02.refusal");
+    const heading = within(plate).getByRole("heading");
+    expect(document.activeElement).toBe(heading);
+    expect(scrolling).toHaveBeenCalledWith(expect.objectContaining({ block: "nearest" }));
+    expect(screen.getByTestId("announcer").textContent).toBe(heading.textContent);
+    expect(
+      screen.getByTestId("W-TR-02.addCommit").compareDocumentPosition(plate) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
     expect(plate.textContent).toMatch(
       /Closed list\. BR 2026-04, Schedule A, allows only CBU, hauling, loans with an Authority to Deduct and advances with a voucher\. A new deduction needs a new Board resolution for Season 2026-B\. Rate card [0-9a-f]{4} [0-9a-f]{4}\./,
+    );
+    // The hash it cites prints once, in its own caption.
+    expect(plate.textContent?.match(/Rate card [0-9a-f]{4} [0-9a-f]{4}\./g)).toHaveLength(1);
+    expect(plate.querySelector(".fsc-rc__refusal-text .fs-t-caption")?.textContent).toMatch(
+      /^Rate card [0-9a-f]{4} [0-9a-f]{4}\.$/,
     );
     // The press started the judge's session: the API answered inside it, and nothing changed.
     expect(view.runtime.session.getState().status).toBe("active");

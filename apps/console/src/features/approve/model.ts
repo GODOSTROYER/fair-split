@@ -97,8 +97,32 @@ export interface LiveApprovals {
  * signed before it binds anything now (S2.2.1: when approvals are voided, ink returns to pencil).
  */
 export function liveApprovals(view: RunView): LiveApprovals {
-  if (view.approvals.declined !== null) return { treasurer: null, chair: null };
+  if (view.approvals.declined !== null || voidedByChange(view) !== null)
+    return { treasurer: null, chair: null };
   return { treasurer: view.approvals.treasurer, chair: view.approvals.chair };
+}
+
+/** I4's latest refusal remains visible until a person signs a fresh batch. */
+export function voidedByChange(view: Pick<RunView, "events">): string | null {
+  let newestAt: string | null = null;
+  let voided: string | null = null;
+  for (const event of view.events) {
+    if (newestAt && event.at < newestAt) continue;
+    if (event.type === "approval.signed") {
+      newestAt = event.at;
+      voided = null;
+    }
+    if (
+      event.type === "run.state" &&
+      event.payload.from === "APPROVED" &&
+      event.payload.to === "IN_REVIEW" &&
+      event.payload.cause.ref === "DIGEST_MISMATCH"
+    ) {
+      newestAt = event.at;
+      voided = event.at;
+    }
+  }
+  return voided;
 }
 
 /** S1.7's W-TR-07 states, most specific first. */
@@ -434,12 +458,12 @@ export function restingPhase(
   }
 }
 
-/** S2.2.1 for the batch amount: pencil until both keys, ink once approved, hollow while PayPal has it. */
+/** The signed amount stays hollow until settlement: signatures are not a payment confirmation. */
 export function batchAmountState(view: RunView): "pencil" | "ink" | "hollow" {
   if (view.state === "SETTLED" || view.state === "CLOSED") return "ink";
   if (view.state === "POSTING" || isPosted(view)) return "hollow";
   const signed = liveApprovals(view);
-  return signed.treasurer && signed.chair ? "ink" : "pencil";
+  return signed.treasurer && signed.chair ? "hollow" : "pencil";
 }
 
 const SHA256_HEX = /^[0-9a-f]{64}$/;

@@ -26,7 +26,7 @@ describe("recorded hero-slip exhibits", () => {
       expect(exhibit.textContent).toContain("Claude's real reading of this slip, recorded 1 Nov 2026");
       expect(exhibit.textContent).toContain("Seed stand-in, not a Claude recording");
       expect(exhibit.textContent).toContain("Provisional: agent-checked labels");
-      expect(exhibit.textContent).toContain("Codex-made");
+      expect(exhibit.textContent).toContain("AI-generated, synthetic");
       expect(exhibit.textContent).toContain(tile.reading[0]?.a ?? "");
     }
   });

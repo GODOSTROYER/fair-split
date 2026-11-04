@@ -109,7 +109,7 @@ export function plateFact(
     case "ratified":
       return `Card ${format.hashGroups(bundle.rateCard.sha256)}, ratified ${format.date(bundle.rateCard.ratifiedAt)}, first slip ${format.date(bundle.firstSlipDate)}`;
     case "read":
-      return `${facts.slipsAccepted} slips: ${photoGroups(bundle).images.length} photos composed in code from Codex-made hero flats and code-drawn slips, plus ${photoGroups(bundle).manifest.length} earlier photo-manifest entries (not imaged)`;
+      return `${facts.slipsAccepted} slips: ${photoGroups(bundle).images.length} photos composed in code from AI-generated, synthetic hero flats and code-drawn slips, plus ${photoGroups(bundle).manifest.length} earlier photo-manifest entries (not imaged)`;
     case "computed":
       return `${bundle.lines.length} line hashes, ${format.money(sumCents(bundle.lines.map((l) => l.netCents)))} net`;
     case "twoKeys":
@@ -324,7 +324,7 @@ function PlateBody({ plate, ...p }: ChainProps & { readonly plate: PlateName }) 
             [
               [
                 "images",
-                "Photo hashes: composed in code from Codex-made hero flats and code-drawn slips",
+                "Photo hashes: composed in code from AI-generated, synthetic hero flats and code-drawn slips",
                 "W-PF-01.photo-hashes",
               ],
               ["manifest", "Earlier photo-manifest hashes (not imaged)", "W-PF-01.manifest-hashes"],

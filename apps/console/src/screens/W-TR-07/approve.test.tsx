@@ -9,15 +9,19 @@
 
 import { urlPattern } from "@fairsplit/api-client/msw";
 import { API_COMMANDS, webRoutes } from "@fairsplit/contracts";
+import { sealHash } from "@fairsplit/seal";
 import { ed25519 } from "@noble/curves/ed25519.js";
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { HttpResponse, http, type RequestHandler } from "msw";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { CHAIR, createMockDriver } from "../../data/mock/driver.js";
 import { workspaceLines } from "../../data/mock/fidelity.js";
 import { queryKeys } from "../../data/query.js";
 import type { RunView } from "../../data/run-view.js";
 import { heldSessionKey } from "../../features/approve/keys.js";
+import { APPROVE } from "../../features/split/shared/copy.js";
+import { screenControl } from "../../lib/focus.js";
+import { format } from "../../lib/format.js";
 import { linesRoot } from "../../lib/lines-root.js";
 import { fromHex } from "../../lib/sha256.js";
 import {
@@ -96,6 +100,12 @@ function face(testId: string): HTMLElement {
 }
 
 describe("W-TR-07 approve", () => {
+  it("a run from another visit shows the visit gate without an amount", async () => {
+    await renderConsole({ path: webRoutes.approve("2026A-r99") });
+    const gate = await screen.findByTestId("run-visit.missing");
+    expect(gate.textContent).toContain("This run belongs to another visit.");
+    expect(document.getElementById("fsc-main")?.textContent).not.toContain("US$");
+  });
   it(
     "is blocked while holds that change kilos are open, and links to the first one",
     async () => {
@@ -150,6 +160,10 @@ describe("W-TR-07 approve", () => {
     async () => {
       clearMomentTrace();
       const { view, root, session } = await readyToApprove();
+      const sealScroll = vi.spyOn(
+        screen.getByTestId("W-TR-07.sealBlock").parentElement as HTMLElement,
+        "scrollIntoView",
+      );
       expect(screen.getByTestId("W-TR-07.amount").textContent).toMatch(/US\$368\.39/);
       expect(tracedPhases("MM-5")).toEqual(expect.arrayContaining(["blocked", "rising", "ready"]));
       expect(screen.getByTestId("W-TR-07.fees").textContent).toMatch(
@@ -172,9 +186,9 @@ describe("W-TR-07 approve", () => {
         "W-TR-07.rail",
         "W-TR-07.fees",
         "W-TR-07.safe",
+        "W-TR-07.ledger",
         "W-TR-07.approve",
         "W-TR-07.keys",
-        "W-TR-07.ledger",
       ].map((id) => screen.getByTestId(id));
       for (let i = 1; i < order.length; i++) {
         const before = order[i - 1] as HTMLElement;
@@ -183,6 +197,9 @@ describe("W-TR-07 approve", () => {
       }
       // Before any key, the seal is this batch's own pattern in pencil, never empty rings.
       expect(screen.getByTestId("W-TR-07.sealGhost").querySelectorAll("path")).toHaveLength(5);
+      const hash = screen.getByTestId("W-TR-07.batchHash");
+      expect(hash.textContent).toBe(sealHash(hash.getAttribute("title") ?? ""));
+      expect(hash.closest(".fsr-approve__seal")).toBeTruthy();
       await expectNoAxeViolations(screen.getByTestId("W-TR-07"));
 
       fireEvent.keyDown(face("W-TR-07.approve"), { key: "Enter" });
@@ -195,6 +212,14 @@ describe("W-TR-07 approve", () => {
       fireEvent.keyDown(face("W-TR-07.approve.dialog.confirm"), { key: "Enter" });
 
       await waitFor(() => expect(root.dataset.state).toBe("key1"), { timeout: 10_000 });
+      expect(screen.getByTestId("W-TR-07.approve").textContent).toMatch(
+        /Signed by Analyn, .*Waiting for Ernesto/,
+      );
+      expect(document.activeElement).not.toBe(face("W-TR-07.approve"));
+      // Focus moves on to the run pill's next step, which never scrolls the seal away.
+      await waitFor(() =>
+        expect(document.activeElement?.getAttribute("data-testid")).toBe("W-JG-01.runPill.next"),
+      );
       await waitFor(() => expect(screen.getByTestId("W-TR-07.seal").dataset.state).toBe("keys-1"));
       expect(screen.getByTestId("W-TR-07.key.treasurer").dataset.state).toBe("signed");
       // The session's demo key, as fs-api registered it (C-13): never the treasurer's own fs-analyn-w1.
@@ -229,7 +254,76 @@ describe("W-TR-07 approve", () => {
         expect.arrayContaining(["ready", "signed-1", "waiting-2", "signed-2", "sealed", "inked"]),
       );
       expect(root.dataset.state).toMatch(/approved|posting/);
+      expect(screen.getByTestId("W-TR-07.approve").textContent).toMatch(/Approved by Analyn and Ernesto/);
+      expect(
+        screen
+          .getByTestId("W-TR-07.amount")
+          .closest("[data-amount-state]")
+          ?.getAttribute("data-amount-state"),
+      ).toBe("hollow");
+      expect(screen.getByRole("link", { name: "Watch the payouts" }).getAttribute("href")).toBe(
+        webRoutes.fanout(RUN),
+      );
+      expect(sealScroll).toHaveBeenCalledWith(expect.objectContaining({ block: "nearest" }));
+      // A focus that comes back to the console now (the Chair's phone lowering) lands on the completed seal.
+      await waitFor(() => expect(screenControl()?.dataset.testid).toBe("W-TR-07.sealBlock"));
       expect(screen.getByTestId("W-TR-07.approved").textContent).toMatch(/Approved by Analyn and Ernesto/);
+    },
+    SLOW,
+  );
+
+  it(
+    "inv.i4 prints the changed-payout void in ink until a newer signature",
+    async () => {
+      const { view, root } = await readyToApprove("reduced");
+      await signKey1(root);
+      act(() => view.world.cosign());
+      await waitFor(() => expect(screen.getByTestId("W-TR-07.seal").dataset.state).toBe("keys-2"));
+      const current = view.runtime.client.getQueryData<RunView>(queryKeys.run(RUN));
+      if (!current) throw new Error("fixture has no run");
+      const signature = current.events.find((event) => event.type === "approval.signed");
+      if (signature?.type !== "approval.signed") throw new Error("fixture has no signature");
+      const at = new Date(Math.max(...current.events.map((e) => Date.parse(e.at))) + 60_000).toISOString();
+      const event = {
+        ...signature,
+        id: "changed-payout",
+        at,
+        type: "run.state",
+        payload: { from: "APPROVED", to: "IN_REVIEW", cause: { code: "SEND_BACK", ref: "DIGEST_MISMATCH" } },
+      } as RunView["events"][number];
+      act(() =>
+        view.runtime.client.setQueryData<RunView>(queryKeys.run(RUN), {
+          ...current,
+          state: "IN_REVIEW",
+          events: [...current.events, event],
+          approvals: { treasurer: null, chair: null, declined: null },
+        }),
+      );
+      const plate = await screen.findByTestId("W-TR-07.voided");
+      const time = format.time(at).slice(0, 5);
+      expect(plate.textContent).toBe(APPROVE.voided(time));
+      expect(plate.textContent).toMatch(
+        /Both approvals voided at .*A payout changed after signing, so nothing was sent/,
+      );
+      expect(document.getElementById("W-TR-07-ledger")?.textContent).toBe(APPROVE.signTitle);
+      expect(root.querySelector('[data-tone="red"], [data-tone="denied"]')).toBeNull();
+      for (const officer of ["treasurer", "chair"]) {
+        expect(screen.getByTestId(`W-TR-07.key.${officer}`).dataset.state).toBe("voided");
+        expect(screen.getByTestId(`W-TR-07.key.${officer}.status`).textContent).toBe(APPROVE.voidedKey(time));
+        expect(screen.getByTestId(`W-TR-07.key.${officer}.stamp`)).toBeTruthy();
+      }
+      const fresh = {
+        ...signature,
+        id: "fresh-signature",
+        at: new Date(Date.parse(at) + 60_000).toISOString(),
+      };
+      act(() =>
+        view.runtime.client.setQueryData<RunView>(
+          queryKeys.run(RUN),
+          (old) => old && { ...old, events: [...old.events, fresh] },
+        ),
+      );
+      await waitFor(() => expect(screen.queryByTestId("W-TR-07.voided")).toBeNull());
     },
     SLOW,
   );

@@ -148,6 +148,7 @@ export const APPROVE = {
   presenceApproval: "Ernesto is on the co-sign request",
   approved: en("W-TR-07.approved"),
   postedLink: "Watch the payments land",
+  watchPayouts: "Watch the payouts",
   posting: (batch: string) => en("W-TR-07.posting", { batch }),
   posted:
     "The simulated PayPal sandbox accepted the batch. Each payment turns jade only when the simulated PayPal sandbox confirms it.",
@@ -173,13 +174,15 @@ export const APPROVE = {
   srApprove: (label: string, spoken: string) => `${label}, ${spoken}, ${en("slab.consequence.money")}`,
   sealWaiting: "The seal grows from the batch hash once every hold that changes kilos is decided",
   batchLabel: "Batch",
-  batchHash: "Batch hash",
   batchPending: "Not final yet",
   linesDigest: "Lines digest",
   linesNote: (lines: number, cash: number) =>
     `all ${lines} lines, the ${cash} cash lines too; this browser recomputed it`,
   rateCard: "Rate card",
-  ledgerTitle: "What both keys sign",
+  signTitle: "What you and Ernesto sign",
+  voided: (time: string) =>
+    `Both approvals voided at ${time}. A payout changed after signing, so nothing was sent. Review and sign again.`,
+  voidedKey: (time: string) => `Voided ${time}`,
   ledgerNote: "Compare these by eye with the Chair's phone: the seal above grows from the batch hash.",
   cosignTitle: "Co-sign as Ernesto from your own phone",
   cosignBody: "Uses a labelled demo key made in your phone's browser.",
@@ -220,7 +223,10 @@ export const FANOUT = {
     readonly parked: number;
     readonly failed: number;
     readonly cash: number;
+    readonly posting?: boolean;
   }) => {
+    if (c.posting)
+      return `Sent to the simulated PayPal sandbox. Confirmations land one by one. ${c.cash} in cash at the bodega.`;
     const paypal =
       c.sent === 0
         ? `${c.onRail} to send through the simulated PayPal sandbox once both keys sign`

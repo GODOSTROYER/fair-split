@@ -3,8 +3,7 @@ import { useEffect, useState } from "react";
 import { CommandNotice } from "../../chrome/CommandNotice.js";
 import { ChromePortal } from "../../chrome/slots.js";
 import { useAdapter, useJudgeSession, useStageRun } from "../../data/hooks.js";
-import { liveApprovals } from "../approve/model.js";
-import { tamperWasRefused } from "./tamper-state.js";
+import { liveApprovals, voidedByChange } from "../approve/model.js";
 
 const ATTEMPTS: readonly { kind: TamperKind; label: string }[] = [
   { kind: "amount", label: "Overcharge the invoice draft" },
@@ -78,7 +77,7 @@ export function TamperControls() {
               {result.verdict}: {result.reasons.join("; ")}. Nothing sent.
             </p>
           )}
-          {result.armed && tamperWasRefused(view?.events ?? []) && (
+          {result.armed && view && voidedByChange(view) !== null && (
             <p>Changed payout refused. Both approvals voided; review and sign again.</p>
           )}
         </div>

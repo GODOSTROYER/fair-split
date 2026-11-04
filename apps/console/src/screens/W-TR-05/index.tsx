@@ -10,6 +10,7 @@ import { useRouter } from "@tanstack/react-router";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { AppLink } from "../../chrome/AppLink.js";
 import { CommandNotice } from "../../chrome/CommandNotice.js";
+import { RunRouteGate } from "../../chrome/Fallbacks.js";
 import { PrintBed } from "../../chrome/PrintBed.js";
 import { ScreenRoot } from "../../chrome/ScreenRoot.js";
 import { payoutReplayed } from "../../data/payout-replay.js";
@@ -135,6 +136,8 @@ export function Screen({ runSlug, hold, member }: SplitScreenProps) {
     const found = Object.values(view.holds).find((h) => h.label === hold || h.holdId === hold);
     return found?.memberNo ?? null;
   }, [hold, member, view]);
+
+  if (data.access === "missing") return <RunRouteGate data={data} />;
 
   let state: ScreenState<"W-TR-05">;
   if (data.error && !view) state = "error";

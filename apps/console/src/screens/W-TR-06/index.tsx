@@ -10,6 +10,7 @@ import { useRouter } from "@tanstack/react-router";
 import { type FormEvent, type ReactNode, useCallback, useEffect, useId, useRef, useState } from "react";
 import { AppLink } from "../../chrome/AppLink.js";
 import { CommandNotice } from "../../chrome/CommandNotice.js";
+import { RunRouteGate } from "../../chrome/Fallbacks.js";
 import { PrintBed } from "../../chrome/PrintBed.js";
 import { ScreenRoot } from "../../chrome/ScreenRoot.js";
 import { StageDrawer } from "../../chrome/StageDrawer.js";
@@ -158,6 +159,8 @@ export function Screen({ runSlug, holdId }: HoldDrawerProps) {
     : seeded?.serials[0]
       ? HOLDS.slipMeta(seeded.serials[0])
       : null;
+
+  if (data.access === "missing") return <RunRouteGate data={data} />;
 
   const body = (() => {
     if (data.error && !view) {

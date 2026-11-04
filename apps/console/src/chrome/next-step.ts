@@ -13,6 +13,7 @@ import type { ConsoleScreenId } from "../lib/screens.js";
 
 export type StepId =
   | "mark-paid"
+  | "recording"
   | "reading"
   | "by-hand"
   | "holds"
@@ -43,6 +44,7 @@ export interface NextStep {
 
 export interface NextStepContext {
   readonly inSession: boolean;
+  readonly pressing?: boolean;
   /** "2026-A" */
   readonly season: string;
   /** The recording date for the replay line, already formatted ("29 Oct"). */
@@ -80,6 +82,8 @@ export function nextStep(view: RunView | undefined, ctx: NextStepContext): NextS
     screen: "W-JG-01",
     to: webRoutes.judge(),
   };
+  if (ctx.pressing && (!view || ["DRAFT", "QUOTED", "INVOICED"].includes(view.state)))
+    return { ...markPaid, id: "recording", actor: "paypal", text: en("W-JG-01.pill.recording") };
   if (!view || !ctx.inSession) return markPaid;
   switch (view.state) {
     case "DRAFT":

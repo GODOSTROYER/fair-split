@@ -1,6 +1,5 @@
 // The judge session (S3.9): the first press starts it, Reset ends it. The console token lives in memory only
-// (never storage, never a URL); a refresh returns to the first view, and the API's judge cookie resumes the
-// session on the next press.
+// (never storage, never a URL). A tab saves only its visit identifiers; the judge cookie authenticates resume.
 
 import { judgeRoutes } from "@fairsplit/api-client";
 import type { PayRunState } from "@fairsplit/contracts";
@@ -19,16 +18,29 @@ export interface JudgeSession {
 }
 
 /** `ended`: the server ended the session meanwhile (a Reset in another tab, or the workspace expired). */
-export type SessionStatus = "none" | "starting" | "active" | "resetting" | "failed" | "ended";
+export type SessionStatus = "none" | "starting" | "resuming" | "active" | "resetting" | "failed" | "ended";
 
 export interface SessionState {
   readonly status: SessionStatus;
   readonly session: JudgeSession | null;
   /** Why the start failed ("failed"), or why the last Reset did not go through ("active"). */
   readonly error: CommandError | null;
+  readonly pressing?: boolean;
+  /** Boot renewed this saved visit; its financial screens await their streamed history. */
+  readonly resumed?: boolean;
 }
 
 const NONE: SessionState = { status: "none", session: null, error: null };
+export const JUDGE_TAB_KEY = "fs.judge.tab";
+type TabStorage = Pick<Storage, "getItem" | "setItem" | "removeItem">;
+
+function browserTabStorage(): TabStorage | null {
+  try {
+    return typeof window === "undefined" ? null : window.sessionStorage;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * The console token lives 2 hours while the judge cookie and its workspace live 24 (S3.8): the store renews the
@@ -62,10 +74,12 @@ export class SessionStore {
   private renewing: Promise<void> | null = null;
   private renewTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly renewListeners = new Set<() => void>();
+  private resumeVersion = 0;
 
   constructor(
     private readonly adapter: DataAdapter,
     private readonly now: () => number = () => Date.now(),
+    private readonly storage: TabStorage | null = browserTabStorage(),
   ) {
     adapter.onFailure((failure) => {
       if (isApiClientError(failure, "FRAME_TOKEN_EXPIRED") && this.state.session) void this.renew();
@@ -76,7 +90,78 @@ export class SessionStore {
     adapter.onTokenRefused(() => {
       if (this.state.status === "active" && this.state.session) this.end();
     });
+    const saved = this.savedVisit();
+    if (saved) {
+      const version = this.resumeVersion;
+      this.set({ status: "resuming", session: null, error: null });
+      this.starting = judgeRoutes(adapter.api)
+        .renewJudgeSession({ params: { sid: saved.sessionId }, token: null })
+        .then((resumed) => {
+          if (version !== this.resumeVersion) throw new Error("The saved visit was reset while resuming.");
+          if (resumed.sessionId !== saved.sessionId || resumed.runSlug !== saved.runSlug) {
+            this.end();
+            throw new Error("The saved visit no longer matches its run.");
+          }
+          const session = sessionOf(resumed);
+          this.adapter.setToken(resumed.consoleToken);
+          this.saveVisit(session);
+          this.set({ status: "active", session, error: null, resumed: true });
+          this.scheduleRenewal(session);
+          return session;
+        })
+        .catch((error: unknown) => {
+          if (version !== this.resumeVersion) throw error;
+          if (isApiClientError(error) && [401, 403, 404, 410].includes(error.status)) this.end();
+          else if (this.state.status !== "ended")
+            this.set({ status: "failed", session: null, error: error as CommandError });
+          throw error;
+        })
+        .finally(() => {
+          if (version === this.resumeVersion) this.starting = null;
+        });
+      // Boot has no awaiting caller; a later first press can still join this same promise.
+      void this.starting.catch(() => undefined);
+    }
   }
+
+  private savedVisit(): { sessionId: string; runSlug: string } | null {
+    try {
+      const text = this.storage?.getItem(JUDGE_TAB_KEY);
+      if (!text) return null;
+      const saved: unknown = JSON.parse(text);
+      if (
+        saved &&
+        typeof saved === "object" &&
+        "sessionId" in saved &&
+        "runSlug" in saved &&
+        typeof saved.sessionId === "string" &&
+        saved.sessionId.length > 0 &&
+        typeof saved.runSlug === "string" &&
+        saved.runSlug.length > 0
+      )
+        return { sessionId: saved.sessionId, runSlug: saved.runSlug };
+    } catch {
+      /* A blocked or malformed storage entry cannot prevent the first view. */
+    }
+    return null;
+  }
+
+  private saveVisit(session: JudgeSession | null): void {
+    try {
+      if (session)
+        this.storage?.setItem(
+          JUDGE_TAB_KEY,
+          JSON.stringify({ sessionId: session.sessionId, runSlug: session.runSlug }),
+        );
+      else this.storage?.removeItem(JUDGE_TAB_KEY);
+    } catch {
+      /* Storage is optional; credentials remain in memory. */
+    }
+  }
+
+  setPressing = (pressing: boolean): void => {
+    this.set({ ...this.state, pressing });
+  };
 
   /** Called after the token is renewed (the hub reopens the streams the lapsed token closed). */
   onRenewed = (listener: () => void): (() => void) => {
@@ -115,6 +200,7 @@ export class SessionStore {
         }
         this.adapter.setToken(resumed.consoleToken);
         const next: JudgeSession = { ...sessionOf(resumed) };
+        this.saveVisit(next);
         this.set({ ...this.state, session: next });
         // Never sooner than a minute after a renewal, whatever the clocks say.
         this.scheduleRenewal(next, 60_000);
@@ -146,13 +232,24 @@ export class SessionStore {
   start(): Promise<JudgeSession> {
     if (this.state.session) return Promise.resolve(this.state.session);
     if (this.starting) return this.starting;
-    this.set({ status: "starting", session: null, error: null });
+    this.set({
+      status: "starting",
+      session: null,
+      error: null,
+      ...(this.state.pressing ? { pressing: true } : {}),
+    });
     this.starting = this.adapter
       .call("createJudgeSession", { body: {} })
       .then((created) => {
         this.adapter.setToken(created.consoleToken);
         const session = sessionOf(created);
-        this.set({ status: "active", session, error: null });
+        this.saveVisit(session);
+        this.set({
+          status: "active",
+          session,
+          error: null,
+          ...(this.state.pressing ? { pressing: true } : {}),
+        });
         this.scheduleRenewal(session);
         return session;
       })
@@ -203,8 +300,11 @@ export class SessionStore {
    * the error, because the server still holds it: the stage says so and Reset can be pressed again.
    */
   async reset(): Promise<void> {
+    this.resumeVersion++;
     const session = this.state.session;
     if (!session) {
+      this.starting = null;
+      this.saveVisit(null);
       this.set(NONE);
       return;
     }
@@ -219,6 +319,7 @@ export class SessionStore {
     }
     this.cancelRenewal();
     this.adapter.setToken(null);
+    this.saveVisit(null);
     forgetBrowserKeys();
     this.set(NONE);
   }
@@ -227,6 +328,7 @@ export class SessionStore {
   private end(): void {
     this.cancelRenewal();
     this.adapter.setToken(null);
+    this.saveVisit(null);
     forgetBrowserKeys();
     this.set({ status: "ended", session: null, error: null });
   }

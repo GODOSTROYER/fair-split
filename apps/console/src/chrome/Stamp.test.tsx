@@ -47,7 +47,7 @@ describe("Stamp", () => {
     fireEvent.keyDown(screen.getByTestId("W-JG-01.markPaid.face"), { key: "Enter" });
     await waitFor(() => expect(screen.getByTestId("W-JG-01.stage").dataset.state).toBe("session"));
     const stamp = await waitFor(() => {
-      const found = document.querySelector<HTMLElement>(".fsc-first__stamp .fs-stamp");
+      const found = screen.getByTestId("W-JG-01.markPaid").querySelector<HTMLElement>(".fs-stamp");
       if (!found) throw new Error("no stamp yet");
       return found;
     });

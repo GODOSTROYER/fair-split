@@ -65,6 +65,7 @@ export function planStep(next: NextStep, location: StageLocation): AutoplayPlan 
   switch (next.id) {
     case "mark-paid":
       return here ? { kind: "press", selectors: ['[data-testid="W-JG-01.markPaid.face"]'] } : go;
+    case "recording":
     case "reading":
     case "confirming":
       return here ? { kind: "wait" } : go;
