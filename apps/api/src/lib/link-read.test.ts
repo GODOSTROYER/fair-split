@@ -15,8 +15,8 @@ function reads() {
   app.use("*", requestContext(t.deps));
   app.onError(onError);
   app.get("/v1/credential", async (c) => c.json(await credentialResult(c)));
-  return (as: TestAuth, headers: Record<string, string> = {}) =>
-    app.request("/v1/credential", { headers: { ...as, ...headers } });
+  return (as: TestAuth, headers: Record<string, string> = {}, method = "GET") =>
+    app.request("/v1/credential", { method, headers: { ...as, ...headers } });
 }
 
 it("HD6-11 refuses a link's 61st read in a minute before checking revocation", async () => {
@@ -33,6 +33,7 @@ it("HD6-11 refuses a link's 61st read in a minute before checking revocation", a
   };
   for (let i = 0; i < 60; i++) expect((await read(as)).status).toBe(200);
   expect((await read(as)).status).toBe(429);
+  expect((await read(as, {}, "HEAD")).status).toBe(429);
   expect(revocationChecks).toBe(60);
   t.clock.advance(60_000);
   expect((await read(as)).status).toBe(200);

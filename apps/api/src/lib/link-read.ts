@@ -13,7 +13,7 @@ export const LINK_READ_RULES = {
 /** Shared by command routes and custom media/Proof handlers through credentialResult. */
 export function takeLinkRead(c: AppContext): void {
   if (
-    c.req.method !== "GET" ||
+    (c.req.method !== "GET" && c.req.method !== "HEAD") ||
     !/^\/v1\/(?:credential$|statements\/[^/]+(?:\/review-requests)?$|review-requests$|media\/audio\/[^/]+$|proof(?:\/|$))/.test(
       c.req.path,
     )
