@@ -30,7 +30,7 @@ function streamed(headers: Record<string, string> = {}) {
       cancelled = true;
     },
   });
-  const init = { method: "POST", headers, body, duplex: "half" };
+  const init: RequestInit = { method: "POST", headers, body, duplex: "half" };
   return {
     request: new Request(`${origin}/paypal-sim/sim/invoice/missing/pay`, init),
     pulls: () => pulls,
@@ -39,7 +39,7 @@ function streamed(headers: Record<string, string> = {}) {
 }
 
 describe("HD6-1a bounded public simulator mount", () => {
-  it.each([{}, { "content-length": "10" }])(
+  it.each<Record<string, string>>([{}, { "content-length": "10" }])(
     "refuses a streamed megabyte without draining it (%j)",
     async (headers) => {
       const source = streamed(headers);
