@@ -260,7 +260,12 @@ export async function beginLiveStep(deps: AppDeps, o: LiveStepInput): Promise<Li
       const full = replayDecision("lane_full", rail, peek.quota);
       return o.resume ? wait(full) : { kind: "replay", decision: full };
     }
-    return { kind: "queued", position: grant.position, etaMs: grant.etaMs, retryAfterMs: grant.etaMs };
+    return {
+      kind: "queued",
+      position: grant.position,
+      etaMs: grant.etaMs,
+      retryAfterMs: Math.min(grant.etaMs, lane.options.reserveMs / 2),
+    };
   }
   const lock = await tryLaneLock(deps, lane.options.leaseMs);
   if (!lock) {

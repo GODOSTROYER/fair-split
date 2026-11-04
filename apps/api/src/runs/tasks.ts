@@ -55,7 +55,13 @@ function paypalTask(
       const step = classifyPayPal(e, ctx.name);
       if (step.opts.transient && o.defer && (o.deferOnly?.(step) ?? true)) {
         const attempts = await attemptsOf(o.defer.db, ctx.outboxId);
-        const next = await deferTask(o.defer.db, ctx, args, deferDelayMs(step.opts.retryAfterMs, attempts));
+        // Lane reservations last one minute. A queued step must re-ask inside its own reservation,
+        // even after many attempts; exponential backoff is only for PayPal failures.
+        const delay =
+          e instanceof LaneQueued
+            ? (step.opts.retryAfterMs ?? 30_000)
+            : deferDelayMs(step.opts.retryAfterMs, attempts);
+        const next = await deferTask(o.defer.db, ctx, args, delay);
         if (next) {
           report(ctx.outboxId, {
             ok: false,
