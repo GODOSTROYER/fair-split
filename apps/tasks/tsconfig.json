@@ -18,6 +18,7 @@
     "../../tools/assemble-media.ts",
     "../../tools/lint-render.ts",
     "../../tools/devpost-text.ts",
-    "../../tools/lib/**/*.ts"
+    "../../tools/lib/**/*.ts",
+    "../../tools/soak/*.ts"
   ]
 }
