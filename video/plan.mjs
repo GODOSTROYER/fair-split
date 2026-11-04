@@ -3,7 +3,7 @@
 // points. Shared by build.mjs (which writes the film) and check.mjs (which verifies what was written). Words and time
 // belong to script.ts; this file only places them.
 import { readFileSync } from "node:fs";
-import { beats, CAPTURES, FILM, REAL_READING_CAPTION } from "./script.ts";
+import { BUMPER_SECONDS, beats, CAPTURES, FILM, PARTS, REAL_READING_CAPTION } from "./script.ts";
 
 export const SIM = "Simulated PayPal sandbox";
 export const NAVY = "#090D18";
@@ -53,21 +53,38 @@ export const SEGMENTS = [
   return { ...segment, start: covered[0].start, end: covered.at(-1).end };
 });
 
-/** Dips to night before a night part: a navy plate fades in over the last frames of the outgoing composition. */
-export const SEAMS = [
+/**
+ * Overlay plates at a composition cut. Rough cut v2 dipped to navy at 30, 44 and 143 (a muddy day-to-night
+ * crossfade, review item 4); the film now has one dark-to-bright turn (STYLE §1), so there are none. Each joint is
+ * carried by the compositions on either side instead: see JOINTS.
+ */
+export const SEAMS = [];
+/**
+ * How the film's own compositions meet the parts at each cut (STYLE §5: glides, focus pulls and the daylight veil,
+ * never a dip to navy). The other side of each joint belongs to its part.
+ */
+export const JOINTS = [
   {
-    id: "seam-30",
-    end: 30,
-    duration: 0.25,
-    why: "the opening's name card dips to night for the architecture",
+    at: 30,
+    side: "out",
+    how: "glide",
+    span: [28.25, 30],
+    cue: "The opening glides off its end line (28.3–30.0) and comes to rest on the empty daylight field; no dip, no resolve, the bed runs on into the architecture.",
   },
   {
-    id: "seam-44",
-    end: 44,
-    duration: 0.4,
-    why: "the finished diagram dims; the reel opens out of it by an iris",
+    at: 44,
+    side: "in",
+    how: "focus pull",
+    span: [44, 44.8],
+    cue: "The reel opens by a focus pull on its first window over the daylight field (44.0–44.8): a lift, not a hit.",
   },
-  { id: "seam-143", end: 143, duration: 0.4, why: "the listening beat dips to night for why it holds up" },
+  {
+    at: 143,
+    side: "out",
+    how: "veil",
+    span: [141.3, 143],
+    cue: "Her sentence ends; the camera glides off the phone under a daylight veil (92% by 142.8) and rests on the field at 143.0; the bed comes back in low for the close.",
+  },
 ];
 
 /** One word each (STYLE §2, day keyword), said or meant by the narration over that slot. */
@@ -96,22 +113,38 @@ export const KEYWORDS = {
   "listening-phone": "heard.",
 };
 
-/** Window geometry (STYLE §4): a 16:9 console or browser crop, or a phone. `a` beside the keyword, `b` after it. */
+/**
+ * Window geometry (STYLE §4): a 16:9 console or browser crop, or a phone. `a` beside the keyword (where the camera
+ * holds), `b` where a long slot's camera pushes in after the keyword. Positions are on screen, at rest.
+ */
 export const WINDOWS = {
-  landscape: { w: 1000, h: 562.5, radius: 22, a: { x: 1130, y: 590, s: 1 }, b: { x: 960, y: 524, s: 1.16 } },
+  landscape: { w: 1000, h: 562.5, radius: 22, a: { x: 1130, y: 625, s: 1 }, b: { x: 960, y: 524, s: 1.16 } },
   phone: { w: 330, h: 715, radius: 48, a: { x: 1250, y: 540, s: 1 }, b: { x: 960, y: 540, s: 1.06 } },
 };
 export const windowKind = (slot) => (slot.source === "phone recording" ? "phone" : "landscape");
+/**
+ * One keyword anchor for every beat of the film (STYLE §2 "left, x 140"; §11 keeps 64 px from every edge). Set in
+ * film.css (.pf-kw) and in the opening (proto #kw1-#kw3); check that they agree when either moves.
+ */
+export const KEYWORD_ANCHOR = { left: 140, top: 150 };
 
 const beatOf = (slot) => beats.find((beat) => beat.id === slot.beat);
 /** The deep dive's PayPal run: from the first beat that shows a PayPal value to the last (STYLE §7). */
 const deep = beats.filter((beat) => beat.part === "deep-dive" && beat.show.includes(SIM));
 const RUN = [Math.min(...deep.map((b) => b.start)), Math.max(...deep.map((b) => b.end))];
+/**
+ * The reading's two honesty labels, as tags rather than sentences (STYLE §7). The full lines (R1's caption, the
+ * stand-in chip) stay legible inside the captures themselves, beside the reading they describe.
+ */
+export const REAL_READING_TAG = "Real Claude reading · 1 Nov 2026";
+export const STAND_IN_TAG = "Seed stand-in";
 /** A slot's own honesty label (the reading's two clips), which takes the tag's place while it plays. */
 const honesty = (slot) =>
-  slot.overlay[0] === REAL_READING_CAPTION || /stand-in/i.test(slot.overlay[0] ?? "")
-    ? slot.overlay[0]
-    : null;
+  slot.overlay[0] === REAL_READING_CAPTION
+    ? REAL_READING_TAG
+    : /stand-in/i.test(slot.overlay[0] ?? "")
+      ? STAND_IN_TAG
+      : null;
 /**
  * The one tag over a slot: its own honesty label, else "Simulated PayPal sandbox" wherever a PayPal value can show
  * (a beat that names the sandbox, or any slot inside the deep dive's PayPal run), else none.
@@ -140,6 +173,220 @@ export function simSpan(segment) {
     continuesIn: near(from, segment.start) && sim.some((slot) => near(slot.start + slot.duration, from)),
     continuesOut: near(to, segment.end) && sim.some((slot) => near(slot.start, to)),
   };
+}
+
+// ------------------------------------------------------------------------------ the capture run (44-143 s)
+// One shared daylight field and one camera from the reel's first window to the listening beat's last frame
+// (STYLE §4-§5). Every window has a place in the world; the camera holds beside each one (its keyword on the left
+// at KEYWORD_ANCHOR), pushes in on a long hold, and glides to the next with the mid-move zoom-out dip. The camera is
+// a function of film time alone, so the eleven beat compositions cut into each other without a seam: each one also
+// carries its neighbours' windows ("ghosts") for the glides that cross its edges. film-slots.js draws it.
+/** STYLE §5 and §6 limits for the run's camera. */
+export const CAMERA = {
+  fps: 30,
+  maxPxPerFrame: 36,
+  dip: 0.3,
+  glide: 2.0,
+  step: 1950,
+  rise: 50,
+  pushAfter: 4.0,
+  intro: 1.3,
+  keywordHeld: 1.2,
+};
+/**
+ * Placeholder accent beats (review item 10), each on its slot's window, one accent per frame and each colour on its
+ * one job (STYLE §3): indigo for a person's hand or Claude's reading, jade for money that arrived. `box` is
+ * [x, y, w, h] in the window's own pixels and marks where the captured element should sit; when F3's captures land,
+ * move each box onto its element (the timing stays). The pending plate keeps its words above y 380.
+ */
+export const ACCENTS = {
+  "funding-console": {
+    kind: "hit",
+    colour: "jade",
+    box: [610, 424, 290, 88],
+    what: "the invoice paid into the pool",
+  },
+  "reading-console": { kind: "box", colour: "pod", box: [214, 424, 300, 88], what: "the figure Claude read" },
+  "reading-byhand": { kind: "box", colour: "pod", box: [520, 424, 240, 88], what: "the digit Analyn typed" },
+  "count-console": {
+    kind: "pulse",
+    colour: "pod",
+    box: [610, 426, 300, 84],
+    what: "the Count it once button",
+  },
+  "signing-console": { kind: "pulse", colour: "pod", box: [600, 426, 320, 84], what: "the first key" },
+  "signing-phone": { kind: "pulse", colour: "pod", box: [40, 604, 250, 64], what: "the Chair's key" },
+  "payouts-console": { kind: "hit", colour: "jade", box: [620, 424, 280, 88], what: "the batch sent" },
+  "proof-browser": { kind: "box", colour: "pod", box: [110, 424, 780, 88], what: "six of six re-checked" },
+  "member-phone": {
+    kind: "trace",
+    colour: "pod",
+    box: [40, 520, 250, 76],
+    slips: ["0403", "0419", "0436", "0467"],
+    what: "her net pay traced to her four slips",
+  },
+  "listening-phone": { kind: "wave", colour: "ink", box: [40, 520, 76, 76], what: "her statement playing" },
+};
+const r3 = (value) => Math.round(value * 1000) / 1000;
+/**
+ * An accent's times: it fires as its keyword lands. A trace's slips rise from `at`, its threads start at `threads`
+ * (0.45 s each, 0.1 s apart, STYLE §6) and its jade pulse runs from `landed`.
+ */
+function accentTimes(accent, at) {
+  if (accent.kind !== "trace") return { ...accent, at: r3(at) };
+  const threads = at + 0.35;
+  return {
+    ...accent,
+    at: r3(at),
+    threads: r3(threads),
+    landed: r3(threads + 0.1 * (accent.slips.length - 1) + 0.45),
+  };
+}
+/** The ordered capture-slot windows of the run, with their camera, glides, keyword times and accent. */
+function choreograph() {
+  const run = CAPTURES.filter((slot) =>
+    SEGMENTS.some((segment) => segment.slots && segment.beats.includes(slot.beat)),
+  ).sort((a, b) => a.start - b.start);
+  const bumper = PARTS.find((part) => part.bumper)?.start;
+  // The fastest a glide of `g` seconds can travel and keep the peak under STYLE's limit at the dip.
+  const reach = (g) =>
+    Math.floor((0.97 * 2 * g * CAMERA.maxPxPerFrame * CAMERA.fps) / (Math.PI * (1 - CAMERA.dip)));
+  const slots = [];
+  let cam = { x: 0, y: 0 };
+  for (const [i, slot] of run.entries()) {
+    const kind = windowKind(slot);
+    const { a } = WINDOWS[kind];
+    const prev = run[i - 1];
+    let glideIn;
+    let step = 0;
+    if (!prev) glideIn = [slot.start, slot.start + CAMERA.intro];
+    else {
+      // The deep dive's bumper hides the move under its veil; elsewhere the glide straddles the cut.
+      const g =
+        slot.start === bumper
+          ? CAMERA.glide
+          : Math.min(CAMERA.glide, r3(0.7 * Math.min(prev.duration, slot.duration)));
+      glideIn =
+        slot.start === bumper ? [slot.start, slot.start + g] : [slot.start - g / 2, slot.start + g / 2];
+      step = Math.min(CAMERA.step, reach(g));
+      cam = { x: cam.x + step, y: cam.y + CAMERA.rise };
+    }
+    slots.push({
+      id: slot.id,
+      beat: slot.beat,
+      first: i === 0,
+      last: i === run.length - 1,
+      // phases differ per window so nothing floats in lockstep (STYLE §4)
+      ph: r3(1.3 * i + 0.37 * slot.start),
+      kind,
+      start: slot.start,
+      end: slot.start + slot.duration,
+      keyword: KEYWORDS[slot.id],
+      cam: { ...cam, s: 1 },
+      // the window's centre in the world: where the camera's hold pose puts it at `a`
+      x: cam.x + a.x - 960,
+      y: cam.y + a.y - 540,
+      glideIn: glideIn.map(r3),
+      step,
+    });
+  }
+  const last = slots.at(-1);
+  const outro = {
+    glide: [141.3, last.end],
+    veil: [142.4, 142.8],
+    step: Math.floor(0.85 * reach(last.end - 141.3)),
+  };
+  let lastOut = -Infinity;
+  for (const [i, s] of slots.entries()) {
+    const next = slots[i + 1];
+    const arrive = s.glideIn[1];
+    const depart = next ? next.glideIn[0] : outro.glide[0];
+    const glideOut = next ? next.glideIn : outro.glide;
+    const after = PARTS.find((part) => part.bumper && part.start === s.start);
+    const held = CAMERA.keywordHeld;
+    // the keyword lands as the window arrives (the wipe is the hit) and is gone before its composition ends
+    let kwIn = Math.max(s.start + 0.05, arrive - 0.45, lastOut + 0.3);
+    if (after) kwIn = Math.max(kwIn, s.start + BUMPER_SECONDS + 0.1);
+    const push = depart - arrive >= CAMERA.pushAfter;
+    const cap = beats.find((beat) => beat.id === s.beat).end - 0.33;
+    const kwOut = Math.min(
+      cap,
+      push ? kwIn + 2.3 : Math.max(kwIn + held, Math.min(depart + 0.15, s.end - 0.05)),
+    );
+    kwIn = Math.max(Math.min(kwIn, kwOut - held), s.start - 0.1, lastOut + 0.3);
+    lastOut = kwOut;
+    const { b } = WINDOWS[s.kind];
+    Object.assign(s, {
+      arrive,
+      depart,
+      glideOut,
+      kwIn: r3(kwIn),
+      kwOut: r3(kwOut),
+      push: push ? [r3(kwOut + 0.15), r3(kwOut + 1.8)] : null,
+      // the push pose: the window centred and larger (STYLE §4 `b`)
+      pushCam: push ? { x: r3(s.x - (b.x - 960) / b.s), y: r3(s.y - (b.y - 540) / b.s), s: b.s } : null,
+      accent: ACCENTS[s.id] ? accentTimes(ACCENTS[s.id], Math.max(kwIn + 0.35, arrive + 0.1)) : null,
+    });
+  }
+  // Camera keyframes in film seconds: [t, x, y, s, ease, dip]. Holds never stop dead (a slow push, STYLE §5).
+  const keys = [];
+  const key = (t, pose, ease = "sine.inOut", dip = 0) =>
+    keys.push([r3(t), r3(pose.x), r3(pose.y), r3(pose.s), ease, dip]);
+  const scaled = (pose, k) => ({ ...pose, s: pose.s * k });
+  for (const [i, s] of slots.entries()) {
+    if (i === 0) {
+      key(s.start, scaled(s.cam, 0.94), "none");
+      key(s.arrive, s.cam, "sine.out");
+    } else key(s.arrive, s.cam, "sine.inOut", CAMERA.dip);
+    if (s.push) {
+      key(s.push[0], scaled(s.cam, 1.01));
+      key(s.push[1], s.pushCam);
+      key(s.depart, scaled(s.pushCam, 1.01));
+    } else key(s.depart, scaled(s.cam, 1.015));
+  }
+  const end = { x: (last.pushCam ?? last.cam).x + outro.step, y: last.cam.y + 40, s: 1 };
+  key(outro.glide[1], end, "sine.inOut", 0.25);
+  return { slots, keys, outro };
+}
+export const CAPTURE_RUN = choreograph();
+
+/** Where the run's camera puts a world point at film time `t` (the same curve film-slots.js draws). */
+export function cameraAt(t, keys = CAPTURE_RUN.keys) {
+  const sio = (u) => -(Math.cos(Math.PI * u) - 1) / 2;
+  const ease = { "sine.inOut": sio, "sine.out": (u) => Math.sin((u * Math.PI) / 2), none: (u) => u };
+  if (t <= keys[0][0]) return { x: keys[0][1], y: keys[0][2], s: keys[0][3] };
+  for (let i = 1; i < keys.length; i++) {
+    const [ta, xa, ya, sa] = keys[i - 1];
+    const [tb, xb, yb, sb, name, dip] = keys[i];
+    if (t <= tb) {
+      const u = (t - ta) / (tb - ta);
+      const e = ease[name](u);
+      const k = dip ? 1 - dip * Math.sin(Math.PI * sio(u)) : 1;
+      return { x: xa + (xb - xa) * e, y: ya + (yb - ya) * e, s: (sa + (sb - sa) * e) * k };
+    }
+  }
+  const [, x, y, s] = keys.at(-1);
+  return { x, y, s };
+}
+// The run holds to its own rules, or the film does not build: the camera's travel at the frame centre stays under
+// STYLE §5's peak (the zoom-out dip adds a radial drift towards the centre on top, as in the prototype's glides),
+// each keyword is held long enough and never shares the anchor, and every accent sits in its slot.
+{
+  const { slots } = CAPTURE_RUN;
+  const step = 1 / CAMERA.fps;
+  for (let t = slots[0].start; t < CAPTURE_RUN.outro.glide[1] - 1e-9; t += step) {
+    const c0 = cameraAt(t);
+    const c1 = cameraAt(t + step);
+    const v = Math.hypot(c1.x - c0.x, c1.y - c0.y) * Math.max(c0.s, c1.s);
+    if (v > CAMERA.maxPxPerFrame + 1e-6)
+      throw new Error(`capture run: the camera travels ${v.toFixed(1)} px in the frame at ${t.toFixed(2)} s`);
+  }
+  for (const [i, s] of slots.entries()) {
+    if (s.kwOut - s.kwIn < CAMERA.keywordHeld - 1e-9) throw new Error(`${s.id}: keyword held under 1.2 s`);
+    if (i && s.kwIn < slots[i - 1].kwOut + 0.3 - 1e-9) throw new Error(`${s.id}: two keywords at the anchor`);
+    if (s.accent && (s.accent.at < s.start || s.accent.at > s.end - 0.8))
+      throw new Error(`${s.id}: accent outside its slot`);
+  }
 }
 
 // ------------------------------------------------------------------------------------------------ the opening
@@ -311,8 +558,35 @@ export const OPENING = {
   statement: 23.78,
   jadePulse: 26.6,
   endLine: 27.2,
-  name: 28.5,
+  // the opening no longer ends on the name (review item 3): it glides off its end line onto the daylight field
+  glide: [28.25, 30],
 };
+/**
+ * Where each narration line must sit in the picture (STYLE §9, AUDIO-CUES "Fit to the picture"). Lines not listed fit
+ * their placeholder windows. `picture` is in film seconds.
+ */
+export const NARRATION_FIT = [
+  {
+    beat: "problem",
+    picture: [1.4, 14.4],
+    why: 'Under the night\'s words, from "64 farmers." to the turn; the hairline stays near silent.',
+  },
+  {
+    beat: "solution",
+    picture: [14.45, 27.2],
+    why: '"Fair Split:" rides the swell at the turn (STYLE §9); the line ends before "Every peso, traced." (27.2). About six words shorter (F1) would fit it at 141 wpm.',
+  },
+  {
+    beat: "paper",
+    picture: [58.2, 65],
+    why: 'After the bumper\'s words ("The deep dive.", 57.25–58.1), which are an end line.',
+  },
+  {
+    beat: "member",
+    picture: [129, 133.8],
+    why: "Ends before her own sentence starts (134.15) with a breath between.",
+  },
+];
 /** The close's own events (video/parts/close): the weigh-slip line blooms into daylight, then the end card. */
 export const CLOSE = { bloom: [153.36, 153.98], endLine: 167 };
 /** The IC-11 PREMIUM sentence, placed inside the listening beat so it ends before the dip to night at 142.6 s. */

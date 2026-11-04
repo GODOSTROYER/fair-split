@@ -58,19 +58,14 @@ body > #root {
   inset: 0;
 }
 
-/* seams: a navy plate that dips the outgoing picture to night before a night part */
+/* seams (plan.mjs SEAMS, none at present): a plate over a composition cut. The film no longer dips to navy. */
 .seam {
   z-index: 5;
-  background: var(--n-ground);
+  background: var(--ground);
   opacity: 0;
 }
 
 /* ---------------------------------------------------------------- the day field (STYLE §1) */
-.pf-night {
-  position: absolute;
-  inset: 0;
-  background: var(--n-ground);
-}
 .pf-day {
   position: absolute;
   inset: 0;
@@ -145,15 +140,13 @@ body > #root {
     transparent
   );
 }
+/* the leaf shadows and their mirror image tile along x, so the run's camera can pan across the whole world;
+   film-slots.js moves the tile with the camera through background-position */
 .pf-dapple {
   position: absolute;
-  left: 0;
-  top: 0;
-  width: 3200px;
-  height: 1800px;
+  inset: 0;
   opacity: 0.85;
-  background: url("proto/assets/dapple.png") 0 0 / 100% 100% no-repeat;
-  will-change: transform;
+  background: url("proto/assets/dapple-tile.png") 0 0 / 6400px 1800px repeat-x;
 }
 .pf-grain {
   position: absolute;
@@ -324,11 +317,10 @@ body > #root {
   overflow: hidden;
   padding: 0 20px 26px 10px;
 }
-.pf-kw--landscape {
-  top: 96px;
-}
+/* one anchor for every keyword in the film (plan.mjs KEYWORD_ANCHOR, the opening's "checked." and "paid.") */
+.pf-kw--landscape,
 .pf-kw--phone {
-  top: 452px;
+  top: 150px;
 }
 .pf-kw span {
   display: block;
@@ -400,4 +392,44 @@ body > #root {
   height: 26px;
   flex: none;
   color: var(--ink-3);
+}
+
+/* ---------------------------------------------------------------- placeholder accent beats (plan.mjs ACCENTS) */
+.pf-defs {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+.pf-acc {
+  position: absolute;
+  pointer-events: none;
+  opacity: 0;
+}
+.pf-acc--ring {
+  border: 5px solid var(--pod);
+}
+.pf-acc--lit {
+  border-radius: 20px;
+  border: 3px solid var(--jade);
+  background: rgb(20 204 144 / 0.12);
+  box-shadow: 0 0 26px rgb(20 204 144 / 0.35);
+}
+.pf-acc--svg {
+  overflow: visible;
+}
+.pf-acc--glow {
+  opacity: 1;
+  filter: drop-shadow(0 0 7px rgb(74 47 214 / 0.5));
+}
+.pf-acc--jade {
+  filter: drop-shadow(0 0 8px rgb(20 204 144 / 0.8));
+}
+.pf-acc--slip {
+  border-radius: 3px;
+  background: #fff center / cover no-repeat;
+  box-shadow:
+    0 2px 3px rgb(11 18 32 / 0.1),
+    0 22px 40px -18px rgb(11 18 32 / 0.4),
+    0 0 0 1px rgb(11 18 32 / 0.06);
 }

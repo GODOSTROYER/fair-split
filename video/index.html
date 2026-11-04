@@ -23,16 +23,12 @@
 <div id="segment-close-impressive" class="clip" data-composition-id="close-impressive" data-composition-src="parts/close/compositions/impressive.html" data-start="143" data-duration="11" data-track-index="0" data-width="1920" data-height="1080" data-beats="impressive"></div>
 <div id="segment-close-limits" class="clip" data-composition-id="close-limits" data-composition-src="parts/close/compositions/limits.html" data-start="154" data-duration="13" data-track-index="0" data-width="1920" data-height="1080" data-beats="limits"></div>
 <div id="segment-close-end" class="clip" data-composition-id="close-end" data-composition-src="parts/close/compositions/end.html" data-start="167" data-duration="8" data-track-index="0" data-width="1920" data-height="1080" data-beats="end"></div>
-<div id="seam-30" class="clip seam" data-start="29.75" data-duration="0.25" data-track-index="2"></div>
-<div id="seam-44" class="clip seam" data-start="43.6" data-duration="0.4" data-track-index="2"></div>
-<div id="seam-143" class="clip seam" data-start="142.6" data-duration="0.4" data-track-index="2"></div>
+
 </div>
 <script>
 (() => {
   const tl = gsap.timeline({ paused: true });
-  tl.fromTo("#seam-30", { opacity: 0 }, { opacity: 1, duration: 0.25, ease: "power1.in" }, 29.75);
-  tl.fromTo("#seam-44", { opacity: 0 }, { opacity: 1, duration: 0.4, ease: "power1.in" }, 43.6);
-  tl.fromTo("#seam-143", { opacity: 0 }, { opacity: 1, duration: 0.4, ease: "power1.in" }, 142.6);
+
   window.__timelines.main = tl;
 })();
 </script>

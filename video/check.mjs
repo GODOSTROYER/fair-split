@@ -9,6 +9,7 @@ import {
   CLOSE_START,
   KEYWORDS,
   openingFromPrototype,
+  REAL_READING_TAG,
   SEAMS,
   SEGMENTS,
   SIM,
@@ -246,11 +247,12 @@ for (const words of [
   "checked.",
   "paid.",
   "Every peso, traced.",
-  "Fair Split",
   "Synthetic co-op",
   SIM,
 ])
   assert(openingText.includes(words), `opening: "${words}" missing`);
+// The opening ends on its end line and the trace, not on the name: the name shows once, on the end card.
+assert(!openingText.includes("Fair Split"), "opening: the name card belongs to the end of the film");
 for (const [, id] of opening.matchAll(/\sid="([^"]+)"/g))
   assert(id === "root" || id.startsWith("op-"), `opening: id "${id}" is not prefixed`);
 // The architecture part, 30-44, built from script.ts and labelled.
@@ -380,7 +382,7 @@ for (const segment of SEGMENTS.filter((item) => item.slots)) {
 // R1's caption is shown only as the exhibit clip's tag; the stand-in label only over the run's own clip.
 for (const segment of SEGMENTS) {
   const text = visible(read(segment.src));
-  const real = text.split(REAL_READING_CAPTION).length - 1;
+  const real = text.split(REAL_READING_TAG).length - 1;
   assert.equal(real, segment.id === "reading" ? 1 : 0, `${segment.id}: real-reading caption count`);
 }
 // Windows stay clear of the tag corner (x > 1396 and y > 960) and of the 64 px edge, floating and pushed.

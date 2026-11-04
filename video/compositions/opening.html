@@ -137,17 +137,10 @@
 .small-grey { position: absolute; left: 0; right: 0; top: 472px; text-align: center; font-stretch: 100%; font-weight: 560; font-size: 46px; line-height: 56px; color: var(--ink-3); letter-spacing: 0.02em; opacity: 0; }
 .kw { position: absolute; left: 140px; overflow: hidden; padding: 0 20px 26px 10px; }
 .kw span { display: block; font-stretch: 112.5%; font-weight: 700; font-size: 176px; line-height: 176px; letter-spacing: -0.035em; color: var(--ink); }
-#op-kw1 { top: 438px; }
-#op-kw2 { top: 150px; }
-#op-kw3 { top: 150px; }
-#op-end { top: 450px; font-size: 118px; line-height: 132px; color: var(--ink); }
+#op-kw1, #op-kw2, #op-kw3 { top: 150px; }
+#op-end { top: 450px; font-size: 118px; line-height: 132px; color: var(--ink); transform-origin: 50% 50%; will-change: transform, filter; }
 #op-end .acc { color: var(--pod); position: relative; }
 #op-endLine { position: absolute; left: 0.02em; right: 0.3em; bottom: -10px; height: 7px; border-radius: 4px; background: var(--pod); transform-origin: 0 50%; }
-#op-name { position: absolute; left: 0; right: 0; top: 0; height: 100%; display: flex; align-items: center; justify-content: center; gap: 40px; }
-#op-mark { width: 138px; height: 138px; opacity: 0; }
-#op-nameCol { display: flex; flex-direction: column; align-items: flex-start; }
-#op-nameText { display: block; font-stretch: 112.5%; font-weight: 720; font-size: 150px; line-height: 150px; letter-spacing: -0.035em; color: var(--ink); opacity: 0; white-space: nowrap; }
-#op-nameSub { display: block; margin-top: 6px; margin-left: 6px; font-stretch: 100%; font-weight: 520; font-size: 44px; line-height: 52px; color: var(--ink-3); opacity: 0; white-space: nowrap; }
 
 /* film grain: re-seeded every frame (deterministic), dithers the night gradients so they do not band */
 #op-grain { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; pointer-events: none; mix-blend-mode: overlay; opacity: 0.34; }
@@ -183,7 +176,7 @@
     <div class="tag tag--night tag--centre" id="op-tagSim1"><svg aria-hidden="true"><use href="#op-i-flask"/></svg>Simulated PayPal sandbox</div>
   </section>
 
-  <!-- ============================================================ DAY: traced (14.4 – 30 s) -->
+  <!-- ============================================================ DAY: traced (14.4 – 30 s), ending on its end line -->
   <section id="op-day" class="clip" data-start="14.4" data-duration="15.6" data-track-index="1">
     <div id="op-dayInner">
       <div id="op-dayBg">
@@ -225,10 +218,6 @@
       <div class="kw" id="op-kw3" data-layout-allow-overlap data-layout-allow-occlusion data-layout-allow-overflow><span data-layout-allow-occlusion>paid.</span></div>
       <div class="tag tag--day" id="op-tagSim2"><svg aria-hidden="true"><use href="#op-i-flask"/></svg>Simulated PayPal sandbox</div>
       <div class="phrase" id="op-end"><span class="w">Every</span><span class="w">peso,</span><span class="w acc">traced.<i id="op-endLine"></i></span></div>
-      <div id="op-name">
-        <svg id="op-mark" viewBox="0 0 28 28" aria-hidden="true"><rect x="1" y="1" width="26" height="26" rx="8" fill="#0B1220"/><circle id="op-markDot" cx="9" cy="14" r="3.2" fill="#14CC90"/><path id="op-markPath" d="M12 14C16 14 16 7.5 21.5 7.5M12 14h9.5M12 14c4 0 4 6.5 9.5 6.5" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round"/></svg>
-        <div id="op-nameCol"><span id="op-nameText">Fair Split</span><span id="op-nameSub">co-op payroll</span></div>
-      </div>
     </div>
   </section>
 
@@ -509,6 +498,13 @@
     }
     return CAMD[CAMD.length - 1];
   }
+  // the outro: off the end line onto the empty field, 1650 px in 1.7 s with the 0.3 zoom-out dip (STYLE §5, peak about
+  // 35 px a frame), ending at rest on the cut to the architecture. Applied on screen to whatever is still in frame.
+  const OUTRO = { t0: 28.3, t1: 30.0, d: 1650, dip: 0.3 };
+  function outroAt(t) {
+    const e = E.sio(prog(t, OUTRO.t0, OUTRO.t1));
+    return { x: OUTRO.d * e, k: 1 - OUTRO.dip * Math.sin(Math.PI * e) };
+  }
   // windows: world centre, size in element px, float; `over` = where it settles in the overview (screen centre, scale)
   const OVER = [24.8, 25.9];
   const WINS = {
@@ -529,6 +525,7 @@
       if (w.jump) { if (t >= OVER[0]) { sx = w.over.x; sy = w.over.y; sc = w.over.sc; } }
       else if (eo > 0) { sx = lerp(sx, w.over.x, eo); sy = lerp(sy, w.over.y, eo); sc = lerp(sc, w.over.sc, eo); }
     }
+    if (t > OUTRO.t0) { const o = outroAt(t); sx = 960 + (sx - 960 - o.x) * o.k; sy = 540 + (sy - 540) * o.k; sc *= o.k; }
     const live = 1 - E.p2io(prog(t, OVER[0], OVER[1]));
     w.st = { sx, sy, sc, w: w.w, h: w.h, f: w.f || 1, eo,
       bob: w.A * Math.sin((2 * Math.PI * t) / 5.6 + w.ph) * live, rot: w.rot * live,
@@ -542,7 +539,7 @@
     return { x: st.sx + st.sc * (qx * cs - qy * sn), y: st.sy + st.sc * (qx * sn + qy * cs) };
   }
   const lights = [[$("#op-lightA"), -700, -620, 0.12, 60, 40, 0.05], [$("#op-lightC"), 900, -560, 0.2, -50, 50, 0.04], [$("#op-lightB"), 160, 120, 0.28, 70, -40, 0.035]];
-  const dapple = $("#op-dapple"), world = $("#op-worldMb"), mbG = $("#op-mblurG");
+  const dapple = $("#op-dapple"), world = $("#op-worldMb"), mbG = $("#op-mblurG"), endLine = $("#op-end");
 
   // the waveform on the phone, drawn by the film so it can play
   const BAR_H = [12, 22, 30, 18, 26, 14, 24, 32, 20, 12, 24, 28, 16, 22, 10, 18, 26, 14];
@@ -646,20 +643,26 @@
     if (t < 14.3) return;
     const c = camAt(t);
     const cp = camAt(Math.max(14.3, t - 1 / 30));
-    // backdrop: light shapes and leaf shadows drift with parallax
+    const o = outroAt(t), op = outroAt(t - 1 / 30);
+    // backdrop: light shapes and leaf shadows drift with parallax (and with the outro's move)
+    const fx0 = c.x + o.x / c.s;
     for (const [el, x, y, k, dx, dy, f] of lights) {
-      const px = x - (c.x - 1940) * k * c.s + dx * Math.sin(2 * Math.PI * f * t), py = y - (c.y - 40) * k * c.s + dy * Math.cos(2 * Math.PI * f * 0.8 * t);
+      const px = x - (fx0 - 1940) * k * c.s + dx * Math.sin(2 * Math.PI * f * t), py = y - (c.y - 40) * k * c.s + dy * Math.cos(2 * Math.PI * f * 0.8 * t);
       el.style.transform = `translate(${px.toFixed(1)}px, ${py.toFixed(1)}px)`;
     }
     {
-      const k = 0.3, px = -640 - (c.x - 1940) * k * c.s + 26 * Math.sin(2 * Math.PI * 0.09 * t), py = -360 - (c.y - 40) * k * c.s + 14 * Math.sin(2 * Math.PI * 0.07 * t + 1);
+      const k = 0.3, px = -640 - (fx0 - 1940) * k * c.s + 26 * Math.sin(2 * Math.PI * 0.09 * t), py = -360 - (c.y - 40) * k * c.s + 14 * Math.sin(2 * Math.PI * 0.07 * t + 1);
       dapple.style.transform = `translate(${px.toFixed(1)}px, ${py.toFixed(1)}px)`;
     }
     // directional motion blur keyed to the camera's speed (glides only)
-    const vx = Math.abs(c.x - cp.x) * c.s, vy = Math.abs(c.y - cp.y) * c.s;
+    const vx = Math.abs(c.x - cp.x) * c.s + Math.abs(o.x - op.x) * o.k, vy = Math.abs(c.y - cp.y) * c.s;
     const bx = Math.min(10, vx * 0.2), by = Math.min(6, vy * 0.2);
-    if (bx > 0.6 || by > 0.6) { mbG.setAttribute("stdDeviation", `${bx.toFixed(2)} ${by.toFixed(2)}`); world.style.filter = "url(#op-mblur)"; }
+    const blurOn = bx > 0.6 || by > 0.6;
+    if (blurOn) { mbG.setAttribute("stdDeviation", `${bx.toFixed(2)} ${by.toFixed(2)}`); world.style.filter = "url(#op-mblur)"; }
     else world.style.filter = "none";
+    // the end line rides the outro out of frame (it sits at y 516; the move is about the frame centre)
+    endLine.style.transform = t > OUTRO.t0 ? `translate(${(-o.x * o.k).toFixed(2)}px, ${(24 * (1 - o.k)).toFixed(2)}px) scale(${o.k.toFixed(4)})` : "none";
+    endLine.style.filter = t > OUTRO.t0 && blurOn ? "url(#op-mblur)" : "none";
     // windows
     const focusAmt = clamp01((c.s - 0.62) / 0.3);
     for (const w of WLIST) {
@@ -813,14 +816,8 @@
   tl.to("#op-tagSim2", { opacity: 0, duration: 0.2, ease: "power2.in" }, 27.35);
   enter("#op-end .w", 27.2, { y: 40, st: 0.12, d: 0.8 });
   tl.fromTo("#op-endLine", { scaleX: 0 }, { scaleX: 1, duration: 0.55, ease: "power3.inOut" }, 27.75);
-  leave("#op-end .w", 28.35, { y: -20, st: 0.04 });
-  tl.to("#op-veil", { opacity: 1, duration: 0.4, ease: "power2.in" }, 28.3);
-  // Fair Split: the mark is the film's metaphor, one jade dot and its threads
-  tl.fromTo("#op-mark", { opacity: 0, scale: 0.6, rotation: -12 }, { opacity: 1, scale: 1, rotation: 0, duration: 0.8, ease: "back.out(1.6)" }, 28.5);
-  tl.fromTo("#op-markDot", { scale: 0, transformOrigin: "50% 50%" }, { scale: 1, duration: 0.45, ease: "back.out(3)" }, 28.75);
-  pen("#op-markPath", $("#op-markPath").getTotalLength(), 28.9, 0.55, "power2.out");
-  tl.fromTo("#op-nameText", { opacity: 0, x: -30, filter: "blur(10px)" }, { opacity: 1, x: 0, filter: "blur(0px)", duration: 0.9, ease: "expo.out" }, 28.66);
-  tl.fromTo("#op-nameSub", { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.6, ease: "power3.out" }, 29.05);
+  // ... and the opening does not end on the name (it shows once, at the end of the film): the camera glides off the
+  // end line (28.3-30.0, drawn by drawDay) and comes to rest on the empty daylight field the architecture starts on.
 
   draw(0);
   window.__timelines["opening"] = tl;

@@ -14,13 +14,15 @@ import {
 } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
+  CAPTURE_RUN,
   CLOSE,
   CLOSE_NOTE,
   CLOSE_START,
   captions,
+  JOINTS,
   KEYWORDS,
   MEMBER_CLIP,
-  NAVY,
+  NARRATION_FIT,
   OPENING,
   openingFromPrototype,
   SEAMS,
@@ -213,13 +215,34 @@ function slotIdSize(id, kind) {
   const room = (kind === "phone" ? WINDOWS.phone.w : WINDOWS.landscape.w) - 90;
   return Math.min(64, Math.floor(room / (id.length * 0.66)));
 }
+const pendingPlate = (slot, kind) =>
+  `<div class="pf-pending"><i class="pf-crop pf-crop--tl"></i><i class="pf-crop pf-crop--tr"></i><i class="pf-crop pf-crop--bl"></i><i class="pf-crop pf-crop--br"></i><span class="pf-rec"></span><p class="pf-p1">capture pending:</p><p class="pf-p2" style="font-size:${slotIdSize(slot.id, kind)}px;line-height:1.15">${esc(slot.id)}</p><p class="pf-p3">${esc(slot.source)} · ${slot.duration} s</p></div>`;
 function windowMarkup(slot, local) {
   const kind = windowKind(slot);
   const available = existsSync(new URL(slot.file, root));
   const inner = available
     ? `<video id="${slot.id}-video" class="clip pf-video" src="${slot.file}" muted playsinline data-has-audio="false" data-start="${local}" data-duration="${slot.duration}" data-media-start="${slot.mediaStart}" data-playback-rate="${slot.playbackRate}" data-track-index="1"></video>${slot.playbackRate === 12 ? '<span class="pf-speed">×12 real time</span>' : ""}`
-    : `<div class="pf-pending"><i class="pf-crop pf-crop--tl"></i><i class="pf-crop pf-crop--tr"></i><i class="pf-crop pf-crop--bl"></i><i class="pf-crop pf-crop--br"></i><span class="pf-rec"></span><p class="pf-p1">capture pending:</p><p class="pf-p2" style="font-size:${slotIdSize(slot.id, kind)}px;line-height:1.15">${esc(slot.id)}</p><p class="pf-p3">${esc(slot.source)} · ${slot.duration} s</p></div>`;
+    : pendingPlate(slot, kind);
   return `<div id="${slot.id}-window" class="pf-win pf-win--${kind}" data-slot="${slot.id}" data-slot-start="${local}" data-slot-duration="${slot.duration}" data-layout-allow-overflow><div class="pf-in">${inner}</div></div>`;
+}
+/**
+ * A neighbour's window, drawn by this beat only while the camera's glide across their shared cut keeps it in frame
+ * (plan.mjs CAPTURE_RUN), so the cut has no seam. A recording replays its own edge (its last or first seconds).
+ */
+function ghostMarkup(slot, segment) {
+  const kind = windowKind(slot);
+  const move = CAPTURE_RUN.slots.find((item) => item.id === slot.id);
+  const from = Math.max(move.glideIn[0], segment.start);
+  const to = Math.min(move.glideOut[1], segment.end);
+  const length = seconds(to - from);
+  const mediaStart = seconds(
+    slot.mediaStart +
+      Math.min(Math.max(0, from - slot.start), Math.max(0, slot.duration - length)) * slot.playbackRate,
+  );
+  const inner = existsSync(new URL(slot.file, root))
+    ? `<video id="${segment.id}--${slot.id}-video" class="clip pf-video" src="${slot.file}" muted playsinline data-has-audio="false" data-start="${seconds(from - segment.start)}" data-duration="${length}" data-media-start="${mediaStart}" data-playback-rate="${slot.playbackRate}" data-track-index="1"></video>`
+    : pendingPlate(slot, kind);
+  return `<div id="${segment.id}--${slot.id}-window" class="pf-win pf-win--${kind}" data-ghost="${slot.id}" data-layout-allow-overflow><div class="pf-in">${inner}</div></div>`;
 }
 function slotComposition(segment) {
   const [beat] = segment.beats.map((id) => beats.find((item) => item.id === id));
@@ -228,18 +251,41 @@ function slotComposition(segment) {
   const own = slots.filter((slot) => slot.beat === beat.id).sort((a, b) => a.start - b.start);
   const part = PARTS.find((item) => item.id === beat.part);
   const bumper = part?.bumper && part.start === beat.start ? part.bumper : null;
-  const iris = beat.id === "highlights";
   const span = simSpan(segment);
   const local = (value) => seconds(value - beat.start);
+  // One camera over the whole run (plan.mjs CAPTURE_RUN): this beat draws its own windows and its neighbours'.
+  const order = CAPTURE_RUN.slots.map((item) => item.id);
+  const ghosts = [order[order.indexOf(own[0].id) - 1], order[order.indexOf(own.at(-1).id) + 1]]
+    .filter(Boolean)
+    .map((ghost) => slots.find((slot) => slot.id === ghost));
+  const drawn = new Set([...own, ...ghosts].map((slot) => slot.id));
   const config = {
     id,
     filmStart: beat.start,
     duration,
-    // the first window lifts in after the bumper, or as the iris opens
-    hold: bumper ? 1.3 : iris ? 0.45 : 0,
-    intro: iris ? "iris" : null,
     bumper: bumper ? BUMPER_SECONDS : null,
     windows: WINDOWS,
+    run: {
+      keys: CAPTURE_RUN.keys,
+      outro: CAPTURE_RUN.outro,
+      slots: CAPTURE_RUN.slots
+        .filter((item) => drawn.has(item.id))
+        .map(({ id: slot, kind, first, last, ph, start, x, y, glideIn, glideOut, kwIn, kwOut, accent }) => ({
+          id: slot,
+          kind,
+          first,
+          last,
+          ph,
+          start,
+          x,
+          y,
+          glideIn,
+          glideOut,
+          kwIn,
+          kwOut,
+          accent,
+        })),
+    },
     sim: span
       ? {
           from: local(span.from),
@@ -279,13 +325,16 @@ function slotComposition(segment) {
   const bumperMarkup = bumper
     ? `<div id="${id}-veil" class="pf-veil"></div><div id="${id}-bumper" class="pf-endline" data-bumper="${esc(bumper)}" data-layout-allow-overlap>${bumperWords.map((word) => `<span class="w">${esc(word)}</span>`).join("")}</div>`
     : "";
-  const day = `<div id="${id}-day" class="pf-day"><div id="${id}-field" class="pf-field" data-layout-allow-overflow><div id="${id}-lightA" class="pf-light pf-lightA" data-layout-allow-overflow></div><div id="${id}-lightC" class="pf-light pf-lightC" data-layout-allow-overflow></div><div id="${id}-lightB" class="pf-light pf-lightB" data-layout-allow-overflow></div><div class="pf-wash"></div><div id="${id}-dapple" class="pf-dapple" data-layout-allow-overflow></div></div><div id="${id}-world" class="pf-world">${own.map((slot) => windowMarkup(slot, local(slot.start))).join("")}</div>${keywords}${tags}${bumperMarkup}</div>`;
+  const before = ghosts.filter((slot) => slot.start < beat.start).map((slot) => ghostMarkup(slot, segment));
+  const after = ghosts.filter((slot) => slot.start > beat.start).map((slot) => ghostMarkup(slot, segment));
+  const windows = [...before, ...own.map((slot) => windowMarkup(slot, local(slot.start))), ...after].join("");
+  const day = `<div id="${id}-day" class="pf-day"><div id="${id}-field" class="pf-field" data-layout-allow-overflow><div id="${id}-lightA" class="pf-light pf-lightA" data-layout-allow-overflow></div><div id="${id}-lightC" class="pf-light pf-lightC" data-layout-allow-overflow></div><div id="${id}-lightB" class="pf-light pf-lightB" data-layout-allow-overflow></div><div class="pf-wash"></div><div id="${id}-dapple" class="pf-dapple" data-layout-allow-overflow></div></div><div id="${id}-world" class="pf-world">${windows}</div>${keywords}${tags}${bumperMarkup}</div>`;
   return `<!doctype html>
 <!-- Generated by video/build.mjs (plan.mjs, film-slots.js): script v4 beat "${beat.id}", film ${beat.start}-${beat.end} s.
      One floating window per captures.json slot; drop the recording at captures/<slot-id>.mp4 and rebuild. -->
 <html lang="en"><head><meta charset="UTF-8"></head><body><template>
-<style>#root{position:absolute;inset:0;overflow:hidden;background:${iris ? NAVY : "#F3F5F8"}}</style>
-<div id="root" data-composition-id="${id}" data-width="1920" data-height="1080" data-duration="${duration}" data-film-start="${beat.start}">${iris ? '<div class="pf-night"></div>' : ""}${day}<canvas id="${id}-grain" class="pf-grain" width="960" height="540" data-layout-allow-overflow></canvas></div>
+<style>#root{position:absolute;inset:0;overflow:hidden;background:#F3F5F8}</style>
+<div id="root" data-composition-id="${id}" data-width="1920" data-height="1080" data-duration="${duration}" data-film-start="${beat.start}">${day}<canvas id="${id}-grain" class="pf-grain" width="960" height="540" data-layout-allow-overflow></canvas></div>
 <script>
 (() => {
   const tl = gsap.timeline({ paused: true });
@@ -382,18 +431,33 @@ const music = [
   ],
   [OPENING.statement, "Her statement plays on the phone (a short sound-design cue, under the narration)."],
   [OPENING.jadePulse, "A hit on the trace's jade pulse."],
-  [OPENING.name, "Resolve on the name."],
-  [30 - SEAMS[0].duration, "Dip to night for the architecture: the bed drops back to the low pad."],
+  [
+    OPENING.endLine,
+    '"Every peso, traced." opens out over the veil; no resolve here: the name comes once, at the end of the film.',
+  ],
+  ...JOINTS.map((joint) => [joint.span[0], joint.cue]),
   ...ARCHITECTURE.reveal.map((step, i) => [step.at, `Architecture step ${i + 1}: a soft pulse as it lands.`]),
-  [44 - SEAMS[1].duration, "The diagram dims; a smaller lift as the reel opens out of the night by an iris."],
   ...reel.map((slot) => [slot.start, `Reel cut: ${slot.id} ("${slot.keyword}"), a soft hit.`]),
-  [57, "Deep dive bumper: the bed settles calm and stays ducked about -10 dB under the narration."],
+  [
+    57,
+    "Deep dive bumper: a daylight veil over the glide, then the bed settles calm and stays ducked about -10 dB under the narration.",
+  ],
+  ...CAPTURE_RUN.slots
+    .filter((slot) => slot.accent)
+    .map(({ accent, keyword }) => {
+      const hue = { jade: "jade", pod: "indigo", ink: "ink" }[accent.colour];
+      const pulse = accent.landed ? `, its jade pulse at ${mmss(accent.landed)}` : "";
+      const hit = accent.kind === "wave" ? "a sound-design cue, not a hit" : "a soft hit";
+      return [
+        accent.threads ?? accent.at,
+        `Accent: ${accent.what} ("${keyword}", ${hue} ${accent.kind}${pulse}): ${hit}.`,
+      ];
+    }),
   [MEMBER_CLIP.start - 0.4, "Bed fades out completely."],
   [
     MEMBER_CLIP.start,
     `Member audio alone: the IC-11 PREMIUM sentence (${MEMBER_CLIP.seconds} s), no narration, no music, to ${mmss(MEMBER_CLIP.start + MEMBER_CLIP.seconds)}.`,
   ],
-  [143 - SEAMS[2].duration, "Dip to night for why it holds up; the bed returns low."],
   [
     CLOSE.bloom[0],
     `The second dark-to-bright turn: the weigh-slip line blooms into daylight (${span(...CLOSE.bloom)}); a smaller swell into the limits.`,
@@ -419,6 +483,21 @@ ${narration.join("\n")}
 
 The architecture's last step lands at ${mmss(ARCHITECTURE.reveal.at(-1).at)} and its narration ends at ${mmss(architectureSpeechEnd)}, so the finished diagram holds in silence to 0:44.
 The listening beat (${span(134, 143)}) carries no narration: only the member's own sentence.
+
+## Fit to the picture
+
+The windows above are the captions' placeholder timing (word-proportional, at most 140 wpm). The picture asks
+for less where a line meets the turn, an end line or a bumper (STYLE §9). F4 records each line to fit its picture
+window at the pace shown, or F1 shortens the line; captions are then regenerated from the alignment.
+
+| Beat | Placeholder | Words | Picture window | Pace needed | Why |
+| ---- | ----------- | ----- | -------------- | ----------- | --- |
+${NARRATION_FIT.map((fit) => {
+  const beat = beats.find((item) => item.id === fit.beat);
+  const [from, to] = beat.speech ?? [beat.start, beat.end];
+  const words = wordsIn(beat.say);
+  return `| ${fit.beat} | ${span(from, to)} | ${words} | ${span(...fit.picture)} | ${Math.round((words / (fit.picture[1] - fit.picture[0])) * 60)} wpm | ${fit.why} |`;
+}).join("\n")}
 
 ## Music and sound cue points
 

@@ -34,3 +34,6 @@ rgba[..., 0], rgba[..., 1], rgba[..., 2] = 32, 18, 11  # BGR of ink #0B1220
 rgba[..., 3] = alpha
 cv2.imwrite(str(OUT), rgba)
 print(OUT, alpha.max(), round(float(alpha.mean()), 2))
+# The film's capture run pans across 37,000 px of world: the same shadows with their mirror image beside them
+# tile seamlessly along x (each edge meets its own reflection).
+cv2.imwrite(str(OUT.with_name("dapple-tile.png")), np.hstack([rgba, rgba[:, ::-1]]))
