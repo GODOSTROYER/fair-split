@@ -225,12 +225,17 @@ function Autoplay({ stage }: { readonly stage: StageApi }) {
             .querySelector('[data-testid="W-TR-06"] [data-moment="MM-3"]')
             ?.getAttribute("data-moment-phase");
           const funding = document.querySelector('[data-moment="MM-S"]')?.getAttribute("data-moment-phase");
+          const approval = document
+            .querySelector('[data-testid="W-TR-07"] [data-moment="MM-5"]')
+            ?.getAttribute("data-moment-phase");
           // Watch the actual row finish before removing its room, and the actual field comparison before
-          // pressing Count it once. Idle/history never holds navigation; these checks invent no phases.
+          // pressing Count it once. Let the second signature finish inking before removing approval too.
+          // Idle/history never holds navigation; these checks invent no phases.
           const momentPending =
             (plan.kind === "go" &&
               (funding === "arc" || (step.id === "reading" && funding != null && funding !== "funded"))) ||
             (plan.kind === "go" && printing != null && PRINTING_PHASES.has(printing)) ||
+            (plan.kind === "go" && (approval === "signed-2" || approval === "sealed")) ||
             (plan.kind === "press" && step.id === "holds" && comparison != null && comparison !== "ready");
           // A press still in flight (the first view waits for the session's invoice): wait, up to a ceiling.
           if (momentPending || document.querySelector('[data-testid="W-JG-01.stage"] [aria-busy="true"]')) {

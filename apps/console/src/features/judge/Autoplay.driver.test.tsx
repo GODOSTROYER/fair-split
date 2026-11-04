@@ -349,3 +349,44 @@ it.each(["idle", "landed"])("does not hold a historical reading at %s", async (p
   });
   expect(navigate).toHaveBeenCalledTimes(1);
 });
+
+it.each(["signed-2", "sealed"])("keeps approval mounted at %s until its inked phase", async (initial) => {
+  vi.useFakeTimers();
+  const navigate = vi.fn();
+  state.path = "/runs/2026A-r37/approve";
+  state.next = {
+    id: "rhea",
+    text: "Pay Rhea in cash",
+    to: "/runs/2026A-r37/fanout",
+    actor: "person",
+    screen: "W-TR-08",
+  };
+  let inked = () => {};
+  function Host() {
+    const [phase, setPhase] = useState(initial);
+    inked = () => setPhase("inked");
+    return (
+      <>
+        <section data-testid="W-TR-07">
+          <div data-moment="MM-5" data-moment-phase={phase} />
+        </section>
+        <button type="button" data-testid="W-JG-01.runPill.next" onClick={navigate}>
+          Fanout
+        </button>
+        <StageAutoplay />
+      </>
+    );
+  }
+  render(<Host />);
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(500);
+  });
+  expect(navigate).not.toHaveBeenCalled();
+  await act(async () => {
+    inked();
+  });
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(100);
+  });
+  expect(navigate).toHaveBeenCalledTimes(1);
+});
