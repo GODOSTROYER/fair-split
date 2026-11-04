@@ -346,7 +346,7 @@ describe("resend again after a refusal", () => {
             sender_batch_header: { sender_batch_id: batch.senderBatchId },
           },
           items: items.map((item) => ({
-            payout_item_id: item.paypalItemId ?? `PIT-${item.id}`,
+            payout_item_id: item.payoutItemId ?? `PIT-${item.id}`,
             payout_batch_id: params.batchId,
             transaction_status: "SUCCESS",
             payout_item: {
