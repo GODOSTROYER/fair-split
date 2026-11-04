@@ -288,9 +288,14 @@ describe("signing states", () => {
     expect(svg).toContain('stroke="#000000"');
   });
 
-  it("writes hashes in groups of four, and the seal's cross-check as the first 16 digits", () => {
+  it("writes hashes in groups of four, and compares both ends of the seal digest", () => {
     expect(hashGroups("7F3A91C2DEADBEEF")).toBe("7f3a 91c2");
     expect(hashGroups("7f3a91c2deadbeef", 4)).toBe("7f3a 91c2 dead beef");
-    expect(sealHash(A)).toBe(`${A.slice(0, 4)} ${A.slice(4, 8)} ${A.slice(8, 12)} ${A.slice(12, 16)}`);
+    expect(sealHash(A)).toBe(`${A.slice(0, 4)} ${A.slice(4, 8)} … ${A.slice(-8, -4)} ${A.slice(-4)}`);
+  });
+
+  it("matches the Chair phone's first-eight and last-eight comparison for a fixed digest", () => {
+    const hash = `3F1C1CE6${"0123456789ABCDEF".repeat(3)}C8FA1722`;
+    expect(sealHash(hash)).toBe("3f1c 1ce6 … c8fa 1722");
   });
 });

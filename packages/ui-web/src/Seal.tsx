@@ -1,7 +1,7 @@
 // Seal: the guilloché grown from the batch digest and completed by two people (design §5, S2 §2.7). The inner
 // rings engrave when the treasurer signs, the outer rings when the Chair signs; unsigned bands show as 1 px rule
 // circles. Below 96 px the seal draws one ring per key. Pure SVG from @fairsplit/seal, so every surface draws
-// the same seal for the same batch; with `showHash` the first 16 hex digits sit under it in groups of four, so
+// the same seal for the same batch; with `showHash` both ends of its digest sit under it in groups of four, so
 // a person can cross-check the console and the phone by eye.
 
 import { TIMING, TWEENS } from "@fairsplit/motion/presets";
@@ -179,7 +179,7 @@ export function Seal({
       data-testid={testId}
       data-state={`keys-${keys}`}
       data-variant={geometry.variant}
-      data-digest={hashGroups(geometry.digest)}
+      data-digest={geometry.digest}
       style={{ scale }}
     >
       {geometry.rings.map(drawRing)}

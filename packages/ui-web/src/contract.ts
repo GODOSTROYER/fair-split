@@ -55,7 +55,7 @@ export interface SlabConfirm<Body = string> {
   /** The amount, the recipients and the consequence. */
   readonly body: Body;
   /**
-   * The batch this key signs: the dialog draws its seal at 96 px with the first 16 hex digits in groups of
+   * The batch this key signs: the dialog draws its seal at 96 px with both ends of the digest in groups of
    * four, so the signer can match it to the other screen by eye. `keys` is how many keys are already in.
    */
   readonly seal?: { readonly batchSha256: string; readonly keys: KeysSigned };
@@ -139,7 +139,7 @@ export interface SealProps {
   readonly keys: KeysSigned;
   /** Engrave newly signed rings (600 ms per ring, staggered 120 ms) instead of drawing them complete. */
   readonly engrave?: boolean;
-  /** Print the first 16 hex digits under the seal in groups of four, for a person to cross-check by eye. */
+  /** Print both ends of the digest under the seal in groups of four, for a person to cross-check by eye. */
   readonly showHash?: boolean;
 }
 
