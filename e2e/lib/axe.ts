@@ -14,12 +14,21 @@ export async function axeScreen(page: Page, screen: string) {
   for (const frame of page.frames()) {
     // Visible includes entrance/result fades. Scan their actual resting colors, without disabling motion.
     await frame.evaluate(async () => {
-      await Promise.all(
-        document
+      for (;;) {
+        const animations = document
           .getAnimations()
-          .filter((animation) => Number.isFinite(animation.effect?.getComputedTiming().endTime))
-          .map((animation) => animation.finished),
-      );
+          .filter(
+            (animation) =>
+              (animation.playState === "running" || animation.pending) &&
+              Number.isFinite(animation.effect?.getComputedTiming().endTime),
+          );
+        if (animations.length === 0) break;
+        const results = await Promise.allSettled(animations.map((animation) => animation.finished));
+        for (const result of results) {
+          // React may replace a fading node. Re-sample its replacement, retaining every other failure.
+          if (result.status === "rejected" && result.reason?.name !== "AbortError") throw result.reason;
+        }
+      }
     });
     await frame.evaluate(source);
   }
