@@ -500,7 +500,7 @@ test("a quota-replayed run labels the stage, payout summary, chips and log befor
         );
       const parkedChip = page.getByTestId(/^W-TR-08\.chip\./);
       await expect(parkedChip).toHaveCount(1);
-      await expect(parkedChip).toHaveText("Replayed");
+      await expect(parkedChip).toHaveText("Replayed (labelled, simulated)");
       const payoutLog = page.getByTestId("W-TR-08.lane.PAYPAL");
       await expect(payoutLog).toContainText(/replay of an earlier simulated/i);
       await expect(payoutLog).not.toContainText(/Confirmed by a status check|replay of the seed stand-in/i);
@@ -533,7 +533,31 @@ test("a quota-replayed run labels the stage, payout summary, chips and log befor
         );
       }
       await page.getByTestId("W-JG-01.rail.split").click();
-      await page.getByTestId("W-TR-05.row.M-031").click();
+      const rheaLine = page.getByTestId("W-TR-05.row.M-031");
+      const grid = page.getByTestId("W-TR-05.grid");
+      const showAll = page.getByTestId("W-TR-05.showAll");
+      const viewport = grid.locator(".ag-grid-viewport");
+      await expect(grid).toBeVisible();
+      await expect(showAll.or(viewport).first()).toBeVisible();
+      if (await showAll.isVisible()) {
+        // The static fallback initially shows 20 rows; use its own disclosure to reach Rhea.
+        await showAll.click();
+      } else {
+        await expect(viewport).toBeVisible();
+        await viewport.hover();
+        // The measured grid virtualizes its rows; scroll its viewport before opening Rhea.
+        for (let step = 0; step < 4 && (await rheaLine.count()) === 0; step++) {
+          await page.mouse.wheel(0, 400);
+          await page.evaluate(
+            () =>
+              new Promise<void>((resolve) =>
+                requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+              ),
+          );
+        }
+      }
+      await expect(rheaLine).toBeAttached();
+      await rheaLine.click();
       await expect(page.getByTestId("W-TR-09.status")).toHaveText("Cash due");
       await expect(page.getByTestId("W-TR-09.status")).not.toContainText(/replay/i);
       await expect(page.getByTestId("W-TR-09.history")).toContainText(/Replayed \(labelled\)/i);
