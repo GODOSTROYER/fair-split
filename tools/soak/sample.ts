@@ -125,3 +125,28 @@ export const SAMPLE_COLUMNS: readonly (keyof ServerSample & string)[] = [
   "paypal429h",
   "runEvents",
 ];
+
+/** The label on every synthetic reservation the soak writes (never a real judge's). */
+export const SOAK_FIXTURE = "soak-production-hourly-quota-emulation";
+
+/**
+ * Production-quota emulation on the LOCAL stack only (--prod-quota): fills the e2e stack's raised hourly cap down to
+ * production's three live payouts per clock hour with explicitly labelled synthetic reservations (the technique of
+ * e2e/lib/judge-quota.ts). They are `coded`, so they leave the public share alone. Called again at each new hour.
+ */
+export async function emulateProductionHourlyQuota(
+  databaseUrl: string,
+  hourlyCap: number,
+  productionCap = 3,
+): Promise<number> {
+  const n = Math.max(0, hourlyCap - productionCap);
+  const out = await psql(
+    databaseUrl,
+    `insert into reconciliation_reports (id, kind, window_end, summary)
+     select gen_random_uuid(), 'balance', clock_timestamp(), jsonb_build_object(
+       'v', 1, 'entry', 'judge_post', 'runId', gen_random_uuid(), 'workspaceId', gen_random_uuid(),
+       'sessionId', null, 'coded', true, 'amountCents', 0, 'rail', 'simulated', 'soakFixture', '${SOAK_FIXTURE}')
+     from generate_series(1, ${n}) returning 1`,
+  );
+  return out === null ? -1 : out.split("\n").filter(Boolean).length;
+}

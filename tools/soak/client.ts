@@ -20,7 +20,7 @@ export interface Exchange {
   status: number;
   ms: number;
   rail: string | null;
-  /** The problem code of a 4xx/5xx answer (RATE_LIMITED, QUEUED…), when it has one. */
+  /** The problem code of a 4xx/5xx answer (RATE_LIMITED, QUEUED…), or the socket error of a failed request. */
   code: string | null;
   at: number;
 }
@@ -96,7 +96,12 @@ export class JudgeClient {
           status: a.status,
           ms: Date.now() - started,
           rail: typeof header === "string" ? header : null,
-          code: a.status >= 400 && typeof b?.code === "string" ? b.code : null,
+          code:
+            a.status < 0
+              ? a.text.slice(0, 40)
+              : a.status >= 400 && typeof b?.code === "string"
+                ? b.code
+                : null,
           at: started,
         });
         resolve(a);
