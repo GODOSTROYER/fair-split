@@ -13,6 +13,7 @@ import { format } from "../../_shims/domain";
 import { fontFamily } from "../../_shims/fonts";
 import { people } from "../../_shims/seed";
 import { radius, space, target } from "../../_shims/tokens.native";
+import { railLabel } from "../../lib/payout-status";
 import { feedback } from "../../platform/feedback";
 import { signHref } from "../../services/session";
 import { useApp } from "../../state/app";
@@ -189,7 +190,7 @@ export function CosignScreen() {
     <Screen testID="M-BD-01" state={c.status} footer={footer} contentStyle={styles.content}>
       {dto.rail === "simulated" ? (
         <Txt kind="caption" testID="M-BD-01.rail">
-          Simulated PayPal sandbox
+          {railLabel(dto.rail, "simulated_rail", lang).chip}
         </Txt>
       ) : null}
       {showPush ? <SimulatedPush dto={dto} /> : null}

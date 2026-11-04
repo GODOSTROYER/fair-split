@@ -41,6 +41,7 @@ describe("live Member statement read", () => {
       if (lineState === "READY") vi.useFakeTimers();
       let discoveryReads = 0;
       const api = createHttpApi({
+        judgeFrame: lineState === "READY",
         origin: "http://localhost",
         getBearer: () => "test-frame-token",
         fetch: (async (input, init) => {
@@ -151,7 +152,12 @@ describe("live Member statement read", () => {
         { status: 404 },
       );
     });
-    const api = createHttpApi({ origin: "http://localhost", getBearer: () => null, fetch: request });
+    const api = createHttpApi({
+      origin: "http://localhost",
+      getBearer: () => null,
+      fetch: request,
+      judgeFrame: true,
+    });
     const reading = api.getStatement({ signal: controller.signal });
     await vi.advanceTimersByTimeAsync(0);
     expect(vi.getTimerCount()).toBe(1);
@@ -160,6 +166,16 @@ describe("live Member statement read", () => {
     expect(vi.getTimerCount()).toBe(0);
     await vi.advanceTimersByTimeAsync(30_000);
     expect(request).toHaveBeenCalledTimes(1);
+  });
+  it("does not defer an ordinary phone's missing-line response", async () => {
+    vi.useFakeTimers();
+    const request = vi.fn(async () =>
+      Response.json({ code: "NOT_FOUND", status: 404, message: "No member line yet." }, { status: 404 }),
+    );
+    const api = createHttpApi({ origin: "http://localhost", getBearer: () => null, fetch: request });
+    expect(await api.getStatement()).toMatchObject({ ok: false, status: 404 });
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(vi.getTimerCount()).toBe(0);
   });
   it("rejects a statement response that drifts from the typed server projection", async () => {
     const lineId = "0190f3c2-6c1e-7c3a-8d2b-1a2b3c4d5e6f";

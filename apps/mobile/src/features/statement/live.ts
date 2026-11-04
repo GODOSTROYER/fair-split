@@ -1,54 +1,7 @@
-import type { StatementDTO } from "../../_shims/api-client";
-import type { ItemStatus, ItemUpdatedPayload, Lang, RunEvent } from "../../_shims/contracts";
-import { pendingReview } from "../../_shims/i18n";
-import type { ItemTrack } from "../../lib/item-status";
+import type { ItemStatus, ItemUpdatedPayload, RunEvent } from "../../_shims/contracts";
+import { confirmedPayment, type ItemEffect, type ItemTrack, reduceItemEvent } from "../../lib/item-status";
 
-const COPY = {
-  simulated: {
-    ceb: "Kini nga bayad pinaagi sa simulated PayPal sandbox. Walay tinuod nga kuwarta nga molihok.",
-    fil: "Ang bayad na ito ay sa simulated PayPal sandbox. Walang totoong perang gagalaw.",
-    en: "This payment uses the simulated PayPal sandbox. No real money moves.",
-  },
-  replay: {
-    ceb: "Gi-replay nga bayad sa simulated PayPal sandbox.",
-    fil: "Ni-replay na bayad sa simulated PayPal sandbox.",
-    en: "Replayed payment from the simulated PayPal sandbox.",
-  },
-  unknown: {
-    ceb: "Wala mailhi ang gigikanan sa bayad.",
-    fil: "Hindi alam ang pinagmulan ng bayad.",
-    en: "Payment rail unknown.",
-  },
-};
-
-const REPLAY_CHIP: Record<Lang, string> = {
-  ceb: "Gi-replay · Simulated PayPal sandbox",
-  fil: "Ni-replay · Simulated PayPal sandbox",
-  en: "Replayed · Simulated PayPal sandbox",
-};
-
-export function railLabel(rail: string | null | undefined, provenance: string, lang: Lang) {
-  const kind =
-    provenance === "replay"
-      ? "replay"
-      : rail === "simulator" ||
-          rail === "simulated" ||
-          provenance === "simulated_rail" ||
-          provenance === "seeded"
-        ? "simulated"
-        : "unknown";
-  return {
-    kind,
-    chip:
-      kind === "unknown"
-        ? COPY.unknown[lang]
-        : kind === "replay"
-          ? REPLAY_CHIP[lang]
-          : "Simulated PayPal sandbox",
-    copy: COPY[kind][lang],
-    review: pendingReview(lang),
-  };
-}
+export { payoutStatus, railLabel, statementRail } from "../../lib/payout-status";
 
 const STATUS: Readonly<Record<string, ItemStatus>> = {
   PENDING: "PENDING",
@@ -101,6 +54,29 @@ export function memberEvent(event: RunEvent): RunEvent<"item.updated", ItemUpdat
   };
 }
 
-export function statementRail(dto: StatementDTO, lang: Lang, track?: Pick<ItemTrack, "provenance">) {
-  return railLabel(dto.paypalRail, track?.provenance === "replay" ? "replay" : dto.provenance, lang);
+export interface PaidSignal {
+  eventId: string;
+  at: string;
+  receivedAt: number;
+}
+
+/** The store's complete item event transition, including the only signal allowed to start MM-1. */
+export function applyStatementItemEvent(
+  track: ItemTrack,
+  event: RunEvent,
+  senderItemId: string,
+  receivedAt: number,
+  demo = false,
+): { track: ItemTrack; effect: ItemEffect | "ignored"; paid: PaidSignal | null } {
+  const adapted =
+    demo && event.type === "item.updated"
+      ? (event as RunEvent<"item.updated", ItemUpdatedPayload>)
+      : memberEvent(event);
+  if (!adapted) return { track, effect: "ignored", paid: null };
+  const result = reduceItemEvent(track, adapted, senderItemId);
+  const paid =
+    result.effect === "applied" && track.status !== "SUCCESS" && confirmedPayment(result.track)
+      ? { eventId: event.id, at: event.at, receivedAt }
+      : null;
+  return { ...result, paid };
 }

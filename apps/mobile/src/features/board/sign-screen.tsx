@@ -12,6 +12,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { format } from "../../_shims/domain";
 import { people } from "../../_shims/seed";
 import { space, target } from "../../_shims/tokens.native";
+import { railLabel } from "../../lib/payout-status";
 import { deviceKeyId } from "../../lib/signing";
 import { pirmaHref } from "../../services/session";
 import { useApp } from "../../state/app";
@@ -69,7 +70,7 @@ export function SignScreen() {
     retry,
     newKey,
   } = useSign();
-  const { api, session } = useApp();
+  const { api, session, lang } = useApp();
   const { t } = useFs();
   const tr = useT();
   const insets = useSafeAreaInsets();
@@ -298,7 +299,7 @@ export function SignScreen() {
     >
       {dto.rail === "simulated" ? (
         <Txt kind="caption" testID="M-BD-02.rail">
-          Simulated PayPal sandbox
+          {railLabel(dto.rail, "simulated_rail", lang).chip}
         </Txt>
       ) : null}
       <View {...mm5.rootProps} style={styles.moment} collapsable={false}>

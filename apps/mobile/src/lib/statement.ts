@@ -626,13 +626,22 @@ export function clipCuesReached(cues: readonly MentionCue[], ms: number, fired: 
  * Merges a fresh statement read into the item track that SSE keeps current. The read is the server's truth, but an
  * `item.updated` can land while the read is in flight, so a read never moves the status backwards (I5). A read
  * with no item status at all (a run that was reset, or not yet posted) clears the track; event ids already seen are
- * kept, so a redelivered event still changes nothing.
+ * kept, so a redelivered event still changes nothing. A different sender item is a new attempt: it starts from the
+ * read's status and never inherits the preceding item's event provenance.
  */
 export function mergeTrack(track: ItemTrack, item: StatementDTO["item"]): ItemTrack {
   const status = item?.status ?? null;
   if (status === null) return { ...EMPTY_TRACK, seen: track.seen };
+  if (track.senderItemId && track.senderItemId !== item?.senderItemId) {
+    return { senderItemId: item?.senderItemId, status, updatedAt: item?.updatedAt ?? null, seen: track.seen };
+  }
   if (track.status === null || ITEM_STATUS_RANK[status] >= ITEM_STATUS_RANK[track.status]) {
-    return { ...track, status, updatedAt: item?.updatedAt ?? track.updatedAt };
+    return {
+      ...track,
+      senderItemId: item?.senderItemId,
+      status,
+      updatedAt: item?.updatedAt ?? track.updatedAt,
+    };
   }
   return track;
 }

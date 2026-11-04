@@ -26,10 +26,14 @@ export async function readMemberStatement(
   readAudio: (lineId: string, lang: Lang) => Promise<ApiResult<StatementAudio>>,
   rail: () => string | null,
   origin: string,
-  options: { signal?: AbortSignal } = {},
+  options: { signal?: AbortSignal; judgeFrame?: boolean } = {},
 ): Promise<ApiResult<StatementDTO>> {
   try {
-    const line = await discoverMemberLine(() => routes.memberStatementLine(options), options.signal);
+    const line = await discoverMemberLine(
+      () => routes.memberStatementLine(options),
+      options.signal,
+      options.judgeFrame,
+    );
     const reads = await Promise.all(
       (["ceb", "fil", "en"] as const).map(async (lang) => {
         const view = await routes.statement({ params: { lineId: line.lineId }, query: { lang }, ...options });

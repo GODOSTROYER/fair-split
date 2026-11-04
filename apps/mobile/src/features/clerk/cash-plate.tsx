@@ -11,7 +11,8 @@ import { Pressable, StyleSheet, TextInput, View } from "react-native";
 import { amountStateOf, MEMBER_STATUS_WORDS, type MemberStatus } from "../../_shims/contracts";
 import { format } from "../../_shims/domain";
 import { radius, space, target } from "../../_shims/tokens.native";
-import { STATUS_GLYPH, STATUS_TONE } from "../../lib/item-status";
+import { STATUS_GLYPH, type StatusTone } from "../../lib/item-status";
+import { payoutStatus } from "../../lib/payout-status";
 import { useApp } from "../../state/app";
 import { useFs } from "../../theme/theme";
 import { AmountDisplay } from "../../ui/amount";
@@ -148,7 +149,17 @@ function CashRow({ entry, phpPerUsd, onPress }: { entry: RosterEntry; phpPerUsd:
   const status = memberStatusOf(entry);
   const pesos = format.cashPesos(line.cents, phpPerUsd);
   const received = entry.status === "received";
-  const word = MEMBER_STATUS_WORDS[status][lang];
+  const projection = payoutStatus(
+    {
+      status,
+      statusWord: MEMBER_STATUS_WORDS[status][lang],
+      amountState: received ? "attested" : amountStateOf(line.lineState, { approved: true }),
+      paypal: false,
+      evidence: [],
+    },
+    lang,
+  );
+  const word = projection.statusWord;
   const local = entry.local === "none" ? null : tr(LOCAL_WORD[entry.local]);
   const when =
     received && entry.receivedAt
@@ -162,12 +173,19 @@ function CashRow({ entry, phpPerUsd, onPress }: { entry: RosterEntry; phpPerUsd:
     <AmountDisplay
       text={pesos}
       srLabel={format.cashSpoken(line.cents, phpPerUsd)}
-      state={received ? "attested" : amountStateOf(line.lineState, { approved: true })}
+      state={projection.amountState}
       size="figure"
     />
   );
   const stamp = received && entry.receivedBy ? <InkStamp initials={entry.receivedBy} /> : null;
-  const chip = <CashChip status={status} word={word} testID={`M-CL-01.cash.line.${line.memberNo}.chip`} />;
+  const chip = (
+    <CashChip
+      status={status}
+      word={word}
+      tone={projection.tone}
+      testID={`M-CL-01.cash.line.${line.memberNo}.chip`}
+    />
+  );
   return (
     <Pressable
       testID={`M-CL-01.cash.line.${line.memberNo}`}
@@ -224,9 +242,18 @@ function CashRow({ entry, phpPerUsd, onPress }: { entry: RosterEntry; phpPerUsd:
  * The member's status word as the shared chip draws it (hatch for cash, a glyph, never colour alone), except that
  * the word wraps: at 2× text "Handa na po sa bodega" must never be clipped.
  */
-function CashChip({ status, word, testID }: { status: MemberStatus; word: string; testID: string }) {
+function CashChip({
+  status,
+  word,
+  tone,
+  testID,
+}: {
+  status: MemberStatus;
+  word: string;
+  tone: StatusTone;
+  testID: string;
+}) {
   const { t } = useFs();
-  const tone = STATUS_TONE[status];
   const look =
     tone === "decide"
       ? { bg: t.color.canary, fg: t.color.onCanary, border: t.color.canaryBorder }

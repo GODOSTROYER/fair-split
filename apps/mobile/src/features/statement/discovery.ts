@@ -25,14 +25,19 @@ function wait(ms: number, signal?: AbortSignal): Promise<void> {
 }
 
 /** A judge frame can arrive before computation creates its member line. Only discovery's typed 404 may wait. */
-export async function discoverMemberLine<T>(read: () => Promise<T>, signal?: AbortSignal): Promise<T> {
+export async function discoverMemberLine<T>(
+  read: () => Promise<T>,
+  signal?: AbortSignal,
+  judgeFrame = false,
+): Promise<T> {
   for (let attempt = 0; ; attempt++) {
     if (signal?.aborted) throw cancelled();
     try {
       return await read();
     } catch (error) {
       const delay = DISCOVERY_WAITS_MS[attempt];
-      if (!isApiClientError(error, "NOT_FOUND") || error.status !== 404 || delay === undefined) throw error;
+      if (!judgeFrame || !isApiClientError(error, "NOT_FOUND") || error.status !== 404 || delay === undefined)
+        throw error;
       await wait(delay, signal);
     }
   }

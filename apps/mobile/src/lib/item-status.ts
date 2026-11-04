@@ -22,6 +22,8 @@ export type CapsuleState =
   | "excluded";
 
 export interface ItemTrack {
+  /** A reroute creates a new payout attempt; statuses/provenance never cross this identity. */
+  senderItemId?: string;
   status: ItemStatus | null;
   updatedAt: string | null;
   /** Evidence from the last applied item event; a session's rail cannot override it. */
@@ -42,11 +44,17 @@ export function reduceItemEvent(
   opts: { ownCancel?: boolean } = {},
 ): { track: ItemTrack; effect: ItemEffect } {
   if (ev.payload.senderItemId !== senderItemId) return { track, effect: "other-item" };
+  if (track.senderItemId && track.senderItemId !== senderItemId) {
+    track = { ...EMPTY_TRACK, senderItemId, seen: track.seen };
+  }
   if (track.seen.includes(ev.id)) return { track, effect: "duplicate" };
   const seen = [...track.seen, ev.id].slice(-SEEN_LIMIT);
   const next = fsm.item.apply(track.status, ev.payload.status, opts);
   if (next === null) return { track: { ...track, seen }, effect: "stale" };
-  return { track: { status: next, updatedAt: ev.at, provenance: ev.provenance, seen }, effect: "applied" };
+  return {
+    track: { senderItemId, status: next, updatedAt: ev.at, provenance: ev.provenance, seen },
+    effect: "applied",
+  };
 }
 
 /** Replayed statuses are readable evidence, never a fresh payment confirmation or MM-1 trigger. */

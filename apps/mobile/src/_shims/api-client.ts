@@ -309,6 +309,8 @@ export interface FairSplitApi {
 /* ------------------------------------------------------------------ HTTP */
 
 export interface HttpApiOptions {
+  /** Only embedded judge phones wait for computation to create their member line. */
+  judgeFrame?: boolean;
   origin: string;
   getBearer: () => string | null;
   fetch?: typeof fetch;
@@ -399,7 +401,7 @@ export function createHttpApi(opts: HttpApiOptions): FairSplitApi {
           call<StatementAudio>("GET", `/v1/media/audio/${encodeURIComponent(lineId)}?lang=${lang}`),
         () => statementApi.rail ?? responseRail,
         origin,
-        options,
+        { ...options, judgeFrame: opts.judgeFrame },
       ),
     getStatementByLink: (token) =>
       call<StatementDTO>("GET", `/v1/statements/link/${encodeURIComponent(token)}`), // shim-defined

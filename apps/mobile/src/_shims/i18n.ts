@@ -38,6 +38,43 @@ export function defineMessages<const C extends Record<string, Entry>>(catalog: C
 export const messages = defineMessages({
   "app.name": same("Fair Split"),
   "app.lockup": same("Fair Split: co-op payroll"),
+  "common.payoutSimulatedLabel": same("Simulated PayPal sandbox"),
+  "common.payoutSimulatedCopy": {
+    ceb: "Kini nga bayad pinaagi sa simulated PayPal sandbox. Walay tinuod nga kuwarta nga molihok.",
+    fil: "Ang bayad na ito ay sa simulated PayPal sandbox. Walang totoong perang gagalaw.",
+    en: "This payment uses the simulated PayPal sandbox. No real money moves.",
+  },
+  "common.payoutReplayChip": {
+    ceb: "Gi-replay · Simulated PayPal sandbox",
+    fil: "Ni-replay · Simulated PayPal sandbox",
+    en: "Replayed · Simulated PayPal sandbox",
+  },
+  "common.payoutReplayCopy": {
+    ceb: "Gi-replay nga bayad sa simulated PayPal sandbox.",
+    fil: "Ni-replay na bayad sa simulated PayPal sandbox.",
+    en: "Replayed payment from the simulated PayPal sandbox.",
+  },
+  "common.payoutUnknown": {
+    ceb: "Wala mailhi ang gigikanan sa bayad.",
+    fil: "Hindi alam ang pinagmulan ng bayad.",
+    en: "Payment rail unknown.",
+  },
+  // A few plain words on the member's phone; the sentence under the chip names the simulated rail.
+  "common.payoutPlannedChip": {
+    ceb: "Giplano nga replay",
+    fil: "Planadong replay",
+    en: "Replay planned",
+  },
+  "common.payoutPlannedCopy": {
+    ceb: "Kini nga bayad i-replay sa simulated PayPal sandbox. Wala pay gipadala.",
+    fil: "Ire-replay ang bayad na ito sa simulated PayPal sandbox. Wala pang naipadala.",
+    en: "This pay will replay on the simulated PayPal sandbox. Nothing is sent yet.",
+  },
+  "common.payoutReplayStatus": {
+    ceb: "Gi-replay: {status}",
+    fil: "Ni-replay: {status}",
+    en: "Replayed: {status}",
+  },
   "common.demoData": {
     ceb: "Demo data, walay server",
     fil: "Demo data, walang server",

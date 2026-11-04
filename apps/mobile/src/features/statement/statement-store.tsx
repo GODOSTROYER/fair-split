@@ -15,32 +15,18 @@
  */
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useRef, useState } from "react";
 import type { StatementDTO } from "../../_shims/api-client";
-import type { ItemUpdatedPayload, RunEvent } from "../../_shims/contracts";
-import {
-  type CapsuleState,
-  capsuleFor,
-  confirmedPayment,
-  EMPTY_TRACK,
-  type ItemTrack,
-  reduceItemEvent,
-} from "../../lib/item-status";
+import { type CapsuleState, capsuleFor, EMPTY_TRACK, type ItemTrack } from "../../lib/item-status";
 import { legacyStatementCacheKeys, mergeTrack, readFailureOf, statementCacheKey } from "../../lib/statement";
 import { prefs } from "../../platform/kv";
 import { bootQuery } from "../../platform/query";
 import { identityKey } from "../../services/session";
 import { useApp } from "../../state/app";
-import { memberEvent } from "./live";
+import { applyStatementItemEvent, type PaidSignal } from "./live";
 import { previewLine } from "./preview";
 import { parseReview, type ReviewRecord, reviewPrefKey, serializeReview } from "./review";
 
 /** PayPal's confirmation as it arrived: the SSE event that moved the item to SUCCESS. */
-export interface PaidSignal {
-  eventId: string;
-  /** The event's own time (server clock). */
-  at: string;
-  /** When this phone applied it. */
-  receivedAt: number;
-}
+export type { PaidSignal } from "./live";
 
 export interface StatementValue {
   status: "loading" | "ready" | "error";
@@ -229,16 +215,11 @@ function useStatementSource(opts: { enabled: boolean; linkToken: string | null; 
         return;
       }
       if (e.type !== "item.updated" || !senderItemId) return;
-      const before = trackRef.current.status;
-      const adapted = demo ? (e as RunEvent<"item.updated", ItemUpdatedPayload>) : memberEvent(e);
-      if (!adapted) return;
-      const r = reduceItemEvent(trackRef.current, adapted, senderItemId);
+      const r = applyStatementItemEvent(trackRef.current, e, senderItemId, Date.now(), !!demo);
       if (r.effect !== "applied") return; // a repeat or a stale event changes nothing, silently
       trackRef.current = r.track;
       setTrack(r.track);
-      if (confirmedPayment(r.track) && before !== "SUCCESS") {
-        setPaid({ eventId: e.id, at: e.at, receivedAt: Date.now() });
-      }
+      if (r.paid) setPaid(r.paid);
       // Read statement words and clips together after a forward update (IC-11).
       void load();
     });

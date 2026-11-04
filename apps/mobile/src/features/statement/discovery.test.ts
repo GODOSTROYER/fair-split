@@ -15,7 +15,7 @@ describe("member statement discovery before computation finishes", () => {
     vi.useFakeTimers();
     const missing = failure(404);
     const read = vi.fn().mockRejectedValue(missing);
-    const result = discoverMemberLine(read).catch((error) => error);
+    const result = discoverMemberLine(read, undefined, true).catch((error) => error);
     await vi.advanceTimersByTimeAsync(29_999);
     expect(read).toHaveBeenCalledTimes(5);
     await vi.advanceTimersByTimeAsync(1);
@@ -42,7 +42,7 @@ describe("member statement discovery before computation finishes", () => {
     vi.useFakeTimers();
     const controller = new AbortController();
     const read = vi.fn().mockRejectedValue(failure(404));
-    const result = discoverMemberLine(read, controller.signal).catch((error) => error);
+    const result = discoverMemberLine(read, controller.signal, true).catch((error) => error);
     await vi.advanceTimersByTimeAsync(0);
     expect(vi.getTimerCount()).toBe(1);
     controller.abort();
@@ -58,5 +58,16 @@ describe("member statement discovery before computation finishes", () => {
     const read = vi.fn();
     await expect(discoverMemberLine(read, controller.signal)).rejects.toThrow("cancelled");
     expect(read).not.toHaveBeenCalled();
+  });
+
+  it("returns an ordinary member's missing line immediately outside a judge frame", async () => {
+    vi.useFakeTimers();
+    const missing = failure(404);
+    const read = vi.fn().mockRejectedValue(missing);
+    const result = discoverMemberLine(read).catch((error) => error);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(read).toHaveBeenCalledTimes(1);
+    expect(vi.getTimerCount()).toBe(0);
+    expect(await result).toBe(missing);
   });
 });
