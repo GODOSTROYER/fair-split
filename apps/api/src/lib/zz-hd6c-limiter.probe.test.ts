@@ -49,13 +49,14 @@ it("the complete rule inventory marks exactly the four guess guards critical and
 
 /** Round-robin every non-critical keyed partition until the keyed cap is reached (the attacker's flood). */
 function fillEveryNonCritical(limiter: KeyedRateLimiter, globalsAlreadyHeld = 0) {
-  let i = 0;
-  while (limiter.size < MAX_KEYED_KEYS + globalsAlreadyHeld) {
+  // Pre-held critical/global entries occupy separate reservations, not the shared keyed pool.
+  const held = limiter.size;
+  expect(held).toBeGreaterThanOrEqual(globalsAlreadyHeld);
+  for (let i = 0; i < MAX_KEYED_KEYS; i++) {
     const rule = NON_CRITICAL[i % NON_CRITICAL.length] as RateRule;
     limiter.take(rule, `flood:${i}`);
-    i++;
   }
-  expect(limiter.size).toBe(MAX_KEYED_KEYS + globalsAlreadyHeld);
+  expect(limiter.size).toBe(MAX_KEYED_KEYS + held);
 }
 
 /** Fill the keyed cap with only two big non-critical partitions. */
