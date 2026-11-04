@@ -5,8 +5,9 @@
 // mock-only replay of the recording, and axe on every state. The mock emits no rows yet, so the recorded run's
 // rows (and the two states it never reaches) are fed into the run's stream.
 
+import type { RunEvent } from "@fairsplit/contracts";
 import { act, configure, fireEvent, screen, waitFor, within } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { TREASURER } from "../../data/mock/driver.js";
 import {
   clearMomentTrace,
@@ -25,6 +26,14 @@ import { replayRows } from "./replay-fixture.js";
 configure({ asyncUtilTimeout: 6000 });
 
 const READING = "/season/2026-A/reading";
+
+/** Rows as a judge workspace streams them: the same serials and positions under the clone's own document id. */
+function clonedRows(rows: Parameters<typeof rowEvents>[0], docId: string) {
+  return (stamp: Parameters<ReturnType<typeof rowEvents>>[0]): RunEvent[] =>
+    rowEvents(rows)(stamp).map((event) =>
+      event.type === "extract.row" ? { ...event, payload: { ...event.payload, docId } } : event,
+    );
+}
 
 /** A session whose run is funded and reading (EXTRACTING), its rows not yet streamed. */
 async function readingRun(motion: "full" | "reduced" = "full", path = READING): Promise<SeasonRender> {
@@ -137,6 +146,65 @@ describe("W-TR-03 reading room", { timeout: 60_000 }, () => {
       expect(screen.getByTestId("W-TR-03.beds.row.0457").dataset.state).toBe("printed");
       expect(screen.getByTestId("W-TR-03.status").textContent).toMatch(/pink/);
       if (motion === "reduced") expect(r.container.querySelector(".fsc-flight")).toBeNull();
+      r.unmount();
+    },
+  );
+
+  it.each(["full", "reduced"] as const)(
+    "prints a cloned run row by row in %s motion: the counter keeps up with the ribbon, the bench follows, photos tick",
+    async (motion) => {
+      const r = await readingRun(motion);
+      clearMomentTrace();
+      const photoRows = (id: string) => replayRows(seedSnapshot()).filter((row) => row.photoId === id);
+      const progress = () => screen.getByTestId("W-TR-03.film.progress").textContent;
+      const ribbon = (serial: string) =>
+        waitFor(() =>
+          expect(screen.getByTestId("W-JG-01.ribbon.machine").textContent).toMatch(`Read slip ${serial}`),
+        );
+      expect(progress()).toBe("0 of 48 slips read");
+      // Photo B's rows one at a time: each prints as it arrives, never waiting for COMPUTED.
+      const b = photoRows("B");
+      expect(b).toHaveLength(4);
+      for (const [i, row] of b.entries()) {
+        act(() => r.stream.inject(clonedRows([row], "019f4b41-5280-7944-961e-00000000000b")));
+        expect(screen.getByTestId(`W-TR-03.beds.row.${row.serial}`).dataset.state).not.toBe("waiting");
+        await ribbon(row.serial);
+        expect(progress()).toBe(`${i + 1} of 48 slips read`);
+        expect(screen.getByTestId("W-TR-03.film.B").dataset.read).toBe(i === 3 ? "" : undefined);
+      }
+      expect(screen.getByTestId("W-TR-03.bench").dataset.photo).toBe("B");
+      await waitFor(() => expect(momentPhase(r.container, "MM-2")).toBe("landed"), { timeout: 10_000 });
+      expect(tracedPhases("MM-2").filter((phase) => phase === "band")).toHaveLength(4);
+      // fs-api writes a photo's four rows in one step: the director still starts their prints 180 ms apart. The
+      // clock holds still while the burst arrives, so each delay is the director's slot alone.
+      const c = photoRows("C");
+      const clock = vi.spyOn(performance, "now").mockReturnValue(performance.now());
+      try {
+        act(() => r.stream.inject(clonedRows(c, "019f4b41-5280-7944-961e-00000000000c")));
+      } finally {
+        clock.mockRestore();
+      }
+      const printAt = c.map((row) =>
+        Number.parseFloat(
+          screen.getByTestId(`W-TR-03.beds.row.${row.serial}`).style.getPropertyValue("--fsc-print-at"),
+        ),
+      );
+      for (let i = 1; i < printAt.length; i++)
+        expect((printAt[i] ?? 0) - (printAt[i - 1] ?? 0)).toBeGreaterThanOrEqual(180);
+      if (motion === "reduced") {
+        // Reduced motion never flies a crop: the pencil outline and its 1 px connector stand in.
+        await waitFor(() => expect(r.container.querySelector(".fsc-flights__connector")).not.toBeNull());
+        expect(r.container.querySelector(".fsc-flight")).toBeNull();
+      }
+      await ribbon(c[3]?.serial ?? "");
+      expect(progress()).toBe("8 of 48 slips read");
+      await waitFor(() => expect(screen.getByTestId("W-TR-03.bench").dataset.photo).toBe("C"));
+      expect(screen.getByTestId("W-TR-03.film.C").dataset.read).toBe("");
+      for (const row of c)
+        await waitFor(
+          () => expect(screen.getByTestId(`W-TR-03.beds.row.${row.serial}`).dataset.state).toBe("printed"),
+          { timeout: 4000 },
+        );
       r.unmount();
     },
   );
