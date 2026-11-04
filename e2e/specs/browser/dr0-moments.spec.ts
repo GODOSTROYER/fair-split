@@ -49,7 +49,7 @@ test("DR-0 / E-01 / E-15: logged-out judge, real moment phases, Proof, Reset and
       timeout: 120_000,
     });
     // The public tier checks plate 6 on the server because receivers are withheld.
-    await expect(page.getByTestId("W-PF-01.verdict")).toContainText(/Six of six match/i);
+    await expect(page.getByTestId("W-PF-01.verdict")).toContainText(/6 of 6 integrity checks match/i);
     await expect(
       page.locator(
         '[data-testid^="W-PF-01.check."][data-state="matches"], [data-testid="W-PF-01.check.payoutItems"][data-state="server"]',

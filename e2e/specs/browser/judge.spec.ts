@@ -706,7 +706,7 @@ test("inv.i8.the last hourly slot stays live on the stage, Run and Proof after i
         .getByTestId("W-PF-01.verify")
         .getByRole("button", { name: /Verify in your browser/ })
         .click();
-      await expect(page.getByTestId("W-PF-01.verdict")).toContainText("Six of six match", {
+      await expect(page.getByTestId("W-PF-01.verdict")).toContainText("6 of 6 integrity checks match", {
         timeout: 30_000,
       });
       await expect(page.getByTestId("W-PF-01.check.payoutItems")).toHaveAttribute("data-state", "matches");

@@ -121,7 +121,7 @@ test("E-01 film take: real phases, two scripted human keys and an ink cursor", a
     await expect(page.getByTestId("W-PF-01.verdict")).toHaveAttribute("data-state", "sample", {
       timeout: 60_000,
     });
-    await expect(page.getByTestId("W-PF-01.verdict")).toContainText(/Six of six match/i);
+    await expect(page.getByTestId("W-PF-01.verdict")).toContainText(/6 of 6 integrity checks match/i);
     // This browser retains its own judge credential, which receives the full tier (including plate 6).
     await expect(page.locator('[data-testid^="W-PF-01.checks."][data-state="matches"]')).toHaveCount(6);
     await expect(page.getByTestId("W-PF-01.checks.payoutItems")).toHaveAttribute("data-state", "matches");
