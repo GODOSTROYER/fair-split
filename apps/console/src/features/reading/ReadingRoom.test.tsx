@@ -44,6 +44,23 @@ async function readingRun(motion: "full" | "reduced" = "full", path = READING): 
 }
 
 describe("W-TR-03 reading room", { timeout: 60_000 }, () => {
+  it("states the stand-in provenance once by the beds and opens the real exhibit from above them", async () => {
+    const r = await readingRun();
+    act(() => r.stream.inject(rowsFor(["A"])));
+    const side = screen.getByTestId("W-TR-03.side");
+    expect(side.textContent?.match(/Seed stand-in, not a Claude recording/g)).toHaveLength(1);
+    const link = within(side).getByRole("link", { name: /Claude's real readings of 10 hero slips/ });
+    expect(
+      link.compareDocumentPosition(screen.getByTestId("W-TR-03.beds")) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    fireEvent.click(link);
+    expect(document.activeElement?.id).toBe("fsc-heroes-title");
+    for (const row of side.querySelectorAll(".fsc-beds__row"))
+      expect(row.getAttribute("aria-describedby")).toBe("fsc-reading-provenance");
+    expect(side.querySelector(".fsc-ring")).toBeNull();
+    r.unmount();
+  });
+
   afterEach(() => {
     replayTiming.gapMs = REPLAY_GAP_MS;
   });

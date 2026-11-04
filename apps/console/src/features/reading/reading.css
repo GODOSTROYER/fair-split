@@ -283,6 +283,16 @@
   gap: 32px 40px;
 }
 
+.fsc-read {
+  container-type: inline-size;
+  container-name: reading-room;
+}
+@container reading-room (max-width: 1100px) {
+  .fsc-read__body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .fsc-read__desk {
   display: grid;
   align-content: start;
@@ -666,7 +676,7 @@
 .fsc-beds__table {
   width: 100%;
   border-collapse: collapse;
-  table-layout: fixed;
+  table-layout: auto;
 }
 
 .fsc-beds__table th,
@@ -754,7 +764,11 @@
 
 /* A narrow side column (the 42% of a 1280 px stage) keeps the member's name whole: tighter figure columns,
    and the name may take a second line. */
-@container (max-width: 440px) {
+@container (max-width: 520px) {
+  .fsc-beds__table :is(th, td):nth-child(4),
+  .fsc-beds__table :is(th, td):nth-child(5) {
+    display: none;
+  }
   .fsc-beds__table thead th:nth-child(1) {
     width: 58px;
   }
@@ -789,13 +803,16 @@
 }
 
 .fsc-beds__member {
-  display: grid;
-  overflow: hidden;
+  min-width: 160px;
+  width: auto;
 }
 
 .fsc-beds__member > * {
-  overflow: hidden;
-  text-overflow: ellipsis;
+  display: block;
+  white-space: normal;
+}
+
+.fsc-beds__table [data-numeric] {
   white-space: nowrap;
 }
 
