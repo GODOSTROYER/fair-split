@@ -192,3 +192,93 @@ it("bounds a route that never settles without repeatedly clicking its navigation
   expect(navigate).toHaveBeenCalledTimes(1);
   expect(state.setAutoplay).toHaveBeenCalledWith("paused");
 });
+
+it("waits for the real duplicate comparison to become ready before Count it once", async () => {
+  vi.useFakeTimers();
+  const countOnce = vi.fn();
+  state.path = "/runs/2026A-r37/split";
+  state.next = { id: "holds", text: "Count it once", to: state.path, actor: "person", screen: "W-TR-06" };
+  let compareReady = () => {};
+  function Host() {
+    const [phase, setPhase] = useState("pairs");
+    compareReady = () => setPhase("ready");
+    return (
+      <>
+        <section data-testid="W-TR-06">
+          <div data-moment="MM-3" data-moment-phase={phase} />
+          <button type="button" className="fs-slab__face" onClick={countOnce}>
+            Count it once
+          </button>
+        </section>
+        <StageAutoplay />
+      </>
+    );
+  }
+  render(<Host />);
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(500);
+  });
+  expect(countOnce).not.toHaveBeenCalled();
+  await act(async () => {
+    compareReady();
+  });
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(100);
+  });
+  expect(countOnce).toHaveBeenCalledTimes(1);
+});
+
+it("keeps a live reading row mounted through ring until the real landed phase", async () => {
+  vi.useFakeTimers();
+  const navigate = vi.fn();
+  state.path = "/season/2026-A/reading";
+  let landed = () => {};
+  function Host() {
+    const [phase, setPhase] = useState("ring");
+    landed = () => setPhase("landed");
+    return (
+      <>
+        <section data-testid="W-TR-03">
+          <div data-moment="MM-2" data-moment-phase={phase} />
+        </section>
+        <button type="button" data-testid="W-JG-01.runPill.next" onClick={navigate}>
+          By hand
+        </button>
+        <StageAutoplay />
+      </>
+    );
+  }
+  render(<Host />);
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(500);
+  });
+  expect(navigate).not.toHaveBeenCalled();
+  await act(async () => {
+    landed();
+  });
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(100);
+  });
+  expect(navigate).toHaveBeenCalledTimes(1);
+});
+
+it.each(["idle", "landed"])("does not hold a historical reading at %s", async (phase) => {
+  vi.useFakeTimers();
+  const navigate = vi.fn();
+  state.path = "/season/2026-A/reading";
+  render(
+    <>
+      <section data-testid="W-TR-03">
+        <div data-moment="MM-2" data-moment-phase={phase} />
+      </section>
+      <button type="button" data-testid="W-JG-01.runPill.next" onClick={navigate}>
+        By hand
+      </button>
+      <StageAutoplay />
+    </>,
+  );
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(100);
+  });
+  expect(navigate).toHaveBeenCalledTimes(1);
+});

@@ -39,6 +39,8 @@ export const autoplayTiming = {
   busyMs: INVOICE_WAIT.deadlineMs + 15_000,
 };
 
+const PRINTING_PHASES = new Set(["band", "lift", "flight", "resolve", "print", "ring"]);
+
 export function StageAutoplay() {
   const stage = useOptionalStage();
   if (!stage || stage.layout.phone === "phone-visit") return null;
@@ -195,11 +197,23 @@ function Autoplay({ stage }: { readonly stage: StageApi }) {
         }
         case "go":
         case "press": {
+          const printing = document
+            .querySelector('[data-testid="W-TR-03"] [data-moment="MM-2"]')
+            ?.getAttribute("data-moment-phase");
+          const comparison = document
+            .querySelector('[data-testid="W-TR-06"] [data-moment="MM-3"]')
+            ?.getAttribute("data-moment-phase");
+          // Watch the actual row finish before removing its room, and the actual field comparison before
+          // pressing Count it once. Idle/history never holds navigation; these checks invent no phases.
+          const momentPending =
+            (plan.kind === "go" && printing != null && PRINTING_PHASES.has(printing)) ||
+            (plan.kind === "press" && step.id === "holds" && comparison != null && comparison !== "ready");
           // A press still in flight (the first view waits for the session's invoice): wait, up to a ceiling.
-          if (document.querySelector('[data-testid="W-JG-01.stage"] [aria-busy="true"]')) {
+          if (momentPending || document.querySelector('[data-testid="W-JG-01.stage"] [aria-busy="true"]')) {
             busySince ??= Date.now();
             if (Date.now() - busySince >= autoplayTiming.busyMs) stop(AUTOPLAY_COPY.stuck, null);
-            else later(tick, navigation ? autoplayTiming.routeRetryMs : autoplayTiming.stepMs);
+            else
+              later(tick, momentPending || navigation ? autoplayTiming.routeRetryMs : autoplayTiming.stepMs);
             return;
           }
           busySince = null;
