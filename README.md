@@ -314,7 +314,15 @@ corepack pnpm e2e                                # the Playwright suite
 ```
 
 On Linux or macOS, run the same commands in a POSIX shell, with `export COREPACK_ENABLE_DOWNLOAD_PROMPT=0` in place
-of the `$env:` line. CI runs them on Linux; macOS is untested.
+of the `$env:` line (the `core.longpaths` line matters only on Windows). CI runs them on Linux; macOS is untested.
+Two Linux specifics, from the clean-clone check on Ubuntu 24.04 ([DR-4](docs/reports/cloud-dr4-linux.md)):
+- Run as a regular user, not root. Postgres refuses to run as root, so the embedded database cannot start in a root
+  shell, such as a Docker container. As root, give the tests and the stack a Postgres server's admin URL instead:
+  `export FS_TEST_DATABASE_URL=postgres://postgres@127.0.0.1:5432/postgres`. `corepack pnpm verify` removes `FS_*`
+  variables from its children, so pass it the same URL as `corepack pnpm verify --db=<url>`.
+- A fresh Linux install lacks the system libraries Chromium needs. Install them with the browser, once:
+  `corepack pnpm --filter @fairsplit/e2e exec playwright install --with-deps chromium` (it asks for sudo for the
+  system packages).
 
 The keyless stack is the local path we support. fs-api does not read `.env` by itself: `.env.example` lists the
 variable names a deployment sets (on Render, per-service environment variables). Never commit `.env`.
