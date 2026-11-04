@@ -84,9 +84,17 @@ afterAll(() => {
 });
 
 describe("biome.json ignores generated folders", () => {
-  it("the planted folders are .gitignore's own, turbo's cache, dist, coverage, .expo and node_modules among them", () => {
+  it("the planted folders are .gitignore's own, turbo's cache, dist, coverage, .expo, node_modules and the film take's output among them", () => {
     const folders = gitignoredFolders();
-    for (const f of [".turbo", "dist", "coverage", ".expo", "node_modules", "packages/sample/.turbo"]) {
+    for (const f of [
+      ".turbo",
+      "dist",
+      "coverage",
+      ".expo",
+      "node_modules",
+      "packages/sample/.turbo",
+      "e2e/film-out",
+    ]) {
       expect(folders).toContain(f);
     }
   });
