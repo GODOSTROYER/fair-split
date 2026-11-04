@@ -9,11 +9,13 @@ import type {
   FullWidthCellKeyDownEvent,
   GridApi,
   GridReadyEvent,
+  IsFullWidthRowParams,
   RowClassRules,
   RowClickedEvent,
 } from "ag-grid-community";
+import type { CustomCellRendererProps } from "ag-grid-react";
 import { AgGridReact } from "ag-grid-react";
-import { useCallback, useEffect } from "react";
+import { type ReactNode, useCallback, useEffect } from "react";
 import { GRID_DEFAULTS, GRID_HEADER_PX, GRID_ROW_PX, gridTheme } from "../../theme/grid.js";
 import type { GridContext, GridRow } from "./cells.js";
 
@@ -32,9 +34,18 @@ export interface SplitAgGridProps {
   readonly noRows: string;
   /** The grid's API once it is ready (J and K move through the rows with it), and null once it is gone. */
   readonly onApi: (api: GridApi<GridRow> | null) => void;
+  /** Draws the inline hold note (a full-width row under H1). */
+  readonly noteRenderer: (props: CustomCellRendererProps<GridRow>) => ReactNode;
 }
 
-export function SplitAgGrid({ noRows, onApi, ...props }: SplitAgGridProps) {
+/**
+ * The hold note under H1 spans the grid; every other row is cells. It keeps the grid's 40 px row height, so adding
+ * or removing it never changes another row's height (AG Grid would redraw the rows, and a live wave would lose its
+ * slide).
+ */
+const isFullWidthRow = (p: IsFullWidthRowParams<GridRow>) => p.rowNode.data?.kind === "note";
+
+export function SplitAgGrid({ noRows, onApi, noteRenderer, ...props }: SplitAgGridProps) {
   const onGridReady = useCallback((e: GridReadyEvent<GridRow>) => onApi(e.api), [onApi]);
   useEffect(() => () => onApi(null), [onApi]);
   return (
@@ -43,6 +54,8 @@ export function SplitAgGrid({ noRows, onApi, ...props }: SplitAgGridProps) {
       theme={gridTheme}
       onGridReady={onGridReady}
       rowHeight={GRID_ROW_PX}
+      isFullWidthRow={isFullWidthRow}
+      fullWidthCellRenderer={noteRenderer}
       headerHeight={GRID_HEADER_PX}
       suppressColumnVirtualisation
       ensureDomOrder

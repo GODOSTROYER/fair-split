@@ -11,15 +11,17 @@ import type { CustomCellRendererProps } from "ag-grid-react";
 import type { ReactNode } from "react";
 import { Stamp } from "../../chrome/Stamp.js";
 import { format } from "../../lib/format.js";
+import { duplicateSerial, type HoldNoteRow } from "./HoldNote.js";
 import type { RowConfidence, RowSlip, SplitRow, SplitTotals } from "./model.js";
 import { en, SPLIT } from "./shared/copy.js";
 import { DigitSwap } from "./shared/DigitSwap.js";
 import { BALLPOINT, COPY_FILL, FORM_INK, SERIAL_RED } from "./shared/SlipPaper.js";
 
-/** A grid row: a member's line, or the pinned totals. */
+/** A grid row: a member's line, the pinned totals, or the inline hold note under H1 (a full-width row). */
 export type GridRow =
   | ({ readonly kind: "line" } & SplitRow)
-  | ({ readonly kind: "totals" } & SplitTotals & { readonly memberNo: "totals" });
+  | ({ readonly kind: "totals" } & SplitTotals & { readonly memberNo: "totals" })
+  | HoldNoteRow;
 
 export interface GridContext {
   /** Live events may animate; replayed history may not. */
@@ -92,6 +94,7 @@ function amountWash(row: SplitRow, ctx: GridContext) {
 // ------------------------------------------------------------------------------------------------ member
 
 export function MemberCell({ data }: Props) {
+  if (data?.kind === "note") return null;
   if (!data) return null;
   if (data.kind === "totals") {
     return (
@@ -161,8 +164,11 @@ function SlipCrop({ slip, index, sheet }: { slip: RowSlip; index: number; sheet:
 }
 
 export function SlipsCell({ data, context }: Props) {
+  if (data?.kind === "note") return null;
   if (!data || data.kind === "totals") return null;
   const shown = data.slips.slice(0, 3);
+  // The carbon-copy chip: a serial on this line twice (the pink duplicate of H1), in the pink copy's own colour.
+  const dup = duplicateSerial(data.slips);
   return (
     <Cell className="fsr-cell--slips">
       <span className="fsr-slips">
@@ -180,6 +186,11 @@ export function SlipsCell({ data, context }: Props) {
           {data.slips.length}
         </span>
         <span className="fs-sr">{SPLIT.slipCount(data.slips.length)}</span>
+        {dup && (
+          <span className="fsr-dupchip fs-t-caption" data-testid={`W-TR-05.dup.${data.memberNo}`}>
+            {dup} ×2
+          </span>
+        )}
       </span>
     </Cell>
   );
@@ -188,6 +199,7 @@ export function SlipsCell({ data, context }: Props) {
 // ------------------------------------------------------------------------------------------------ kilos
 
 export function KgCell({ data, context }: Props) {
+  if (data?.kind === "note") return null;
   if (!data) return null;
   if (data.kind === "totals") return null;
   const ratio = Math.max(0, Math.min(2, data.treeRatio));
@@ -264,6 +276,7 @@ function ConfidenceBody({
 }
 
 export function ConfidenceCell({ data, context }: Props) {
+  if (data?.kind === "note") return null;
   if (!data || data.kind === "totals") return null;
   return (
     <Cell className="fsr-cell--conf">
@@ -300,6 +313,7 @@ function Part({
 }
 
 export function PremiumCell({ data, context }: Props) {
+  if (data?.kind === "note") return null;
   if (!data) return null;
   if (data.kind === "totals") {
     return (
@@ -316,6 +330,7 @@ export function PremiumCell({ data, context }: Props) {
 }
 
 export function BonusCell({ data, context }: Props) {
+  if (data?.kind === "note") return null;
   if (!data) return null;
   if (data.kind === "totals") {
     return (
@@ -338,6 +353,7 @@ const CATEGORY_WORD: Readonly<Record<"CBU" | "LOAN" | "ADVANCE", string>> = {
 };
 
 export function KaltasCell({ data }: Props) {
+  if (data?.kind === "note") return null;
   if (!data) return null;
   if (data.kind === "totals") {
     return (
@@ -365,6 +381,7 @@ export function KaltasCell({ data }: Props) {
 }
 
 export function CreditCell({ data }: Props) {
+  if (data?.kind === "note") return null;
   if (!data) return null;
   if (data.kind === "totals") {
     return (
@@ -400,6 +417,7 @@ export function CreditCell({ data }: Props) {
 }
 
 export function NetCell({ data, context }: Props) {
+  if (data?.kind === "note") return null;
   if (!data) return null;
   if (data.kind === "totals") {
     return (
@@ -434,6 +452,7 @@ export function NetCell({ data, context }: Props) {
 // ------------------------------------------------------------------------------------------------ rail
 
 export function RailCell({ data, context }: Props) {
+  if (data?.kind === "note") return null;
   if (!data || data.kind === "totals") return null;
   const cash = data.rail === "CASH" || data.movedToCash;
   return (
@@ -507,6 +526,7 @@ function statusLook(row: SplitRow): { readonly tone: GridTone; readonly glyph: G
 }
 
 export function StatusCell({ data, context }: Props) {
+  if (data?.kind === "note") return null;
   if (!data) return null;
   if (data.kind === "totals") {
     return (

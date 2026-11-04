@@ -206,23 +206,101 @@
   align-items: center;
 }
 
-/* Held and reserved rows: a 3 px canary rule on the left (a person decides). */
+/* Held and reserved rows: the marigold wash and a 3 px marigold bar on the left (a person decides). */
+.fsr-grid .ag-row.fsr-row--held {
+  background: var(--fs-canary-wash);
+}
+
 .fsr-grid .fsr-row--held .ag-cell[col-id="member"] {
   box-shadow: inset 3px 0 0 var(--fs-canary);
 }
 
+/* The line a person has open: their selection, the pod wash. */
+.fsr-grid .ag-row.fsr-row--open,
 .fsr-grid .fsr-row--open .ag-cell {
-  background: var(--fs-plate-2);
+  background: var(--fs-pod-wash);
 }
 
 .fsr-grid .fsr-row--totals .ag-cell {
-  border-top: 1px solid var(--fs-ink-3);
+  border-top: 1px solid var(--fs-rule-strong);
   background: var(--fs-plate-2);
+  font-weight: 650;
 }
 
-/* The decisions still open, pinned above the other lines: the run pill's order, set off by an ink-3 rule. */
+/* The inline hold note under H1: the held row's wash continues, one line, a quiet way into the drawer. */
+.fsr-grid .ag-row.fsr-row--note {
+  background: var(--fs-canary-wash);
+  box-shadow: inset 3px 0 0 var(--fs-canary);
+  cursor: default;
+}
+
+.fsr-note {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 100%;
+  min-width: 0;
+  padding: 0 24px 0 16px;
+}
+
+.fsr-note__thumbs {
+  display: inline-flex;
+  flex: none;
+  gap: 4px;
+}
+
+.fsr-note__thumb {
+  display: inline-grid;
+  place-items: end center;
+  align-self: center;
+  width: 22px;
+  height: 28px;
+  padding-bottom: 2px;
+  border-radius: 2px;
+  box-shadow: var(--fs-shadow-paper);
+  color: var(--fs-paper-ink);
+  font-weight: 650;
+  font-size: 0.75rem;
+  line-height: 1;
+}
+
+.fsr-note__words {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--fs-ink-2);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fsr-note__words b {
+  color: var(--fs-ink);
+  font-weight: 680;
+}
+
+.fsr-note__open.fs-flat {
+  flex: none;
+  min-height: 30px;
+  padding: 0 14px;
+}
+
+/* The carbon-copy chip: the pink duplicate's serial, twice, in the pink copy's own colour (evidence, not chrome). */
+.fsr-dupchip {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: var(--fs-radius-cell);
+  background: var(--fs-copy-pink);
+  color: var(--fs-paper-ink);
+  font-weight: 650;
+  font-variant-numeric: tabular-nums lining-nums;
+  white-space: nowrap;
+}
+
+/* The decisions still open, pinned above the other lines: the run pill's order, set off by a stronger rule. */
 .fsr-grid .ag-floating-top {
-  border-bottom: 1px solid var(--fs-ink-3);
+  border-bottom: 1px solid var(--fs-rule-strong);
 }
 
 /* A renderer fills its cell so a wash covers it edge to edge. */
@@ -314,7 +392,7 @@
   top: 0;
   left: calc(var(--i) * 5px);
   display: block;
-  box-shadow: 0 1px 1px rgb(0 0 0 / 0.45);
+  box-shadow: var(--fs-shadow-e1);
 }
 
 /* Kilos and the kilos-per-tree bar against the ratified limit (the tick sits at the limit). */
@@ -403,8 +481,9 @@
   text-underline-offset: 4px;
 }
 
+/* Net is the line's answer: ink at 700 (pencil until the keys, as every engine figure). */
 .fsr-amount--net {
-  font-weight: 640;
+  font-weight: 700;
 }
 
 .fsr-amount--total {
@@ -608,6 +687,7 @@
   height: auto;
   overflow-x: auto;
   border: 1px solid var(--fs-rule);
+  border-radius: var(--fs-radius-card);
   background: var(--fs-plate);
 }
 
@@ -650,13 +730,9 @@
   box-shadow: inset 3px 0 0 var(--fs-canary);
 }
 
-.fsr-static .fsr-row--open > * {
-  background: var(--fs-plate-2);
-}
-
 .fsr-static tfoot th,
 .fsr-static tfoot td {
-  border-top: 1px solid var(--fs-ink-3);
+  border-top: 1px solid var(--fs-rule-strong);
   background: var(--fs-plate-2);
 }
 
@@ -673,4 +749,20 @@
   justify-content: center;
   margin: 0;
   padding: var(--fs-space-12);
+}
+
+/* The static table's held rows and the hold note: the marigold wash (after the base rules it overrides). */
+.fsr-static .fsr-row--held > * {
+  background: var(--fs-canary-wash);
+}
+
+.fsr-static .fsr-row--note > td {
+  height: 40px;
+  padding: 0;
+  background: var(--fs-canary-wash);
+  box-shadow: inset 3px 0 0 var(--fs-canary);
+}
+
+.fsr-static .fsr-row--open > * {
+  background: var(--fs-pod-wash);
 }

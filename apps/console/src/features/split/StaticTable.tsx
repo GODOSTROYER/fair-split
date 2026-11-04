@@ -6,6 +6,7 @@
 import type { ColDef } from "ag-grid-community";
 import { type ComponentType, type KeyboardEvent, useState } from "react";
 import type { GridContext, GridRow } from "./cells.js";
+import { type HoldNoteRow, HoldNoteView } from "./HoldNote.js";
 import type { SplitRow } from "./model.js";
 import { SPLIT } from "./shared/copy.js";
 
@@ -18,6 +19,8 @@ export interface StaticTableProps {
   readonly context: GridContext;
   readonly openMember?: string | null;
   readonly onOpen: (row: SplitRow) => void;
+  /** "Open H1" on the inline hold note. */
+  readonly onOpenNote?: (note: HoldNoteRow) => void;
   /** Lines printed before "Show all": the table is a fallback, kept light where nothing is laid out. */
   readonly limit?: number;
 }
@@ -35,6 +38,7 @@ export function StaticTable({
   context,
   openMember,
   onOpen,
+  onOpenNote,
   limit = STATIC_ROWS,
 }: StaticTableProps) {
   const [all, setAll] = useState(false);
@@ -70,6 +74,14 @@ export function StaticTable({
         </thead>
         <tbody>
           {shown.map((row) => {
+            if (row.kind === "note")
+              return (
+                <tr key={row.memberNo} className="fsr-row--note">
+                  <td colSpan={columns.length}>
+                    <HoldNoteView note={row} onOpen={() => onOpenNote?.(row)} />
+                  </td>
+                </tr>
+              );
             if (row.kind !== "line") return null;
             return (
               <tr
