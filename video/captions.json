@@ -1,20 +1,20 @@
 [
   {
     "beat": "problem",
-    "start": 0.9,
-    "end": 6.282,
+    "start": 1.5,
+    "end": 6.882,
     "lines": ["Picture a co-op paying sixty-four cacao", "farmers from handwritten weigh-slips."]
   },
   {
     "beat": "problem",
-    "start": 6.282,
-    "end": 10.652,
+    "start": 6.882,
+    "end": 11.252,
     "lines": ["A duplicate,", "or a fine no rule allows, goes unseen."]
   },
   {
     "beat": "problem",
-    "start": 10.652,
-    "end": 12.95,
+    "start": 11.252,
+    "end": 13.95,
     "lines": ["Members can't check it. Nor can the buyer."]
   },
   {
@@ -79,39 +79,39 @@
   },
   {
     "beat": "paper",
-    "start": 58.2,
-    "end": 63.81,
+    "start": 58.5,
+    "end": 64.11,
     "lines": ["Each slip has a pink carbon copy.", "Photograph both, and it counts twice."]
   },
   {
     "beat": "funding",
     "start": 65.1,
-    "end": 67.36,
+    "end": 67.24,
     "lines": ["Lantern Bay, the chocolate buyer,"]
   },
   {
     "beat": "funding",
-    "start": 67.36,
-    "end": 72.16,
+    "start": 67.24,
+    "end": 72.18,
     "lines": ["pays one invoice through PayPal's", "Agent Toolkit, on a simulated sandbox."]
   },
   {
     "beat": "reading",
     "start": 73.1,
-    "end": 76.174,
+    "end": 76.4,
     "lines": ["Claude's real reading of one slip."]
   },
   {
     "beat": "reading",
-    "start": 76.174,
-    "end": 79.53,
+    "start": 76.4,
+    "end": 79.86,
     "lines": ["The run itself replays", "a labelled stand-in;"]
   },
   {
     "beat": "reading",
-    "start": 79.53,
-    "end": 81.75,
-    "lines": ["Analyn types a stained digit by hand."]
+    "start": 79.86,
+    "end": 82.73,
+    "lines": ["Analyn types one stained digit by hand."]
   },
   {
     "beat": "count-once",
@@ -182,14 +182,20 @@
   {
     "beat": "listening",
     "start": 134.36,
-    "end": 136.351,
-    "lines": ["[Her statement plays in Cebuano]", "Premium gikan sa Lantern Bay"]
+    "end": 135.76,
+    "lines": ["[Her statement plays in Cebuano:", "machine-translated, pending native review]"]
   },
   {
     "beat": "listening",
-    "start": 136.351,
+    "start": 135.76,
+    "end": 138.3,
+    "lines": ["Premium gikan sa Lantern", "Bay Chocolate Co.:"]
+  },
+  {
+    "beat": "listening",
+    "start": 138.3,
     "end": 142.33,
-    "lines": ["Chocolate Co.: forty-three dollars", "and sixty-nine cents, walay kaltas."]
+    "lines": ["forty-three dollars and sixty-nine cents,", "walay kaltas."]
   },
   {
     "beat": "impressive",
@@ -205,26 +211,26 @@
   },
   {
     "beat": "limits",
-    "start": 154.2,
-    "end": 159.42,
+    "start": 154.1,
+    "end": 159.223,
     "lines": ["The limits: PayPal is a simulated sandbox;", "no real farmer was paid."]
   },
   {
     "beat": "limits",
-    "start": 159.42,
-    "end": 163.86,
-    "lines": ["Synthetic people and slips,", "a replayed stand-in, Gemini TTS voices."]
+    "start": 159.223,
+    "end": 163.85,
+    "lines": ["Synthetic people and slips.", "A replayed stand-in. Gemini TTS voices."]
   },
   {
     "beat": "end",
-    "start": 164.35,
-    "end": 167.05,
+    "start": 164.7,
+    "end": 167.4,
     "lines": ["Members check their own pay;"]
   },
   {
     "beat": "end",
-    "start": 167.05,
-    "end": 172.73,
+    "start": 167.4,
+    "end": 173.08,
     "lines": ["the buyer traces its premium.", "Every peso, traced to the pencil mark."]
   }
 ]

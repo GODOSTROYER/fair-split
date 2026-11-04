@@ -132,7 +132,7 @@ export const READING_VARIANTS: Readonly<Record<ReadingVariant, Reading>> = {
   "real-reading": {
     picture:
       "Cut from the run to one tile of C5d's hero-slip exhibit; then slip 0462 by hand, whose own text reads 'Seed stand-in, not a Claude recording'.",
-    say: "Claude's real reading of one slip. The run itself replays a labelled stand-in; Analyn types a stained digit by hand.",
+    say: "Claude's real reading of one slip. The run itself replays a labelled stand-in; Analyn types one stained digit by hand.",
     cut: "the run",
     requires:
       "R1's readings in packages/eval/recordings, dated 1 Nov 2026, and C5d's hero-slip exhibit in the reading room (HeroExhibits.tsx); both are on main at 2af75e6. Never use the seed run's date.",
@@ -165,14 +165,21 @@ export const FILM = {
     "Synthetic people and data; no money moves",
     "Demo runs use a seed stand-in, not a Claude recording",
     "Music: “Machina” and “Aurora” by Scott Buckley · CC BY 4.0",
+    "Cebuano: machine-translated, pending native review",
     "Synthetic voices · Gemini TTS",
   ],
   /** The end card's last line, held to the final frame: one wording for the voices everywhere (review v4 item 3). */
   voiceDisclosure: "Synthetic voices · Gemini TTS",
   /** The music's credit (CC BY 4.0): on the end card, and in full in CREDITS.txt for the upload's description. */
   musicCredit: "Music: “Machina” and “Aurora” by Scott Buckley · CC BY 4.0",
+  /**
+   * Her statement's language (review v5 item 3), one wording everywhere: the chip on the Paminawa transcript, the
+   * statement's voice in the limits, the end card, the captions' bracket and the description. The product's own chip
+   * reads "Machine-translated, pending native review" (apps/api statements REVIEW_CHIP).
+   */
+  translationDisclosure: "Cebuano: machine-translated, pending native review",
   descriptionDisclosure:
-    "Synthetic voices · Gemini TTS: the narration (voice Charon) and the member's statement. Synthetic people and data. Slip images are synthetic: Codex-made hero flats (OpenAI's image model) and code-drawn slips, composed in code into photos A–L. Simulated PayPal sandbox; untested against PayPal's own sandbox. Demo runs use a seed stand-in for the slip reading; Claude's only real readings are the hero-slip exhibit of 1 Nov 2026. The invoice is a seed-written placeholder, statements are hand-written templates, and the audit agent is paused.",
+    "Synthetic voices · Gemini TTS: the narration (voice Charon) and the member's statement. Cebuano: machine-translated, pending native review. Synthetic people and data. Slip images are synthetic: Codex-made hero flats (OpenAI's image model) and code-drawn slips, composed in code into photos A–L. Simulated PayPal sandbox; untested against PayPal's own sandbox. Demo runs use a seed stand-in for the slip reading; Claude's only real readings are the hero-slip exhibit of 1 Nov 2026. The invoice is a seed-written placeholder, statements are hand-written templates, and the audit agent is paused.",
   capture: [
     "Local captures only; captions throughout, word for word with every spoken line.",
     "Sound (owner, 5 Nov; ADR-0018): Gemini TTS narration, voice Charon; Scott Buckley's “Machina” into “Aurora” (CC BY 4.0, credited) 18–22 dB under the voice; sparse CC0 sound effects. Record captures muted: the film adds its own cues. Member audio plays alone in its beat, with no music under it.",
@@ -218,7 +225,7 @@ const SAY = {
   impressive:
     "Underneath: over five thousand automated tests and three kill switches. Others we found share parts; none starts from a handwritten weigh-slip.",
   limits:
-    "The limits: PayPal is a simulated sandbox; no real farmer was paid. Synthetic people and slips, a replayed stand-in, Gemini TTS voices.",
+    "The limits: PayPal is a simulated sandbox; no real farmer was paid. Synthetic people and slips. A replayed stand-in. Gemini TTS voices.",
 } as const;
 type Timed = keyof typeof SAY;
 
@@ -230,11 +237,13 @@ type Timed = keyof typeof SAY;
  * lines, the architecture's steps and the reel's cuts land on the words as the voice says them.
  */
 export const NARRATION_AT: Readonly<Record<string, number>> = {
-  problem: 0.8, // "sixty-four" just after "64 farmers." lands (1.4 s); "the buyer" as the invoice lands (13.1 s)
+  // the night shows only what the voice names (review v5 item 1): the duplicate (7.05 s), the fine (8.35 s),
+  // "unseen." (10.0 s), the members fading, the buyer's invoice (13.1 s)
+  problem: 1.4,
   solution: 14.35, // "Fair Split:" on the turn (14.45 s); the line ends before "Every peso, traced." (27.2 s)
   architecture: 30.15,
   highlights: 43.9, // "Try to break it" on the reel's night cut (55.1 s)
-  paper: 58.1, // after the bumper's words (57.25-58.1 s)
+  paper: 58.4, // once the bumper's words have gone (review v5 item 10)
   funding: 65,
   reading: 73,
   "count-once": 83,
@@ -244,8 +253,8 @@ export const NARRATION_AT: Readonly<Record<string, number>> = {
   proof: 121,
   member: 129.1, // ends before her own sentence (134.36 s)
   impressive: 143.1, // "three kill switches" as the 3 arrives; "handwritten weigh-slip" as the hand's box closes
-  limits: 154.1,
-  end: 164.25, // "Every peso, traced to the pencil mark." under the end line, which then holds (169.6-172.4 s)
+  limits: 154,
+  end: 164.6, // a breath after the limits (review v5 item 10); "Every peso" as the end line lands (169.95 s)
 };
 /** One spoken word and when it is said, in film seconds. */
 export interface SpokenWord {
@@ -462,6 +471,10 @@ function withVoice(beat: FilmBeat): FilmBeat {
 const readingCut = (variant: ReadingVariant) =>
   timeOf("reading", READING_VARIANTS[variant].say, [73, 83], READING_VARIANTS[variant].cut);
 const holdsCut = at("holds", "analyn");
+const PAYOUTS_SAY =
+  "The simulated PayPal accepts the batch: sent, not yet paid. Seven items confirm; a member without PayPal moves to cash.";
+/** The cut to cash lands on "a member without PayPal"; the console holds while its seven items confirm (review v5). */
+const payoutsCut = timeOf("payouts", PAYOUTS_SAY, [111, 121], "a member");
 
 export function beatsForReading(variant: ReadingVariant): readonly FilmBeat[] {
   const reading = READING_VARIANTS[variant];
@@ -677,7 +690,7 @@ export function beatsForReading(variant: ReadingVariant): readonly FilmBeat[] {
       end: 121,
       picture:
         "MM-6: hollow sent threads, confirmed items fill; Rhea parks with no PayPal account and moves to cash at the bodega.",
-      say: "The simulated PayPal accepts the batch: sent, not yet paid. Seven items confirm; a member without PayPal moves to cash.",
+      say: PAYOUTS_SAY,
       show: [
         SIM,
         `${figures.display.batchTotal} batch · Sent is not paid`,
@@ -685,7 +698,7 @@ export function beatsForReading(variant: ReadingVariant): readonly FilmBeat[] {
         figures.display.proofShare,
         `${figures.endCashMembers} in cash · Same statement`,
       ],
-      cues: [{ at: 116, picture: "Rhea Jumawan parked; Pay in cash at the bodega; settled." }],
+      cues: [{ at: payoutsCut, picture: "Rhea Jumawan parked; Pay in cash at the bodega; settled." }],
     },
     {
       id: "proof",
@@ -1090,7 +1103,7 @@ export function capturesForReading(variant: ReadingVariant): readonly CaptureSlo
       "payouts-console",
       "payouts",
       111,
-      116,
+      payoutsCut,
       "console film mode",
       "MM-6 on W-TR-08",
       "landing",
@@ -1101,7 +1114,7 @@ export function capturesForReading(variant: ReadingVariant): readonly CaptureSlo
     slot(
       "payouts-cash",
       "payouts",
-      116,
+      payoutsCut,
       121,
       "console film mode",
       "MM-6 on W-TR-08",

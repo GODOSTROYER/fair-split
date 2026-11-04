@@ -31,12 +31,16 @@ const db = (v) => 10 ** (v / 20);
 export const TARGET = {
   lufs: -14,
   truePeak: -1.5,
-  ceiling: -2.4, // the limiter's ceiling, under the delivery limit to leave room for AAC and inter-sample peaks
+  ceiling: -4.6, // the limiter's ceiling: the mono fold-down adds 3 dB to the centred voice, so -1 dBTP there
   voiceClip: -16, // each narration clip, and the member's sentence, at -16 LUFS before the master gain
   musicUnder: 20, // dB the bed sits under the voice while it speaks (18-22)
+  // the end line ducks less, so Aurora's lift breathes under it (review v5 item 7); still within 18-22
+  musicUnderBeat: { end: 18 },
   attack: 0.25,
   release: 0.6,
   innerGap: 1.0, // a pause inside a line this long lets the bed rise
+  bridge: 1.25, // a gap between lines shorter than this holds the duck (no pump: review v5 items 6 and 12)
+  foldDownPeak: -1.0, // the true peak of the ITU mono fold-down (0.707 L + 0.707 R), at or under (review v5 item 5)
 };
 
 function ffmpeg(args, opts = {}) {
@@ -82,17 +86,10 @@ function writeWav(url, data, channels) {
   writeFileSync(url, Buffer.concat([head, Buffer.from(data.buffer, data.byteOffset, bytes)]));
 }
 const summary = (log) => log.slice(log.lastIndexOf("Summary"));
-function measure(file, extra = []) {
-  const log = ffmpeg([
-    "-i",
-    file,
-    ...extra,
-    "-af",
-    "ebur128=peak=true:framelog=quiet",
-    "-f",
-    "null",
-    "-",
-  ]).stderr;
+/** Loudness of a file; `pre` is a filter before the meter (the fold-downs: review v5 item 13, `-ac 1` measured stereo). */
+function measure(file, pre = "") {
+  const chain = `${pre ? `${pre},` : ""}ebur128=peak=true:framelog=quiet`;
+  const log = ffmpeg(["-i", file, "-af", chain, "-f", "null", "-"]).stderr;
   const s = summary(log);
   return {
     lufs: Number(/I:\s+(-?[\d.]+) LUFS/.exec(s)?.[1]),
@@ -191,7 +188,15 @@ export function voicePlan() {
       }
     }
   }
-  return { clips, active: active.sort((a, b) => a[0] - b[0]) };
+  // a short gap between two lines holds the duck: the bed does not pump up and back down in it
+  active.sort((a, b) => a[0] - b[0]);
+  const merged = [];
+  for (const span of active) {
+    const last = merged.at(-1);
+    if (last && span[0] - last[1] < TARGET.bridge) last[1] = Math.max(last[1], span[1]);
+    else merged.push([...span]);
+  }
+  return { clips, active: merged, lines: active };
 }
 /** 1 where the bed is fully under the voice, 0 where it is free: a raised-cosine ramp in before, out after. */
 function duckEnvelope(active) {
@@ -217,7 +222,7 @@ function duckEnvelope(active) {
 // ---------------------------------------------------------------------------------------------- the mix
 function mix() {
   mkdirSync(new URL("stems/", out), { recursive: true });
-  const { clips, active } = voicePlan();
+  const { clips, active, lines: lineSpans } = voicePlan();
   // voice stem (mono): each clip at its place, each brought to -16 LUFS (the member's clip measures -17.1)
   const voice = new Float32Array(N);
   const placed = [];
@@ -253,12 +258,13 @@ function mix() {
   const carvedPower = kPower(carved, 2);
   const depths = [];
   for (const beat of beats) {
-    const spans = active.filter(
+    const spans = lineSpans.filter(
       ([s, e]) => beat.speech && s >= beat.speech[0] - 1e-6 && e <= beat.speech[1] + 1e-6,
     );
     const bedLoud = loudnessOver(carvedPower, spans);
     if (!spans.length || !Number.isFinite(bedLoud)) continue;
-    const depth = Math.min(0, loudnessOver(voicePower, spans) - TARGET.musicUnder - bedLoud);
+    const under = TARGET.musicUnderBeat[beat.id] ?? TARGET.musicUnder;
+    const depth = Math.min(0, loudnessOver(voicePower, spans) - under - bedLoud);
     for (const [s, e] of spans)
       depths.push({ beat: beat.id, from: s - TARGET.attack, to: e + TARGET.release, depth: r2(depth) });
   }
@@ -393,8 +399,8 @@ function mix() {
   const lines = beats
     .filter((beat) => beat.speech && beat.id !== "listening")
     .map((beat) => {
-      // while the line is spoken: its active spans (a pause of a second or more inside it lets the bed rise)
-      const w = active.filter(([s, e]) => s >= beat.speech[0] - 1e-6 && e <= beat.speech[1] + 1e-6);
+      // while the line is spoken: its own spans (a pause of a second or more inside it lets the bed rise)
+      const w = lineSpans.filter(([s, e]) => s >= beat.speech[0] - 1e-6 && e <= beat.speech[1] + 1e-6);
       return {
         beat: beat.id,
         musicBelowVoiceDb: r2(loudnessOver(voicePower, w) - loudnessOver(musicPower, w)),
@@ -463,12 +469,23 @@ function mux(picture, target) {
       target,
     ]);
     const stereo = measure(target);
-    const mono = measure(target, ["-ac", "1"]);
-    result = { pass, gain: r2(gain), stereo, mono, monoDeltaLu: r2(mono.lufs - stereo.lufs) };
+    // the dual-mono fold-down (0.5 L + 0.5 R on both channels) for loudness, and the ITU mono downmix
+    // (0.707 L + 0.707 R) for its true peak
+    const dualMono = measure(target, "pan=stereo|c0=0.5*c0+0.5*c1|c1=0.5*c0+0.5*c1");
+    const ituMono = measure(target, "pan=mono|c0=0.7071*c0+0.7071*c1");
+    result = {
+      pass,
+      gain: r2(gain),
+      stereo,
+      dualMono,
+      monoDeltaLu: r2(dualMono.lufs - stereo.lufs),
+      ituMonoTruePeak: ituMono.truePeak,
+    };
     console.log(JSON.stringify(result));
-    if (Math.abs(stereo.lufs - TARGET.lufs) <= 0.3 && stereo.truePeak <= TARGET.truePeak) break;
+    const peakOver = Math.max(stereo.truePeak - TARGET.truePeak, ituMono.truePeak - TARGET.foldDownPeak);
+    if (Math.abs(stereo.lufs - TARGET.lufs) <= 0.3 && peakOver <= 0) break;
     gain += TARGET.lufs - stereo.lufs;
-    if (stereo.truePeak > TARGET.truePeak) gain -= stereo.truePeak - TARGET.truePeak + 0.1;
+    if (peakOver > 0) throw new Error(`the fold-down peaks ${r2(peakOver)} dB over: lower TARGET.ceiling`);
   }
   report.master = result;
   writeFileSync(new URL("mix-v5.json", out), `${JSON.stringify(report, null, 2)}\n`);

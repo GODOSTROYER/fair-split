@@ -3,17 +3,17 @@ WEBVTT
 NOTE Fair Split film, script v4: closed captions, word for word with every spoken line and never burned in (video/proto/STYLE.md §8). Generated from video/script.ts by video/build.mjs. Timed to the recorded voice (Gemini TTS narration, aligned offline) and the member's own sentence.
 
 1
-00:00:00.900 --> 00:00:06.282
+00:00:01.500 --> 00:00:06.882
 Picture a co-op paying sixty-four cacao
 farmers from handwritten weigh-slips.
 
 2
-00:00:06.282 --> 00:00:10.652
+00:00:06.882 --> 00:00:11.252
 A duplicate,
 or a fine no rule allows, goes unseen.
 
 3
-00:00:10.652 --> 00:00:12.950
+00:00:11.252 --> 00:00:13.950
 Members can't check it. Nor can the buyer.
 
 4
@@ -63,31 +63,31 @@ proof in your browser;
 pay you can hear; Try to break it.
 
 14
-00:00:58.200 --> 00:01:03.810
+00:00:58.500 --> 00:01:04.110
 Each slip has a pink carbon copy.
 Photograph both, and it counts twice.
 
 15
-00:01:05.100 --> 00:01:07.360
+00:01:05.100 --> 00:01:07.240
 Lantern Bay, the chocolate buyer,
 
 16
-00:01:07.360 --> 00:01:12.160
+00:01:07.240 --> 00:01:12.180
 pays one invoice through PayPal's
 Agent Toolkit, on a simulated sandbox.
 
 17
-00:01:13.100 --> 00:01:16.174
+00:01:13.100 --> 00:01:16.400
 Claude's real reading of one slip.
 
 18
-00:01:16.174 --> 00:01:19.530
+00:01:16.400 --> 00:01:19.860
 The run itself replays
 a labelled stand-in;
 
 19
-00:01:19.530 --> 00:01:21.750
-Analyn types a stained digit by hand.
+00:01:19.860 --> 00:01:22.730
+Analyn types one stained digit by hand.
 
 20
 00:01:23.100 --> 00:01:28.518
@@ -142,40 +142,45 @@ Her pay traces to four slips.
 It plays in Cebuano.
 
 31
-00:02:14.360 --> 00:02:16.351
-[Her statement plays in Cebuano]
-Premium gikan sa Lantern Bay
+00:02:14.360 --> 00:02:15.760
+[Her statement plays in Cebuano:
+machine-translated, pending native review]
 
 32
-00:02:16.351 --> 00:02:22.330
-Chocolate Co.: forty-three dollars
-and sixty-nine cents, walay kaltas.
+00:02:15.760 --> 00:02:18.300
+Premium gikan sa Lantern
+Bay Chocolate Co.:
 
 33
+00:02:18.300 --> 00:02:22.330
+forty-three dollars and sixty-nine cents,
+walay kaltas.
+
+34
 00:02:23.200 --> 00:02:29.028
 Underneath: over five thousand
 automated tests and three kill switches.
 
-34
+35
 00:02:29.028 --> 00:02:33.480
 Others we found share parts;
 none starts from a handwritten weigh-slip.
 
-35
-00:02:34.200 --> 00:02:39.420
+36
+00:02:34.100 --> 00:02:39.223
 The limits: PayPal is a simulated sandbox;
 no real farmer was paid.
 
-36
-00:02:39.420 --> 00:02:43.860
-Synthetic people and slips,
-a replayed stand-in, Gemini TTS voices.
-
 37
-00:02:44.350 --> 00:02:47.050
-Members check their own pay;
+00:02:39.223 --> 00:02:43.850
+Synthetic people and slips.
+A replayed stand-in. Gemini TTS voices.
 
 38
-00:02:47.050 --> 00:02:52.730
+00:02:44.700 --> 00:02:47.400
+Members check their own pay;
+
+39
+00:02:47.400 --> 00:02:53.080
 the buyer traces its premium.
 Every peso, traced to the pencil mark.

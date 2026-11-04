@@ -309,6 +309,25 @@
           flex: none;
           color: #5a6476;
         }
+        /* a label on an object (review v5 item 3): the honesty tag's dashed steel pill, in the object's own space */
+        .cf-chip {
+          position: absolute;
+          left: 150px;
+          top: 252px;
+          height: 60px;
+          display: flex;
+          align-items: center;
+          padding: 0 26px;
+          border: 2px dashed rgb(126 136 152 / 0.9);
+          border-radius: 999px;
+          background: rgb(255 255 255 / 0.94);
+          color: #0b1220;
+          font-stretch: 100%;
+          font-weight: 600;
+          font-size: 30px;
+          line-height: 1;
+          white-space: nowrap;
+        }
         /* style:end */
         #root {
           position: absolute;
@@ -440,6 +459,20 @@
           white-space: nowrap;
           opacity: 0;
         }
+        #ce-mt {
+          position: absolute;
+          left: 64px;
+          top: 912px;
+          height: 48px;
+          display: flex;
+          align-items: center;
+          font-weight: 520;
+          font-size: 32px;
+          line-height: 40px;
+          color: #5a6476;
+          white-space: nowrap;
+          opacity: 0;
+        }
         #ce-nameSub {
           display: block;
           margin-top: 6px;
@@ -471,6 +504,7 @@
                 <circle cx="70" cy="140" r="46" fill="#0B1220" />
                 <path d="M60 119.5 L91 140 L60 160.5 Z" fill="#FFFFFF" stroke="#FFFFFF" stroke-width="5" stroke-linejoin="round" />
               </svg>
+              <div id="ce-waveChip" class="cf-chip">Cebuano: machine-translated, pending native review</div>
             </div>
             <!-- the overview: the slip blurred out of reading (its figure was read close up at 152 s), the phone
                  blurred but for her US$64.45, the one readable figure in the trace's frame -->
@@ -514,6 +548,8 @@
         <div id="ce-vtag" class="cf-tag cf-tag--nodot" data-layout-allow-occlusion>Synthetic voices · Gemini TTS</div>
         <!-- the music's credit (CC BY 4.0), quiet, opposite the voices' tag; the full lines are in video/CREDITS.txt -->
         <div id="ce-credit" data-layout-allow-occlusion>Music: “Machina” and “Aurora” by Scott Buckley · CC BY 4.0</div>
+        <!-- her statement's language (review v5 item 3), the same wording as the captions, the limits and the chip -->
+        <div id="ce-mt" data-layout-allow-occlusion>Cebuano: machine-translated, pending native review</div>
         <div id="ce-end" data-layout-allow-overflow>
           <span class="w">Every</span><span class="w">peso,</span
           ><span class="w acc">traced.<i id="ce-endLine"></i></span>
@@ -1003,9 +1039,9 @@
             strokePart(pts, 0, b);
             fctx.restore();
           }
-          // the trace lands on "traces" (167.45 s), its pulse under "its premium"
-          const TRACE = [3.0, 3.45];
-          const PULSE = [3.45, 4.15];
+          // the trace lands on "traces" (167.8 s), its pulse under "its premium"
+          const TRACE = [3.35, 3.8];
+          const PULSE = [3.8, 4.5];
           let rig = null;
           function drawFx(t) {
             fctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -1066,70 +1102,72 @@
 
           // the sandbox tag: on from just before the phone's amounts enter the frame until the veil hides them
           tl.fromTo("#ce-tag", { opacity: 0, x: 14 }, { opacity: 1, x: 0, duration: 0.4, ease: "power2.out" }, 0.8);
-          // the hand marks the handwritten figure; the trace runs to her pay (3.0-3.45 s), jade pulse (3.45-4.15 s)
+          // the hand marks the handwritten figure; the trace runs to her pay (3.35-3.8 s), jade pulse (3.8-4.5 s)
           const L = 2 * (98 + 55) + 10;
           tl.fromTo(
             "#ce-hl",
             { strokeDasharray: `${L} ${L + 40}`, strokeDashoffset: L + 20 },
             { strokeDashoffset: 0, duration: 0.4, ease: "power2.inOut" },
-            2.6,
+            2.95,
           );
-          // Every peso, traced. ("Every peso" is said at 169.65 s) The veil leaves only a ghost of the windows; the
+          // Every peso, traced. ("Every peso" is said at 170.0 s) The veil leaves only a ghost of the windows; the
           // tag goes once nothing is legible; the line holds 2.5 s (review v4 item 6)
-          tl.fromTo("#ce-veil", { opacity: 0 }, { opacity: 0.92, duration: 0.4, ease: "power2.inOut" }, 5.2);
+          tl.fromTo("#ce-veil", { opacity: 0 }, { opacity: 0.92, duration: 0.4, ease: "power2.inOut" }, 5.55);
           tl.fromTo(
             "#ce-world",
             { filter: "blur(0px)" },
             { filter: "blur(18px)", duration: 0.4, ease: "power2.inOut", immediateRender: false },
-            5.2,
+            5.55,
           );
-          tl.fromTo("#ce-fx", { opacity: 1 }, { opacity: 0, duration: 0.4, ease: "power2.inOut" }, 5.2);
-          tl.to("#ce-tag", { opacity: 0, duration: 0.2, ease: "power2.in" }, 5.6);
+          tl.fromTo("#ce-fx", { opacity: 1 }, { opacity: 0, duration: 0.4, ease: "power2.inOut" }, 5.55);
+          tl.to("#ce-tag", { opacity: 0, duration: 0.2, ease: "power2.in" }, 5.95);
           tl.fromTo(
             "#ce-end .w",
             { opacity: 0, y: 40, filter: "blur(14px)" },
             { opacity: 1, y: 0, filter: "blur(0px)", duration: 0.8, ease: "expo.out", stagger: 0.12 },
-            5.6,
+            5.95,
           );
-          tl.fromTo("#ce-endLine", { scaleX: 0 }, { scaleX: 1, duration: 0.55, ease: "power3.inOut" }, 6.15);
+          tl.fromTo("#ce-endLine", { scaleX: 0 }, { scaleX: 1, duration: 0.55, ease: "power3.inOut" }, 6.5);
           tl.to(
             "#ce-end .w",
             { opacity: 0, y: -20, filter: "blur(10px)", duration: 0.3, ease: "power2.in", stagger: 0.04 },
-            8.1,
+            8.45,
           );
-          tl.to("#ce-veil", { opacity: 1, duration: 0.4, ease: "power2.in" }, 8.05);
+          tl.to("#ce-veil", { opacity: 1, duration: 0.4, ease: "power2.in" }, 8.4);
           // Fair Split: the mark is the film's metaphor, one jade dot and its threads; the name holds to the end
           tl.fromTo(
             "#ce-mark",
             { opacity: 0, scale: 0.6, rotation: -12 },
             { opacity: 1, scale: 1, rotation: 0, duration: 0.8, ease: "back.out(1.6)" },
-            8.25,
+            8.6,
           );
           tl.fromTo(
             "#ce-markDot",
             { scale: 0, transformOrigin: "50% 50%" },
             { scale: 1, duration: 0.45, ease: "back.out(3)" },
-            8.5,
+            8.85,
           );
           const P = document.getElementById("ce-markPath").getTotalLength();
           tl.fromTo(
             "#ce-markPath",
             { strokeDasharray: `${P} ${P + 40}`, strokeDashoffset: P + 20 },
             { strokeDashoffset: 0, duration: 0.55, ease: "power2.out" },
-            8.65,
+            9.0,
           );
           tl.fromTo(
             "#ce-nameText",
             { opacity: 0, x: -30, filter: "blur(10px)" },
             { opacity: 1, x: 0, filter: "blur(0px)", duration: 0.9, ease: "expo.out" },
-            8.4,
+            8.75,
           );
-          tl.fromTo("#ce-nameSub", { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.6, ease: "power3.out" }, 8.8);
+          tl.fromTo("#ce-nameSub", { opacity: 0, y: 12 }, { opacity: 1, y: 0, duration: 0.6, ease: "power3.out" }, 9.15);
           // the end card discloses the voices (decision register: captions, end card, description): the one tag,
           // once the name has landed, held to the last frame
           tl.fromTo("#ce-vtag", { opacity: 0, x: 14 }, { opacity: 1, x: 0, duration: 0.4, ease: "power2.out" }, 9.0);
           // the music's credit (CC BY 4.0) with it, quiet grey, to the last frame
           tl.fromTo("#ce-credit", { opacity: 0, x: -14 }, { opacity: 1, x: 0, duration: 0.4, ease: "power2.out" }, 9.0);
+          // her statement's language, with the voices and the music, to the last frame
+          tl.fromTo("#ce-mt", { opacity: 0, x: -14 }, { opacity: 1, x: 0, duration: 0.4, ease: "power2.out" }, 9.0);
 
           rig.draw(0);
           window.__timelines["close-end"] = tl;

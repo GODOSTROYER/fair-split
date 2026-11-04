@@ -17,7 +17,7 @@ Canvas 1920 × 1080, 30 fps. Every pixel is computed from the time alone (one pa
 - **Day is Fair Split.** Hayag ground `#F3F5F8`, the morning wash (jade top left, indigo top centre), two or
   three very large soft light shapes and out-of-focus leaf shadows (`assets/dapple.png`, at most 10% ink),
   all drifting with parallax. Pace: calm, spacious, 1.4 to 2.5 s per beat plus 2 s glides.
-- **One turn per act.** The night ends in a metaphor that closes (threads → dots → a ring around one figure),
+- **One turn per act.** The night ends in a metaphor that closes (threads → fading dots → a ring around one figure),
   and the ring becomes the portal into the day. Later acts (architecture, highlights, deep dive) stay bright;
   a failure case may dip into a short night insert (≤ 3 s) and must come back through a focus pull, never a
   hard cut. The film has one: the reel's "refused." (55.1–56.8 s, `plan.mjs` `ACCENTS` kind `night`). On
@@ -129,8 +129,10 @@ jade pulse (the hand delivers the money).
   field and the first window out of focus, then opens to the frame (0.8 s expo.inOut) while the ring scales out.
 - **Focus pulls** (blur 12–18 px → 0, 0.75 s) instead of cuts inside an act; a daylight **veil** (0.4 s to 92%
   plus an 18 px blur) before an end line.
-- Metaphors carry the transitions: the wave becomes threads, threads retract into dots, dots glide to the
-  centre and gather into a ring (0.4 s), the night wave returns as the sound of the member's statement.
+- Metaphors carry the transitions: the wave becomes threads; the duplicate's pink thread and the fine sink into
+  the dark ("unseen."); the members' dots fade; the ring draws round the buyer's one invoice. The night shows only
+  the problem: the duplicate is counted once in the day (review v5 item 1). The night wave returns as the sound of
+  the member's statement.
 
 ## 6. Timings
 
@@ -190,8 +192,8 @@ never on the name (see the README's outline).
 ## 9. Music and narration
 
 - **Music bed from 0.0 s, the film's clock.** Near silence (a low pad) under the hairline and the first words; a
-  pulse that starts with the slip's sound wave (5.5 s); tension under the doubled thread (7.6–9.6 s); release
-  on "count it once." (9.7 s); the drop on the turn to daylight (14.5–15.8 s); calm and wide under the
+  pulse that starts with the slip's sound wave (5.5 s); tension under the doubled thread and the fine
+  (7.05–10.7 s); the drop on the turn to daylight (14.5–15.8 s); calm and wide under the
   product run, with soft hits on the keywords (16.6, 20.2, 23.25 s) and on the trace's jade pulse (26.6 s);
   the end line opens out (27.2 s) and the bed runs on through the glide into the architecture: the film resolves
   once, on the end card. Glides ride the bed, they are not hits.

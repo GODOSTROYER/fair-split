@@ -102,9 +102,16 @@ ${sfx.join("\n")}
 ## Mix
 
 \`tools/mix.mjs\`: the bed ducks under each line (starting ${TARGET.attack} s before it, releasing over ${TARGET.release} s after it, a
-pause of ${TARGET.innerGap} s or more inside a line lets it rise) and crossfades there to a copy with the voice's band carved
-out, line by line ${TARGET.musicUnder} dB under the voice; the effects sit about 24 dB under the voice while it speaks and 16 dB
-under it in a gap; the master is ${TARGET.lufs} LUFS integrated with the true peak at or under ${TARGET.truePeak} dBTP, measured on
-the exported MP4. The product's own sound in the captures stays muted (\`FILM.capture\`): the film adds its own cues.
+pause of ${TARGET.innerGap} s or more inside a line lets it rise, a gap of under ${TARGET.bridge} s between lines holds the duck so the
+bed never pumps) and crossfades there to a copy with the voice's band carved out, line by line ${TARGET.musicUnder} dB under the
+voice (${Object.entries(TARGET.musicUnderBeat)
+    .map(([beat, db]) => `${db} dB under the ${beat} line, so the lift breathes`)
+    .join(
+      "; ",
+    )}); the music stops on the reel's night cut and is out under her sentence; the effects sit about 24 dB under
+the voice while it speaks and 16 dB under it in a gap; the master is ${TARGET.lufs} LUFS integrated, limited at ${TARGET.ceiling} dBFS
+so the true peak is at or under ${TARGET.truePeak} dBTP and the ITU mono fold-down (0.707 L + 0.707 R) at or under
+${TARGET.foldDownPeak} dBTP, all measured on the exported MP4. The product's own sound in the captures stays muted
+(\`FILM.capture\`): the film adds its own cues.
 `;
 }

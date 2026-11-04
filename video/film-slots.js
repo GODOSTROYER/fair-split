@@ -165,6 +165,36 @@ window.FairSplitSlots = (() => {
         svg.style.opacity = T >= at && u < 1 ? (0.95 * (1 - u)).toFixed(3) : "0";
       };
     }
+    if (a.kind === "fills") {
+      // sent is not paid (review v5 item 2): the batch's items show hollow (steel) from the send, and each fills
+      // jade as it confirms, one per payout, in order, as the voice says "Seven items confirm"
+      const n = a.count;
+      const r = Math.min(bh / 2 - 6, (bw / n) * 0.3);
+      const svg = svgEl("svg", { class: "pf-acc pf-acc--svg", viewBox: `0 0 ${bw} ${bh}` }, win);
+      place(svg, a.box);
+      const items = Array.from({ length: n }, (_, k) => {
+        const cx = (bw / n) * (k + 0.5);
+        const ring = svgEl(
+          "circle",
+          { cx, cy: bh / 2, r, fill: "none", stroke: "rgba(126,136,152,0.95)", "stroke-width": 3 },
+          svg,
+        );
+        const fill = svgEl("circle", { cx, cy: bh / 2, r: r - 1.5, fill: INK.jade }, svg);
+        return { ring, fill, t: at + k * a.step };
+      });
+      return (T) => {
+        svg.style.opacity = E.p2o(prog(T, slot.kwIn + 0.3, slot.kwIn + 0.8)).toFixed(3);
+        for (const item of items) {
+          const u = E.p2o(prog(T, item.t, item.t + 0.25));
+          item.fill.style.opacity = u.toFixed(3);
+          item.fill.setAttribute(
+            "transform",
+            `translate(${item.fill.getAttribute("cx")} ${bh / 2}) scale(${(0.6 + 0.4 * u).toFixed(3)}) translate(${-item.fill.getAttribute("cx")} ${-bh / 2})`,
+          );
+          item.ring.setAttribute("stroke", u > 0.5 ? INK.jade : "rgba(126,136,152,0.95)");
+        }
+      };
+    }
     if (a.kind === "box") {
       // Claude's reading or a person's hand: an indigo box drawn round the figure (0.5 s), held, then lifted
       const svg = svgEl("svg", { class: "pf-acc pf-acc--svg", viewBox: `0 0 ${bw + 20} ${bh + 20}` }, win);
@@ -356,6 +386,20 @@ window.FairSplitSlots = (() => {
       if (win.el.dataset.ghost || !win.slot.accent) continue;
       const drawer = accentFor(win.el, win.slot);
       if (drawer) drawers.push(drawer);
+    }
+    // a label on a window itself (plan.mjs CHIPS): it floats, tilts and fades with its window
+    for (const win of wins) {
+      const chip = cfg.chips?.[win.slot.id];
+      if (!chip) continue;
+      const node = el("div", "pf-chip", win.el);
+      node.textContent = chip.text;
+      node.style.left = `${chip.box[0]}px`;
+      node.style.top = `${chip.box[1]}px`;
+      node.style.width = `${chip.box[2]}px`;
+      const from = win.slot.start + chip.from;
+      drawers.push((T) => {
+        node.style.opacity = E.p2o(prog(T, from, from + 0.4)).toFixed(3);
+      });
     }
 
     // the daylight veil: over the deep dive's bumper, and before the cut out of the run (STYLE §5)

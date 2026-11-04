@@ -174,15 +174,6 @@
       "picture": "the pink copy: one slip, twice (the product's duplicate.found)"
     },
     {
-      "id": "c03",
-      "event": "opening.once",
-      "offset": 0,
-      "sound": "plunk",
-      "anchor": "start",
-      "trim": 0,
-      "picture": "count it once (a person's decision: slab.d2.commit)"
-    },
-    {
       "id": "c04",
       "event": "opening.turn.0",
       "offset": 0,
@@ -356,22 +347,22 @@
     },
     {
       "id": "c23",
-      "event": "slot.payouts-console.accent",
+      "event": "slot.payouts-console.kwIn",
       "offset": 0,
       "sound": "whoosh-quiet",
       "anchor": "start",
       "trim": -2,
-      "picture": "sent.: the batch goes out, hollow threads"
+      "picture": "sent.: the batch goes out, its items hollow (sent is not paid)"
     },
     {
       "id": "c24",
-      "event": "word.payouts.seven",
-      "offset": -1.0,
+      "event": "slot.payouts-console.accent",
+      "offset": 0,
       "sound": ["scale-0", "scale-1", "scale-2", "scale-3", "scale-4", "scale-5", "scale-6"],
-      "step": 0.17,
+      "step": 0.14,
       "anchor": "start",
-      "trim": 0,
-      "picture": "seven items confirm: one note of the scale per confirmed payout (item.paid.console)"
+      "trim": -4,
+      "picture": "seven items confirm: seven jade fills, one note of the scale each (item.paid.console)"
     },
     {
       "id": "c25",

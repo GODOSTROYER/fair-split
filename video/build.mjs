@@ -15,6 +15,7 @@ import {
 import { fileURLToPath } from "node:url";
 import {
   CAPTURE_RUN,
+  CHIPS,
   CLOSE_NOTE,
   CLOSE_START,
   captions,
@@ -282,6 +283,7 @@ function slotComposition(segment) {
           accent,
         })),
     },
+    chips: Object.fromEntries(Object.entries(CHIPS).filter(([slot]) => drawn.has(slot))),
     sim: span
       ? {
           from: local(span.from),

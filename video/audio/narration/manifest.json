@@ -10,22 +10,22 @@
     "truePeak": -1.5,
     "rate": 48000
   },
-  "requests": 28,
+  "requests": 31,
   "beats": [
     {
       "beat": "problem",
       "file": "problem.m4a",
-      "duration": 12.4,
-      "speech": [0.1, 12.15],
+      "duration": 12.8,
+      "speech": [0.1, 12.55],
       "words": 28,
-      "wpm": 139.4,
-      "sha256": "8f2e8cf8d878b20e614055212297f46afce3513bc12b7611072e032eeca2bf7e",
+      "wpm": 134.9,
+      "sha256": "d4aaff67638d7910a5eee1051fff539204a64d26c4a0aea7d48edd5b16da674e",
       "voice": "Charon",
       "model": "gemini-3.8-flash-tts",
       "take": 1,
       "requests": 1,
       "pace": "steady pace, about 125 words a minute; a short pause at each full stop",
-      "pauses": [],
+      "pauses": [[11.255, 0.4]],
       "loudness": {
         "lufs": -16.2,
         "truePeak": -4.3
@@ -154,27 +154,27 @@
           {
             "w": "it.",
             "start": 10.66,
-            "end": 10.86
+            "end": 10.84
           },
           {
             "w": "Nor",
-            "start": 11.249,
-            "end": 11.4
+            "start": 11.649,
+            "end": 11.8
           },
           {
             "w": "can",
-            "start": 11.4,
-            "end": 11.66
+            "start": 11.8,
+            "end": 12.06
           },
           {
             "w": "the",
-            "start": 11.66,
-            "end": 11.76
+            "start": 12.06,
+            "end": 12.16
           },
           {
             "w": "buyer.",
-            "start": 11.76,
-            "end": 12.15
+            "start": 12.16,
+            "end": 12.55
           }
         ]
       }
@@ -750,16 +750,16 @@
     {
       "beat": "funding",
       "file": "funding.m4a",
-      "duration": 7.41,
-      "speech": [0.1, 7.16],
+      "duration": 7.43,
+      "speech": [0.1, 7.18],
       "words": 16,
-      "wpm": 136,
-      "sha256": "04cfcc109d13237b1a48e44bb3b8ef8b27700f142b9ec894a7669fd89dd0c6c9",
+      "wpm": 135.6,
+      "sha256": "88c615605a153a3bbfb1e0060b20b9c3858b681dda7fa5c38d7000451328359c",
       "voice": "Charon",
       "model": "gemini-3.8-flash-tts",
-      "take": 2,
-      "requests": 2,
-      "pace": "steady and unhurried, about 120 words a minute",
+      "take": 3,
+      "requests": 3,
+      "pace": "steady and unhurried, about 120 words a minute; say 'on a simulated sandbox' clearly, with the word 'on' given its full length",
       "pauses": [],
       "loudness": {
         "lufs": -16.2,
@@ -768,88 +768,88 @@
       "text": "Lantern Bay, the chocolate buyer, pays one invoice through PayPal's Agent Toolkit, on a simulated sandbox.",
       "alignment": {
         "source": "local transcript (openai-whisper small, word timestamps), offline",
-        "characterErrorRate": 0.023,
-        "heard": "Lantern Bay, the chocolate buyer, pays one invoice through PayPal's Agent Toolkit and a simulated sandbox.",
+        "characterErrorRate": 0,
+        "heard": "Lantern Bay, the chocolate buyer, pays one invoice through PayPal's Agent Toolkit on a simulated sandbox.",
         "words": [
           {
             "w": "Lantern",
             "start": 0.1,
-            "end": 0.46
+            "end": 0.48
           },
           {
             "w": "Bay,",
-            "start": 0.46,
-            "end": 0.76
+            "start": 0.48,
+            "end": 0.74
           },
           {
             "w": "the",
-            "start": 1.256,
-            "end": 1.32
+            "start": 1.04,
+            "end": 1.18
           },
           {
             "w": "chocolate",
-            "start": 1.32,
-            "end": 1.62
+            "start": 1.18,
+            "end": 1.54
           },
           {
             "w": "buyer,",
-            "start": 1.62,
-            "end": 1.94
+            "start": 1.54,
+            "end": 1.88
           },
           {
             "w": "pays",
-            "start": 2.36,
-            "end": 2.72
+            "start": 2.24,
+            "end": 2.54
           },
           {
             "w": "one",
-            "start": 2.72,
-            "end": 3.02
+            "start": 2.54,
+            "end": 2.82
           },
           {
             "w": "invoice",
-            "start": 3.02,
-            "end": 3.44
+            "start": 2.82,
+            "end": 3.24
           },
           {
             "w": "through",
-            "start": 3.44,
-            "end": 3.82
+            "start": 3.24,
+            "end": 3.58
           },
           {
             "w": "PayPal's",
-            "start": 3.82,
-            "end": 4.46
+            "start": 3.58,
+            "end": 4.22
           },
           {
             "w": "Agent",
-            "start": 4.46,
-            "end": 4.8
+            "start": 4.22,
+            "end": 4.54
           },
           {
             "w": "Toolkit,",
-            "start": 4.8,
-            "end": 5.38
+            "start": 4.54,
+            "end": 5.08
           },
           {
             "w": "on",
-            "start": 5.837,
-            "end": 5.94
+            "start": 5.476,
+            "end": 5.72
           },
           {
             "w": "a",
-            "start": 5.94,
-            "end": 6.04
+            "start": 5.72,
+            "end": 6
           },
           {
             "w": "simulated",
-            "start": 6.04,
-            "end": 6.38
+            "start": 6,
+            "end": 6.42
           },
           {
             "w": "sandbox.",
-            "start": 6.38,
-            "end": 7.16
+            "start": 6.42,
+            "end": 7.18
           }
         ]
       }
@@ -857,126 +857,126 @@
     {
       "beat": "reading",
       "file": "reading.m4a",
-      "duration": 9,
-      "speech": [0.1, 8.75],
+      "duration": 9.98,
+      "speech": [0.1, 9.73],
       "words": 20,
-      "wpm": 138.7,
-      "sha256": "3cc3a24d35d202cb8da8cc37c5bd134c57287bc977df3759ebe8f01c9d1e9e41",
+      "wpm": 124.6,
+      "sha256": "5dc32cadb0ee834cdbf30fbb0a74764440d9d8d15cb554e1d1d5efb33b6786ce",
       "voice": "Charon",
       "model": "gemini-3.8-flash-tts",
-      "take": 2,
-      "requests": 2,
-      "pace": "steady, about 125 words a minute; short pauses at full stops",
-      "pauses": [[2.9, 0.18]],
+      "take": 3,
+      "requests": 3,
+      "pace": "steady and unhurried, about 115 words a minute; give the name Analyn its full length, and a short pause at the semicolon",
+      "pauses": [],
       "loudness": {
-        "lufs": -16.2,
-        "truePeak": -2.2
+        "lufs": -16.3,
+        "truePeak": -4.7
       },
-      "text": "Claude's real reading of one slip. The run itself replays a labelled stand-in; Analyn types a stained digit by hand.",
+      "text": "Claude's real reading of one slip. The run itself replays a labelled stand-in; Analyn types one stained digit by hand.",
       "alignment": {
         "source": "local transcript (openai-whisper small, word timestamps), offline",
         "characterErrorRate": 0.043,
-        "heard": "Claude's real reading of one slip. The run itself replays a labeled stand -in. Enlin types a stained digit by hand.",
+        "heard": "Claude's real reading of one slip. The run itself replays a labeled stand -in. Aniline types one stained digit by hand.",
         "words": [
           {
             "w": "Claude's",
             "start": 0.1,
-            "end": 0.6
+            "end": 0.66
           },
           {
             "w": "real",
-            "start": 0.6,
-            "end": 0.98
+            "start": 0.66,
+            "end": 1.12
           },
           {
             "w": "reading",
-            "start": 0.98,
-            "end": 1.42
+            "start": 1.12,
+            "end": 1.62
           },
           {
             "w": "of",
-            "start": 1.42,
-            "end": 1.66
+            "start": 1.62,
+            "end": 1.98
           },
           {
             "w": "one",
-            "start": 1.66,
-            "end": 1.96
+            "start": 1.98,
+            "end": 2.26
           },
           {
             "w": "slip.",
-            "start": 1.96,
-            "end": 2.34
+            "start": 2.26,
+            "end": 2.66
           },
           {
             "w": "The",
-            "start": 3.174,
-            "end": 3.24
+            "start": 3.4,
+            "end": 3.5
           },
           {
             "w": "run",
-            "start": 3.24,
-            "end": 3.44
+            "start": 3.5,
+            "end": 3.7
           },
           {
             "w": "itself",
-            "start": 3.44,
-            "end": 3.82
+            "start": 3.7,
+            "end": 4.1
           },
           {
             "w": "replays",
-            "start": 3.82,
-            "end": 4.68
+            "start": 4.1,
+            "end": 5.02
           },
           {
             "w": "a",
-            "start": 4.68,
-            "end": 4.78
+            "start": 5.02,
+            "end": 5.14
           },
           {
             "w": "labelled",
-            "start": 4.78,
-            "end": 5.12
+            "start": 5.14,
+            "end": 5.52
           },
           {
             "w": "stand-in;",
-            "start": 5.12,
-            "end": 5.78
+            "start": 5.52,
+            "end": 6.16
           },
           {
             "w": "Analyn",
-            "start": 6.53,
-            "end": 6.82
+            "start": 6.86,
+            "end": 7.28
           },
           {
             "w": "types",
-            "start": 6.82,
-            "end": 7.12
+            "start": 7.28,
+            "end": 7.58
           },
           {
-            "w": "a",
-            "start": 7.12,
-            "end": 7.34
-          },
-          {
-            "w": "stained",
-            "start": 7.34,
-            "end": 7.7
-          },
-          {
-            "w": "digit",
-            "start": 7.7,
+            "w": "one",
+            "start": 7.58,
             "end": 8.04
           },
           {
-            "w": "by",
+            "w": "stained",
             "start": 8.04,
-            "end": 8.32
+            "end": 8.44
+          },
+          {
+            "w": "digit",
+            "start": 8.44,
+            "end": 8.86
+          },
+          {
+            "w": "by",
+            "start": 8.86,
+            "end": 9.32
           },
           {
             "w": "hand.",
-            "start": 8.32,
-            "end": 8.75
+            "start": 9.32,
+            "end": 9.73
           }
         ]
       }
@@ -1783,26 +1783,26 @@
     {
       "beat": "limits",
       "file": "limits.m4a",
-      "duration": 10.01,
-      "speech": [0.1, 9.76],
+      "duration": 10.1,
+      "speech": [0.1, 9.85],
       "words": 22,
-      "wpm": 136.6,
-      "sha256": "54109e3ac1476035c52c2e05acd847d92516f49774bd5dae48845b92af54a3a9",
+      "wpm": 135.4,
+      "sha256": "786ad5ddab20a63dbe499bb3c6af80ee4c013bda0f63df05ed882acadccc81b4",
       "voice": "Charon",
       "model": "gemini-3.8-flash-tts",
-      "take": 1,
-      "requests": 1,
-      "pace": "plain and matter-of-fact, brisk, about 140 words a minute, like reading a short list of facts",
+      "take": 2,
+      "requests": 2,
+      "pace": "plain and matter-of-fact, steady, about 130 words a minute; a short pause at each full stop and at the semicolon",
       "pauses": [],
       "loudness": {
-        "lufs": -16.2,
-        "truePeak": -2.3
+        "lufs": -16.1,
+        "truePeak": -2.2
       },
-      "text": "The limits: PayPal is a simulated sandbox; no real farmer was paid. Synthetic people and slips, a replayed stand-in, Gemini TTS voices.",
+      "text": "The limits: PayPal is a simulated sandbox; no real farmer was paid. Synthetic people and slips. A replayed stand-in. Gemini TTS voices.",
       "alignment": {
         "source": "local transcript (openai-whisper small, word timestamps), offline",
-        "characterErrorRate": 0.037,
-        "heard": "The limits. Paypal is a simulated sandbox. No real farmer was paid. Synthetic people in slips or replayed stand -in, Gemini TTS voices.",
+        "characterErrorRate": 0,
+        "heard": "The Limits. PayPal is a simulated sandbox. No real farmer was paid. Synthetic people and slips. A replayed stand -in. Gemini TTS Voices.",
         "words": [
           {
             "w": "The",
@@ -1812,107 +1812,107 @@
           {
             "w": "limits:",
             "start": 0.18,
-            "end": 0.44
+            "end": 0.56
           },
           {
             "w": "PayPal",
-            "start": 1.207,
-            "end": 1.54
+            "start": 1.03,
+            "end": 1.28
           },
           {
             "w": "is",
-            "start": 1.54,
-            "end": 1.76
+            "start": 1.28,
+            "end": 1.74
           },
           {
             "w": "a",
-            "start": 1.76,
-            "end": 1.9
+            "start": 1.74,
+            "end": 1.84
           },
           {
             "w": "simulated",
-            "start": 1.9,
-            "end": 2.24
+            "start": 1.84,
+            "end": 2.3
           },
           {
             "w": "sandbox;",
-            "start": 2.24,
-            "end": 2.78
+            "start": 2.3,
+            "end": 2.88
           },
           {
             "w": "no",
-            "start": 3.44,
-            "end": 3.56
+            "start": 3.42,
+            "end": 3.52
           },
           {
             "w": "real",
-            "start": 3.56,
-            "end": 3.92
+            "start": 3.52,
+            "end": 3.82
           },
           {
             "w": "farmer",
-            "start": 3.92,
-            "end": 4.24
+            "start": 3.82,
+            "end": 4.16
           },
           {
             "w": "was",
-            "start": 4.24,
-            "end": 4.42
+            "start": 4.16,
+            "end": 4.38
           },
           {
             "w": "paid.",
-            "start": 4.42,
-            "end": 4.66
+            "start": 4.38,
+            "end": 4.62
           },
           {
             "w": "Synthetic",
-            "start": 5.32,
-            "end": 5.74
+            "start": 5.223,
+            "end": 5.7
           },
           {
             "w": "people",
-            "start": 5.74,
-            "end": 6
+            "start": 5.7,
+            "end": 5.98
           },
           {
             "w": "and",
-            "start": 6,
+            "start": 5.98,
             "end": 6.22
           },
           {
-            "w": "slips,",
+            "w": "slips.",
             "start": 6.22,
-            "end": 6.46
+            "end": 6.48
           },
           {
-            "w": "a",
-            "start": 6.46,
-            "end": 7.08
+            "w": "A",
+            "start": 7.087,
+            "end": 7.16
           },
           {
             "w": "replayed",
-            "start": 7.08,
-            "end": 7.52
+            "start": 7.16,
+            "end": 7.56
           },
           {
-            "w": "stand-in,",
-            "start": 7.52,
-            "end": 7.94
+            "w": "stand-in.",
+            "start": 7.56,
+            "end": 8
           },
           {
             "w": "Gemini",
-            "start": 8.46,
+            "start": 8.444,
             "end": 8.82
           },
           {
             "w": "TTS",
             "start": 8.82,
-            "end": 9.24
+            "end": 9.28
           },
           {
             "w": "voices.",
-            "start": 9.24,
-            "end": 9.76
+            "start": 9.28,
+            "end": 9.85
           }
         ]
       }

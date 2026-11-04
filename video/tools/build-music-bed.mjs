@@ -15,7 +15,7 @@ import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { CLOSE, MEMBER_CLIP, OPENING } from "../plan.mjs";
+import { eventTime, MEMBER_CLIP, OPENING } from "../plan.mjs";
 import { beats, FILM, PARTS } from "../script.ts";
 import { TRACKS } from "./fetch-music.mjs";
 
@@ -34,6 +34,12 @@ export function pieces() {
   const calmA = [deepDive - 0.4, MEMBER_CLIP.start - 0.05];
   const calmB = [herLast + 0.2, endBeat + 0.5];
   const liftFrom = endBeat - 1.0;
+  // lights out, music out (review v5 item 6): the bright section stops on the reel's night cut, under "Try to break
+  // it"; the calm tail comes in under the bumper
+  const nightCut = eventTime("slot.hl-break.start");
+  // the climax lands on the name card once the last word is said (review v5 item 7), not under the end line
+  const endVoice = beats.find((beat) => beat.id === "end")?.speech?.[1] ?? FILM.duration - 2;
+  const peakAt = endVoice + 0.2;
   return [
     {
       id: "machina",
@@ -47,11 +53,11 @@ export function pieces() {
     {
       id: "aurora-build",
       track: "aurora",
-      film: [turn - 3.4, deepDive + 0.6],
+      film: [turn - 3.4, nightCut + 0.05],
       src: AURORA.arrival - 3.4,
-      fade: [2.6, 1.4],
+      fade: [2.6, 0.3],
       lufs: -22,
-      why: `Aurora rises out of its quiet dip and its build arrives on the turn (${turn} s); bright under the solution, the architecture and the reel.`,
+      why: `Aurora rises out of its quiet dip and its build arrives on the turn (${turn} s); bright under the solution, the architecture and the reel; out on the reel's night cut (${r3(nightCut)} s).`,
     },
     {
       id: "aurora-calm",
@@ -75,10 +81,10 @@ export function pieces() {
       id: "aurora-lift",
       track: "aurora",
       film: [liftFrom, FILM.duration],
-      src: AURORA.peak - (CLOSE.endLine - liftFrom),
-      fade: [1.5, 1.4],
+      src: AURORA.peak - (peakAt - liftFrom),
+      fade: [1.5, 1.0],
       lufs: -21,
-      why: `The final lift: Aurora's climax lands on the end line (${CLOSE.endLine} s) and falls away under the name (${CLOSE.name} s).`,
+      why: `The final lift: the end line rides Aurora's build and its climax lands on the name card (${r3(peakAt)} s), once the voice has finished.`,
     },
   ].map((piece) => ({ ...piece, film: piece.film.map(r3), src: r3(piece.src) }));
 }

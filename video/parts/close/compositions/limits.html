@@ -309,6 +309,25 @@
           flex: none;
           color: #5a6476;
         }
+        /* a label on an object (review v5 item 3): the honesty tag's dashed steel pill, in the object's own space */
+        .cf-chip {
+          position: absolute;
+          left: 150px;
+          top: 252px;
+          height: 60px;
+          display: flex;
+          align-items: center;
+          padding: 0 26px;
+          border: 2px dashed rgb(126 136 152 / 0.9);
+          border-radius: 999px;
+          background: rgb(255 255 255 / 0.94);
+          color: #0b1220;
+          font-stretch: 100%;
+          font-weight: 600;
+          font-size: 30px;
+          line-height: 1;
+          white-space: nowrap;
+        }
         /* style:end */
         #root {
           position: absolute;
@@ -488,6 +507,8 @@
                 <circle cx="70" cy="140" r="46" fill="#0B1220" />
                 <path d="M60 119.5 L91 140 L60 160.5 Z" fill="#FFFFFF" stroke="#FFFFFF" stroke-width="5" stroke-linejoin="round" />
               </svg>
+              <!-- her statement's language, on its voice (review v5 item 3; one wording: FILM.translationDisclosure) -->
+              <div id="cl-waveChip" class="cf-chip" style="opacity: 0">Cebuano: machine-translated, pending native review</div>
             </div>
           </div>
         </div>
@@ -1034,6 +1055,9 @@
             { opacity: 0.5, scale: 0.85, filter: "blur(9px) grayscale(1)", duration: 0.8, ease: "power2.inOut" },
             at(17.75),
           );
+
+          // the machine-translation chip arrives with the voices' keyword and stays on into the end's glide
+          tl.fromTo("#cl-waveChip", { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.4, ease: "power2.out" }, at(19.6));
 
           rig.draw(0);
           window.__timelines["close-limits"] = tl;

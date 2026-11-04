@@ -254,7 +254,8 @@ for (const words of [
   "farmers.",
   "one shoebox of slips.",
   "one slip, twice.",
-  "count it once.",
+  "a fine, no rule.",
+  "unseen.",
   "one invoice.",
   "traced.",
   "read.",
@@ -493,8 +494,11 @@ for (const beat of beats.filter((item) => item.say)) {
   const own = cues.filter((cue) => cue.start >= from - 1e-3 && cue.end <= to + 1e-3);
   assert(own.length, `${beat.id}: no captions`);
   for (const cue of own) used.add(cue);
+  // a bracket is a line of its own, or a whole cue whose lines read as one bracket (review v5: her language)
+  const whole = (cue) => isBracket(cue.lines.join(" "));
   assert.equal(
     own
+      .filter((cue) => !whole(cue))
       .flatMap((cue) => cue.lines)
       .filter((line) => !isBracket(line))
       .join(" "),
@@ -505,8 +509,13 @@ for (const beat of beats.filter((item) => item.say)) {
     near(own[0].start, from, 1e-3) && near(own.at(-1).end, to, 1e-3),
     `${beat.id}: captions off its window`,
   );
-  const brackets = own.flatMap((cue) => cue.lines).filter(isBracket);
+  const brackets = own.flatMap((cue) => (whole(cue) ? [cue.lines] : cue.lines.filter(isBracket)));
   assert.deepEqual(brackets, BRACKETS[beat.id] ? [BRACKETS[beat.id]] : [], `${beat.id}: bracketed cues`);
+  if (beat.id === "listening")
+    assert(
+      own[0].lines.join(" ").includes(FILM.translationDisclosure.replace(/^Cebuano: /, "")),
+      "listening: no machine-translation bracket",
+    );
 }
 assert.equal(used.size, cues.length, "A caption sits outside every beat's speech");
 // captions.json is the same track, and the close part's close.vtt is its slice from 143 s, shifted.
@@ -570,7 +579,21 @@ for (const cue of sfx.cues) {
     );
   }
 }
-// The music's credit (CC BY 4.0) is on the end card and in the credits for the upload's description.
+// Her statement's language, in one wording everywhere (review v5 item 3): on the Paminawa transcript, the statement's
+// voice in the limits, the end card, the captions' bracket and the description.
+for (const [where, text] of [
+  ["end", endCard],
+  ["limits", limits],
+  ["listening", read("compositions/listening.html")],
+])
+  assert(text.includes(FILM.translationDisclosure), `${where}: no "${FILM.translationDisclosure}"`);
+assert(
+  FILM.endCard.includes(FILM.translationDisclosure) &&
+    FILM.descriptionDisclosure.includes(FILM.translationDisclosure),
+  "FILM: the machine-translation disclosure is missing from the end card or the description",
+);
+// The night shows the problem only; the duplicate is counted once in the day (review v5 item 1).
+assert(!openingText.includes("count it once"), "opening: the night must not count the duplicate once"); // The music's credit (CC BY 4.0) is on the end card and in the credits for the upload's description.
 assert(endCard.includes(FILM.musicCredit), "end: the music's credit is missing");
 assert(FILM.endCard.includes(FILM.musicCredit), "FILM.endCard lacks the music's credit");
 for (const line of [

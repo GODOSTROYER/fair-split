@@ -284,7 +284,17 @@ export const ACCENTS = {
   },
   "signing-console": { kind: "pulse", colour: "pod", box: [600, 426, 320, 84], what: "the first key" },
   "signing-phone": { kind: "pulse", colour: "pod", box: [40, 604, 250, 64], what: "the Chair's key" },
-  "payouts-console": { kind: "hit", colour: "jade", box: [620, 424, 280, 88], what: "the batch sent" },
+  // "sent." is not paid (review v5 item 2): no jade on the send; seven jade fills as the voice says "Seven items
+  // confirm", one per confirmed payout, while the console still holds (the cut to cash is on "a member")
+  "payouts-console": {
+    kind: "fills",
+    colour: "jade",
+    box: [250, 424, 500, 88],
+    count: 7,
+    step: 0.14,
+    word: { beat: "payouts", phrase: "seven" },
+    what: "seven items confirm, one jade fill each",
+  },
   "proof-browser": { kind: "box", colour: "pod", box: [110, 424, 780, 88], what: "six of six re-checked" },
   "member-phone": {
     kind: "trace",
@@ -321,6 +331,21 @@ function nightTimes(accent, slot, kwOut) {
   if (fade[1] - slot.start > 3) throw new Error(`${slot.id}: a night insert runs over 3 s`);
   return { ...accent, at: r3(slot.start), pull, fade, peak: r3(kwOut + 0.27) };
 }
+/** When the voice says `phrase` in `beat` (an accent keyed to a word). */
+function wordStart({ beat: id, phrase }) {
+  const word = beats
+    .find((beat) => beat.id === id)
+    ?.words?.find((w) => w.w.toLowerCase().replace(/^\W+/, "").startsWith(phrase));
+  if (!word) throw new Error(`accent: "${phrase}" is not said in ${id}`);
+  return word.start;
+}
+/**
+ * A label on a window itself (review v5 item 3): the machine-translation chip on the Paminawa transcript, drawn on
+ * the window so it floats with it, in the honesty tag's style. `box` is [x, y, w] in the window's own pixels.
+ */
+export const CHIPS = {
+  "listening-phone": { text: FILM.translationDisclosure, box: [-105, 548, 540], from: 0.3 },
+};
 /** The ordered capture-slot windows of the run, with their camera, glides, keyword times and accent. */
 function choreograph() {
   const run = CAPTURES.filter((slot) =>
@@ -423,7 +448,10 @@ function choreograph() {
         ? null
         : ACCENTS[s.id].kind === "night"
           ? nightTimes(ACCENTS[s.id], s, kwOut)
-          : accentTimes(ACCENTS[s.id], Math.max(kwIn + 0.35, arrive + 0.1)),
+          : accentTimes(
+              ACCENTS[s.id],
+              ACCENTS[s.id].word ? wordStart(ACCENTS[s.id].word) : Math.max(kwIn + 0.35, arrive + 0.1),
+            ),
     });
   }
   // Camera keyframes in film seconds: [t, x, y, s, ease, dip]. Holds never stop dead (a slow push, STYLE §5).
@@ -622,7 +650,11 @@ ${rename(script)}</script>
 /** STYLE §8: a closed-caption track, word for word, at most two lines of 42 characters, each cue 1 to 6 seconds. */
 export const CAPTION = { line: 42, lines: 2, min: 1, max: 6 };
 /** Bracketed lines only where the sound carries meaning. */
-export const BRACKETS = { listening: "[Her statement plays in Cebuano]" };
+export const BRACKETS = {
+  listening: ["[Her statement plays in Cebuano:", `${FILM.translationDisclosure.replace(/^Cebuano: /, "")}]`],
+};
+/** How long a bracket cue holds before the words' cues start. */
+export const BRACKET_SECONDS = 1.4;
 const breakCost = (word, last) => (last || /[.;:!?]$/.test(word) ? 0 : /,$/.test(word) ? 150 : 600);
 /** A phrase as one line, or two balanced lines that break after punctuation where they can; null if it cannot fit. */
 export function wrap(text, lines = CAPTION.lines) {
@@ -657,8 +689,12 @@ export function captionCues(beat) {
   // here are all of them (no say has a bare punctuation token)
   if (beat.words && beat.words.length !== words.length)
     throw new Error(`${beat.id}: word times do not fit its line`);
-  const t = (k) => (k >= words.length ? to : k === 0 ? from : (beat.words?.[k].start ?? from + k * per));
-  const bracket = BRACKETS[beat.id] ?? null;
+  // a two-line bracket is its own first cue (BRACKET_SECONDS); the words' cues follow it
+  const own = Array.isArray(BRACKETS[beat.id]) ? BRACKETS[beat.id] : null;
+  const after = own ? from + BRACKET_SECONDS : from;
+  const t = (k) =>
+    k >= words.length ? to : k === 0 ? after : Math.max(after, beat.words?.[k].start ?? from + k * per);
+  const bracket = own ? null : (BRACKETS[beat.id] ?? null);
   const best = Array(words.length + 1).fill(null);
   best[0] = { cost: 0, from: -1, lines: null };
   for (let i = 1; i <= words.length; i++)
@@ -675,6 +711,8 @@ export function captionCues(beat) {
   if (!best[words.length])
     throw new Error(`${beat.id}: no caption split fits ${CAPTION.max} s and two lines`);
   const cues = [];
+  if (own && own.some((line) => line.length > CAPTION.line))
+    throw new Error(`${beat.id}: bracket over 42 characters`);
   for (let i = words.length; i > 0; i = best[i].from) {
     const j = best[i].from;
     cues.unshift({
@@ -684,6 +722,7 @@ export function captionCues(beat) {
       lines: j === 0 && bracket ? [bracket, ...best[i].lines] : best[i].lines,
     });
   }
+  if (own) cues.unshift({ beat: beat.id, start: ms(from), end: ms(after), lines: own });
   return cues;
 }
 export const captions = beats.flatMap((beat) => (beat.say ? captionCues(beat) : []));
@@ -715,8 +754,11 @@ export const OPENING = {
   farmers: 1.4,
   shoebox: 3.2,
   wave: 5.5,
-  doubled: [7.6, 9.6],
-  once: 9.7,
+  // the night shows only what the voice names: the duplicate, the fine with no rule, unseen, the members fading
+  doubled: [7.05, 8.2],
+  fine: 8.35,
+  unseen: 10.0,
+  membersFade: [11.45, 12.4],
   ring: 12.85,
   invoice: 13.12,
   turn: [14.45, 15.8],
@@ -738,6 +780,8 @@ export const CLOSE = {
   hand: 152.6,
   // each limit's keyword lands beside its object as the voice names it (limits.html LIMITS kw[0] + 143)
   limits: [155.55, 159.2, 160.95, 162.45],
+  // the statement's voice carries the machine-translation chip from its keyword (limits.html)
+  translation: 162.6,
   // the close camera's glides (rig.js CAM + 143): to the 3, to the slip, the pull-out to the limits, between the
   // limits (the last a short push), and into the overview
   glides: [
@@ -750,9 +794,9 @@ export const CLOSE = {
     [164.0, 166.05],
   ],
   // end.html, from 164 s: the trace lands on "traces" and pulses jade, the end line holds 2.5 s, then the name
-  jadePulse: 167.45,
-  endLine: 169.6,
-  name: 172.25,
+  jadePulse: 167.8,
+  endLine: 169.95,
+  name: 172.6,
 };
 /**
  * The IC-11 PREMIUM sentence, placed inside the listening beat: the phone holds while it plays and the camera glides
@@ -829,6 +873,37 @@ export const NARRATION_FIT = [
     within: [OPENING.farmers, OPENING.farmers + 1.6],
     what: '"sixty-four" just after "64 farmers." lands',
   },
+  // the night shows only what the voice names (review v5 item 1)
+  {
+    beat: "problem",
+    word: "duplicate",
+    within: [OPENING.doubled[0] - 0.3, OPENING.doubled[0] + 0.5],
+    what: '"A duplicate" as the pink copy slides out',
+  },
+  {
+    beat: "problem",
+    word: "fine",
+    within: [OPENING.fine - 0.3, OPENING.fine + 0.4],
+    what: '"a fine" as −₱200 appears',
+  },
+  {
+    beat: "problem",
+    word: "unseen",
+    within: [OPENING.unseen - 0.1, OPENING.unseen + 0.4],
+    what: '"unseen" as the copy and the fine sink into the dark',
+  },
+  {
+    beat: "problem",
+    word: "members",
+    within: [OPENING.membersFade[0] - 0.4, OPENING.membersFade[0] + 0.3],
+    what: '"Members can\'t check it" as the members fade',
+  },
+  {
+    beat: "problem",
+    word: "buyer",
+    within: [OPENING.invoice, OPENING.turn[0] - 0.3],
+    what: '"the buyer" with the invoice in its ring, before the turn',
+  },
   {
     beat: "solution",
     word: "fair",
@@ -856,8 +931,8 @@ export const NARRATION_FIT = [
   {
     beat: "paper",
     word: "^",
-    within: [58.1, 59],
-    what: 'after the bumper\'s words ("The deep dive.", 57.25–58.1)',
+    within: [58.45, 59],
+    what: "after the bumper's words have gone (57.25–58.4)",
   },
   {
     beat: "member",

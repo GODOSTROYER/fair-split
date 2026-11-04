@@ -50,6 +50,10 @@
 .acc-pod { color: var(--n-pod); }
 .acc-pink { color: var(--pink-glow); }
 #op-n64 { min-width: 1.18em; text-align: right; }
+/* the fine: a deduction on one member's line that no rule allows (review v5 item 1); placed on its dot by the script */
+#op-fine { position: absolute; left: 0; top: 0; opacity: 0; white-space: nowrap; color: var(--n-ink);
+  font-stretch: 75%; font-weight: 800; font-size: 64px; line-height: 64px; letter-spacing: -0.01em;
+  font-variant-numeric: lining-nums proportional-nums; text-shadow: 0 0 18px rgb(244 246 250 / 0.35); }
 
 /* the invoice inside the ring: about 70% of the disc */
 #op-amount { position: absolute; left: 0; right: 0; top: 424px; text-align: center; color: var(--n-ink); opacity: 0;
@@ -174,6 +178,7 @@
       <div id="op-slipPink" class="slipwrap"><img src="proto/assets/slip-0457-pink.jpg" alt="" /></div>
       <div id="op-slipWhite" class="slipwrap"><img src="proto/assets/slip-0457-white.jpg" alt="" /></div>
       <canvas id="op-threads" width="1920" height="1080"></canvas>
+      <div id="op-fine">−₱200</div>
     </div>
     <div id="op-amount"><span class="cur">US$</span>4,333.50</div>
     <div id="op-invoiceNote">one invoice.</div>
@@ -181,7 +186,8 @@
     <div class="tag tag--night tag--nodot tag--centre" id="op-tagSynth">Synthetic co-op</div>
     <div class="phrase night-big" id="op-p2"><span class="w dim">one</span><span class="w dim">shoebox</span><span class="w dim">of</span><span class="w">slips.</span></div>
     <div class="phrase night-low" id="op-p3"><span class="w dim">one</span><span class="w dim">slip,</span><span class="w acc-pink">twice.</span></div>
-    <div class="phrase night-low" id="op-p4"><span class="w dim">count</span><span class="w dim">it</span><span class="w acc-pod">once.</span></div>
+    <div class="phrase night-low" id="op-p5"><span class="w dim">a</span><span class="w">fine,</span><span class="w dim">no</span><span class="w">rule.</span></div>
+    <div class="phrase night-low" id="op-p4"><span class="w">unseen.</span></div>
     <div class="tag tag--night tag--centre" id="op-tagSim1"><svg aria-hidden="true"><use href="#op-i-flask"/></svg>Simulated PayPal sandbox</div>
   </section>
 
@@ -297,6 +303,12 @@
   // the duplicate: one member line, counted twice
   let J = 0, best = 1e9;
   dots.forEach((d, i) => { if (d.k === 1) { const e = Math.abs(d.a * 180 / Math.PI + 26); if (e < best) { best = e; J = i; } } });
+  // the fine: another member's line, a deduction with no rule behind it
+  let FJ = 0, bestF = 1e9;
+  dots.forEach((d, i) => { if (d.k === 1) { const e = Math.abs(d.a * 180 / Math.PI - 12); if (e < bestF) { bestF = e; FJ = i; } } });
+  const FD = dots[FJ];
+  $("#op-fine").style.left = `${(FD.x + 20).toFixed(1)}px`;
+  $("#op-fine").style.top = `${(FD.y - 30).toFixed(1)}px`;
   const DJ = dots[J];
   const G = { x: DJ.x + 22, y: DJ.y - 26 };
   const dupPts = []; { const c1 = { x: DJ.c1.x, y: DJ.c1.y - 60 }, c2 = { x: DJ.c2.x + 10, y: DJ.c2.y - 52 }; for (let i = 0; i <= NS; i++) dupPts.push(bez(P, c1, c2, G, i / NS)); }
@@ -305,7 +317,7 @@
   const F = { x: lerp(CC.x, DJ.x, 0.75), y: lerp(CC.y, DJ.y, 0.75) };
   function nightCam(t) {
     const kb = 1 + 0.04 * E.sio(prog(t, 5.0, 7.6)) * (1 - E.sio(prog(t, 10.9, 12.2)));
-    const kp = 1 + 0.25 * E.sio(prog(t, 7.6, 9.6)) * (1 - E.p2io(prog(t, 9.95, 10.9)));
+    const kp = 1 + 0.25 * E.sio(prog(t, 7.1, 9.1)) * (1 - E.p2io(prog(t, 9.95, 10.9)));
     const k = kb * kp;
     return { k, x: F.x + kp * (CC.x - F.x) - k * CC.x, y: F.y + kp * (CC.y - F.y) - k * CC.y };
   }
@@ -363,9 +375,13 @@
     }
 
     // focus: while one member's line is in question, the other 63 recede to about 15%
-    const hiJ = prog(t, 7.6, 7.95) * (1 - prog(t, 11.0, 11.35));
+    const hiJ = prog(t, 7.1, 7.45) * (1 - prog(t, 11.0, 11.35));
     const dimOthers = 1 - 0.85 * hiJ;
-    const onceJ = prog(t, 10.6, 10.8) * (1 - prog(t, 11.3, 11.6));
+    // nothing is counted once in the night (the fix is the day's): unseen, the copy and the fine sink into the dark
+    const onceJ = 0;
+    const unseen = 1 - 0.75 * E.sio(prog(t, 10.0, 10.7));
+    // members can't check it: their dots fade where they are
+    const memFade = 1 - E.sio(prog(t, 11.45, 12.4));
     const off = groupOff(t);
     ctx.save(); ctx.translate(off.x, off.y);
     ctx.save(); ctx.shadowColor = `rgba(195,201,214,${(0.55 * dimOthers).toFixed(3)})`; ctx.shadowBlur = 6;
@@ -389,40 +405,40 @@
 
     // the duplicate thread (pink): steady, with a slow shimmer (1.4 Hz, never below 0.7), then counted once
     const shim = 0.85 + 0.15 * Math.sin(2 * Math.PI * 1.4 * t);
-    const df = E.p2o(prog(t, 7.75, 8.35)), dg = E.p2i(prog(t, 9.95, 10.4));
+    const df = E.p2o(prog(t, 7.25, 7.85)), dg = E.p2i(prog(t, 11.28, 11.64));
     if (df > dg) {
-      ctx.save(); ctx.shadowColor = "rgba(247,182,202,0.95)"; ctx.shadowBlur = 18;
-      ctx.strokeStyle = `rgba(247,182,202,${shim.toFixed(3)})`; ctx.lineWidth = 2.8;
+      ctx.save(); ctx.shadowColor = `rgba(247,182,202,${(0.95 * unseen).toFixed(3)})`; ctx.shadowBlur = 18;
+      ctx.strokeStyle = `rgba(247,182,202,${(shim * unseen).toFixed(3)})`; ctx.lineWidth = 2.8;
       strokePart(ctx, dupPts, dg, df); ctx.restore();
     }
-    const gp = E.bo(prog(t, 8.2, 8.5)), gm = E.p3io(prog(t, 10.3, 10.62));
+    const gp = E.bo(prog(t, 7.7, 8.0)), gm = prog(t, 11.3, 11.6);
     if (gp > 0 && gm < 1) {
-      dot(ctx, lerp(G.x, DJ.x, gm), lerp(G.y, DJ.y, gm), 5.6 * gp * (1 - 0.4 * gm), `rgba(247,182,202,${(shim * (1 - gm)).toFixed(3)})`, "rgba(247,182,202,0.9)", 18);
+      dot(ctx, G.x, G.y, 5.6 * gp, `rgba(247,182,202,${(shim * unseen * (1 - gm)).toFixed(3)})`, "rgba(247,182,202,0.9)", 18);
     }
 
     // member dots: pop in, glide with the group, gather into the ring, turn jade, melt into the ring
-    const melt = prog(t, 13.15, 13.6);
-    const jadeU = E.sio(prog(t, 12.1, 12.6));
+    const melt = 1 - memFade;
+    const jadeU = 0;
     for (let i = 0; i < dots.length; i++) {
       const d = dots[i];
       const pop = E.bo(prog(t, d.t0 + 0.5, d.t0 + 0.78));
       if (pop <= 0 || melt >= 1) continue;
-      const m = E.p3io(prog(t, d.m0, d.m0 + 0.42));
+      const m = 0; // the members do not gather: the buyer's ring draws on its own (13.1 s)
       const tg = ringTarget(d, t);
       const x = lerp(d.x, tg.x - off.x, m), y = lerp(d.y, tg.y - off.y, m);
-      const alpha = i === J ? 1 : lerp(lerp(1, 0.25, hiJ), 1, m);
+      const alpha = (i === J ? 1 : lerp(lerp(1, 0.25, hiJ), 1, m)) * memFade;
       const flash = i === J ? onceJ : 0;
       const col = flash > 0 ? mixA(WHITE, POD, flash, 1) : mixA(WHITE, JADE, jadeU, alpha);
       dot(ctx, x, y, (3.6 + 1.6 * flash) * pop * (1 - melt), col, flash > 0.3 ? "rgba(156,140,255,0.9)" : m > 0.5 ? "rgba(61,230,174,0.9)" : `rgba(244,246,250,${(0.8 * alpha).toFixed(3)})`, 10);
     }
     // the person's hand: one indigo ring where the copy was counted once (a ripple, then a held ring)
-    const hr = prog(t, 10.62, 11.4);
+    const hr = 0; // (no hand in the night: the duplicate is counted once in the day)
     if (hr > 0 && hr < 1) {
       ctx.save(); ctx.strokeStyle = `rgba(156,140,255,${(0.95 * (1 - hr)).toFixed(3)})`; ctx.lineWidth = 2.5;
       ctx.shadowColor = "rgba(156,140,255,0.9)"; ctx.shadowBlur = 14;
       ctx.beginPath(); ctx.arc(DJ.x, DJ.y, 6 + 34 * E.eo(hr), 0, Math.PI * 2); ctx.stroke(); ctx.restore();
     }
-    const held = E.bo(prog(t, 10.68, 10.95)) * (1 - prog(t, 11.3, 11.55));
+    const held = 0;
     if (held > 0) {
       ctx.save(); ctx.strokeStyle = `rgba(156,140,255,${(0.95 * Math.min(1, held)).toFixed(3)})`; ctx.lineWidth = 2.5;
       ctx.shadowColor = "rgba(156,140,255,0.9)"; ctx.shadowBlur = 12;
@@ -795,17 +811,23 @@
   tl.fromTo("#op-slipHalo", { opacity: 0, scale: 0.6 }, { opacity: 1, scale: 1, duration: 1.2, ease: "power2.out" }, 5.0);
   tl.fromTo("#op-nightGlow", { opacity: 0 }, { opacity: 1, duration: 1.6, ease: "sine.inOut" }, 5.2);
   // one slip, twice.
-  tl.fromTo("#op-slipPink", { opacity: 0, x: 0, y: 0, rotation: -5 }, { opacity: 1, x: 36, y: 26, rotation: 7, duration: 0.6, ease: "expo.out" }, 7.55);
-  enter("#op-p3 .w", 7.9, { y: 30, st: 0.08 });
-  tl.fromTo("#op-p3 .acc-pink", { textShadow: "0 0 0px rgba(247,182,202,0)" }, { textShadow: "0 0 22px rgba(247,182,202,0.6)", duration: 0.4, ease: "power2.out" }, 8.1);
-  tl.to("#op-p3 .acc-pink", { textShadow: "0 0 34px rgba(247,182,202,0.95)", duration: 0.36, yoyo: true, repeat: 1, ease: "sine.inOut" }, 8.5);
-  leave("#op-p3 .w", 9.4);
-  // count it once.
-  enter("#op-p4 .w", 9.72, { y: 30, st: 0.1, ease: "power4.out" });
-  tl.to("#op-slipPink", { x: 0, y: 0, rotation: -5, opacity: 0, duration: 0.55, ease: "power3.inOut" }, 10.0);
-  tl.fromTo("#op-p4 .acc-pod", { textShadow: "0 0 0px rgba(156,140,255,0)" }, { textShadow: "0 0 26px rgba(156,140,255,0.7)", duration: 0.5, ease: "power2.out" }, 10.6);
+  tl.fromTo("#op-slipPink", { opacity: 0, x: 0, y: 0, rotation: -5 }, { opacity: 1, x: 36, y: 26, rotation: 7, duration: 0.6, ease: "expo.out" }, 7.05);
+  enter("#op-p3 .w", 7.35, { y: 30, st: 0.08 });
+  tl.fromTo("#op-p3 .acc-pink", { textShadow: "0 0 0px rgba(247,182,202,0)" }, { textShadow: "0 0 22px rgba(247,182,202,0.6)", duration: 0.4, ease: "power2.out" }, 7.55);
+  tl.to("#op-p3 .acc-pink", { textShadow: "0 0 34px rgba(247,182,202,0.95)", duration: 0.3, yoyo: true, repeat: 1, ease: "sine.inOut" }, 7.75);
+  leave("#op-p3 .w", 8.2);
+  // a fine, no rule. (a deduction on another member's line, with no rule behind it)
+  tl.fromTo("#op-fine", { opacity: 0, scale: 1.2, filter: "blur(12px)" }, { opacity: 0.92, scale: 1, filter: "blur(0px)", duration: 0.6, ease: "expo.out" }, 8.35);
+  enter("#op-p5 .w", 8.4, { y: 30, st: 0.08 });
+  leave("#op-p5 .w", 9.7);
+  // unseen. The copy and the fine sink into the dark; nothing is counted once before the turn
+  enter("#op-p4 .w", 10.0, { y: 30, st: 0.1, ease: "power4.out" });
+  tl.to("#op-slipPink", { opacity: 0.3, duration: 0.7, ease: "sine.inOut" }, 10.0);
+  tl.to("#op-fine", { opacity: 0.23, filter: "blur(3px)", duration: 0.7, ease: "sine.inOut" }, 10.0);
   leave("#op-p4 .w", 11.05);
-  // the ring around one figure
+  // members can't check it, nor can the buyer: the members fade, then the ring around the buyer's one figure
+  tl.to("#op-fine", { opacity: 0, duration: 0.3, ease: "power2.in" }, 11.3);
+  tl.to("#op-slipPink", { opacity: 0, scale: 0.4, duration: 0.45, ease: "power2.in" }, 11.3);
   tl.to("#op-slipWhite", { opacity: 0, scale: 0.4, duration: 0.45, ease: "power2.in" }, 11.3);
   tl.to("#op-slipHalo", { opacity: 0, duration: 0.5, ease: "power2.in" }, 11.3);
   const RING_LEN = 2 * Math.PI * RR;
