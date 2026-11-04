@@ -1351,6 +1351,11 @@
   flex-wrap: wrap;
 }
 
+/* On a phone the honesty line wraps: kept to one line it would push its sandbox label past the screen's edge. */
+.fsc-stage[data-layout="phone-visit"] .fsc-bar__story {
+  white-space: normal;
+}
+
 .fsc-stage[data-layout="phone-visit"] .fsc-bar .fsc-wordmark {
   padding-right: 0;
   border-right: 0;

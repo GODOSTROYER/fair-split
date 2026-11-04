@@ -327,9 +327,21 @@
   width: 100%;
 }
 
-/* The first press: one confident line with its glyph and an Enter keycap, the honesty words under it. */
+/* The first press: one confident line with its glyph and an Enter keycap; its accessible name keeps the honesty
+   words, and the note under it says them. */
 .fsc-first__slab > .fs-slab {
   flex: 1 1 100%;
+}
+
+/* The short action sits left with its glyph; the keycap (from 1600 px) takes the far edge. */
+.fsc-first__slab .fs-slab__face {
+  justify-content: flex-start;
+}
+
+.fsc-first__slab .fs-slab__label {
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: left;
 }
 
 /* One line from 1600 px; narrower, the words wrap inside the invoice's column (never past it). */
