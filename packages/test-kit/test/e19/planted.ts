@@ -1,7 +1,7 @@
 // Planted copy for the E-19 rules: one violation per rule, near misses each rule must let through, and the
 // schedule's own replacement wording (§6 "Must say"), which must pass every rule. This is test data, not copy:
 // the lint never scans packages/test-kit.
-import type { Beat } from "./script.js";
+import { type Beat, MAX_WORDS } from "./script.js";
 
 /** One sentence per rule that must make it fire. */
 export const PLANTED: Readonly<Record<string, string>> = {
@@ -447,11 +447,12 @@ export const SCRIPTS: { readonly over: readonly Beat[]; readonly within: readonl
       end: 10,
       say: "Sixty-four cacao farmers, two hundred sixty-four handwritten slips, one premium, and a long run of words that no narrator could say inside ten seconds without rushing it.",
     },
-    ...Array.from({ length: 10 }, (_, i) => ({
+    // Enough calm fillers that the total alone passes the cap, wherever ADR-0017 or a later ADR sets it.
+    ...Array.from({ length: Math.ceil(MAX_WORDS / 22) }, (_, i) => ({
       label: `filler ${i + 1}`,
       start: 10 + i * 14,
       end: 24 + i * 14,
-      say: "Twenty-four words of narration fill this beat at a calm pace, so only the total runs past the film's budget of two hundred forty words.",
+      say: "Twenty-two words of narration fill this beat at a calm pace, so only the total runs past the film's whole word budget.",
     })),
   ],
   within: Array.from({ length: 10 }, (_, i) => ({

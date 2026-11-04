@@ -1,11 +1,15 @@
-// E-19 film script limits (S5.6.1): 240 spoken words or fewer, counted as a word processor does (a hyphenated
-// word is one), and 140 words a minute or slower in every beat.
+// E-19 film script limits (S5.6.1, word cap amended by ADR-0017): 371 spoken words or fewer, counted as a word
+// processor does (a hyphenated word is one), and 140 words a minute or slower in every beat.
 //
 // video/script.ts (WS-MEDIA, F1) holds each line as `say` (spoken) and `show` (caption). This module reads any
 // exported array of beats that carry `say`, timed by `start`/`end` (seconds or "m:ss") or by `time` ("m:ss–m:ss").
 // A beat without a readable time fails loudly rather than being skipped.
 
-export const MAX_WORDS = 240;
+/**
+ * Script v4 (ADR-0017) is a product video: a full overview in the first minute, then the deep dive and the limits,
+ * in 2:55. It needs 371 words; the cap is raised that far and no further. The pace limit is unchanged.
+ */
+export const MAX_WORDS = 371;
 export const MAX_WPM = 140;
 
 export interface Beat {
