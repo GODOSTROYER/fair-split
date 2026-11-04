@@ -26,7 +26,7 @@ const RUNNER = fileURLToPath(new URL("./vitest5-runner.mjs", import.meta.url));
 export function strykerConfig({
   mutate,
   vitestConfig = "vitest.config.ts",
-  timeoutMS = 60_000,
+  timeoutMS = 15_000,
   concurrency = 2,
 }) {
   return {
