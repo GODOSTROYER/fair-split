@@ -133,6 +133,13 @@ export async function startJudgeSession(c: AppContext, deps: AppDeps): Promise<S
   const ip = clientIpKey(c);
   const perIp = deps.rateLimits.peek(RATE_RULES.judgeSessionPerIp, ip);
   if (!perIp.ok) throw problem.rateLimited(perIp.retryAfterMs, "Too many new sessions from this network.");
+  const perDay = deps.rateLimits.peek(RATE_RULES.judgeSessionPerNetworkDay, ip);
+  if (!perDay.ok) {
+    throw problem.rateLimited(
+      perDay.retryAfterMs,
+      "This network's daily new-session limit is reached. Resume an existing session or view the public showcase Proof.",
+    );
+  }
   if (cookie.status === "ok") {
     const perCookie = deps.rateLimits.peek(RATE_RULES.judgeSessionPerCookie, sessionId);
     if (!perCookie.ok) {
@@ -170,8 +177,17 @@ export async function startJudgeSession(c: AppContext, deps: AppDeps): Promise<S
     let queuePosition: number | null = null;
     const started = await deps.db
       .transaction(async (tx) => {
-        // Serialize admission before any claim/clone, including concurrent processes sharing this database.
-        await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended('fs:judge-admission',0))`);
+        // Serialize admission across processes without holding pool connections behind a slow clone.
+        // The ordinary failed-start path refunds every successful-start budget for this short queue.
+        const [admissionLock] = (await tx.execute(
+          sql`select pg_try_advisory_xact_lock(hashtextextended('fs:judge-admission',0)) as acquired`,
+        )) as unknown as { acquired: boolean }[];
+        if (!admissionLock?.acquired) {
+          throw new ApiProblem("QUEUED", "Preparing a fresh workspace. You're next; try again in a moment.", {
+            retryAfterMs: 3_000,
+            details: { reason: "PREPARING_WORKSPACE" },
+          });
+        }
         const w = schema.workspaces;
         const [claimed] = await tx
           .select({ n: count() })
