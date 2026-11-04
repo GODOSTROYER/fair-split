@@ -246,6 +246,11 @@
   cursor: default;
 }
 
+/* The grid's full-width row holds the note in one gridcell, filling the row. */
+.fsr-note__cell {
+  height: 100%;
+}
+
 .fsr-note {
   display: flex;
   align-items: center;

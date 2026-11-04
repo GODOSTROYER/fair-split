@@ -278,8 +278,13 @@ export function SplitGrid({
   }, []);
   const noteRenderer = useCallback(
     (p: CustomCellRendererProps<GridRow>) =>
+      // A full-width row is still a row: its content sits in one gridcell (axe aria-required-children), focusable by
+      // script like AG Grid's own cells (tabindex -1).
       p.data?.kind === "note" ? (
-        <HoldNoteView note={p.data} onOpen={() => openNote(p.data as HoldNoteRow)} />
+        // biome-ignore lint/a11y/useSemanticElements: AG Grid's rows are divs; a <td> cannot sit in a div row.
+        <div role="gridcell" tabIndex={-1} className="fsr-note__cell">
+          <HoldNoteView note={p.data} onOpen={() => openNote(p.data as HoldNoteRow)} />
+        </div>
       ) : null,
     [openNote],
   );

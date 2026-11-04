@@ -1248,12 +1248,11 @@
   display: none;
 }
 
-/* The one-time sound question (S1.6). From 1280 px it floats at the top right of the console's screen, beside
-   the headline, clear of the story tiles at the foot; below, at the lower left. */
+/* The one-time sound question, beside the first press (S1.6): over the lower left of the console's screen. */
 .fsc-offer {
   position: absolute;
-  top: 84px;
-  right: 34px;
+  bottom: 112px;
+  left: 24px;
   z-index: var(--fs-z-snackbar);
   display: flex;
   align-items: center;
@@ -1280,33 +1279,39 @@
   min-height: 32px;
 }
 
-/* Docked, it stays over the console's screen, never over the phone. */
-.fsc-stage[data-layout="dock"] .fsc-offer {
-  right: calc(var(--fs-console-dock) + var(--fsc-gutter) + 34px);
+/* Beside the console's screen, never over the rail. */
+.fsc-stage[data-rail="full"] .fsc-offer {
+  left: calc(var(--fs-console-rail) + 24px);
 }
 
-@media (max-width: 1279px) {
-  .fsc-offer {
-    top: auto;
-    right: auto;
-    bottom: 112px;
-    left: 24px;
+.fsc-stage[data-rail="collapsed"] .fsc-offer {
+  left: calc(64px + 24px);
+}
+
+/* While the offer floats over the lower left, the screen and the drawer keep room at their foot, so a control the
+   console focuses there (Next after Count it once, a grid row) can scroll clear of it (lib/focus.ts scrolls it
+   above the chip, WCAG 2.4.11). Room at the foot moves nothing above it. */
+.fsc-stage:has(.fsc-offer) :is(.fsc-console__screen, .fsc-drawer__body) {
+  padding-bottom: 120px;
+}
+
+/* On the first view from 1280 px the story tiles fill the lower left, so the offer floats at the top right of the
+   screen instead, beside the headline (its empty side), never over the tiles, the phone or a drawer's head; the
+   first view then needs no room at its foot for it (lib/focus.ts counts only a chip over a frame's lower half). */
+@media (min-width: 1280px) {
+  .fsc-stage:has(.fsc-first) .fsc-offer {
+    top: 84px;
+    right: 34px;
+    bottom: auto;
+    left: auto;
   }
 
-  /* Beside the console's screen, never over the rail. */
-  .fsc-stage[data-rail="full"] .fsc-offer {
-    left: calc(var(--fs-console-rail) + 24px);
+  .fsc-stage[data-layout="dock"]:has(.fsc-first) .fsc-offer {
+    right: calc(var(--fs-console-dock) + var(--fsc-gutter) + 34px);
   }
 
-  .fsc-stage[data-rail="collapsed"] .fsc-offer {
-    left: calc(64px + 24px);
-  }
-
-  /* While the offer floats over the lower left, the screen and the drawer keep room at their foot, so a control
-     the console focuses there (Next after Count it once, a grid row) can scroll clear of it (lib/focus.ts scrolls
-     it above the chip, WCAG 2.4.11). Room at the foot moves nothing above it. */
-  .fsc-stage:has(.fsc-offer) :is(.fsc-console__screen, .fsc-drawer__body) {
-    padding-bottom: 120px;
+  .fsc-stage:has(.fsc-offer):has(.fsc-first) .fsc-console__screen {
+    padding-bottom: 24px;
   }
 }
 
