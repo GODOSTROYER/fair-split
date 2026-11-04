@@ -5,7 +5,6 @@
 import {
   type Lang as ContractLang,
   LABEL_REVIEW_STATUS,
-  MEMBER_LINE_LABELS,
   MemberLineState,
   MoneyDTO,
   Provenance,
@@ -14,6 +13,7 @@ import { type DbOrTx, schema } from "@fairsplit/db";
 import { format } from "@fairsplit/domain";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
+import { payoutStatusPresentation } from "../lib/payout-status.js";
 import type { StatementContext } from "./facts.js";
 import { loadMobileStatement, MobileStatement } from "./mobile.js";
 import { payKindOf, statementPlan } from "./plan.js";
@@ -102,8 +102,8 @@ export async function statementView(db: DbOrTx, ctx: StatementContext): Promise<
   const lang = ctx.facts.lang;
   const committed = await committedTemplates(db, ctx.workspaceId, ctx.facts.lineId, lang);
   const templates = committed?.templates ?? TEMPLATES_V1;
-  const plan = statementPlan(ctx.facts, templates);
-  const rendered = renderStatement(plan, templates);
+  let plan = statementPlan(ctx.facts, templates);
+  let rendered = renderStatement(plan, templates);
   const pay = payKindOf(ctx.facts);
   const f = ctx.facts;
   let amount: StatementView["amount"] = null;
@@ -133,6 +133,11 @@ export async function statementView(db: DbOrTx, ctx: StatementContext): Promise<
     ctx,
     rendered.spoken.map((sentence) => spokenTextSha256(sentence.text)),
   );
+  // The payout may have replayed while this read was in flight. Format every status/SMS from the final item.
+  const effectiveFacts = { ...f, itemProvenance: mobile.item?.provenance ?? f.itemProvenance };
+  plan = statementPlan(effectiveFacts, templates);
+  rendered = renderStatement(plan, templates);
+  const { payout: _payout, ...publicPlan } = plan;
   return {
     lineId: f.lineId,
     memberNo: f.memberNo,
@@ -141,10 +146,10 @@ export async function statementView(db: DbOrTx, ctx: StatementContext): Promise<
     langs: ["ceb", "fil", "en"],
     state: f.state,
     pay,
-    statusWords: MEMBER_LINE_LABELS[f.state][lang],
+    statusWords: payoutStatusPresentation(effectiveFacts, lang).statusWord,
     reviewChip: lang === "en" ? null : LABEL_REVIEW_STATUS,
     amount,
-    plan,
+    plan: publicPlan,
     display: rendered.display,
     spoken: rendered.spoken,
     sms: { ...rendered.sms, label: "Preview, not sent" },

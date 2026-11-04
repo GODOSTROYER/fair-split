@@ -216,7 +216,7 @@ describe("statementPlan and renderStatement", () => {
       }
     }
     expect(text("M-014", "ceb").sms.text).toBe(
-      `Bulawanon Kakaw: Nang Celing, bayad na ang ${format.money(must(getLine("M-014")).netCents)} sa PayPal (mga P${format.groupThousands(String(Math.floor(mulDivFloor(must(getLine("M-014")).netCents, FX.num, FX.den) / 100)))}). Resibo ${must(getLine("M-014")).slipSerials.join(",")}. Pangutana: Treasurer Analyn.`,
+      `Bulawanon Kakaw: Nang Celing, bayad na ang ${format.money(must(getLine("M-014")).netCents)} sa PayPal (mga P${format.groupThousands(String(Math.floor(mulDivFloor(must(getLine("M-014")).netCents, FX.num, FX.den) / 100)))}). Resibo ${must(getLine("M-014")).slipSerials.join(",")}. Pangutana: Treasurer Analyn. Simulated PayPal sandbox.`,
     );
   });
 

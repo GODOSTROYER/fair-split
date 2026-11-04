@@ -4,6 +4,7 @@
 // in every language until native review; slip numbers digit by digit) and SMS (GSM-7, the peso written "P").
 import type { Provenance } from "@fairsplit/contracts";
 import { format, mulDivFloor, mulDivHalfUp, sha256Hex } from "@fairsplit/domain";
+import { payoutStatusPresentation } from "../lib/payout-status.js";
 import { gsm7Length, SMS_MAX_SEPTETS } from "./gsm7.js";
 import { TEMPLATES_V1 } from "./templates.js";
 import type {
@@ -314,12 +315,38 @@ export interface RenderedStatement {
 }
 
 export function renderSms(plan: StatementPlan, templates: TemplateSet = TEMPLATES_V1): RenderedSms {
-  const text = fillTemplate(
+  let text = fillTemplate(
     templateOf(templates, plan.lang, `sms.${plan.sms.variant}`),
     plan.sms.facts,
     "sms",
     plan.lang,
   );
+  const presentation = plan.payout ? payoutStatusPresentation(plan.payout, plan.lang) : null;
+  if (presentation?.replayed) {
+    // Never wrap "Paid" in a replay prefix: this SMS describes evidence, not payment for this run. The frame is a
+    // template in the member's language (ceb and fil machine-translated, chipped), never English inside Cebuano.
+    text = fillTemplate(templateOf(templates, plan.lang, "sms.replay"), plan.sms.facts, "sms", plan.lang);
+    if ((gsm7Length(text) ?? Number.POSITIVE_INFINITY) > SMS_MAX_SEPTETS) {
+      text = fillTemplate(
+        templateOf(templates, plan.lang, "sms.replay_short"),
+        plan.sms.facts,
+        "sms",
+        plan.lang,
+      );
+    }
+  } else if (plan.payout?.state === "RETURNED" && presentation) {
+    text = fillTemplate(
+      `{{COOP}}: {{HONORIFIC_NAME}}, {{NET_USD}}. ${presentation.statusWord}.`,
+      plan.sms.facts,
+      "sms",
+      plan.lang,
+    );
+    if ((gsm7Length(text) ?? Number.POSITIVE_INFINITY) > SMS_MAX_SEPTETS) {
+      text = fillTemplate(`{{NET_USD}}. ${presentation.statusWord}.`, plan.sms.facts, "sms", plan.lang);
+    }
+  } else if (/^(paid|sent)(_|$)/.test(plan.sms.variant)) {
+    text += " Simulated PayPal sandbox.";
+  }
   const n = gsm7Length(text);
   return { text, gsm7Length: n, fits: n !== null && n <= SMS_MAX_SEPTETS };
 }

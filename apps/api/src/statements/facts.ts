@@ -183,6 +183,7 @@ export async function loadStatementContext(
         : null,
     cashDay: receipt ? receipt.paidAt.toISOString().slice(0, 10) : null,
     itemStatus: (item?.status as PayoutItemStatus | undefined) ?? null,
+    itemProvenance: (item?.provenance as Provenance | undefined) ?? null,
     readingProvenance,
   };
   return {
@@ -194,7 +195,7 @@ export async function loadStatementContext(
     runSlug: run.runSlug,
     rail: row.rail === "ON" ? "PAYPAL" : "CASH",
     // A run can start on the simulator and replay only at POST. Label this member's actual item evidence.
-    provenance: item?.provenance === "replay" ? "replay" : (run.provenance as Provenance),
+    provenance: (item?.provenance ?? run.provenance) as Provenance,
   };
 }
 

@@ -16,6 +16,7 @@ import {
   type EngineLine,
   type Json,
   type LedgerEntry,
+  type MemberLineState,
   PAYOUT_ITEM_RANK,
   type PayoutItemStatus,
   type SignedApproval,
@@ -50,6 +51,8 @@ export interface ShowcaseOptions {
   keys?: "seeded" | "app";
   kind?: "showcase" | "judge" | "real";
   expiresAt?: Date | null;
+  /** Initial projection fixture states, inserted directly; never rewind a persisted line past the I5 guard. */
+  lineStates?: Readonly<Partial<Record<string, MemberLineState>>>;
 }
 
 export interface AppKey extends Ed25519KeyPair {
@@ -248,7 +251,16 @@ export async function loadShowcase(db: Db, opts: ShowcaseOptions = {}): Promise<
   const lineRows = await db
     .insert(schema.memberLines)
     .values(
-      lines.map((l) => lineRow(l, workspaceId, run.id, memberIds, card.sha256, run.lineStates[l.memberNo])),
+      lines.map((l) =>
+        lineRow(
+          l,
+          workspaceId,
+          run.id,
+          memberIds,
+          card.sha256,
+          opts.lineStates?.[l.memberNo] ?? run.lineStates[l.memberNo],
+        ),
+      ),
     )
     .returning({ id: schema.memberLines.id, memberId: schema.memberLines.memberId });
   const memberNoById = new Map(members.map((m) => [m.id, m.memberNo]));

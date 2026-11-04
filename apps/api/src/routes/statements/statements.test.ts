@@ -162,7 +162,7 @@ describe("GET /v1/statements/:lineId", () => {
     expect(v.lang).toBe("ceb");
     expect(v.registryLang).toBe("ceb");
     expect(v.state).toBe("PAID");
-    expect(v.statusWords).toBe("Bayad na");
+    expect(v.statusWords).toBe("Bayad na (simulated PayPal sandbox)");
     expect(v.reviewChip).toBe("Machine-translated, pending native review");
     expect(v.amount?.usd.display).toBe(format.money(must(getLine("M-014")).netCents));
     expect(v.amount?.php?.exact).toBe(false);
