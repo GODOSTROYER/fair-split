@@ -1,10 +1,11 @@
-00:00 Every peso, traced
-00:20 Fund the run
-00:32 Read and check
-00:44 Count it once
-00:56 Rules before facts
-01:10 Two keys
-01:24 Sent, then confirmed
-01:42 Verify in your browser
-02:00 Listen to the line
-02:12 How it works and its limits
+00:00 The problem
+00:14 How Fair Split solves it
+00:30 Architecture
+00:44 What's special on the site
+00:57 The paper and the money
+01:13 Read, check, count once
+01:32 Holds and frozen rules
+01:42 Two keys, then payouts
+02:01 Proof and the member
+02:23 Why it holds up
+02:34 Limits and impact

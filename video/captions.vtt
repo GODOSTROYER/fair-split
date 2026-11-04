@@ -1,97 +1,157 @@
 WEBVTT
 
 1
-00:00:09.000 --> 00:00:15.600
-At this cacao co-op, a season's pay starts as handwritten weigh-slips. Every
+00:00:00.000 --> 00:00:04.375
+Picture a co-op paying sixty-four cacao farmers from handwritten weigh-slips.
 
 2
-00:00:15.600 --> 00:00:20.000
-mark needs a reason; every amount needs proof.
+00:00:04.375 --> 00:00:08.750
+A duplicate, or a fine no rule allows, goes unseen.
 
 3
-00:00:20.000 --> 00:00:27.200
-Lantern Bay funds one invoice through PayPal's Agent Toolkit, on a simulated
+00:00:08.750 --> 00:00:14.000
+Members can't check their pay; the buyer can't prove its premium arrived.
 
 4
-00:00:27.200 --> 00:00:32.000
-PayPal sandbox. Nothing starts until it reads paid.
+00:00:14.000 --> 00:00:16.667
+Fair Split: Claude reads the paper.
 
 5
-00:00:32.000 --> 00:00:40.211
-Claude is built to read every slip twice; this replay is a labelled
+00:00:16.667 --> 00:00:21.111
+Code computes every amount and holds what it can't justify.
 
 6
-00:00:40.211 --> 00:00:44.000
-stand-in. Analyn checks the stained digit.
+00:00:21.111 --> 00:00:25.111
+Two officers sign large batches. A simulated PayPal pays;
 
 7
-00:00:44.000 --> 00:00:51.800
-The original and its pink copy: one slip. Count it once, remove the
+00:00:25.111 --> 00:00:30.000
+cash members get the same statement. The buyer re-checks it all.
 
 8
-00:00:51.800 --> 00:00:56.000
-duplicate claim, and watch the grid rebalance.
+00:00:30.000 --> 00:00:36.417
+Slips go to Claude, then a deterministic engine. Two keys sign one batch hash.
 
 9
-00:00:56.000 --> 00:01:05.579
-Holds resolved in ink. Analyn tries adding a deduction. The rate card was
+00:00:36.417 --> 00:00:41.000
+An outbox makes each simulated PayPal call safe to retry.
 
 10
-00:01:05.579 --> 00:01:10.000
-hashed before the first slip. Refused.
+00:00:44.000 --> 00:00:47.250
+What's special: a split matrix that rebalances;
 
 11
-00:01:10.000 --> 00:01:19.333
-Above the threshold, a second key. Analyn holds to sign; the Chair signs on
+00:00:47.250 --> 00:00:50.964
+a frozen rate card; two keys, one hash;
 
 12
-00:01:19.333 --> 00:01:24.000
-his phone. Both sign one batch hash.
+00:00:50.964 --> 00:00:57.000
+proof in your browser; pay you can hear; and Try to break it.
 
 13
-00:01:24.000 --> 00:01:33.000
-The simulated PayPal accepts the batch: sent, not yet paid. Status checks
+00:00:57.000 --> 00:01:02.176
+Each delivery gets a handwritten slip and a pink carbon copy.
 
 14
-00:01:33.000 --> 00:01:41.250
-confirm each item. An unclaimed member moves to cash. Repeats change
+00:01:02.176 --> 00:01:05.000
+Photograph both, and it counts twice.
 
 15
-00:01:41.250 --> 00:01:42.000
-nothing.
+00:01:05.000 --> 00:01:07.500
+Lantern Bay, the chocolate buyer,
 
 16
-00:01:42.000 --> 00:01:53.368
-Lantern Bay re-checks the rate card, signatures, and every line in its
+00:01:07.500 --> 00:01:13.000
+pays one invoice through PayPal's Agent Toolkit, on a simulated sandbox.
 
 17
-00:01:53.368 --> 00:02:00.000
-browser. PayPal and cash share one statement.
+00:01:13.000 --> 00:01:16.478
+Here is Claude's real reading of one slip.
 
 18
-00:02:00.000 --> 00:02:08.571
-Premium gikan sa Lantern Bay Chocolate Co.: forty-three dollars and
+00:01:16.478 --> 00:01:19.522
+The run itself replays a labelled stand-in;
 
 19
-00:02:08.571 --> 00:02:12.000
-sixty-nine cents, walay kaltas.
+00:01:19.522 --> 00:01:23.000
+treasurer Analyn types a stained digit by hand.
 
 20
-00:02:12.000 --> 00:02:20.800
-Our typed Payouts tool, simulator-signed webhooks, and code computing every
+00:01:23.000 --> 00:01:28.500
+Counted once, the duplicate's money returns to the other sixty-three members,
 
 21
-00:02:20.800 --> 00:02:30.480
-amount. Similar projects protect a payer or contract. Fair Split protects
+00:01:28.500 --> 00:01:32.000
+and the dial drops inside the limit.
 
 22
-00:02:30.480 --> 00:02:34.000
-the people being paid.
+00:01:32.000 --> 00:01:37.652
+Two more holds, each decided by a person. Analyn tries adding a deduction.
 
 23
-00:02:34.000 --> 00:02:42.000
-A prototype on a simulated PayPal sandbox, with synthetic people. No money
+00:01:37.652 --> 00:01:42.000
+Refused: the rate card was locked before the first slip.
 
 24
-00:02:42.000 --> 00:02:50.000
-moves. Code computes. People approve. Every peso, traced to the pencil mark.
+00:01:42.000 --> 00:01:46.500
+Above three hundred dollars, two keys: Analyn holds to sign;
+
+25
+00:01:46.500 --> 00:01:51.000
+the Chair co-signs the same batch hash on his phone.
+
+26
+00:01:51.000 --> 00:01:56.000
+The simulated PayPal accepts the batch: sent, not yet paid.
+
+27
+00:01:56.000 --> 00:02:01.000
+Seven items confirm; a member without PayPal moves to cash.
+
+28
+00:02:01.000 --> 00:02:05.000
+Lantern Bay opens Proof and re-checks the rate card,
+
+29
+00:02:05.000 --> 00:02:09.000
+both signatures and every line, in its own browser.
+
+30
+00:02:09.000 --> 00:02:14.000
+Her pay traces to four slips. She hears it in Cebuano.
+
+31
+00:02:14.000 --> 00:02:18.500
+Premium gikan sa Lantern Bay Chocolate Co.:
+
+32
+00:02:18.500 --> 00:02:23.000
+forty-three dollars and sixty-nine cents, walay kaltas.
+
+33
+00:02:23.000 --> 00:02:28.238
+Underneath: over five thousand automated tests and three kill switches.
+
+34
+00:02:28.238 --> 00:02:34.000
+Others we found share parts; none starts from a handwritten weigh-slip.
+
+35
+00:02:34.000 --> 00:02:37.586
+The limits: PayPal runs on a simulated sandbox.
+
+36
+00:02:37.586 --> 00:02:42.069
+People and data are synthetic; no real farmer was paid.
+
+37
+00:02:42.069 --> 00:02:47.000
+Your demo replays a labelled reading stand-in. Voices are Gemini TTS.
+
+38
+00:02:47.000 --> 00:02:51.706
+Members check their own pay; the buyer traces its premium.
+
+39
+00:02:51.706 --> 00:02:55.000
+Every peso, traced to the pencil mark.

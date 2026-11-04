@@ -257,3 +257,139 @@ body {
   justify-content: center;
   gap: 32px;
 }
+/* Script v4: original cards, the animated architecture and the highlight-reel labels. Layout only: every
+   colour here is one this file already uses or currentColor, so a new look restyles them in one place. */
+.card {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 26px;
+}
+.card-heading {
+  font-size: 84px;
+  line-height: 1.02;
+  font-weight: 800;
+  font-stretch: 75%;
+  margin: 0;
+}
+.kicker {
+  font-size: 40px;
+  line-height: 1.2;
+  margin: 0;
+}
+.card-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  counter-reset: step;
+}
+.card-item.clip {
+  position: relative;
+  inset: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-left: 26px;
+  border-left: 6px solid currentColor;
+}
+.card-item .line {
+  font-size: 46px;
+  line-height: 1.12;
+  font-weight: 640;
+}
+.card-item .detail {
+  font-size: 30px;
+  line-height: 1.2;
+  font-weight: 420;
+  color: #bdb1a4;
+}
+.card-solution .card-items,
+.card-facts .card-items {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 26px 56px;
+}
+.card-solution .card-item {
+  counter-increment: step;
+}
+.card-solution .card-item .line::before {
+  content: counter(step) "  ";
+  font-weight: 800;
+}
+.card-facts .card-item .line {
+  font-size: 40px;
+}
+.card-limits .card-items {
+  gap: 12px;
+}
+.card-limits .card-item .line {
+  font-size: 34px;
+  font-weight: 560;
+}
+.card-architecture {
+  gap: 12px;
+}
+.card-architecture .card-heading {
+  font-size: 56px;
+}
+.card-architecture .kicker {
+  font-size: 30px;
+}
+.card-architecture .architecture {
+  position: relative;
+  flex: 1;
+  height: auto;
+  min-height: 0;
+}
+.architecture-layer svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.card-end .kicker {
+  font-size: 48px;
+}
+.reel-label {
+  position: absolute;
+  inset: auto;
+  left: 96px;
+  top: 126px;
+  max-width: 1300px;
+  background: #201712;
+  border: 2px solid currentColor;
+  padding: 10px 20px;
+  font-size: 40px;
+  font-weight: 700;
+  line-height: 1.15;
+  z-index: 10;
+}
+/* Review round: evidence lines timed to one clip, and the part bumper. Layout only: no new colour (the bumper
+   inherits the scene's background), so a new look restyles them with the scene. */
+.evidence-timed {
+  position: relative;
+  min-height: 104px;
+}
+.slot-evidence.clip {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 12px 28px;
+}
+.part-bumper {
+  inset: auto;
+  left: 96px;
+  top: 126px;
+  max-width: 1500px;
+  background: inherit;
+  border: 2px solid currentColor;
+  padding: 18px 28px;
+  font-size: 56px;
+  font-weight: 760;
+  line-height: 1.1;
+  z-index: 12;
+}
