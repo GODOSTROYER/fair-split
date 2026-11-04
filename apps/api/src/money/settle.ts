@@ -127,7 +127,13 @@ export async function advanceRun(
     .from(schema.payoutItems)
     .innerJoin(schema.payoutBatches, eq(schema.payoutBatches.id, schema.payoutItems.batchId))
     .innerJoin(schema.memberLines, eq(schema.memberLines.id, schema.payoutItems.lineId))
-    .where(and(eq(schema.payoutItems.workspaceId, scope.workspaceId), eq(schema.payoutBatches.runId, runId)));
+    .where(
+      and(
+        eq(schema.payoutItems.workspaceId, scope.workspaceId),
+        eq(schema.payoutBatches.runId, runId),
+        sql`NOT EXISTS (select 1 from payout_items n where n.supersedes_item_id = ${schema.payoutItems.id})`,
+      ),
+    );
   if (items.length === 0) return run.state as PayRunState;
   const statuses = items.map((i) => i.status as PayoutItemStatus);
   const moving = statuses.some((s) => s !== "SUBMITTED" && s !== "PENDING");

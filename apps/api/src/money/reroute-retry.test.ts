@@ -320,4 +320,60 @@ describe("resend again after a refusal", () => {
     expect(script.posted.at(-1)?.items.map((i) => i.receiver)).toEqual(["m039@example.com"]);
     expect((await line("M-018")).state).toBe("PAYPAL_PENDING");
   });
+
+  it("HD6-12: successful x1 and x2 re-routes settle after the remaining parked lines move to cash", async () => {
+    for (const memberNo of ["M-007"]) {
+      await api().payCash({ params: { lineId: (await line(memberNo)).id } });
+    }
+    const batches = await h.t.deps.db
+      .select()
+      .from(schema.payoutBatches)
+      .where(and(eq(schema.payoutBatches.runId, h.world.runId), eq(schema.payoutBatches.kind, "reroute")));
+    h.paypal?.use(
+      http.get(`${PAYPAL_SANDBOX}/v1/payments/payouts/:batchId`, async ({ params }) => {
+        const batch = batches.find((b) => b.paypalBatchId === params.batchId);
+        if (!batch) throw new Error("reroute batch");
+        const items = await h.t.deps.db
+          .select()
+          .from(schema.payoutItems)
+          .where(eq(schema.payoutItems.batchId, batch.id));
+        return HttpResponse.json({
+          total_items: items.length,
+          total_pages: 1,
+          batch_header: {
+            payout_batch_id: params.batchId,
+            batch_status: "SUCCESS",
+            sender_batch_header: { sender_batch_id: batch.senderBatchId },
+          },
+          items: items.map((item) => ({
+            payout_item_id: item.paypalItemId ?? `PIT-${item.id}`,
+            payout_batch_id: params.batchId,
+            transaction_status: "SUCCESS",
+            payout_item: {
+              receiver: item.receiver,
+              amount: { currency: "USD", value: "1.00" },
+              sender_item_id: item.senderItemId,
+            },
+          })),
+        });
+      }),
+    );
+    try {
+      // x1 M-031 was superseded by x2 and must remain RETURNED; only active re-routes are settled.
+      for (const batch of batches.filter(
+        (b) => b.senderBatchId.endsWith("x2-M-031") || b.senderBatchId.endsWith("x1-M-018"),
+      )) {
+        await settleBatch(h.t.deps, { batchId: batch.id, n: 1 }, { workspaceId: h.world.workspaceId });
+      }
+      expect((await line("M-031")).state).toBe("PAID");
+      expect((await line("M-018")).state).toBe("PAID");
+      const [run] = await h.t.deps.db
+        .select()
+        .from(schema.payRuns)
+        .where(eq(schema.payRuns.id, h.world.runId));
+      expect(run?.state).toBe("SETTLED");
+    } finally {
+      h.paypal?.reset();
+    }
+  });
 });
