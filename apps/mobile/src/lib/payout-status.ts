@@ -37,7 +37,7 @@ export function railLabel(rail: string | null | undefined, provenance: string, l
 }
 
 export function statementRail(dto: StatementDTO, lang: Lang, track?: Pick<ItemTrack, "provenance">) {
-  if (dto.provenance === "replay" && !dto.item && track?.provenance !== "replay") {
+  if (dto.provenance === "replay" && !dto.item && !track?.provenance) {
     return {
       kind: "replay-planned",
       chip: translate(lang, "common.payoutPlannedChip"),
@@ -45,7 +45,16 @@ export function statementRail(dto: StatementDTO, lang: Lang, track?: Pick<ItemTr
       review: pendingReview(lang),
     };
   }
-  return railLabel(dto.paypalRail, track?.provenance === "replay" ? "replay" : dto.provenance, lang);
+  return railLabel(dto.paypalRail, statementEvidence(dto, track)[0] ?? dto.provenance, lang);
+}
+
+/** The newest accepted event is the item's evidence; run-only provenance never proves an item outcome. */
+export function statementEvidence(
+  dto: StatementDTO,
+  track?: Pick<ItemTrack, "provenance">,
+): readonly string[] {
+  if (track?.provenance) return [track.provenance];
+  return dto.item ? [dto.provenance] : [];
 }
 
 const PAYPAL_STATUS: ReadonlySet<MemberStatus> = new Set([

@@ -21,7 +21,7 @@ import type { MessageArgs } from "../../_shims/i18n";
 import type { MomentPhase } from "../../_shims/moments";
 import { type HeroFigures, heroFigures, lineConservation, type PayKind, payKindOf } from "../../lib/figures";
 import { CAPSULE_WORD, type CapsuleState, type ItemTrack, type StatusTone } from "../../lib/item-status";
-import { payoutStatus } from "../../lib/payout-status";
+import { payoutStatus, statementEvidence } from "../../lib/payout-status";
 import { amountStateFor, lineApproved } from "../../lib/statement";
 import type { StatementKey } from "./messages";
 
@@ -101,7 +101,7 @@ export function lineView(dto: StatementDTO, capsule: CapsuleState, track: ItemTr
       statusWord: date ? `${word}, ${date}` : word,
       amountState: amountStateFor(capsule, lineApproved(dto)),
       paypal: payKind === "paypal",
-      evidence: [dto.provenance, track.provenance],
+      evidence: statementEvidence(dto, track),
     },
     lang,
   );
@@ -310,7 +310,7 @@ export function historyRows(dto: StatementDTO, track: ItemTrack): HistoryRow[] {
       statusWord: "",
       amountState: "landed",
       paypal: true,
-      evidence: [dto.provenance, track.provenance],
+      evidence: statementEvidence(dto, track),
     },
     "en",
   ).replayed;
