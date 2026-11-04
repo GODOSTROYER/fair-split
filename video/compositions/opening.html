@@ -58,20 +58,20 @@
 #op-invoiceNote { position: absolute; left: 0; right: 0; top: 566px; text-align: center; color: var(--n-ink-3); opacity: 0;
   font-stretch: 100%; font-weight: 560; font-size: 40px; line-height: 48px; letter-spacing: 0.01em; }
 
-/* the one honesty tag: dashed steel, 28 px words in a 56 px pill */
-.tag { position: absolute; display: inline-flex; align-items: center; gap: 12px; height: 56px; padding: 0 24px 0 20px; border-radius: 999px;
-  font-stretch: 100%; font-weight: 600; font-size: 28px; line-height: 1; white-space: nowrap; opacity: 0; }
-.tag svg { width: 26px; height: 26px; flex: none; }
+/* the one honesty tag: dashed steel, 32 px words in a 64 px pill (about 11 px at 640 wide) */
+.tag { position: absolute; display: inline-flex; align-items: center; gap: 14px; height: 64px; padding: 0 28px 0 23px; border-radius: 999px;
+  font-stretch: 100%; font-weight: 600; font-size: 32px; line-height: 1; white-space: nowrap; opacity: 0; }
+.tag svg { width: 30px; height: 30px; flex: none; }
 .tag--night { color: var(--n-ink-2); border: 2px dashed var(--n-steel); background: rgb(16 23 42 / 0.72); }
 .tag--night svg { color: var(--n-ink-3); }
 .tag--day { color: var(--ink-2); border: 2px dashed var(--steel-line); background: rgb(255 255 255 / 0.9); }
 .tag--day svg { color: var(--ink-3); }
-.tag--nodot { padding-left: 24px; }
+.tag--nodot { padding-left: 28px; }
 .tag--centre { left: 0; right: 0; margin-left: auto; margin-right: auto; width: max-content; }
-#op-tagSynth { top: 626px; }
-#op-tagSim1 { top: 892px; }
-/* a corner no window path crosses (every window stays above y 960 and left of x 1396 there) */
-#op-tagSim2 { right: 64px; top: 968px; }
+#op-tagSynth { top: 622px; }
+#op-tagSim1 { top: 888px; }
+/* a corner no window path crosses (every window stays above y 960 or left of x 1335 there) */
+#op-tagSim2 { right: 64px; top: 960px; }
 
 /* ring overlay (above the daylight iris) */
 #op-ringLayer { pointer-events: none; }
@@ -121,6 +121,15 @@
 #op-w4 { width: 692px; height: 192px; margin: -96px 0 0 -346px; }
 #op-w4 .in { opacity: 0; }
 #op-w4 img { position: absolute; inset: 0; border-radius: 20px; box-shadow: 0 2px 6px rgb(11 18 32 / 0.06), 0 30px 60px -24px rgb(11 18 32 / 0.34), 0 0 0 1px rgb(11 18 32 / 0.05); }
+/* the overview's quiet layer: a blurred, greyed copy of the window over it, with feathered holes over the figures
+   the trace proves, so only they can be read in the trace frame (STYLE §2) */
+.soft { position: absolute; inset: 0; pointer-events: none; opacity: 0; mask-size: 100% 100%; mask-repeat: no-repeat; }
+.soft img { position: absolute; inset: 0; }
+/* the architecture's first node, waiting under the veil at the cut to it (plan.mjs SLIPS_UNDER_VEIL) */
+#op-archSlips { position: absolute; left: 0; top: 0; width: 112px; height: 112px; margin: -56px 0 0 -56px; border-radius: 50%; opacity: 0;
+  background: #FFFFFF; box-shadow: 0 1px 2px rgb(11 18 32 / 0.08), 0 20px 36px -16px rgb(11 18 32 / 0.3), 0 0 0 1px rgb(11 18 32 / 0.06); }
+#op-archSlips svg { position: absolute; left: 28px; top: 28px; width: 56px; height: 56px; overflow: visible; }
+#op-archSlips path { fill: none; stroke: #0B1220; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
 #op-pesoLit { opacity: 0; }
 .bar { position: absolute; width: 3.1px; border-radius: 2px; background: #CBD2DC; }
 #op-pauseG { position: absolute; left: 55px; top: 268.75px; width: 62.5px; height: 62.5px; border-radius: 50%; background: var(--ink); opacity: 0; }
@@ -209,6 +218,7 @@
           <div id="op-pauseG"><i></i><i></i></div>
           <div class="pulse" id="op-pulseW3"></div>
         </div></div>
+        <div id="op-archSlips"><svg viewBox="0 0 48 48" aria-hidden="true"><path d="M14 6 H30 L36 12 V42 H14 Z"/><path d="M30 6 V12 H36"/><path d="M18.5 20 q2.2 -3 4.4 0 t4.4 0 t4.4 0"/><path d="M18.5 27 q2.2 -3 4.4 0 t4.4 0 t4.4 0"/><path d="M18.5 34 q2.2 -3 4.4 0 t4.4 0"/></svg></div>
       </div></div>
       <canvas id="op-dayFx" width="1920" height="1080"></canvas>
       <div id="op-veil"></div>
@@ -498,9 +508,12 @@
     }
     return CAMD[CAMD.length - 1];
   }
-  // the outro: off the end line onto the empty field, 1650 px in 1.7 s with the 0.3 zoom-out dip (STYLE §5, peak about
-  // 35 px a frame), ending at rest on the cut to the architecture. Applied on screen to whatever is still in frame.
-  const OUTRO = { t0: 28.3, t1: 30.0, d: 1650, dip: 0.3 };
+  // the outro: the end line holds, then the camera glides off it in one second, 950 px with the 0.3 zoom-out dip (STYLE
+  // §5, peak about 35 px a frame), onto the architecture's first node waiting under the veil (plan.mjs SLIPS_UNDER_VEIL),
+  // ending at rest on the cut. Applied on screen to whatever is still in frame; the field travels as far as it did
+  // over the old 1.7 s glide (`field`), so it ends where the architecture picks it up.
+  const OUTRO = { t0: 29.0, t1: 30.0, d: 950, dip: 0.3, field: 1650 };
+  const SLIPS = { x: 684.5, y: 593.2, disc: 112, scale: 1.9, fade: [29.2, 29.75] };
   function outroAt(t) {
     const e = E.sio(prog(t, OUTRO.t0, OUTRO.t1));
     return { x: OUTRO.d * e, k: 1 - OUTRO.dip * Math.sin(Math.PI * e) };
@@ -539,7 +552,39 @@
     return { x: st.sx + st.sc * (qx * cs - qy * sn), y: st.sy + st.sc * (qx * sn + qy * cs) };
   }
   const lights = [[$("#op-lightA"), -700, -620, 0.12, 60, 40, 0.05], [$("#op-lightC"), 900, -560, 0.2, -50, 50, 0.04], [$("#op-lightB"), 160, 120, 0.28, 70, -40, 0.035]];
-  const dapple = $("#op-dapple"), world = $("#op-worldMb"), mbG = $("#op-mblurG"), endLine = $("#op-end");
+  const dapple = $("#op-dapple"), world = $("#op-worldMb"), mbG = $("#op-mblurG"), endLine = $("#op-end"), archSlips = $("#op-archSlips");
+
+  // the overview's quiet layer (review v3 item 5): in the trace frame only the figures the trace proves can be read,
+  // the slip's boxed 38.45, Claude's 38.45, the peso card's sum and the phone's US$64.45; the rest of each window
+  // is a blurred, greyed copy laid over it. Holes are [x, y, w, h] in the window's own pixels, feathered.
+  const QUIET = {
+    w1: { holes: [[236, 334, 106, 61]], blur: 4, feather: 5 },
+    w1c: { holes: [[366, 26, 186, 96]], blur: 11, feather: 10 },
+    w4: { holes: [[18, 50, 562, 58]], blur: 6, feather: 6 },
+    w3: { holes: [[32, 412, 214, 82]], blur: 6, feather: 8 },
+  };
+  for (const [id, q] of Object.entries(QUIET)) {
+    const w = WINS[id], imgs = [...w.el.querySelectorAll(".in > img")];
+    const soft = document.createElement("div");
+    soft.className = "soft";
+    soft.style.filter = `blur(${q.blur}px) contrast(0.72) brightness(1.06)`;
+    for (const img of imgs) {
+      const copy = img.cloneNode(false);
+      // the peso card's lit chip and underline light in the copy too (the same tween drives both)
+      if (img.id === "pesoLit") { copy.className = "peso-lit-copy"; copy.style.opacity = "0"; }
+      copy.removeAttribute("id");
+      copy.alt = "";
+      soft.appendChild(copy);
+    }
+    imgs[imgs.length - 1].after(soft);
+    const mc = document.createElement("canvas");
+    mc.width = Math.ceil(w.w); mc.height = Math.ceil(w.h);
+    const mx = mc.getContext("2d");
+    mx.fillStyle = "#fff"; mx.fillRect(0, 0, mc.width, mc.height);
+    mx.globalCompositeOperation = "destination-out"; mx.filter = `blur(${q.feather}px)`; mx.fillStyle = "#000";
+    for (const [x, y, hw, hh] of q.holes) mx.fillRect(x, y, hw, hh);
+    soft.style.maskImage = soft.style.webkitMaskImage = `url(${mc.toDataURL()})`;
+  }
 
   // the waveform on the phone, drawn by the film so it can play
   const BAR_H = [12, 22, 30, 18, 26, 14, 24, 32, 20, 12, 24, 28, 16, 22, 10, 18, 26, 14];
@@ -645,7 +690,7 @@
     const cp = camAt(Math.max(14.3, t - 1 / 30));
     const o = outroAt(t), op = outroAt(t - 1 / 30);
     // backdrop: light shapes and leaf shadows drift with parallax (and with the outro's move)
-    const fx0 = c.x + o.x / c.s;
+    const fx0 = c.x + (o.x * OUTRO.field) / OUTRO.d / c.s;
     for (const [el, x, y, k, dx, dy, f] of lights) {
       const px = x - (fx0 - 1940) * k * c.s + dx * Math.sin(2 * Math.PI * f * t), py = y - (c.y - 40) * k * c.s + dy * Math.cos(2 * Math.PI * f * 0.8 * t);
       el.style.transform = `translate(${px.toFixed(1)}px, ${py.toFixed(1)}px)`;
@@ -663,10 +708,21 @@
     // the end line rides the outro out of frame (it sits at y 516; the move is about the frame centre)
     endLine.style.transform = t > OUTRO.t0 ? `translate(${(-o.x * o.k).toFixed(2)}px, ${(24 * (1 - o.k)).toFixed(2)}px) scale(${o.k.toFixed(4)})` : "none";
     endLine.style.filter = t > OUTRO.t0 && blurOn ? "url(#op-mblur)" : "none";
+    // a one-second glide cannot carry it out of frame, so it fades as it goes (STYLE §4: fades with the move)
+    endLine.style.opacity = (1 - E.sio(prog(t, 29.55, 29.95))).toFixed(3);
+    // the architecture's Slips disc rides in with the glide under the veil and is waiting at the cut
+    if (t > OUTRO.t0) {
+      const sx = 960 + (SLIPS.x + OUTRO.d - 960 - o.x) * o.k, sy = 540 + (SLIPS.y - 540) * o.k;
+      archSlips.style.transform = `translate(${sx.toFixed(2)}px, ${sy.toFixed(2)}px) scale(${(SLIPS.scale * o.k).toFixed(4)})`;
+      archSlips.style.opacity = E.sio(prog(t, SLIPS.fade[0], SLIPS.fade[1])).toFixed(3);
+    } else archSlips.style.opacity = "0";
+    // the overview's windows go under the veil as the camera leaves them (none is left at the cut)
+    const gone = 1 - E.sio(prog(t, 29.2, 29.75));
     // windows
     const focusAmt = clamp01((c.s - 0.62) / 0.3);
     for (const w of WLIST) {
       const st = winState(w, t, c);
+      w.el.style.opacity = gone.toFixed(3);
       w.el.style.transform = `translate(${st.sx.toFixed(2)}px, ${st.sy.toFixed(2)}px) scale(${st.sc.toFixed(4)}) perspective(2200px) rotateY(${st.ry.toFixed(2)}deg) rotateX(${st.rx.toFixed(2)}deg) rotate(${st.rot.toFixed(2)}deg) translateY(${st.bob.toFixed(2)}px)`;
       if (w.noDof) continue;
       const edge = Math.max(Math.abs(st.sx - 960) - (st.w * st.sc) / 2, Math.abs(st.sy - 540) - (st.h * st.sc) / 2);
@@ -776,8 +832,15 @@
   // focus pull: the first window comes sharp
   tl.to("#op-world", { opacity: 1, filter: "blur(0px)", duration: 0.75, ease: "power2.inOut" }, 16.2);
   tl.set("#op-world", { filter: "none" }, 16.96);
-  const kwIn = (sel, at) => tl.fromTo(`${sel} span`, { yPercent: 108 }, { yPercent: 0, duration: 0.75, ease: "expo.out" }, at);
-  const kwOut = (sel, at) => tl.to(`${sel} span`, { yPercent: -108, duration: 0.32, ease: "power3.in" }, at);
+  // the wipe's first and last frames are faded, so no lone glyph tip shows at the mask's edge
+  const kwIn = (sel, at) => {
+    tl.fromTo(`${sel} span`, { yPercent: 108 }, { yPercent: 0, duration: 0.75, ease: "expo.out" }, at);
+    tl.fromTo(`${sel} span`, { opacity: 0 }, { opacity: 1, duration: 0.16, ease: "power1.out" }, at);
+  };
+  const kwOut = (sel, at) => {
+    tl.to(`${sel} span`, { yPercent: -108, duration: 0.32, ease: "power3.in" }, at);
+    tl.to(`${sel} span`, { opacity: 0, duration: 0.12, ease: "power1.in" }, at + 0.2);
+  };
   const pen = (sel, L, at, dur, ease) => tl.fromTo(sel, { strokeDasharray: `${L} ${L + 40}`, strokeDashoffset: L + 20 }, { strokeDashoffset: 0, duration: dur, ease }, at);
   // read: the handwritten figure, Claude's reading of it, a line between them
   tl.fromTo("#op-w1c .in", { opacity: 0 }, { opacity: 0, duration: 0.01 }, 14.4);
@@ -808,7 +871,11 @@
   tl.fromTo("#op-w1 .in", { opacity: 0, x: -40, scale: 1.05, filter: "blur(10px)" }, { opacity: 1, x: 0, scale: 1, filter: "blur(0px)", duration: 0.8, ease: "power3.out", immediateRender: false }, 24.95);
   tl.fromTo("#op-w1c .in", { opacity: 0, x: -40, scale: 1.05, filter: "blur(10px)" }, { opacity: 1, x: 0, scale: 1, filter: "blur(0px)", duration: 0.8, ease: "power3.out", immediateRender: false }, 25.02);
   tl.fromTo("#op-w4 .in", { opacity: 0, y: 30, scale: 0.97, filter: "blur(10px)" }, { opacity: 1, y: 0, scale: 1, filter: "blur(0px)", duration: 0.7, ease: "power3.out" }, 25.3);
-  tl.fromTo("#op-pesoLit", { opacity: 0 }, { opacity: 1, duration: 0.25, ease: "power2.out" }, 26.15);
+  tl.fromTo("#op-pesoLit, .peso-lit-copy", { opacity: 0 }, { opacity: 1, duration: 0.25, ease: "power2.out" }, 26.15);
+  // the overview's quiet layer: on while the slip, the reading and the peso card are still out of sight; on the phone
+  // it settles in as the phone takes its place on the line
+  tl.fromTo(["#op-w1 .soft", "#op-w1c .soft", "#op-w4 .soft"], { opacity: 0 }, { opacity: 1, duration: 0.01, immediateRender: false }, 24.9);
+  tl.fromTo("#op-w3 .soft", { opacity: 0 }, { opacity: 1, duration: 0.8, ease: "sine.inOut", immediateRender: false }, 24.8);
   // Every peso, traced. The veil leaves only a ghost of the windows; the tag goes only once nothing is legible
   tl.fromTo("#op-veil", { opacity: 0 }, { opacity: 0.92, duration: 0.4, ease: "power2.inOut" }, 26.95);
   tl.fromTo("#op-world", { filter: "blur(0px)" }, { filter: "blur(18px)", duration: 0.4, ease: "power2.inOut", immediateRender: false }, 26.95);
@@ -816,8 +883,8 @@
   tl.to("#op-tagSim2", { opacity: 0, duration: 0.2, ease: "power2.in" }, 27.35);
   enter("#op-end .w", 27.2, { y: 40, st: 0.12, d: 0.8 });
   tl.fromTo("#op-endLine", { scaleX: 0 }, { scaleX: 1, duration: 0.55, ease: "power3.inOut" }, 27.75);
-  // ... and the opening does not end on the name (it shows once, at the end of the film): the camera glides off the
-  // end line (28.3-30.0, drawn by drawDay) and comes to rest on the empty daylight field the architecture starts on.
+  // ... and the opening does not end on the name (it shows once, at the end of the film): the end line holds, then the
+  // camera glides off it (29.0-30.0, drawn by drawDay) onto the architecture's Slips disc, waiting under the veil.
 
   draw(0);
   window.__timelines["opening"] = tl;

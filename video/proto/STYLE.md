@@ -19,21 +19,25 @@ Canvas 1920 × 1080, 30 fps. Every pixel is computed from the time alone (one pa
   all drifting with parallax. Pace: calm, spacious, 1.4 to 2.5 s per beat plus 2 s glides.
 - **One turn per act.** The night ends in a metaphor that closes (threads → dots → a ring around one figure),
   and the ring becomes the portal into the day. Later acts (architecture, highlights, deep dive) stay bright;
-  a failure case in the deep dive may dip into a short night insert (≤ 3 s) and must come back through a
-  focus pull, never a hard cut.
+  a failure case may dip into a short night insert (≤ 3 s) and must come back through a focus pull, never a
+  hard cut. The film has one: the reel's "refused." (55.1–56.8 s, `plan.mjs` `ACCENTS` kind `night`). On
+  "Try to break it" the lights go out on the reel's own cut (Gabii navy and its glows over the field, every
+  earlier window off), the word lands in night ink over the one lit window, the tag turns to its night form,
+  and the day comes back by a focus pull (blur to 16 px, the night lifting under it, sharp again two frames
+  before the bumper). It is the middle's one peak; do not add a second night.
 - **No dot grids, no new hues.** Depth comes from light, blur and parallax, not from a design-tool canvas.
 
 ## 2. Words on screen
 
-| Role            | Face and size                                                                 | Words           | Place                                                                 | In / out                                                                                 |
-| --------------- | ----------------------------------------------------------------------------- | --------------- | --------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| Night line      | FS Sans wide 112.5%, 690, 136 px, -0.028em                                    | ≤ 4             | centred                                                               | per word: blur 14 → 0, y 46 → 0, 0.7 s expo.out, stagger 0.08–0.1 s; out 0.3 s power2.in |
-| Night beat word | same, 92 px                                                                   | ≤ 3             | lower left (x 150, top 742), in empty space, never on the bottom edge | same                                                                                     |
-| Day keyword     | FS Sans wide 112.5%, 700, 176 px, -0.035em, ink                               | 1 word + period | one anchor for the film: x 140, top 150, beside its window            | mask wipe up, 0.75 s expo.out; out 0.32 s power3.in                                      |
-| Quiet word      | 46 px (40 px inside a disc), 560, grey                                        | 1–2             | centred                                                               | blur and scale settle, 0.9 s                                                             |
-| Figure          | FS Sans condensed 75%, 800, 112 px; "US$" at 0.5 em, raised to the cap height | 1 figure        | inside its ring, ≤ 70% of the disc width                              | blur 12 → 0, 0.7 s expo.out                                                              |
-| End line        | 118 px, 690                                                                   | ≤ 3             | centred                                                               | per word, accent word underlined                                                         |
-| Name            | 150 px, 720, with the mark                                                    | 2 + 2 grey      | centred, once: on the end card                                        | mark builds, then the name                                                               |
+| Role            | Face and size                                                                 | Words           | Place                                                                 | In / out                                                                                       |
+| --------------- | ----------------------------------------------------------------------------- | --------------- | --------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| Night line      | FS Sans wide 112.5%, 690, 136 px, -0.028em                                    | ≤ 4             | centred                                                               | per word: blur 14 → 0, y 46 → 0, 0.7 s expo.out, stagger 0.08–0.1 s; out 0.3 s power2.in       |
+| Night beat word | same, 92 px                                                                   | ≤ 3             | lower left (x 150, top 742), in empty space, never on the bottom edge | same                                                                                           |
+| Day keyword     | FS Sans wide 112.5%, 700, 176 px, -0.035em, ink                               | 1 word + period | one anchor for the film: x 140, top 150, beside its window            | mask wipe up, 0.75 s expo.out; out 0.32 s power3.in; faded over the first 0.16 s / last 0.12 s |
+| Quiet word      | 46 px (40 px inside a disc), 560, grey                                        | 1–2             | centred                                                               | blur and scale settle, 0.9 s                                                                   |
+| Figure          | FS Sans condensed 75%, 800, 112 px; "US$" at 0.5 em, raised to the cap height | 1 figure        | inside its ring, ≤ 70% of the disc width                              | blur 12 → 0, 0.7 s expo.out                                                                    |
+| End line        | 118 px, 690                                                                   | ≤ 3             | centred                                                               | per word, accent word underlined                                                               |
+| Name            | 150 px, 720, with the mark                                                    | 2 + 2 grey      | centred, once: on the end card                                        | mark builds, then the name                                                                     |
 - **At most four words on screen** outside product windows, and one accent word among them.
 - **One keyword anchor.** Every day keyword in the film, landscape or phone beat, sits at x 140, top 150 (its
   container; the glyphs start at x 150), shrinking only when a long word would run into its window. Never
@@ -81,7 +85,9 @@ jade pulse (the hand delivers the money).
   brings every window in (§5): never blur a window out to an empty field and focus the next in at the same spot.
 - **Overview:** at the end of a run the windows settle (float, tilt and blur go to zero over 1.1 s) on one
   gentle left-to-right line at a common scale, in the order the data flows (slip → peso card → phone). Drop
-  windows that are not on the line.
+  windows that are not on the line. At that scale most product text is under 36 px, so a **quiet layer** (a
+  copy of each window, blurred and greyed, with feathered holes) leaves only the figures the trace proves
+  readable: the slip's boxed 38.45, Claude's 38.45, the peso card's sum and the phone's US$64.45.
 - **The trace:** a 5 px indigo line with a soft glow and a thin light core, drawn at 0.45 s per segment with a
   travelling light at its head, small white nodes at each end, routed around text (never across it), ending in
   one jade pulse on the amount it proves.
@@ -99,12 +105,22 @@ jade pulse (the hand delivers the money).
   clips are short (the reel's 1.8–2.3 s, "approved.") the glide is 0.7 × the shorter clip and its travel is cut
   to keep the peak; the deep dive's first glide runs under the bumper's veil. The field (light shapes, leaf
   shadows) moves in parallax with the camera.
-- **Joints with the parts:** no dip to navy, no crossfade between day and night. The opening glides off its end
-  line and comes to rest on the empty daylight field at 30.0; the reel opens with a focus pull on its first
-  window (44.0–44.8); the run ends with a glide off the last phone under a daylight veil (92% by 142.8) and
-  rests on the field at 143.0. Each part starts and ends on that field, and where one side ends under the veil
-  the other opens under the same veil and lifts it (0.7 s): the architecture lifts the opening's (30.0–30.7) and
-  the close lifts the run's (143.0–143.7). The architecture ends by dissolving its diagram into the field
+- **The keyword box stays clear.** While a keyword shows, no window enters its box (x 146 to the word's end,
+  y 150 to 150 + its size); `plan.mjs` checks every frame of the run and refuses a collision. The camera climbs
+  40 px a glide, so the window it leaves sinks below the box rather than rising into it; a phone's keyword is
+  gone before the glide carries the tall phone into it; out of the Chair's phone into the 1.5 s "approved."
+  the camera swings back (left and down, `SWING_BACK`), so the phone leaves to the right and the console rises
+  in under the word. A keyword's wipe fades over its first 0.16 s and its last 0.12 s, so no lone glyph tip or
+  period shows at the mask's edge.
+- **Joints with the parts:** no dip to navy, no crossfade between day and night. The opening holds its end line,
+  then glides off it in one second (29.0–30.0) onto the architecture's Slips disc, already waiting under the
+  92% veil (`plan.mjs` `SLIPS_UNDER_VEIL`: centre 684.5, 593.2, the architecture's first camera pose at 1.9×, no
+  label), so the veil never lifts on an empty field; the reel opens with a focus pull on its first window
+  (44.0–44.8); the run holds the last phone while her sentence plays, glides off it in its last second
+  (141.9–143.0) under a daylight veil (92% by 142.85, the phone going with it) and rests on the field at 143.0.
+  Each part starts and ends on that field, and where one side ends under the veil the other opens under the
+  same veil and lifts it (0.7 s): the architecture lifts the opening's (30.0–30.7, its Slips node fully built
+  from its first frame) and the close lifts the run's (143.0–143.7). The architecture ends by dissolving its diagram into the field
   (blur and fade, 43.4–44.0), so the reel's first window fades in with its focus pull, and the sandbox tag runs
   on across the cut. The two sides of a joint draw the same pixels at the cut (checked frame by frame).
 - **Night camera:** a slow drift in (≤ 4%), and a push of about 1.25× towards the detail in question (the
@@ -132,17 +148,21 @@ jade pulse (the hand delivers the money).
 | End line                     | ≥ 1.15 s on screen, then the camera carries it out; name 1.5 s (end card only) |
 
 The opening is 30 s: night 0–14.4 s, the turn 14.45–15.8 s, day 15.3–30 s, ending on "Every peso, traced."
-and a glide onto the empty field (28.3–30.0), never on the name (see the README's outline).
+(on screen 27.2–29.95) and a one-second glide onto the architecture's Slips disc under the veil (29.0–30.0),
+never on the name (see the README's outline).
 
 ## 7. The honesty tag
 
-- **One component:** dashed steel border 2 px, 28 px text in a 56 px pill, white at 90% on day, navy at 72% on
-  night, flask icon for PayPal. Never a sentence, never a badge cluster.
+- **One component:** dashed steel border 2 px, 32 px text in a 64 px pill (about 11 px at 640 px wide; a 30 px
+  icon, 14 px gap), white at 90% on day, navy at 72% on night, flask icon for PayPal. Never a sentence, never a
+  badge cluster. Every part draws the same pill, so a tag that runs on across a cut (the sandbox tag at 44 s)
+  does not change size.
 - **"Simulated PayPal sandbox"** is on screen from the same frame that any PayPal value starts to appear (an
   amount, a payout, a rail) until the frame where none is legible (a veil ≥ 92% or the window gone). In a
   product run it stays on across the beats rather than following the keywords.
-- **Where:** day: the bottom-right corner (right 64 px, top 968 px). Lay out every shot and every glide so no
-  window enters x > 1396 and y > 960. Night: centred under the figure it labels.
+- **Where:** day: the bottom-right corner (right 64 px, top 960 px, its bottom 56 px off the edge). Lay out every
+  shot and every glide so no window enters x > 1335 and y > 960 (`plan.mjs` `TAG`). Night: centred under the
+  figure it labels.
 - **One tag at a time:** hide a window's own sandbox chip in the crop when the frame tag is on.
 - **"Synthetic co-op"** once, with the first people count. Synthetic slips keep their printed SPECIMEN line;
   Claude's reading card keeps a "Synthetic sample" tag (same component) while it is the subject. The opening's
@@ -150,7 +170,10 @@ and a glide onto the empty field (28.3–30.0), never on the name (see the READM
   Bacus, M-014, net 38.45 kg), drawn in the product's style from the same synthetic master; so the first
   stand-in disclosure stays with the run's own replay.
 - **The reading's labels are tags, not sentences:** "Real Claude reading · 1 Nov 2026" over the recorded
-  exhibit, "Seed stand-in" over the run's replay. The full lines stay legible inside the captures.
+  exhibit, "Seed stand-in reading" over the run's replay. The full lines stay legible inside the captures.
+- **One wording for the stand-in:** "Seed stand-in reading", word for word, wherever the film discloses it (the
+  architecture's Claude node, the run's replay at 76.5–83 s, the close's "replayed."; `plan.mjs`
+  `STAND_IN_TAG`). No "Demo:" prefix, no shorter form.
 - No real farmers, real money or live PayPal claims; no third-party logos; "PayPal" appears only as text.
 
 ## 8. Captions
@@ -176,7 +199,10 @@ and a glide onto the empty field (28.3–30.0), never on the name (see the READM
   no name card) and ends before the end line (27.2 s). Ducked music under the voice (about -10 dB), never over an
   end line or a bumper's words, and the closed captions follow it word for word. Script v4's lines need about
   148 and 169 wpm to fit; `AUDIO-CUES.md` ("Fit to the picture") lists every line's window and pace, and F4
-  records to it or F1 shortens the line (the solution line by about six words fits at 141 wpm).
+  records to it or F1 shortens the line (the solution line by about six words fits at 141 wpm; `AUDIO-CUES.md`
+  proposes an exact 29-word line at 136 wpm, under the check's 140, for F1 and E-19 to decide). Until
+  `script.ts` moves the solution's speech window to 14.45–27.2, its first caption cue starts at 14.0, before the
+  turn.
 - Sound design follows the metaphors: the slip's wave, the member's statement playing (23.8 s), the pulse.
 
 ## 10. Grain and delivery

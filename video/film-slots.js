@@ -380,6 +380,54 @@ window.FairSplitSlots = (() => {
     const gctx = grain.getContext("2d");
     const patterns = grainTiles().map((canvas) => gctx.createPattern(canvas, "repeat"));
 
+    // the night insert (plan.mjs ACCENTS kind "night", review v3 item 9): on the slot's cut the lights go out (Gabii
+    // navy and its glows over the field, every earlier window off), its word lands in night ink over the lit window,
+    // and the day comes back through a focus pull that is sharp again two frames before the cut (STYLE §1, §5)
+    const nightSlot = cfg.run.slots.find(
+      (slot) => slot.accent?.kind === "night" && cfg.slots.some((own) => own.id === slot.id),
+    );
+    let night = null;
+    if (nightSlot) {
+      const layer = el("div", "pf-night");
+      el("div", "pf-night-glow", layer);
+      day.insertBefore(layer, world);
+      const home = wins.find((win) => win.slot === nightSlot && !win.el.dataset.ghost);
+      night = {
+        a: nightSlot.accent,
+        layer,
+        lit: el("div", "pf-lit", home.el),
+        kw: $(`${nightSlot.id}-kw`).firstElementChild,
+        tag: cfg.sim ? $(`${cfg.id}-tag-sim`) : null,
+      };
+    }
+    const mix = (from, to, u) => from.map((v, i) => Math.round(lerp(v, to[i], u)));
+    function nightAt(T) {
+      if (!night || T < night.a.at) return 0;
+      return 1 - E.sio(prog(T, night.a.fade[0], night.a.fade[1]));
+    }
+    function pullAt(T) {
+      if (!night) return 0;
+      const [p0, p1] = night.a.pull;
+      if (T < p0 || T >= p1) return 0;
+      return T < night.a.peak
+        ? 16 * E.p2o(prog(T, p0, night.a.peak))
+        : 16 * (1 - E.p2o(prog(T, night.a.peak, p1)));
+    }
+    function drawNight(n) {
+      night.layer.style.opacity = n.toFixed(3);
+      night.lit.style.opacity = n.toFixed(3);
+      grain.style.opacity = (0.2 + 0.14 * n).toFixed(3);
+      // the word in night ink, back to day ink as the night lifts under the focus pull
+      night.kw.style.color = `rgb(${mix([11, 18, 32], [244, 246, 250], n).join(" ")})`;
+      // the honesty tag: navy at 72% by night, white at 90% by day (STYLE §7)
+      if (night.tag) {
+        const [r, g, b] = mix([255, 255, 255], [16, 23, 42], n);
+        night.tag.style.background = `rgb(${r} ${g} ${b} / ${lerp(0.9, 0.72, n).toFixed(3)})`;
+        night.tag.style.color = `rgb(${mix([58, 68, 86], [195, 201, 214], n).join(" ")})`;
+        night.tag.style.borderColor = `rgb(${mix([126, 136, 152], [137, 150, 180], n).join(" ")})`;
+      }
+    }
+
     function draw(t) {
       const T = T0 + t;
       const c = cameraAt(keys, T);
@@ -407,11 +455,20 @@ window.FairSplitSlots = (() => {
       if (outroVeil) outroVeil.style.opacity = veil.toFixed(3);
       const veilBlur = 18 * clamp01(veil / 0.92);
       const focusAmt = clamp01((c.s - 0.62) / 0.3);
+      const nightAmt = nightAt(T);
+      if (night) drawNight(nightAmt);
+      const pull = pullAt(T);
+      const dark = night && T >= night.a.at && T < night.a.fade[1];
 
       for (const { el: node, slot } of wins) {
         const from = slot.glideIn[0];
         const to = slot.glideOut[1];
-        if (T < from - 1e-6 || T > to + 1e-6) {
+        // the night insert's cut: only its own window stays lit
+        if (
+          T < from - 1e-6 ||
+          T > to + 1e-6 ||
+          (dark && slot !== nightSlot && slot.start < nightSlot.start)
+        ) {
           node.style.opacity = "0";
           continue;
         }
@@ -421,7 +478,10 @@ window.FairSplitSlots = (() => {
         const fadeIn = slot.first
           ? E.sio(prog(T, slot.start, slot.start + 0.5))
           : E.sio(prog(T, from, from + 0.35));
-        const fadeOut = slot.last ? 1 : 1 - E.sio(prog(T, to - 0.35, to));
+        // the run's last window goes with the veil, so the field is empty under it at the cut
+        const fadeOut = slot.last
+          ? 1 - E.sio(prog(T, outro.veil[0], outro.veil[1]))
+          : 1 - E.sio(prog(T, to - 0.35, to));
         const geo = cfg.windows[slot.kind];
         const sx = 960 + (slot.x - c.x) * c.s;
         const sy = 540 + (slot.y - c.y) * c.s;
@@ -431,7 +491,7 @@ window.FairSplitSlots = (() => {
         const rot = slot.kind === "phone" ? 0.6 : -0.6;
         // depth of field: none within 220 px of the centre, up to 10 px, less when the camera is pulled back
         const edge = Math.max(Math.abs(sx - 960) - (geo.w * sc) / 2, Math.abs(sy - 540) - (geo.h * sc) / 2);
-        let blur = clamp01((edge - 220) / 480) * 10 * focusAmt + veilBlur;
+        let blur = clamp01((edge - 220) / 480) * 10 * focusAmt + veilBlur + pull;
         // the reel opens by a focus pull on its first window (blur 14 -> 0, 0.75 s)
         if (slot.first) blur += 14 * (1 - E.eo(prog(T, slot.start + 0.05, slot.start + 0.8)));
         node.style.opacity = (fadeIn * fadeOut).toFixed(3);
@@ -471,16 +531,16 @@ window.FairSplitSlots = (() => {
     for (const own of cfg.slots) {
       const slot = runSlots.get(own.id);
       const kw = $(`${own.id}-kw`).firstElementChild;
-      tl.fromTo(
-        kw,
-        { yPercent: 108 },
-        { yPercent: 0, duration: 0.75, ease: "expo.out" },
-        Math.max(0, slot.kwIn - T0),
-      );
+      const kwAt = Math.max(0, slot.kwIn - T0);
+      tl.fromTo(kw, { yPercent: 108 }, { yPercent: 0, duration: 0.75, ease: "expo.out" }, kwAt);
+      // the wipe's first and last frames are faded, so no lone glyph tip or period shows at the mask's edge
+      // (review v3 item 4)
+      tl.fromTo(kw, { opacity: 0 }, { opacity: 1, duration: 0.16, ease: "power1.out" }, kwAt);
       // the wipe out finishes two frames before the composition's cut (the next beat does not draw this keyword),
       // so no sliver of it is cut off: 0.32 s, or a little less for a keyword held to the end of a short clip
       const outFor = Math.max(0.2, Math.min(0.32, cfg.duration - 0.08 - (slot.kwOut - T0)));
       tl.to(kw, { yPercent: -108, duration: outFor, ease: "power3.in" }, slot.kwOut - T0);
+      tl.to(kw, { opacity: 0, duration: 0.12, ease: "power1.in" }, slot.kwOut - T0 + outFor - 0.12);
       // a slot's own honesty label holds while its window can be read
       if (own.tag) {
         const tag = $(`${own.id}-tag`);

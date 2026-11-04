@@ -364,34 +364,84 @@ body > #root {
 }
 
 /* ---------------------------------------------------------------- the one honesty tag (STYLE §7) */
+/* 32 px words in a 64 px pill (review v3 item 7: about 11 px at 640 wide), its bottom 56 px off the frame edge;
+   plan.mjs TAG keeps every window out of its corner (x > 1335, y > 960) */
 .pf-tag {
   position: absolute;
   right: 64px;
-  top: 968px;
+  top: 960px;
   display: inline-flex;
   align-items: center;
-  gap: 12px;
-  height: 56px;
-  padding: 0 24px 0 20px;
+  gap: 14px;
+  height: 64px;
+  padding: 0 28px 0 23px;
   border-radius: 999px;
   border: 2px dashed var(--steel-line);
   background: rgb(255 255 255 / 0.9);
   color: var(--ink-2);
   font-stretch: 100%;
   font-weight: 600;
-  font-size: 28px;
+  font-size: 32px;
   line-height: 1;
   white-space: nowrap;
   opacity: 0;
 }
 .pf-tag--nodot {
-  padding-left: 24px;
+  padding-left: 28px;
 }
 .pf-tag svg {
-  width: 26px;
-  height: 26px;
+  width: 30px;
+  height: 30px;
   flex: none;
   color: var(--ink-3);
+}
+
+/* ---------------------------------------------------------------- the night insert (plan.mjs ACCENTS "night") */
+/* Gabii navy and the film-card glows (indigo from the top, a little jade from the lower left), as in the opening */
+.pf-night {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  background: var(--n-ground);
+}
+.pf-night-glow {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(
+      42% 150% at 0% 100%,
+      rgb(61 230 174 / 0.1),
+      rgb(61 230 174 / 0.07) 15%,
+      rgb(61 230 174 / 0.046) 30%,
+      rgb(61 230 174 / 0.027) 45%,
+      rgb(61 230 174 / 0.013) 60%,
+      rgb(61 230 174 / 0.005) 75%,
+      rgb(61 230 174 / 0.001) 90%,
+      transparent
+    ),
+    radial-gradient(
+      46% 150% at 52% 0%,
+      rgb(91 67 234 / 0.22),
+      rgb(91 67 234 / 0.154) 15%,
+      rgb(91 67 234 / 0.101) 30%,
+      rgb(91 67 234 / 0.059) 45%,
+      rgb(91 67 234 / 0.029) 60%,
+      rgb(91 67 234 / 0.01) 75%,
+      rgb(91 67 234 / 0.0013) 90%,
+      transparent
+    );
+}
+/* the lit window: a soft cool light round it while the night is on */
+.pf-lit {
+  position: absolute;
+  inset: 0;
+  border-radius: 22px;
+  pointer-events: none;
+  opacity: 0;
+  box-shadow:
+    0 0 0 1px rgb(244 246 250 / 0.16),
+    0 0 70px 6px rgb(156 140 255 / 0.2),
+    0 0 160px 30px rgb(244 246 250 / 0.06);
 }
 
 /* ---------------------------------------------------------------- placeholder accent beats (plan.mjs ACCENTS) */

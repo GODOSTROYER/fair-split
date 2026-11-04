@@ -31,10 +31,10 @@ a builder can apply them to the whole film, are in [`STYLE.md`](STYLE.md).
 | 20.2–21.6   | The one duplicate row lifts out of the table, sharp: the B and D slips, "Slip 0457 is here twice." (42 px), the indigo "Count it once" button pulses twice.                                                                                      | checked. · tag                                                     |
 | 21.75–23.75 | The camera glides (2.0 s) to the phone; the review fades out.                                                                                                                                                                                    | tag                                                                |
 | 23.2–24.7   | Nang Celing's phone, alone. A faint echo of the night's sound wave flows into the play button; her statement plays in Cebuano (pause icon, the waveform moves); the jade "Bayad na" pulses.                                                      | paid. · tag                                                        |
-| 24.8–25.9   | The pull-back: the phone settles right, the slip with Claude's reading settles left, the peso card rises between them, all on one line at one scale.                                                                                             | tag                                                                |
+| 24.8–25.9   | The pull-back: the phone settles right, the slip with Claude's reading settles left, the peso card rises between them, all on one line at one scale; a blurred, greyed copy over each leaves only 38.45, the sum and US$64.45 readable.          | tag                                                                |
 | 25.75–27.3  | The trace: a glowing indigo line with a travelling light leaves the 38.45, swings under into the peso card's slip chip (0403 lights, 43.69 underlined), then runs from the card's US$64.45 to the phone's and ends in one jade pulse.            | tag                                                                |
-| 26.95–28.3  | A daylight veil turns the windows to a ghost (92% by 27.35 s, so no PayPal value is legible when the tag goes, 27.35–27.55 s).                                                                                                                   | Every peso, traced. ("traced." indigo, underlined)                 |
-| 28.3–30.0   | The camera glides off the end line (1650 px with the zoom-out dip and motion blur) and comes to rest on the empty daylight field: the cut to the architecture. No name card here; the name shows once, on the end card.                          | Every peso, traced. (carried out of frame)                         |
+| 26.95–29.0  | A daylight veil turns the windows to a ghost (92% by 27.35 s, so no PayPal value is legible when the tag goes, 27.35–27.55 s).                                                                                                                   | Every peso, traced. ("traced." indigo, underlined)                 |
+| 29.0–30.0   | The camera glides off the end line in one second (950 px with the zoom-out dip and motion blur) onto the architecture's Slips disc, waiting under the veil: the cut. No name card here; the name shows once, on the end card.                    | Every peso, traced. (fades as it is carried out)                   |
 
 Outside the windows there are never more than four words on screen.
 
@@ -52,7 +52,7 @@ Outside the windows there are never more than four words on screen.
   shapes and out-of-focus leaf shadows (`assets/dapple.png`), all with parallax. No grid.
 - Type: FS Sans (Mona Sans VF) wide 112.5 for words, condensed 75 / 800 for the amount
   with "US$" half size and raised to the cap height; proportional lining figures.
-- Honesty: one designed dashed-steel tag (28 px words, 56 px pill). "Simulated PayPal
+- Honesty: one designed dashed-steel tag (32 px words, 64 px pill). "Simulated PayPal
   sandbox" starts on the same frame as the invoice amount and stays on through the whole
   product run (19.0–27.55 s) in a corner no window crosses; the phone crop hides its own
   sandbox chip so only one tag shows. "Synthetic co-op" once, with "64 farmers.". The slips
