@@ -7,10 +7,10 @@ table will be updated when they finish.
 | Task | Branch                 | Head SHA  | Status  | Headline                                                                                                                                                                                                                |
 | ---- | ---------------------- | --------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | T1   | `cloud/security-audit` | `b9320ff` | done    | Every bullet holds or is fixed. S1 (Medium): a cash line's amount could change after both keys and still be posted; fixed by re-hashing lines from their columns. S2 (Low): boot role check missed column-level UPDATE. |
-| T2   | `cloud/dr4-linux`      | `4af886c` | running | Linux clean-clone check in progress.                                                                                                                                                                                    |
-| T3   | `cloud/mutation-core`  | `13cd07e` | running | Mutation testing in progress.                                                                                                                                                                                           |
-| T4   | `cloud/apk-linux`      | `1e561f2` | running | APK build and `android-apk.yml` workflow in progress.                                                                                                                                                                   |
-| T5   | `cloud/judge-soak`     | `2169db8` | running | Load levels measured; the 2-hour sustained run is in progress.                                                                                                                                                          |
+| T2   | `cloud/dr4-linux`      | `576af37` | running | Linux clean-clone check in progress.                                                                                                                                                                                    |
+| T3   | `cloud/mutation-core`  | `fcba88a` | running | Mutation testing in progress; interim scores pushed.                                                                                                                                                                    |
+| T4   | `cloud/apk-linux`      | `ff44aa6` | running | The APK built; sizes per ABI and hashes are in the report; wrapping up.                                                                                                                                                 |
+| T5   | `cloud/judge-soak`     | `8ea23aa` | running | Load levels measured; the sustained run was cut by container restarts and is being rerun.                                                                                                                               |
 | T6   | `cloud/postman`        | `0070f3c` | done    | newman 6.2.3 green locally: 124-125 requests, 424-426 assertions, 0 failed over four runs. Found F1/F2: a replayed run's Mark paid says `simulated_rail` and its lines read `PAID`.                                     |
 
 ## Environment notes
@@ -21,4 +21,4 @@ table will be updated when they finish.
   through `FS_TEST_DATABASE_URL`. `packages/db`'s `harness-global-setup.test.ts` fails as root for the same reason;
   that is an environment artefact, not a product finding. T2 covers it as a Linux-stranger trap.
 - The machine was shared by six agents (4 cores, 16 GB). Timings were taken under contention; see each report.
-- The container restarted once mid-run; in-flight processes (including a soak run) were lost and the tasks resumed.
+- The container restarted twice mid-run; in-flight processes (including a soak run) were lost and the tasks resumed.
