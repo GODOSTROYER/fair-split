@@ -1,1 +1,0 @@
-judge,ip,outcome,failedAt,detail,rail,railReason,payoutRail,payoutReason,pressStatus,pressMs,invoicedMs,fundedMs,inReviewMs,keysMs,postingMs,postedMs,settledMs,proofMs,resetMs,markPaidQueued,cashPaced,proofStatus,payoutPlate,paypalVerified,labelViolations,labelNotes,lines,events,streamRefusals,streamReconnects

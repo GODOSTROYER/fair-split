@@ -140,6 +140,12 @@ export async function emulateProductionHourlyQuota(
   productionCap = 3,
 ): Promise<number> {
   const n = Math.max(0, hourlyCap - productionCap);
+  // last hour's fillers no longer count toward the hour but would still count toward the rolling 24 h (daily cap):
+  // replace them, so only the hourly cap is emulated
+  await psql(
+    databaseUrl,
+    `delete from reconciliation_reports where summary->>'soakFixture' = '${SOAK_FIXTURE}'`,
+  );
   const out = await psql(
     databaseUrl,
     `insert into reconciliation_reports (id, kind, window_end, summary)

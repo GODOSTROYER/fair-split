@@ -89,6 +89,10 @@ export interface JudgeResult {
   proofMs: number;
   resetMs: number;
   markPaidQueued: number;
+  /** The POSTED event's provenance (replay | simulated_rail): what the payout actually was. */
+  payoutBinding: string;
+  /** 1 when the rail peeked after both keys differs from what the payout became (data, not a violation). */
+  peekMismatch: number;
   /** The pay-cash answer when PayPal's pacing deferred Rhea's cancel ("503 CIRCUIT_OPEN"), else "". */
   cashPaced: string;
   /** Proof's verification status (sample | replay | …) and the payout-items plate's state. */
@@ -193,6 +197,8 @@ export async function runJudge(
     proofMs: Number.NaN,
     resetMs: Number.NaN,
     markPaidQueued: 0,
+    payoutBinding: "",
+    peekMismatch: 0,
     cashPaced: "",
     proofStatus: "",
     payoutPlate: "",
@@ -375,7 +381,19 @@ export async function runJudge(
     );
 
     // 7. Proof: the public verification, until it settles on sample (live) or replay; then the label checks.
-    const replayed = r.payoutRail === "replay" || r.rail === "replay";
+    // the payout's own provenance, not the peek: the binding decision is taken at the POST (judge/quota.ts), so a run
+    // that peeked live after both keys can still replay when the hour's slots went meanwhile
+    const posted = streams[0]?.events.find((e) => e.type === "run.state" && e.payload.to === "POSTED");
+    const itemProv = new Set(
+      streams
+        .flatMap((x) => x.events)
+        .filter((e) => e.type === "item.updated")
+        .map((e) => e.provenance),
+    );
+    r.payoutBinding = posted?.provenance ?? "?";
+    const replayed = r.payoutBinding === "replay" || itemProv.has("replay");
+    if (replayed !== (r.payoutRail === "replay")) r.peekMismatch = 1;
+    if (itemProv.size > 1) violate(`payout items mix provenances: ${[...itemProv].join("/")}`);
     const proofUntil = Date.now() + 90_000;
     type Verification = {
       status?: string;
