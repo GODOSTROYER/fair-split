@@ -26,7 +26,7 @@ export function summarize(values: readonly number[]): Summary {
     p50: percentile(xs, 50),
     p95: percentile(xs, 95),
     p99: percentile(xs, 99),
-    max: xs.length ? Math.max(...xs) : Number.NaN,
+    max: maxOf(xs) ?? Number.NaN,
     mean: xs.length ? sum / xs.length : Number.NaN,
   };
 }
@@ -85,4 +85,11 @@ export function parseArgs(argv: readonly string[]): Map<string, string> {
     if (m?.[1]) out.set(m[1], m[2] ?? "true");
   }
   return out;
+}
+
+/** The largest finite value, without spreading the array onto the stack; null when there is none. */
+export function maxOf(values: readonly number[]): number | null {
+  let m: number | null = null;
+  for (const v of values) if (Number.isFinite(v) && (m === null || v > m)) m = v;
+  return m;
 }
