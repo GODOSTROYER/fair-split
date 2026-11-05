@@ -63,8 +63,13 @@ describe("lock order: the workspace lock before any row lock", () => {
     for (let i = 0; i < 4; i++) {
       const { runId, r } = await approvedRun();
       // T1 flips kill_payouts, then (while still open) halts the run: S3.11's handler shape
+      let holding = () => {};
+      const locked = new Promise<void>((resolve) => {
+        holding = resolve;
+      });
       const t1 = withWorkspaceTx(t.app.db, r.scope, async (tx) => {
         await r.flags.set(tx, "kill_payouts", true, { reason: "test", provenance: "live" });
+        holding();
         await sleep(150);
         return r.runs.transition(tx, {
           id: runId,
@@ -74,8 +79,9 @@ describe("lock order: the workspace lock before any row lock", () => {
           provenance: "live",
         });
       });
-      // T2 starts while T1 holds the workspace lock and tries to post the same run
-      await sleep(40);
+      // T2 starts once T1 holds the workspace lock (a fixed 40 ms wait lost that race at load 33 on 4 cores, DR-4)
+      // and tries to post the same run
+      await locked;
       const t2 = r.runs.transition(t.app.db, {
         id: runId,
         from: "APPROVED",
