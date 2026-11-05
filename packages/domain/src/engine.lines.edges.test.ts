@@ -137,6 +137,50 @@ describe("pay-time deductions across several loans and advances", () => {
   });
 });
 
+describe("rounding of what is owed and carried", () => {
+  it("a loan's centavos round half-up to cents, and the carried rest rounds the deduction half-up back", () => {
+    // ₱250.50 = 25,050 centavos = 400.8¢ → 401¢ owed; cap 50% of a 3,001¢ bonus = 1,500¢
+    const d = payTimeDeductions(
+      {
+        cbuPaidUpCentavos: 500_000,
+        loans: [{ ref: "LN", outstandingCentavos: 25_050, authorityToDeduct: true }],
+        advances: [{ voucherNo: "CA", outstandingCentavos: 25_050 }],
+      },
+      3_001,
+      TEST_RULES,
+      FX,
+    );
+    expect(d.map((x) => [x.category, x.computedCents, x.amountCents, x.carriedCentavos])).toEqual([
+      ["LOAN", 401, 401, 0], // 401¢ = 25,062.5 centavos → 25,063, so nothing is carried
+      ["ADVANCE", 401, 401, 0],
+    ]);
+    const partial = payTimeDeductions(
+      {
+        cbuPaidUpCentavos: 500_000,
+        loans: [{ ref: "LN", outstandingCentavos: 25_050, authorityToDeduct: true }],
+        advances: [],
+      },
+      301,
+      TEST_RULES,
+      FX,
+    );
+    // cap 150¢ → 9,375 centavos repaid, 15,675 carried
+    expect(partial[0]).toMatchObject({ amountCents: 150, carriedCentavos: 15_675 });
+    const odd = payTimeDeductions(
+      {
+        cbuPaidUpCentavos: 500_000,
+        loans: [{ ref: "LN", outstandingCentavos: 25_050, authorityToDeduct: true }],
+        advances: [],
+      },
+      303,
+      TEST_RULES,
+      FX,
+    );
+    // cap 151¢ → 9,437.5 centavos rounds half-up to 9,438; 15,612 carried
+    expect(odd[0]).toMatchObject({ amountCents: 151, carriedCentavos: 15_612 });
+  });
+});
+
 describe("checkRuledMark", () => {
   const r = { netG: 60_800, station: "PUROK_2" as const };
   const m = {
@@ -263,7 +307,58 @@ describe("the money effect a duplicate hold reports", () => {
   });
 });
 
+describe("approval and duplicate effects at the edges", () => {
+  it("a run whose kilos are still pending is blocked, with no hold to say so", () => {
+    const out = computeLines(
+      input([member("M-001")], [row("M-001", 1_000), row("M-001", 1, { payableG: null })]),
+    );
+    expect(out.blockingHoldKeys).toEqual([]);
+    expect(out.approvalBlocked).toBe(true);
+  });
+
+  it("counting both copies exactly at the tolerance is inside", () => {
+    const rows = [
+      row("M-001", 10, { serial: "0457" }),
+      row("M-001", 10, { serial: "0457", copy: "PINK_DUPLICATE" }),
+      row("M-002", 1_000),
+    ];
+    const out = computeLines(input([member("M-001"), member("M-002")], rows));
+    expect(out.holds.find((h) => h.key === holdKey.duplicate("0457"))?.params.bothInside).toBe(true); // +2.0% exactly
+  });
+
+  it("the effect of one duplicate keeps the other holds' resolutions", () => {
+    const rows = [
+      row("M-001", 100, { serial: "0457" }),
+      row("M-001", 100, { serial: "0457", copy: "PINK_DUPLICATE" }),
+      row("M-002", 100, { serial: "0458" }),
+      row("M-002", 100, { serial: "0458", copy: "PINK_DUPLICATE" }),
+      row("M-003", 600),
+    ];
+    const members = [member("M-001"), member("M-002"), member("M-003")];
+    const once = (key: string) => ({ holdKey: key, resolution: "COUNT_ONCE" as const, by: "AS", at: AT });
+    const out = computeLines(input(members, rows, { resolutions: [once(holdKey.duplicate("0457"))] }));
+    const bothFor58 = computeLines(input(members, rows, { resolutions: [once(holdKey.duplicate("0457"))] }));
+    const onceFor58 = computeLines(
+      input(members, rows, {
+        resolutions: [once(holdKey.duplicate("0457")), once(holdKey.duplicate("0458"))],
+      }),
+    );
+    expect(out.holds.find((h) => h.key === holdKey.duplicate("0458"))?.params).toMatchObject({
+      holderNetBothCents: line(bothFor58, "M-002").netCents,
+      holderNetOnceCents: line(onceFor58, "M-002").netCents,
+    });
+  });
+});
+
 describe("lines and holds in order, and what a line hash covers", () => {
+  it("holds raised in another order still come out in kind order", () => {
+    const doubtful = row("M-001", 10, {
+      pendingFields: [{ fieldId: "f", field: "member_name", score: 0.5 }],
+    });
+    const out = computeLines(input([member("M-001", { registeredTrees: 1 })], [doubtful]));
+    expect(out.holds.map((h) => h.kind)).toEqual(["IMPLAUSIBLE_YIELD", "LOW_CONFIDENCE", "MASS_BALANCE"]);
+  });
+
   it("holds come in kind order, then key order; each line lists its credits by mark and its hold keys sorted", () => {
     const marks = [
       {
