@@ -196,6 +196,36 @@ describe("re-shoots (near duplicates by dHash)", () => {
   });
 });
 
+describe("resolved holds record their resolution", () => {
+  it("TWO_DELIVERIES on the same serial resolves the hold; CONFIRM_AS_READ on a doubtful field records it", () => {
+    const rows = [
+      row("M-001", 10, { serial: "0461" }),
+      row("M-001", 10, { serial: "0461", copy: "PINK_DUPLICATE" }),
+    ];
+    const both = computeLines(
+      input([member("M-001")], rows, {
+        resolutions: [resolve(holdKey.duplicate("0461"), "TWO_DELIVERIES", { reason: "two loads" })],
+      }),
+    );
+    expect(holdOf(both, holdKey.duplicate("0461"))).toMatchObject({
+      state: "RESOLVED",
+      resolution: { kind: "TWO_DELIVERIES", by: "AS", at: AT },
+    });
+    const doubtful = row("M-001", 10, {
+      pendingFields: [{ fieldId: "f", field: "member_name", score: 0.5 }],
+    });
+    const confirmed = computeLines(
+      input([member("M-001")], [doubtful], {
+        resolutions: [resolve(holdKey.lowConfidence(doubtful.rowId), "CONFIRM_AS_READ")],
+      }),
+    );
+    expect(holdOf(confirmed, holdKey.lowConfidence(doubtful.rowId))).toMatchObject({
+      state: "RESOLVED",
+      resolution: { kind: "CONFIRM_AS_READ", by: "AS", at: AT },
+    });
+  });
+});
+
 describe("low confidence", () => {
   const pending = (fields: [string, string, number][]) =>
     fields.map(([fieldId, field, score]) => ({ fieldId, field, score })) as EngineRow["pendingFields"];
