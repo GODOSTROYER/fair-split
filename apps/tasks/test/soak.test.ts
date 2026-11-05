@@ -31,6 +31,10 @@ describe("soak stats", () => {
     expect(percentile([], 50)).toBeNaN();
     expect(summarize([1, 2, 3, Number.NaN])).toMatchObject({ n: 3, p50: 2, max: 3, mean: 2 });
   });
+  it("summarizes millions of samples without spreading them onto the stack", () => {
+    const xs = Array.from({ length: 2_000_000 }, (_, i) => i % 1000);
+    expect(summarize(xs)).toMatchObject({ n: 2_000_000, max: 999, p50: 499 });
+  });
   it("writes CSV cells: rounded numbers, empty NaN, quoted text", () => {
     expect(cell(1.25, 1)).toBe("1.3");
     expect(cell(Number.NaN)).toBe("");
