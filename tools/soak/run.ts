@@ -31,7 +31,7 @@ import {
   sampleServer,
   stuckOutboxRows,
 } from "./sample.js";
-import { csvLine, judgeAddress, parseArgs, summarize, tally, toCsv } from "./stats.js";
+import { csvLine, judgeAddress, maxOf, parseArgs, summarize, tally, toCsv } from "./stats.js";
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 
@@ -241,8 +241,8 @@ async function main() {
   const record = (r: JudgeResult, client: JudgeClient) => {
     results.push(r);
     windowResults.push(r);
-    exchanges.push(...client.exchanges);
-    windowExchanges.push(...client.exchanges);
+    for (const x of client.exchanges) exchanges.push(x);
+    for (const x of client.exchanges) windowExchanges.push(x);
     if (judgeRows < judgeRowCap) {
       appendFileSync(file("judges.csv"), csvLine(JUDGE_COLUMNS.map((c) => r[c])));
       judgeRows++;
@@ -290,7 +290,11 @@ async function main() {
 
   // endpoints
   const byName = new Map<string, Exchange[]>();
-  for (const x of exchanges) byName.set(x.name, [...(byName.get(x.name) ?? []), x]);
+  for (const x of exchanges) {
+    const list = byName.get(x.name);
+    if (list) list.push(x);
+    else byName.set(x.name, [x]);
+  }
   const endpointRows = [...byName]
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([name, xs]) => {
@@ -336,7 +340,7 @@ async function main() {
     wallS: Math.round((Date.now() - startedAt) / 1000),
     loadAtStart: baseline ? [baseline.load1, baseline.load5, baseline.load15] : null,
     loadAtEnd: end ? [end.load1, end.load5, end.load15] : null,
-    loadMax1: samples.length ? Math.max(...samples.map((s) => s.load1)) : null,
+    loadMax1: maxOf(samples.map((s) => s.load1)),
     judgesRun: results.length,
     outcomes: tally(results.map((r) => r.outcome)),
     failedAt: tally(results.filter((r) => r.failedAt).map((r) => `${r.failedAt}:${r.detail.slice(0, 60)}`)),
@@ -387,19 +391,15 @@ async function main() {
     server: {
       rssMbStart: baseline?.rssMb ?? null,
       rssMbEnd: end?.rssMb ?? null,
-      rssMbMax: rss.length ? Math.max(...rss) : null,
+      rssMbMax: maxOf(rss),
       fdsStart: baseline?.fds ?? null,
       fdsEnd: end?.fds ?? null,
-      fdsMax: fds.length ? Math.max(...fds) : null,
-      dbConnsMax: samples.length ? Math.max(...samples.map((s) => s.dbConns).filter(Number.isFinite)) : null,
+      fdsMax: maxOf(fds),
+      dbConnsMax: maxOf(samples.map((s) => s.dbConns)),
       dbConnsEnd: end?.dbConns ?? null,
-      outboxStuckMax: samples.length
-        ? Math.max(...samples.map((s) => s.outboxStuck).filter(Number.isFinite))
-        : null,
+      outboxStuckMax: maxOf(samples.map((s) => s.outboxStuck)),
       outboxDeadEnd: end?.outboxDead ?? null,
-      paypalWindowMax: samples.length
-        ? Math.max(...samples.map((s) => s.paypalWindow).filter(Number.isFinite))
-        : null,
+      paypalWindowMax: maxOf(samples.map((s) => s.paypalWindow)),
       paypal429h: end?.paypal429h ?? null,
       stuckRows: databaseUrl ? await stuckOutboxRows(databaseUrl) : "",
     },
