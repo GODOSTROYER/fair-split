@@ -1,7 +1,6 @@
 # Cloud T5: judge-load soak in replay (`cloud/judge-soak`)
 
-Status: **done**, apart from the n50 live-config row, which is still running when this is written (filled in below
-when it lands). Measured on 4–5 Nov 2026.
+Status: **done**. Measured on 4–5 Nov 2026.
 
 ## Headline
 
@@ -15,7 +14,8 @@ when it lands). Measured on 4–5 Nov 2026.
   "live" until the hour's POSTs land. The single-flight live lane then paces them at about one PayPal burst per 40 s,
   however fast PayPal answers:
   - 10 judges: p50 **900 s**, p95 **1,103 s**.
-  - 25 judges: **none** reached the POST within 15 minutes of waiting.
+  - 25 judges and 50 judges: **none** reached the POST within 15 minutes of waiting at any step. At 50 judges the
+    host was quiet (load ≤ 6), so the lane alone is the cause.
   - With production's quota (sustained run), the 9 live judges took **776–817 s**, and each new clock hour stalled all
     10 looping judges for about 15 minutes (F1).
 - **Two ways a crowd gets refused or misled:**
@@ -96,7 +96,7 @@ and spread is the gap between two subscribers; method below.
 | n10 live              |     10 | 27 / 49         | 10 settled                | **900.1 s / 1,103.2 s**       |   0/10 | 13 / 43 ms      | 79 / 155 / 13 ms            | 21 / 2,026      |  10 | 334 → 371           |       66 |       14 |            0 |                0 |
 | n25 live              |     25 | 19 / 47         | **25 stuck**              | none reached the POST         |   0/25 | 19 / 62 ms      | 69 / 106 / 8 ms             | 84 / 7,054      |   0 | 336 → 400           |      111 |       13 |            0 |                0 |
 | n10 live, 180 s steps |     10 | 12 / 27         | **10 stuck**              | none within 3 min per step    |   0/10 | –               | –                           | 15 / 479        |   0 | 338 → 379           |       66 |       13 |            0 |                0 |
-| n50 live              |     50 | see below       |                           |                               |        |                 |                             |                 |     |                     |          |          |              |                  |
+| n50 live              |     50 | 5 / 6           | **50 stuck**              | none reached the POST         |   0/50 | 9 / 22 ms       | 19 / 27 / 3 ms              | 250 / 11,859    |   0 | 336 → 404           |      183 |       13 |            0 |                0 |
 
 How the time splits (p50, seconds from the press; `*-judges.csv`):
 
@@ -165,6 +165,10 @@ steps. So with N live judges the POST comes after roughly 3N × 40 s:
 - n10: posts 499–1,103 s after the press.
 - n25: all 23 judges at APPROVED were still waiting for the POST after 15 minutes. Their `postPayoutBatch` rows were
   queued about 40 s apart.
+- n50 (host load ≤ 6): 27 judges were never invoiced within 15 minutes, and 23 reached APPROVED (IN_REVIEW at p50
+  1,359 s, the same as n25's 1,361 s: the lane's rate does not depend on load) and waited there.
+- The lane held exactly 50 entries (its `maxQueue`), one per judge's current step, so `lane_full` never fired and no
+  judge fell back to a labelled replay.
 
 Production's 3-per-hour cap does not prevent this. The steps before the POST only _peek_ at the quota, so every
 judge who presses before the hour's third POST lands is live, and all of them queue in the lane. The sustained run
