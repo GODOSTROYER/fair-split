@@ -4,6 +4,8 @@
 import { strykerConfig } from "../../tools/stryker/base.mjs";
 
 export default strykerConfig({
+  // The paypal-core project alone: the apps/api webhook project cannot be found from Stryker's sandbox.
+  vitestConfig: "vitest.stryker.config.ts",
   // The money paths: webhook self-verification (signature input, CRC32, cert URL, freshness, replay), the
   // event → item-status map and its stored apply, and the HTTP layer that carries the idempotency key.
   mutate: [
