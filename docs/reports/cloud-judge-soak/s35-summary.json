@@ -1,0 +1,131 @@
+{
+  "label": "s35",
+  "judges": 35,
+  "stepS": 900,
+  "prodQuota": 0,
+  "rounds": 1,
+  "minutes": null,
+  "sharedIp": true,
+  "startedAt": "2026-11-05T02:24:35.152Z",
+  "wallS": 42,
+  "loadAtStart": [4.44, 3.89, 3.08],
+  "loadAtEnd": [4.81, 4.06, 3.18],
+  "loadMax1": 4.81,
+  "judgesRun": 35,
+  "outcomes": "press_refused:30 settled:5",
+  "failedAt": "press:429 RATE_LIMITED:30",
+  "railAtPress": "-:30 replay/hourly_cap:5",
+  "railAtPayout": "replay/hourly_cap:5",
+  "proofStatus": "replay:replay:5",
+  "payoutBinding": "replay:5",
+  "peekMismatch": 0,
+  "paidLineProvenance": "replay:live:7:5",
+  "exportItems": "replay:8:5",
+  "pressToPostingS": {
+    "n": 5,
+    "p50": 15.97,
+    "p95": 16.299,
+    "max": 16.299
+  },
+  "pressToPostingLiveS": {
+    "n": 0,
+    "p50": null,
+    "p95": null,
+    "max": null
+  },
+  "pressToPostingReplayS": {
+    "n": 5,
+    "p50": 15.97,
+    "p95": 16.299,
+    "max": 16.299
+  },
+  "pressToPostedS": {
+    "n": 5,
+    "p50": 16.035,
+    "p95": 16.344,
+    "max": 16.344
+  },
+  "pressToInReviewS": {
+    "n": 5,
+    "p50": 13.844,
+    "p95": 15.413,
+    "max": 15.413
+  },
+  "pressToSettledS": {
+    "n": 5,
+    "p50": 41.738,
+    "p95": 41.995,
+    "max": 41.995
+  },
+  "pressAnswerMs": {
+    "n": 60,
+    "p50": 61,
+    "p95": 304,
+    "p99": 1132,
+    "max": 1132,
+    "mean": 154.73333333333332
+  },
+  "resetMs": {
+    "n": 5,
+    "p50": 16,
+    "p95": 32,
+    "p99": 32,
+    "max": 32,
+    "mean": 15.6
+  },
+  "within60s": 5,
+  "markPaidQueued": 0,
+  "cashPaced": "",
+  "fanout": {
+    "events": 7245,
+    "bursts": 199,
+    "burstTailMs": {
+      "n": 199,
+      "p50": 10,
+      "p95": 30,
+      "p99": 53,
+      "max": 60,
+      "mean": 11.804020100502512
+    },
+    "writeToArrivalMs": {
+      "n": 7245,
+      "p50": 15,
+      "p95": 45,
+      "p99": 191,
+      "max": 426,
+      "mean": 22.44706694271912
+    },
+    "spreadMs": {
+      "n": 7245,
+      "p50": 1,
+      "p95": 3,
+      "p99": 4,
+      "max": 7,
+      "mean": 1.0835058661145618
+    }
+  },
+  "requests": 225,
+  "r429": 55,
+  "r4xxOther": 0,
+  "r5xx": 0,
+  "netErrors": 0,
+  "streamRefusals": 0,
+  "streamReconnects": 0,
+  "labelViolations": 0,
+  "labelNotes": "",
+  "server": {
+    "rssMbStart": 336.14453125,
+    "rssMbEnd": 398.84765625,
+    "rssMbMax": 401.30859375,
+    "fdsStart": 30,
+    "fdsEnd": 36,
+    "fdsMax": 50,
+    "dbConnsMax": 13,
+    "dbConnsEnd": 13,
+    "outboxStuckMax": 0,
+    "outboxDeadEnd": 0,
+    "paypalWindowMax": 3,
+    "paypal429h": 0,
+    "stuckRows": ""
+  }
+}

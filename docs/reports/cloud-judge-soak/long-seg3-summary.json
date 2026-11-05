@@ -1,0 +1,74 @@
+{
+  "label": "long-seg3",
+  "note": "recomputed from the CSVs: run.ts summary step crashed (stack overflow, fixed in 1579bf2)",
+  "judgesConcurrent": 10,
+  "minutes": 125,
+  "prodQuota": 3,
+  "startedAt": "2026-11-05T00:09:29.482Z",
+  "lastSampleAt": "2026-11-05T02:20:01.925Z",
+  "judgesRun": 1143,
+  "outcomes": {
+    "settled": 1143
+  },
+  "payoutBinding": {
+    "replay": 1134,
+    "simulated_rail": 9
+  },
+  "peekMismatch": 26,
+  "proofStatus": {
+    "replay:replay": 1134,
+    "simulated_rail:sample": 9
+  },
+  "pressToPostingS": {
+    "n": 1143,
+    "p50": 15.177,
+    "p95": 21.136,
+    "max": 1105.893
+  },
+  "pressToPostingReplayS": {
+    "n": 1134,
+    "p50": 15.152,
+    "p95": 20.845,
+    "max": 1105.893
+  },
+  "pressToPostingLiveS": {
+    "n": 9,
+    "p50": 775.783,
+    "p95": 817.235,
+    "max": 817.235
+  },
+  "within60s": 1113,
+  "resetMs": {
+    "n": 1143,
+    "p50": 11.0,
+    "p95": 29.0,
+    "max": 90.0
+  },
+  "fanoutTailP95PerMinuteMs": {
+    "n": 91,
+    "p50": 21.0,
+    "p95": 29.0,
+    "max": 46.0
+  },
+  "requests": 42890,
+  "r429": 50,
+  "r5xx": 8,
+  "netErrors": 0,
+  "labelViolations": 0,
+  "server": {
+    "rssMbFirst": 339.7,
+    "rssMbMax": 720.4,
+    "rssMbLast": 440.6,
+    "fdsMax": 67.0,
+    "dbConnsMax": 13.0,
+    "outboxStuckMax": 0.0,
+    "outboxDeadMax": 0.0,
+    "paypalWindowMax": 12.0,
+    "paypal429h": 0.0,
+    "runEventsLast": 1656366.0
+  },
+  "load1": {
+    "max": 37.1,
+    "min": 1.1
+  }
+}
