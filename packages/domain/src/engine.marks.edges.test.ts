@@ -335,6 +335,23 @@ describe("holds raised earlier whose cause is gone", () => {
       by: "engine",
       at: null,
     });
+    const unknownRow = computeLines(
+      input([member("M-001")], [read], {
+        priorHolds: [
+          {
+            key: holdKey.lowConfidence("row-gone"),
+            kind: "LOW_CONFIDENCE",
+            gate: "BLOCKS_APPROVAL",
+            memberNo: "M-001",
+          },
+        ],
+      }),
+    );
+    expect(holdOf(unknownRow, holdKey.lowConfidence("row-gone"))?.resolution).toEqual({
+      kind: "ENGINE_CLEARED",
+      by: "engine",
+      at: null,
+    });
   });
 
   it("a prior hold of another kind whose key names a hand-entered row is still ENGINE_CLEARED", () => {
