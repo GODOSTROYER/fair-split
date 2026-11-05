@@ -271,6 +271,7 @@ describe("the season's mass balance", () => {
     const cleared = computeLines(input([member("M-001")], [row("M-001", 1_000)], { priorHolds: prior }));
     expect(holdOf(cleared, MB)).toMatchObject({
       state: "RESOLVED",
+      params: { status: "INSIDE", shippedG: 1_000_000 },
       memberNo: null,
       resolution: { kind: "ENGINE_CLEARED", by: "engine", at: null },
     });
@@ -338,7 +339,8 @@ describe("holds raised earlier whose cause is gone", () => {
 
   it("a prior hold of another kind whose key names a hand-entered row is still ENGINE_CLEARED", () => {
     const byHand = row("M-001", 10, { enteredByHand: true });
-    const key = `NO_RULE:${byHand.rowId}`;
+    // 15 characters, as long as "LOW_CONFIDENCE:", so slicing the prefix off would name the row
+    const key = `NO_RULE:xxxxxxx${byHand.rowId}`;
     const out = computeLines(
       input([member("M-001")], [byHand], {
         priorHolds: [{ key, kind: "NO_RULE", gate: "RESERVES_LINE", memberNo: "M-001" }],
