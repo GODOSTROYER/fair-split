@@ -59,6 +59,9 @@ describe("reading a listed batch before adopting it", () => {
     const withNull = listed();
     withNull.items[0] = null as never;
     await expect(adopt(withNull).then((r) => r.out)).resolves.toMatchObject(cannotRead);
+    const noAmount = listed();
+    delete (noAmount.items[0] as { payout_item: Record<string, unknown> }).payout_item.amount;
+    await expect(adopt(noAmount).then((r) => r.out)).resolves.toMatchObject(cannotRead);
     const noId = listed();
     delete (noId.items[0] as { payout_item: Record<string, unknown> }).payout_item.sender_item_id;
     await expect(adopt(noId).then((r) => r.out)).resolves.toMatchObject(cannotRead);
