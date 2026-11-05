@@ -1,0 +1,26 @@
+judge,ip,outcome,failedAt,detail,rail,railReason,payoutRail,payoutReason,pressStatus,pressMs,invoicedMs,fundedMs,inReviewMs,keysMs,postingMs,postedMs,settledMs,proofMs,resetMs,markPaidQueued,payoutBinding,peekMismatch,cashPaced,proofStatus,payoutPlate,paypalVerified,labelViolations,labelNotes,lines,paidLineProvenance,exportItems,events,streamRefusals,streamReconnects
+14,127.40.0.15,settled,,,replay,hourly_cap,replay,hourly_cap,201,193,747,898,21622,22061,23808,23865,49748,49904,18,0,replay,0,,replay,replay,0,0,,PAID:7 OFF_RAIL_DUE:57,live:7,replay:8,1449,0,0
+15,127.40.0.16,settled,,,replay,hourly_cap,replay,hourly_cap,201,177,729,843,20974,21436,23524,23589,49777,49925,14,0,replay,0,,replay,replay,0,0,,PAID:7 OFF_RAIL_DUE:57,live:7,replay:8,1449,0,0
+16,127.40.0.17,settled,,,replay,hourly_cap,replay,hourly_cap,201,553,1167,1354,22218,22718,24578,24633,50020,50075,9,0,replay,0,,replay,replay,0,0,,PAID:7 OFF_RAIL_DUE:57,live:7,replay:8,1449,0,0
+10,127.40.0.11,settled,,,replay,hourly_cap,replay,hourly_cap,201,244,1192,1368,22654,23325,24990,25062,50268,50325,8,0,replay,0,,replay,replay,0,0,,PAID:7 OFF_RAIL_DUE:57,live:7,replay:8,1449,0,0
+11,127.40.0.12,settled,,,replay,hourly_cap,replay,hourly_cap,201,997,1560,1643,24011,24402,25604,25654,51645,51726,7,0,replay,0,,replay,replay,0,0,,PAID:7 OFF_RAIL_DUE:57,live:7,replay:8,1449,0,0
+2,127.40.0.3,settled,,,replay,hourly_cap,replay,hourly_cap,201,3423,3985,4116,26675,27430,28757,28804,54800,54969,33,0,replay,0,,replay,replay,0,0,,PAID:7 OFF_RAIL_DUE:57,live:7,replay:8,1449,0,0
+12,127.40.0.13,settled,,,replay,hourly_cap,replay,hourly_cap,201,3411,3979,4051,26272,26825,28538,28597,54828,55059,33,0,replay,0,,replay,replay,0,0,,PAID:7 OFF_RAIL_DUE:57,live:7,replay:8,1449,0,0
+1,127.40.0.2,settled,,,replay,hourly_cap,replay,hourly_cap,201,3681,4361,4467,27022,27750,28992,29048,55214,55350,18,0,replay,0,,replay,replay,0,0,,PAID:7 OFF_RAIL_DUE:57,live:7,replay:8,1449,0,0
+0,127.40.0.1,settled,,,replay,hourly_cap,replay,hourly_cap,201,3413,4351,4452,27051,27858,29249,29305,55250,55434,16,0,replay,0,,replay,replay,0,0,,OFF_RAIL_DUE:57 PAID:7,live:7,replay:8,1449,0,0
+3,127.40.0.4,settled,,,replay,hourly_cap,replay,hourly_cap,201,4030,4590,4669,27681,28163,29613,29682,55512,55570,7,0,replay,0,,replay,replay,0,0,,OFF_RAIL_DUE:57 PAID:7,live:7,replay:8,1449,0,0
+19,127.40.0.20,settled,,,replay,hourly_cap,replay,hourly_cap,201,6666,7648,7726,30048,30439,32494,32603,58699,58900,26,0,replay,0,,replay,replay,0,0,,PAID:7 OFF_RAIL_DUE:57,live:7,replay:8,1449,0,0
+8,127.40.0.9,settled,,,replay,hourly_cap,replay,hourly_cap,201,6676,7836,7937,30539,31066,32668,32710,58826,59011,14,0,replay,0,,replay,replay,0,0,,PAID:7 OFF_RAIL_DUE:57,live:7,replay:8,1449,0,0
+18,127.40.0.19,settled,,,replay,hourly_cap,replay,hourly_cap,201,6680,7829,7936,30604,31113,32879,32948,59111,59244,24,0,replay,0,,replay,replay,0,0,,PAID:7 OFF_RAIL_DUE:57,live:7,replay:8,1449,0,0
+6,127.40.0.7,settled,,,replay,hourly_cap,replay,hourly_cap,201,7152,8084,8148,31323,31810,33337,33415,59143,59277,13,0,replay,0,,replay,replay,0,0,,PAID:7 OFF_RAIL_DUE:57,live:7,replay:8,1449,0,0
+17,127.40.0.18,settled,,,replay,hourly_cap,replay,hourly_cap,201,7331,8135,8237,31691,32292,33707,33750,59347,59400,6,0,replay,0,,replay,replay,0,0,,PAID:7 OFF_RAIL_DUE:57,live:7,replay:8,1449,0,0
+24,127.40.0.25,settled,,,replay,hourly_cap,replay,hourly_cap,201,10127,11218,11274,34519,35203,36146,36248,61771,61914,19,0,replay,0,,replay,replay,0,0,,PAID:7 OFF_RAIL_DUE:57,live:7,replay:8,1449,0,0
+22,127.40.0.23,settled,,,replay,hourly_cap,replay,hourly_cap,201,10780,11374,11479,33932,34353,36232,36283,61788,61937,25,0,replay,0,,replay,replay,0,0,,PAID:7 OFF_RAIL_DUE:57,live:7,replay:8,1449,0,0
+21,127.40.0.22,settled,,,replay,hourly_cap,replay,hourly_cap,201,10123,11405,11507,34504,35160,36455,36497,61976,62099,23,0,replay,0,,replay,replay,0,0,,OFF_RAIL_DUE:57 PAID:7,live:7,replay:8,1449,0,0
+7,127.40.0.8,settled,,,replay,hourly_cap,replay,hourly_cap,201,10444,11638,11724,35349,35834,36828,36894,62215,62288,16,0,replay,0,,replay,replay,0,0,,OFF_RAIL_DUE:57 PAID:7,live:7,replay:8,1449,0,0
+5,127.40.0.6,settled,,,replay,hourly_cap,replay,hourly_cap,201,10116,11630,11708,35670,36245,37032,37121,62327,62394,9,0,replay,0,,replay,replay,0,0,,PAID:7 OFF_RAIL_DUE:57,live:7,replay:8,1449,0,0
+13,127.40.0.14,settled,,,replay,hourly_cap,replay,hourly_cap,201,13528,14782,14834,37625,38370,38727,38784,64750,64875,42,0,replay,0,,replay,replay,0,0,,OFF_RAIL_DUE:57 PAID:7,live:7,replay:8,1449,0,0
+23,127.40.0.24,settled,,,replay,hourly_cap,replay,hourly_cap,201,13335,14621,14671,37221,37695,38736,38787,64774,64894,21,0,replay,0,,replay,replay,0,0,,PAID:7 OFF_RAIL_DUE:57,live:7,replay:8,1449,0,0
+4,127.40.0.5,settled,,,replay,hourly_cap,replay,hourly_cap,201,13339,14729,14778,37898,38608,39098,39181,65033,65135,27,0,replay,0,,replay,replay,0,0,,OFF_RAIL_DUE:57 PAID:7,live:7,replay:8,1449,0,0
+9,127.40.0.10,settled,,,replay,hourly_cap,replay,hourly_cap,201,13334,14574,14630,37663,38406,38924,38964,65042,65139,13,0,replay,0,,replay,replay,0,0,,OFF_RAIL_DUE:57 PAID:7,live:7,replay:8,1449,0,0
+20,127.40.0.21,settled,,,replay,hourly_cap,replay,hourly_cap,201,13806,14899,14957,37894,38654,39355,39406,65232,65297,9,0,replay,0,,replay,replay,0,0,,OFF_RAIL_DUE:57 PAID:7,live:7,replay:8,1449,0,0
