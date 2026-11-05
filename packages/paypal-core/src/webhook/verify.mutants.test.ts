@@ -124,6 +124,17 @@ describe("what the outcome reports", () => {
     expect(out).toMatchObject({ reason: "MALFORMED_HEADER", transmissionId: null });
   });
 
+  it("a missing transmission id is reported as none, not as the text null", async () => {
+    const s = signed();
+    const { "paypal-transmission-id": _gone, ...headers } = s.headers;
+    const out = await verifier().verifyDetailed(s.body, headers, TEST_WEBHOOK_ID);
+    expect(out).toMatchObject({
+      reason: "MISSING_HEADER",
+      detail: "paypal-transmission-id",
+      transmissionId: null,
+    });
+  });
+
   it("names the direction and size of an out-of-window clock", async () => {
     const at = (offsetMs: number) => new Date(Date.now() + offsetMs).toISOString().replace(/\.\d{3}Z$/, "Z");
     const v = verifier();
