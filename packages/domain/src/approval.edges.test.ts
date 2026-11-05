@@ -172,10 +172,11 @@ describe("checkApproval binds every signed field on its own", () => {
 
 describe("keys: seeded, malformed, revoked", () => {
   it("a seeded key presented is refused as such, even when the expected key is real", () => {
-    const seeded = { ...signed(), keyId: "seed-analyn-1" };
-    expect(checkApproval(seeded, expected(), NOW, NONE)).toMatchObject({
+    const seeded = { ...signed(), keyId: "fs-analyn-s1" };
+    expect(checkApproval(seeded, expected(), NOW, NONE)).toEqual({
+      ok: false,
       code: "KEY_NOT_REGISTERED",
-      reason: expect.stringMatching(/sample keys never sign|not a device key/i),
+      reason: "Seeded sample keys never sign.",
     });
   });
 
@@ -297,6 +298,24 @@ describe("checkApprovals: one approval per role, two people", () => {
       ok: false,
       code: "NONCE_REUSED",
       reason: "Each approval needs its own nonce.",
+    });
+  });
+});
+
+describe("R5: one line over the threshold is enough", () => {
+  it("needs the Chair for a single line over US$150 among small ones", async () => {
+    const { requiresChair } = await import("./approval.js");
+    const cosign = {
+      ruleId: "R5" as const,
+      batchOverCents: 30_000,
+      lineOverCents: 15_000,
+      anyOverride: true,
+    };
+    expect(
+      requiresChair({ batchTotalCents: 15_101, lineAmountsCents: [100, 15_001], overrides: 0 }, cosign),
+    ).toEqual({
+      required: true,
+      reasons: ["LINE_OVER_THRESHOLD"],
     });
   });
 });

@@ -3,7 +3,7 @@
 // the quote's currency.
 import { describe, expect, it } from "vitest";
 import { TEST_LOT, testCard } from "./__fixtures__/world.js";
-import { batchCanonical, checkpointBytes } from "./digest-input.js";
+import { batchCanonical, checkpointBytes, linesRootJcs } from "./digest-input.js";
 import { invoiceNumber, parseRunSlug, parseSenderItemId, senderBatchId, senderItemId } from "./ids.js";
 import { jcs } from "./jcs.js";
 import { quoteInvoice } from "./quote.js";
@@ -81,5 +81,15 @@ describe("batchCanonical and the quote: messages and currency", () => {
 
   it("the quote is in US dollars", () => {
     expect(quoteInvoice(testCard(), TEST_LOT).currency).toBe("USD");
+  });
+});
+
+describe("linesRootJcs: the lines root preimage", () => {
+  it("lists the lines by member number, ascending, whatever order they come in", () => {
+    const a = { memberNo: "M-001", lineSha256: "1".repeat(64) };
+    const b = { memberNo: "M-002", lineSha256: "2".repeat(64) };
+    const c = { memberNo: "M-010", lineSha256: "3".repeat(64) };
+    expect(linesRootJcs([c, a, b])).toBe(jcs([a, b, c]));
+    expect(linesRootJcs([b, c, a])).toBe(jcs([a, b, c]));
   });
 });

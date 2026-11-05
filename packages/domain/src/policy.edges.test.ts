@@ -417,6 +417,43 @@ describe("dueWithin30Days", () => {
   });
 });
 
+describe("names every path, joined", () => {
+  it("lists two stray recipient paths, two stray dates and two unknown rule keys", () => {
+    expect(
+      recipientInBrandAllowlist(call("create_invoice", draft({ a: "x@y.example", b: "z@y.example" })), ctx()),
+    ).toEqual(DENY("Not a recipient field the draft may set: a, b"));
+    expect(dueWithin30Days(call("create_invoice", draft({ due_date: "x", term_type: "y" })), ctx())).toEqual(
+      DENY("The draft may not set dates: due_date, term_type"),
+    );
+    const name = "create_conditional_rules_for_invoice";
+    expect(
+      invoiceEqualsQuote(call(name, { ...RULE("2026-11-23"), x: 1, y: 2 }), ruleCtx("2026-10-29")),
+    ).toEqual(DENY("Not in the canonical rule: x, y"));
+    const two = RULE("2026-11-23", { start_date: "a", end_date: "b" });
+    expect(dueWithin30Days(call(name, two), ruleCtx("2026-10-29"))).toEqual(
+      DENY(
+        "The draft may not set dates: rules[0].rule_expiry_terms.end_date, rules[0].rule_expiry_terms.start_date",
+      ),
+    );
+  });
+
+  it("an e-mail nested under invoicer_email_address is stray", () => {
+    expect(
+      recipientInBrandAllowlist(
+        call("create_invoice", draft({ invoicer_email_address: { x: "a@b.example" } })),
+        ctx(),
+      ),
+    ).toEqual(DENY("Not a recipient field the draft may set: invoicer_email_address.x"));
+  });
+
+  it("the rule is refused when today is not a strict date", () => {
+    const name = "create_conditional_rules_for_invoice";
+    expect(invoiceEqualsQuote(call(name, RULE("2026-11-23")), ruleCtx("2026-10-29", "2026/10/29"))).toEqual(
+      DENY("Today is not a YYYY-MM-DD date"),
+    );
+  });
+});
+
 describe("decide", () => {
   it("reports one result per policy, and the policies that decided", () => {
     const d = decide(
