@@ -89,14 +89,35 @@ mutants skipped by `ignoreStatic`. "Before" is the first run with the adapter; "
 tests. paypal-payouts, paypal-core and outbox are restricted to their money paths (each package's
 `stryker.config.mjs` says which files); domain, contracts and seed are whole.
 
-| Package        | Mutants | Ignored |      Killed |   Survived | Timeout |    No cov | Score before → after |
-| -------------- | ------: | ------: | ----------: | ---------: | ------: | --------: | -------------------- |
-| domain         |    5279 |     518 | 3583 → 4078 | 1014 → 561 | 27 → 22 | 137 → 100 | 75.82% → 86.12%      |
-| paypal-payouts |    1425 |     115 |         959 |        264 |       3 |        84 | 73.44% → pending     |
-| paypal-core    |    2145 |     134 |        1534 |        389 |      11 |        77 | 76.83% → 76.83%      |
-| outbox         |     647 |       8 |         389 |        177 |      35 |        36 | 66.56% → 66.56%      |
-| contracts      |    1640 |    1547 |          64 |         26 |       0 |         3 | 68.82% → 68.82%      |
-| seed           |       – |       – |           – |          – |       – |         – | – → pending          |
+| Package        | Mutants | Ignored |      Killed |   Survived | Timeout |   No cov | Score before → after |
+| -------------- | ------: | ------: | ----------: | ---------: | ------: | -------: | -------------------- |
+| domain         |    5279 |     518 | 3583 → 4336 | 1014 → 467 | 27 → 21 | 137 → 91 | 75.82% → 88.65%      |
+| paypal-payouts |    1425 |     115 |  959 → 1213 |   264 → 86 |   3 → 5 |   84 → 6 | 73.44% → 92.98%      |
+| paypal-core    |    2145 |     134 | 1534 → 1598 |  389 → 332 |      11 |  77 → 70 | 76.83% → 80.01%      |
+| outbox         |     647 |       8 |   389 → 413 |  177 → 154 |      35 |  36 → 35 | 66.56% → 70.33%      |
+| contracts      |    1640 |    1547 |     64 → 86 |     26 → 6 |       0 |    3 → 1 | 68.82% → 92.47%      |
+| seed           |    2298 |     607 |        1315 |        188 |      46 |      142 | 80.48% → 80.48%      |
+
+By area (score before → after):
+
+| Area                                                                       | Before |   After |
+| -------------------------------------------------------------------------- | -----: | ------: |
+| money.ts (integer cents, largest remainder)                                | 69.54% |  94.04% |
+| quote, batch, digest-input, ids (digests and ids)                          | 77.55% |  93.20% |
+| fsm.ts (run, line, item; static included after)                            | 83.33% | 100.00% |
+| approval, sig, canon, jcs, ratecard (I6, I2)                               | 84.65% |  95.44% |
+| policy.ts (the lattice)                                                    | 83.78% |  97.34% |
+| invoice.ts (I1)                                                            | 85.78% |  97.25% |
+| engine.ts (lines, holds, I3)                                               | 64.05% |  89.18% |
+| chain.ts, verify-core.ts (Proof)                                           | 72.84% |  77.67% |
+| agreement, format, ascii, copy, uuid                                       | 79.57% |  84.22% |
+| paypal-core verify.ts 1-700 (budgets)                                      | 71.43% |  71.43% |
+| paypal-core verify.ts 701-1285 (signature, replay)                         | 79.83% |  81.71% |
+| paypal-core transmission, cert-url, event, stored-apply, item-status, http | 75.99% |  80.58% |
+
+fsm.ts's "after" includes its 154 static mutants (the edge tables), run with `STRYKER_STATIC=1`: 208 of 208
+killed. Seed's run is a baseline only: no seed test was added (its snapshot test already pins the generator's
+whole output, and every survivor leaves that output unchanged).
 
 ## Remaining survivors and why they are acceptable
 
@@ -159,6 +180,10 @@ Each commit is in one workstream's scope; `node tools/check-ownership.mjs --ws <
 - `db6abbd` test(core): resolved duplicate and low-confidence holds record their resolution
 - `338115d` test(core): mass-balance clear params, unreadable-mark resolution, hand-entered prior keys
 - `d93e38e` test(core): deduction rounding, pending-run block, tolerance edge, effects across holds, hold order
+- `b90a02a` docs(qa): T3 report: findings, method, interim scores, survivor classes
+- `652ef3b` test(ppmoney): a listed item without an amount cannot be read
+- `901d03f` test(ppcore): a missing transmission id is reported as none
+- `199d19e` test(ppcore): transmission-time fields, zone offsets, replay store edges and cert-URL checks
 
 ## Safer-option decisions
 
