@@ -316,6 +316,14 @@ describe("approval and duplicate effects at the edges", () => {
     expect(out.approvalBlocked).toBe(true);
   });
 
+  it("an open blocking hold blocks approval even with the season inside and balanced", () => {
+    const out = computeLines(input([member("M-001", { registeredTrees: 1 })], [row("M-001", 1_000)]));
+    expect(out.massBalance.status).toBe("INSIDE");
+    expect(out.conservation.balanced).toBe(true);
+    expect(out.blockingHoldKeys).toEqual([holdKey.yield("M-001")]);
+    expect(out.approvalBlocked).toBe(true);
+  });
+
   it("counting both copies exactly at the tolerance is inside", () => {
     const rows = [
       row("M-001", 10, { serial: "0457" }),
