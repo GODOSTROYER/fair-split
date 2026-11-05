@@ -4,4 +4,8 @@
 import { strykerConfig } from "../../tools/stryker/base.mjs";
 
 // The canonical figures and the world built from them; cli.ts only writes the snapshot to disk.
-export default strykerConfig({ mutate: ["src/**/*.ts", "!src/**/*.test.ts", "!src/cli.ts"] });
+export default strykerConfig({
+  mutate: ["src/**/*.ts", "!src/**/*.test.ts", "!src/cli.ts"],
+  // Less photo-hashes.test.ts, whose path to the repo's media/ does not resolve from Stryker's sandbox.
+  vitestConfig: "vitest.stryker.config.ts",
+});
