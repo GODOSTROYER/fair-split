@@ -68,6 +68,10 @@ it("names a PayPal notice by what it means, its code kept for the details; the t
   const settled = { ...base, id: "e", at: null, lane: "MACHINE" as const, words: "Settled" };
   expect(plainWords(settled, "PayPal complete · cash due")).toBe("PayPal complete · cash due");
   expect(plainWords(settled)).toBe("Settled");
+  // The run state's row arrives on whichever lane its actor gives it (the simulated PayPal's settling notice puts
+  // it on PayPal's): it still never says "Settled" while cash is due.
+  const onPaypal = { ...settled, id: "f", lane: "PAYPAL" as const };
+  expect(plainWords(onPaypal, "PayPal complete · cash due")).toBe("PayPal complete · cash due");
 });
 
 it("shows the last five events in plain words, newest first, and keeps every row in the lanes behind All", () => {

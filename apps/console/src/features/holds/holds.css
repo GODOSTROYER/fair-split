@@ -341,9 +341,10 @@
   column-gap: var(--fs-space-16);
 }
 
+/* The label column fits the longest label ("Member", 14 px) with its padding, so a value never touches it. */
 .fsr-twin__fields tr {
   display: grid;
-  grid-template-columns: 56px minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: 72px minmax(0, 1fr) minmax(0, 1fr);
   align-items: baseline;
   border-bottom: 1px solid var(--fs-rule);
 }

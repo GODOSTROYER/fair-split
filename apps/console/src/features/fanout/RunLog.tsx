@@ -61,7 +61,8 @@ const SETTLED_WORD = en("run.SETTLED");
 export function plainWords(row: LogRow, settledAs?: string): string {
   const notice = /^PayPal notice: ([A-Z][A-Z.\-_]+)$/.exec(row.words);
   if (notice?.[1]) return NOTICE_WORDS[notice[1]] ?? row.words;
-  if (settledAs && row.lane === "MACHINE" && row.words === SETTLED_WORD) return settledAs;
+  // The run state's row, on whichever lane its actor put it (a PayPal-driven settle lands on PayPal's).
+  if (settledAs && row.words === SETTLED_WORD) return settledAs;
   if (/^Replayed/.test(row.words)) return row.words;
   return row.words.replaceAll(" (Simulated PayPal sandbox)", "");
 }

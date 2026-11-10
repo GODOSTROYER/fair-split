@@ -885,6 +885,8 @@ describe("Judge stage", () => {
       const control = screenControl();
       expect(control).toBeTruthy();
       expect(document.activeElement).toBe(control);
+      // Script took focus back, not a key: it stays quiet (no ring) until the viewer presses one (round 3).
+      expect(control?.dataset.prefocused).toBe("");
     },
   );
 

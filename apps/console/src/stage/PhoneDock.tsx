@@ -20,6 +20,7 @@ import type { RunView } from "../data/run-view.js";
 import { env } from "../lib/env.js";
 import { screenControl, useFocusOnLeave } from "../lib/focus.js";
 import { FRAME_PERSONAS, frameSrc } from "./bridge.js";
+import { prefocusQuietly } from "./context.js";
 import { FramePoster } from "./FramePoster.js";
 import type { PhoneLayout, PhoneSize } from "./layout.js";
 import { personaInfo, personaInitials, personaStatus, personaTone } from "./personas.js";
@@ -152,9 +153,14 @@ function frameHoldsFocus(): boolean {
   return active instanceof HTMLIFrameElement && active.closest("#fsc-phone-panel") !== null;
 }
 
-/** Hands focus that a frame took to the screen's main control (WCAG 2.4.3), without scrolling the stage. */
+/**
+ * Hands focus that a frame took to the screen's main control (WCAG 2.4.3), without scrolling the stage, and quietly:
+ * script moved it, not a key, so it wears no ring until the viewer presses one (round 3: one ring, keyboard only).
+ */
 function handFocusBack(): void {
-  if (frameHoldsFocus()) screenControl()?.focus({ preventScroll: true });
+  if (!frameHoldsFocus()) return;
+  const control = screenControl();
+  if (control) prefocusQuietly(control);
 }
 
 /**
