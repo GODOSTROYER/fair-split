@@ -42,9 +42,10 @@ async function smokeSlips(): Promise<Array<{ doc: string; serial: string; crop: 
   return out;
 }
 
-// Hashes of real slip crops (sharp): over 2 s alone on a busy machine, past vitest's default 5 s under turbo.
+// Hashes of real slip crops (sharp): over 2 s alone on a busy machine, past vitest's default 5 s under turbo. On a
+// busy 4-core Linux box (DR-4) one test took 10.5 s alone and past 30 s in two of two full runs: 120 s, as r1 has.
 describe("duplicate signals (S4.2): a hash of a slip never makes a duplicate on its own", {
-  timeout: 30_000,
+  timeout: 120_000,
 }, () => {
   it("template-identical slips with different ink are not duplicates, though their hashes are close", async () => {
     const slips = await smokeSlips();

@@ -355,7 +355,9 @@ describe("eval harness", () => {
       cleanup();
     }
     // Three whole pipelines (image prep, two reads, screen) run three times over: far past the 5 s default.
-  }, 60_000);
+    // 12 to 14 s alone, but past 60 s under `corepack pnpm test` on a busy 4-core Linux box (DR-4), where sharp's
+    // image prep shares the cores with every other package's workers: the same headroom as r1.test.ts and more.
+  }, 180_000);
 
   // over 2 s alone on a busy machine, past vitest's default 5 s under turbo
   it("validates against the seed's registry from --registry; a report on the labels' own registry is provisional", {

@@ -214,7 +214,8 @@ beforeEach(() => {
  * Full extractions over real slip images (sharp): over 2 s alone on a busy machine, so past vitest's default 5 s under turbo's
  * full test run.
  */
-const SLOW = { timeout: 30_000 };
+// past 30 s once under a full run on a busy 4-core Linux box (DR-4): 120 s, as eval's r1 has
+const SLOW = { timeout: 120_000 };
 
 describe("extract: two reads agree", SLOW, () => {
   it("auto-accepts every field at 0.97, streams field events and emits one extract.row", async () => {
