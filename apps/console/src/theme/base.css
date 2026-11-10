@@ -17,20 +17,6 @@
     outline: none;
   }
 
-  /* The skip link's target: Enter leaves the screen :focus-visible, and a 2 px ring around the whole screen marks
-     nothing a person can act on. The landmark is the target; its first control takes the ring from Tab on. The
-     phone visit's landmark (under 1024 px) is the same target, and takes no room: a ring there is a stray square. */
-  .fsc-console__screen:focus-visible,
-  .fsc-visit:focus-visible {
-    outline: none;
-  }
-
-  /* A page's own landmark (Proof, the brand view, /ops) when a focus hand-off lands there before its first control
-     is drawn: the same, no ring around the whole page. */
-  main[data-screen]:focus-visible {
-    outline: none;
-  }
-
   /* One focus ring (UI gate round 3) is ui-web's rule, declared once: 2 px indigo with a 2 px offset following the
      radius, on :focus-visible only. A screen's first pre-focus wears none until the viewer presses a key
      (stage.css). */
@@ -175,4 +161,21 @@
       transition: none;
     }
   }
+}
+
+/* Landmarks take focus but never the ring (unlayered, so they win over ui-web's ring in its components layer; inside
+   the base layer they lost to it). The skip link's target: Enter leaves the screen :focus-visible, and a 2 px ring
+   around the whole screen marks nothing a person can act on; its first control takes the ring from Tab on. The phone
+   visit's landmark (under 1024 px) takes no room, so a ring there was a stray square. A page's own landmark (Proof,
+   the brand view, /ops) when a focus hand-off lands there before its first control is drawn: the same. */
+.fsc-console__screen:focus-visible {
+  outline: none;
+}
+
+.fsc-visit:focus-visible {
+  outline: none;
+}
+
+main[data-screen]:focus-visible {
+  outline: none;
 }
