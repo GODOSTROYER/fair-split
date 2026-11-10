@@ -308,12 +308,13 @@ export async function beginLiveStep(deps: AppDeps, o: LiveStepInput): Promise<Li
   let answered: PostAnswered | null = null;
   try {
     if (!o.resume) {
-      // Require headroom for the documented six-call invoice burst before any fresh live effect.
-      // This intentionally replays conservatively even if old calls may expire shortly: a judge
-      // must not get partway through a burst then wait for the shared 40/min window. The actual
-      // limiter still governs every call, and a batch already written live always bypasses this replay.
+      // Keep headroom for each fresh burst: six invoice calls, funding's retry GET/payment/GET,
+      // or two for the other steps (OAuth plus the request). This conservatively replays even
+      // if old calls may expire shortly, without making a small step wait for invoice headroom.
+      // The actual limiter governs every call; a batch written live always bypasses this replay.
+      const calls = o.step === "invoice" ? 6 : o.step === "fund" ? 3 : 2;
       const window = await createLimiter(deps.db).state();
-      if (window.inWindow + 6 > window.limits.perWindow) {
+      if (window.inWindow + calls > window.limits.perWindow) {
         await free();
         return { kind: "replay", decision: replayDecision("lane_full", rail, peek.quota) };
       }

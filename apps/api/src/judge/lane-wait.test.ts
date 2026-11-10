@@ -181,3 +181,28 @@ it("inv.i4.written-live: an exhausted call window cannot replay an existing live
     if (result.kind === "live") await result.end();
   }
 });
+
+it.each([
+  { step: "fund" as const, inWindow: 37, kind: "live" },
+  { step: "fund" as const, inWindow: 38, kind: "replay" },
+  { step: "post" as const, inWindow: 38, kind: "live" },
+  { step: "post" as const, inWindow: 39, kind: "replay" },
+])(
+  "HD6 r5: $step with $inWindow recent calls preserves its own burst headroom",
+  async ({ step, inWindow, kind }) => {
+    const { deps } = fixture(true, 40_000, inWindow);
+    const result = await beginLiveStep(deps, {
+      workspaceId: "step-headroom",
+      sessionId: null,
+      step,
+      ...(step === "post" ? { runId: "run", amountCents: 100 } : {}),
+    });
+    try {
+      expect(result).toMatchObject({ kind });
+      if (kind === "replay")
+        expect(result).toMatchObject({ decision: { mode: "replay", reason: "lane_full" } });
+    } finally {
+      if (result.kind === "live") await result.end();
+    }
+  },
+);
