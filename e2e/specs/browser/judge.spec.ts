@@ -510,9 +510,10 @@ test("a quota-replayed run labels the stage, payout summary, chips and log befor
             ? "Replayed (labelled): parked"
             : "Replayed (labelled): successful in the earlier run",
         );
-      const parkedChip = page.getByTestId(/^W-TR-08\.chip\./);
-      await expect(parkedChip).toHaveCount(1);
-      await expect(parkedChip).toHaveText("Replayed (labelled, simulated)");
+      // Round 3 drops the floating parked chip: Rhea's path ends at her marker, and her row says it replayed.
+      const parked = page.getByTestId("W-TR-08.label.M-031");
+      await expect(parked).toContainText("Rhea Jumawan · Replayed (labelled, simulated)");
+      await expect(parked).not.toContainText(/\bParked\b/);
       const payoutLog = page.getByTestId("W-TR-08.lane.PAYPAL");
       // The log says the replay note once, above its lanes; each replayed row names what it replayed.
       await expect(page.getByTestId("W-TR-08.log.replayNote")).toContainText(
@@ -694,7 +695,9 @@ test("inv.i8.the last hourly slot stays live on the stage, Run and Proof after i
       expect((await waitForRun(api, s, (run) => run.run.state === "SETTLED", 60_000))?.run.state).toBe(
         "SETTLED",
       );
-      await expect(chip).toContainText(/confirmed/i);
+      // The counter counts Proof's six checks (round 3); the live confirmation is read on Proof's hero below.
+      await expect(chip).toContainText(/of 6 checks match/);
+      await expect(chip).not.toContainText(/replayed/i);
       await chip.click();
       const hero = page.getByTestId("W-PF-01.progress");
       await expect(hero).toContainText("confirmed in the simulated sandbox");
