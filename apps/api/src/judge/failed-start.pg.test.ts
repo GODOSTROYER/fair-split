@@ -98,6 +98,20 @@ it("HD6-13: a failed rail decision refunds every reserved start rule", async () 
   });
 }, 120_000);
 
+it("HD6 r5: 40 claimed-cap QUEUED presses spend no network, daily or global start slots", async () => {
+  t = await createTestApp({ db: "postgres", clock: new Date(), env: { FS_TEST_JUDGE_CLAIMED_MAX: "3" } });
+  vi.spyOn(judgeRuntime(t.deps), "refillSoon").mockImplementation(() => {});
+  for (let i = 0; i < 3; i++) expect((await start(t)).status).toBe(201);
+  const before = budget(t, "unused-session");
+  for (let i = 0; i < 40; i++) expect((await start(t)).body).toMatchObject({ code: "QUEUED" });
+  expect(budget(t, "unused-session")).toEqual(before);
+  // A non-start still spends the separate expensive-work guard, which protects the shared database.
+  expect(t.deps.rateLimits.peek(RATE_RULES.judgeSessionAttempts, "all")).toEqual({
+    ok: true,
+    remaining: RATE_RULES.judgeSessionAttempts.limit - 43,
+  });
+}, 120_000);
+
 it("HD6-5: an admission burst queues without pinning the database pool and refunds start slots", async () => {
   t = await createTestApp({ db: "postgres", clock: new Date() });
   const app = t;

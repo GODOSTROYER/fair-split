@@ -3,6 +3,8 @@ import { CreateJudgeSessionResponse } from "@fairsplit/contracts";
 import { schema } from "@fairsplit/db";
 import { eq } from "drizzle-orm";
 import { afterEach, expect, it, vi } from "vitest";
+import { hashedClientIp } from "../lib/client-ip.js";
+import { RATE_RULES } from "../lib/rate-limit.js";
 import { createTestApp, type TestApp } from "../test/index.js";
 import * as quota from "./quota.js";
 import { judgeRuntime } from "./runtime.js";
@@ -21,13 +23,18 @@ function start(app: TestApp, ip: string) {
   return app.json("/v1/judge/sessions", { method: "POST", body: {}, headers: { "cf-connecting-ip": ip } });
 }
 
-it("HD6-6: the 31st cookieless start from rotating IPv6 addresses in one /64 is refused", async () => {
+it("HD6 r5: 40 judges behind one IPv6 /64 each start once, with a 60-per-hour ceiling", async () => {
   t = await createTestApp({ db: "postgres", clock: new Date() });
   vi.spyOn(judgeRuntime(t.deps), "refillSoon").mockImplementation(() => {});
-  for (let i = 1; i <= 31; i++) {
+  for (let i = 1; i <= 40; i++) {
     const r = await start(t, `2001:db8::${i.toString(16)}`);
-    expect(r.status, `start ${i}`).toBe(i === 31 ? 429 : 201);
+    expect(r.status, `start ${i}`).toBe(201);
   }
+  const key = hashedClientIp(t.deps.credentials.keys, "2001:db8::1", t.clock.now());
+  expect(t.deps.rateLimits.peek(RATE_RULES.judgeSessionPerIp, key)).toEqual({ ok: true, remaining: 20 });
+  for (let i = 40; i < 60; i++)
+    expect(t.deps.rateLimits.take(RATE_RULES.judgeSessionPerIp, key).ok).toBe(true);
+  expect((await start(t, "2001:db8::ffff")).status).toBe(429);
 }, 180_000);
 
 it("HD6-6: a third live session from one network replays lane_full without joining", async () => {

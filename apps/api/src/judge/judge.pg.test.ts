@@ -16,6 +16,7 @@ import { and, eq, isNull, sql } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { JUDGE_COOKIE } from "../credentials/verify/index.js";
 import { hashedClientIp } from "../lib/client-ip.js";
+import { RATE_RULES } from "../lib/rate-limit.js";
 import { createTestApp, setWorkspaceExpiry, type TestApp, walkRun } from "../test/index.js";
 import { demoKeyStatement } from "./keys.js";
 import { claimPooledWorkspace, poolName, poolSize, purgeExpiredJudgeWorkspaces, refillPool } from "./pool.js";
@@ -292,11 +293,11 @@ describe("POST /v1/judge/sessions (createJudgeSession)", () => {
     expect(Number(r.headers.get("retry-after"))).toBeGreaterThan(0);
   });
 
-  it("answers 429 RATE_LIMITED after 30 new sessions an hour from one network (hashed IP)", async () => {
+  it("answers 429 RATE_LIMITED after 60 new sessions an hour from one network (hashed IP)", async () => {
     // the throttle keys on the daily-salted HMAC of the address, never the address itself
     const key = hashedClientIp(t.deps.credentials.keys, "192.0.2.99", t.clock.now());
-    for (let i = 0; i < 30; i++) {
-      t.deps.rateLimits.take({ name: "judgeSessionPerIp", limit: 30, windowMs: 3_600_000 }, key);
+    for (let i = 0; i < RATE_RULES.judgeSessionPerIp.limit; i++) {
+      t.deps.rateLimits.take(RATE_RULES.judgeSessionPerIp, key);
     }
     const r = await t.json<ApiError>("/v1/judge/sessions", {
       method: "POST",

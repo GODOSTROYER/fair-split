@@ -42,8 +42,8 @@ export const RATE_RULES = {
   pairingClaim: { name: "pairingClaim", limit: 10, windowMs: 60_000, critical: true },
   /** Judge cookie: 3 session starts an hour. */
   judgeSessionPerCookie: { name: "judgeSessionPerCookie", limit: 3, windowMs: 3_600_000 },
-  /** Hashed IP: 30 session starts an hour (a loose outer bound). */
-  judgeSessionPerIp: { name: "judgeSessionPerIp", limit: 30, windowMs: 3_600_000 },
+  /** Hashed network: 60 successful starts an hour lets a 40-judge room share one NAT. */
+  judgeSessionPerIp: { name: "judgeSessionPerIp", limit: 60, windowMs: 3_600_000 },
   judgeSessionGlobal: { name: "judgeSessionGlobal", limit: 60, windowMs: 60_000, global: true },
   /** Failed expensive admissions still count; personal/success budgets are refundable. Above the e2e crowd. */
   judgeSessionAttempts: { name: "judgeSessionAttempts", limit: 120, windowMs: 60_000, global: true },
