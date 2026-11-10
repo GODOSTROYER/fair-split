@@ -278,6 +278,8 @@ export function alignWords(
     // CER tolerates spelling, but a nearby number is a different payroll fact. Digits have already
     // been spelled by normaliseForCer; compare their number-word sequence without fuzzy matching.
     if (numberSequence(anchor.spoken) !== numberSequence(phrase)) return null;
+    // Spelled initials identify the capital rule. A long label's low CER must not excuse C B V/X.
+    if (/\bc b u\b/.test(normaliseForCer(anchor.spoken)) && !/\bc b u\b/.test(phrase)) return null;
     const measured = transcript[firstMatch];
     if (!measured) return null;
     const atMs = Math.round(measured.start * 1000);

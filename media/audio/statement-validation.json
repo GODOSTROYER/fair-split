@@ -1,54 +1,794 @@
 {
-  "outcome": "service_unavailable",
-  "quotaRefused": false,
-  "at": "2026-11-04T11:09:35.113Z",
-  "request": "M-053:ceb",
-  "detail": "AsrUnavailableError: ASR service unavailable after bounded backoff; stopped to preserve free quota. Cached takes retained. {\"error\":{\"code\":503,\"message\":\"This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.\",\"status\":\"UNAVAILABLE\"}}",
-  "serviceFailures": 1,
+  "round": 5,
+  "startedAt": "2026-11-10T18:44:29.414Z",
+  "at": "2026-11-10T19:06:15.172Z",
+  "outcome": "quota_refused",
+  "quotaRefused": true,
   "asrModels": [
     "gemini-3.8-flash",
     "gemini-3.6-flash",
     "gemini-2.5-flash"
   ],
-  "note": "Highest-first normal ASR order. Same pool and outage history retained through plan order; transient request failures continue to later requests, bounded to six service failures. No service recovery time is known.",
-  "nextEligibleAt": null,
-  "dailyResetsAt": "2026-11-05T08:00:00.000Z",
+  "retryOrder": [
+    {
+      "request": "M-039:en",
+      "slot": "GREETING",
+      "variant": "default",
+      "textSha256": "53ea7e4fb6e58ff5f091a5666d640c03c3098151ddb109af053274a0530a931a",
+      "previousStatus": "waiting_on_service"
+    },
+    {
+      "request": "M-039:en",
+      "slot": "DEDUCTION",
+      "variant": "default",
+      "textSha256": "fc069027fbd4a0429a2ed3e12a348d690fe0035e99ea1133b27048f52a7e7d71",
+      "previousStatus": "waiting_on_service"
+    },
+    {
+      "request": "M-039:en",
+      "slot": "PAY",
+      "variant": "paypal",
+      "textSha256": "cc823bfda9b4926d7605b30956d45898fbc6a00b3cbbb546184f5215bb3fd5f1",
+      "previousStatus": "waiting_on_service"
+    },
+    {
+      "request": "M-039:en",
+      "slot": "SOURCES",
+      "variant": "default",
+      "textSha256": "d7c515180a4cb4d638e185299b0a41ff25248e401916bc0fcc7f8c1bc19cc590",
+      "previousStatus": "waiting_on_service"
+    },
+    {
+      "request": "M-039:en",
+      "slot": "HELP",
+      "variant": "default",
+      "textSha256": "d93b3ff231e189f984938c8dad268b1fa90461c0a70bf47622d8153389bd2f62",
+      "previousStatus": "waiting_on_service"
+    },
+    {
+      "request": "M-039:en",
+      "slot": "AI_NOTE",
+      "variant": "seeded",
+      "textSha256": "f6fe08315997e6a3e225863ef791849810accbdc55966ce772658e6b03120931",
+      "previousStatus": "waiting_on_service"
+    },
+    {
+      "request": "M-053:ceb",
+      "slot": "GREETING",
+      "variant": "default",
+      "textSha256": "06233f5976bdd6e624240252e293a4249a8efa8d2cd10a166f490965fec3124f",
+      "previousStatus": "waiting_on_service"
+    },
+    {
+      "request": "M-053:ceb",
+      "slot": "DEDUCTION",
+      "variant": "default",
+      "textSha256": "5a12cd17b7afd62deeba04099f4989228f8b743ce55bc5dc636764219bd9c7a1",
+      "previousStatus": "waiting_on_service"
+    },
+    {
+      "request": "M-053:ceb",
+      "slot": "PAY",
+      "variant": "cash_nodate",
+      "textSha256": "b622aad6a9402b5d70b71cff2f5d8f7d81d1e90c29a2b4a9ac6a5385a6c15947",
+      "previousStatus": "waiting_on_service"
+    },
+    {
+      "request": "M-053:ceb",
+      "slot": "SOURCES",
+      "variant": "default",
+      "textSha256": "e30d8950bfe1806a38b25b0289ea26d5637b58da8370ac71d5d3e0d0e78ce394",
+      "previousStatus": "waiting_on_service"
+    },
+    {
+      "request": "M-014:fil",
+      "slot": "GREETING",
+      "variant": "default",
+      "textSha256": "20f39d259ff3015681091fd30db7068901c461e806e14046c0d8a66cfcff3b54",
+      "previousStatus": "not_verified"
+    },
+    {
+      "request": "M-014:fil",
+      "slot": "DEDUCTION",
+      "variant": "default",
+      "textSha256": "dd5888b7dac7dab3ebdbfe0ff58a2853ef2f1ec58b9c6a5e6b1414757bf8ed96",
+      "previousStatus": "not_verified"
+    },
+    {
+      "request": "M-014:fil",
+      "slot": "PAY",
+      "variant": "paypal",
+      "textSha256": "d5e83fa357ea1757df08a18af277502df9cd042802da94ccea930e6e35c705b7",
+      "previousStatus": "not_verified"
+    },
+    {
+      "request": "M-014:fil",
+      "slot": "AI_NOTE",
+      "variant": "seeded",
+      "textSha256": "7f5f53867948e9993dc700959007dffc2160c87de32f44af3a9380ca9fe3e6d4",
+      "previousStatus": "not_verified"
+    },
+    {
+      "request": "M-014:en",
+      "slot": "BONUS",
+      "variant": "default",
+      "textSha256": "1ab5768d7f45d39c450e3723e39ffb591472ce6c35ebf91f0ad173982da65026",
+      "previousStatus": "not_verified"
+    },
+    {
+      "request": "M-014:en",
+      "slot": "HELP",
+      "variant": "default",
+      "textSha256": "d93b3ff231e189f984938c8dad268b1fa90461c0a70bf47622d8153389bd2f62",
+      "previousStatus": "not_verified"
+    },
+    {
+      "request": "M-014:en",
+      "slot": "AI_NOTE",
+      "variant": "seeded",
+      "textSha256": "f6fe08315997e6a3e225863ef791849810accbdc55966ce772658e6b03120931",
+      "previousStatus": "not_verified"
+    },
+    {
+      "request": "M-007:ceb",
+      "slot": "GREETING",
+      "variant": "default",
+      "textSha256": "8754aa02c388cb73ec5ddd9d95e890692675576991082af403160ce5c475fc15",
+      "previousStatus": "not_verified"
+    },
+    {
+      "request": "M-007:ceb",
+      "slot": "PAY",
+      "variant": "paypal",
+      "textSha256": "34f3c502c632f09aef80ccd397dc46561d36ef93895a52622a0d64ef42fbe189",
+      "previousStatus": "not_verified"
+    },
+    {
+      "request": "M-060:fil",
+      "slot": "GREETING",
+      "variant": "default",
+      "textSha256": "d3e23788cc8ba8f3d5da84319a1371f921af3a6bf60f7672411f1c0149c4e8a5",
+      "previousStatus": "not_verified"
+    },
+    {
+      "request": "M-060:fil",
+      "slot": "PREMIUM",
+      "variant": "default",
+      "textSha256": "99b13ab8c0f3e7c0ed20e4d5246ef5633144c7a03c1506b41f010db359e00fba",
+      "previousStatus": "not_verified"
+    },
+    {
+      "request": "M-060:fil",
+      "slot": "DEDUCTION",
+      "variant": "default",
+      "textSha256": "079a8d5b93b577d44a1ac84202ba41a85a7fecd51fc7173b10389767d6e12cd6",
+      "previousStatus": "not_verified"
+    },
+    {
+      "request": "M-060:fil",
+      "slot": "PAY",
+      "variant": "paypal",
+      "textSha256": "9567827aaede3e44d1c6e2e56978fdc106507e19e710a1d18d7fdae49fc161d0",
+      "previousStatus": "not_verified"
+    },
+    {
+      "request": "M-060:fil",
+      "slot": "AI_NOTE",
+      "variant": "seeded",
+      "textSha256": "7f5f53867948e9993dc700959007dffc2160c87de32f44af3a9380ca9fe3e6d4",
+      "previousStatus": "not_verified"
+    },
+    {
+      "request": "M-018:ceb",
+      "slot": "DELIVERY",
+      "variant": "default",
+      "textSha256": "8bcd03a5b50571071bb7819c2460d362d9e18d908665b1d8ef36d3057bd945a3",
+      "previousStatus": "not_verified"
+    },
+    {
+      "request": "M-018:ceb",
+      "slot": "PREMIUM",
+      "variant": "default",
+      "textSha256": "59859c5b5420cce607f417dc98590e6f342b64dd74701f16fbd5c99411dee563",
+      "previousStatus": "not_verified"
+    },
+    {
+      "request": "M-018:ceb",
+      "slot": "BONUS",
+      "variant": "default",
+      "textSha256": "a8d577afcb594d5999bee44e82d944f8fc791ef001ff0a5ba7764b061eaf990f",
+      "previousStatus": "not_verified"
+    },
+    {
+      "request": "M-018:ceb",
+      "slot": "DEDUCTION",
+      "variant": "default",
+      "textSha256": "ff4fa9e5ec2fe2cfd9fc3fc55323d88ee3bc8bfe5ffc3f0454143ae971ccdece",
+      "previousStatus": "not_verified"
+    },
+    {
+      "request": "M-018:ceb",
+      "slot": "PAY",
+      "variant": "paypal",
+      "textSha256": "8dd779afb9f9305e912fd2b4b404383b0e0a6731a5bdd2b77823015abe5f7b42",
+      "previousStatus": "not_verified"
+    },
+    {
+      "request": "M-018:ceb",
+      "slot": "SOURCES",
+      "variant": "default",
+      "textSha256": "b8ef4820a5002860612157b08fa8bb0f369a9c1bd103f35ff64ab03fbcb23ecc",
+      "previousStatus": "not_verified"
+    },
+    {
+      "request": "M-022:ceb",
+      "slot": "DELIVERY",
+      "variant": "default",
+      "textSha256": "f31db268d51758f1afc1f6a515c80189629c903fb5941938fa4b8129c643a31d",
+      "previousStatus": "not_verified"
+    },
+    {
+      "request": "M-022:ceb",
+      "slot": "DEDUCTION",
+      "variant": "default",
+      "textSha256": "d3eabddda28bccd1a975995c8b8fba616149e4b59c17619ed7269d0396037067",
+      "previousStatus": "not_verified"
+    },
+    {
+      "request": "M-022:ceb",
+      "slot": "PAY",
+      "variant": "paypal",
+      "textSha256": "65623f26432ccc681d739920444b0aca4de2b1325da85306dac06ab937ba5035",
+      "previousStatus": "not_verified"
+    },
+    {
+      "request": "M-022:ceb",
+      "slot": "SOURCES",
+      "variant": "default",
+      "textSha256": "97e6934a131f7cd0ff5dd903ea921c1eb89d2256f233770b2c0ae1ed531cb553",
+      "previousStatus": "not_verified"
+    },
+    {
+      "request": "M-002:ceb",
+      "slot": "GREETING",
+      "variant": "default",
+      "textSha256": "1e08b3d0a7cd3c092bb9436c4595fe85472de93b8edb6c7830e768d72926e40d",
+      "previousStatus": "not_verified"
+    },
+    {
+      "request": "M-002:ceb",
+      "slot": "DELIVERY",
+      "variant": "default",
+      "textSha256": "5149103b0a1f5f4f83cc56d8e7dec9041ed58d79bf7dc4519029adf5ab0147ab",
+      "previousStatus": "not_verified"
+    },
+    {
+      "request": "M-002:ceb",
+      "slot": "DEDUCTION",
+      "variant": "default",
+      "textSha256": "b6e3018261b374bf395c24be5f702d92cf2d84e18ccb76828e3da6fea4fa26ff",
+      "previousStatus": "not_verified"
+    },
+    {
+      "request": "M-031:en",
+      "slot": "GREETING",
+      "variant": "default",
+      "textSha256": "5001953557bdbe230894f918a0cca79b09b611e3ed6c7ae4c43bd1c8f7c0aed2",
+      "previousStatus": "not_verified"
+    },
+    {
+      "request": "M-031:en",
+      "slot": "DEDUCTION",
+      "variant": "default",
+      "textSha256": "0b624a25a17665c72784d9f0908cd258f2544aac55bc657dfabdee6ab1fed915",
+      "previousStatus": "not_verified"
+    },
+    {
+      "request": "M-031:en",
+      "slot": "PAY",
+      "variant": "paypal",
+      "textSha256": "95b870d17372538218a832f630d8ffdb241a68a9459af39a32ae47f5dc1b25b7",
+      "previousStatus": "not_verified"
+    },
+    {
+      "request": "M-031:en",
+      "slot": "HELP",
+      "variant": "default",
+      "textSha256": "d93b3ff231e189f984938c8dad268b1fa90461c0a70bf47622d8153389bd2f62",
+      "previousStatus": "not_verified"
+    },
+    {
+      "request": "M-031:en",
+      "slot": "AI_NOTE",
+      "variant": "seeded",
+      "textSha256": "f6fe08315997e6a3e225863ef791849810accbdc55966ce772658e6b03120931",
+      "previousStatus": "not_verified"
+    }
+  ],
+  "attempts": [
+    {
+      "request": "M-039:en",
+      "slot": "GREETING",
+      "variant": "default",
+      "textSha256": "53ea7e4fb6e58ff5f091a5666d640c03c3098151ddb109af053274a0530a931a",
+      "previousStatus": "waiting_on_service",
+      "startedAt": "2026-11-10T18:44:30.522Z",
+      "outcome": "published",
+      "at": "2026-11-10T18:44:57.808Z"
+    },
+    {
+      "request": "M-039:en",
+      "slot": "DEDUCTION",
+      "variant": "default",
+      "textSha256": "fc069027fbd4a0429a2ed3e12a348d690fe0035e99ea1133b27048f52a7e7d71",
+      "previousStatus": "waiting_on_service",
+      "startedAt": "2026-11-10T18:44:57.810Z",
+      "outcome": "published",
+      "at": "2026-11-10T18:47:08.781Z"
+    },
+    {
+      "request": "M-039:en",
+      "slot": "PAY",
+      "variant": "paypal",
+      "textSha256": "cc823bfda9b4926d7605b30956d45898fbc6a00b3cbbb546184f5215bb3fd5f1",
+      "previousStatus": "waiting_on_service",
+      "startedAt": "2026-11-10T18:47:08.786Z",
+      "outcome": "published",
+      "at": "2026-11-10T18:48:03.398Z"
+    },
+    {
+      "request": "M-039:en",
+      "slot": "SOURCES",
+      "variant": "default",
+      "textSha256": "d7c515180a4cb4d638e185299b0a41ff25248e401916bc0fcc7f8c1bc19cc590",
+      "previousStatus": "waiting_on_service",
+      "startedAt": "2026-11-10T18:48:03.400Z",
+      "outcome": "published",
+      "at": "2026-11-10T18:48:28.193Z"
+    },
+    {
+      "request": "M-039:en",
+      "slot": "HELP",
+      "variant": "default",
+      "textSha256": "d93b3ff231e189f984938c8dad268b1fa90461c0a70bf47622d8153389bd2f62",
+      "previousStatus": "waiting_on_service",
+      "startedAt": "2026-11-10T18:48:28.196Z",
+      "detail": "StatementVerificationError: statement verification refused HELP:d93b3ff231e1; missing sentences keep labelled device voice",
+      "outcome": "quality",
+      "at": "2026-11-10T18:48:28.856Z"
+    },
+    {
+      "request": "M-039:en",
+      "slot": "AI_NOTE",
+      "variant": "seeded",
+      "textSha256": "f6fe08315997e6a3e225863ef791849810accbdc55966ce772658e6b03120931",
+      "previousStatus": "waiting_on_service",
+      "startedAt": "2026-11-10T18:48:28.859Z",
+      "detail": "StatementVerificationError: statement verification refused AI_NOTE:f6fe08315997; missing sentences keep labelled device voice",
+      "outcome": "quality",
+      "at": "2026-11-10T18:48:29.742Z"
+    },
+    {
+      "request": "M-053:ceb",
+      "slot": "GREETING",
+      "variant": "default",
+      "textSha256": "06233f5976bdd6e624240252e293a4249a8efa8d2cd10a166f490965fec3124f",
+      "previousStatus": "waiting_on_service",
+      "startedAt": "2026-11-10T18:48:29.746Z",
+      "outcome": "published",
+      "at": "2026-11-10T18:50:43.385Z"
+    },
+    {
+      "request": "M-053:ceb",
+      "slot": "DEDUCTION",
+      "variant": "default",
+      "textSha256": "5a12cd17b7afd62deeba04099f4989228f8b743ce55bc5dc636764219bd9c7a1",
+      "previousStatus": "waiting_on_service",
+      "startedAt": "2026-11-10T18:50:43.388Z",
+      "detail": "StatementVerificationError: statement verification refused DEDUCTION:5a12cd17b7af; missing sentences keep labelled device voice",
+      "outcome": "quality",
+      "at": "2026-11-10T18:51:02.090Z"
+    },
+    {
+      "request": "M-053:ceb",
+      "slot": "PAY",
+      "variant": "cash_nodate",
+      "textSha256": "b622aad6a9402b5d70b71cff2f5d8f7d81d1e90c29a2b4a9ac6a5385a6c15947",
+      "previousStatus": "waiting_on_service",
+      "startedAt": "2026-11-10T18:51:02.095Z",
+      "outcome": "published",
+      "at": "2026-11-10T18:51:25.753Z"
+    },
+    {
+      "request": "M-053:ceb",
+      "slot": "SOURCES",
+      "variant": "default",
+      "textSha256": "e30d8950bfe1806a38b25b0289ea26d5637b58da8370ac71d5d3e0d0e78ce394",
+      "previousStatus": "waiting_on_service",
+      "startedAt": "2026-11-10T18:51:25.756Z",
+      "outcome": "published",
+      "at": "2026-11-10T18:51:59.916Z"
+    },
+    {
+      "request": "M-014:fil",
+      "slot": "GREETING",
+      "variant": "default",
+      "textSha256": "20f39d259ff3015681091fd30db7068901c461e806e14046c0d8a66cfcff3b54",
+      "previousStatus": "not_verified",
+      "startedAt": "2026-11-10T18:51:59.918Z",
+      "detail": "StatementVerificationError: statement verification refused GREETING:20f39d259ff3; missing sentences keep labelled device voice",
+      "outcome": "quality",
+      "at": "2026-11-10T18:52:02.116Z"
+    },
+    {
+      "request": "M-014:fil",
+      "slot": "DEDUCTION",
+      "variant": "default",
+      "textSha256": "dd5888b7dac7dab3ebdbfe0ff58a2853ef2f1ec58b9c6a5e6b1414757bf8ed96",
+      "previousStatus": "not_verified",
+      "startedAt": "2026-11-10T18:52:02.120Z",
+      "detail": "StatementVerificationError: statement verification refused DEDUCTION:dd5888b7dac7; missing sentences keep labelled device voice",
+      "outcome": "quality",
+      "at": "2026-11-10T18:52:02.930Z"
+    },
+    {
+      "request": "M-014:fil",
+      "slot": "PAY",
+      "variant": "paypal",
+      "textSha256": "d5e83fa357ea1757df08a18af277502df9cd042802da94ccea930e6e35c705b7",
+      "previousStatus": "not_verified",
+      "startedAt": "2026-11-10T18:52:02.933Z",
+      "detail": "StatementVerificationError: statement verification refused PAY:d5e83fa357ea; missing sentences keep labelled device voice",
+      "outcome": "quality",
+      "at": "2026-11-10T18:52:04.229Z"
+    },
+    {
+      "request": "M-014:fil",
+      "slot": "AI_NOTE",
+      "variant": "seeded",
+      "textSha256": "7f5f53867948e9993dc700959007dffc2160c87de32f44af3a9380ca9fe3e6d4",
+      "previousStatus": "not_verified",
+      "startedAt": "2026-11-10T18:52:04.233Z",
+      "detail": "StatementVerificationError: statement verification refused AI_NOTE:7f5f53867948; missing sentences keep labelled device voice",
+      "outcome": "quality",
+      "at": "2026-11-10T18:52:05.306Z"
+    },
+    {
+      "request": "M-014:en",
+      "slot": "BONUS",
+      "variant": "default",
+      "textSha256": "1ab5768d7f45d39c450e3723e39ffb591472ce6c35ebf91f0ad173982da65026",
+      "previousStatus": "not_verified",
+      "startedAt": "2026-11-10T18:52:05.309Z",
+      "detail": "StatementVerificationError: statement verification refused BONUS:1ab5768d7f45; missing sentences keep labelled device voice",
+      "outcome": "quality",
+      "at": "2026-11-10T18:52:05.983Z"
+    },
+    {
+      "request": "M-014:en",
+      "slot": "HELP",
+      "variant": "default",
+      "textSha256": "d93b3ff231e189f984938c8dad268b1fa90461c0a70bf47622d8153389bd2f62",
+      "previousStatus": "not_verified",
+      "startedAt": "2026-11-10T18:52:05.985Z",
+      "detail": "StatementVerificationError: statement verification refused HELP:d93b3ff231e1; missing sentences keep labelled device voice",
+      "outcome": "quality",
+      "at": "2026-11-10T18:52:06.631Z"
+    },
+    {
+      "request": "M-014:en",
+      "slot": "AI_NOTE",
+      "variant": "seeded",
+      "textSha256": "f6fe08315997e6a3e225863ef791849810accbdc55966ce772658e6b03120931",
+      "previousStatus": "not_verified",
+      "startedAt": "2026-11-10T18:52:06.634Z",
+      "detail": "StatementVerificationError: statement verification refused AI_NOTE:f6fe08315997; missing sentences keep labelled device voice",
+      "outcome": "quality",
+      "at": "2026-11-10T18:52:07.579Z"
+    },
+    {
+      "request": "M-007:ceb",
+      "slot": "GREETING",
+      "variant": "default",
+      "textSha256": "8754aa02c388cb73ec5ddd9d95e890692675576991082af403160ce5c475fc15",
+      "previousStatus": "not_verified",
+      "startedAt": "2026-11-10T18:52:07.582Z",
+      "detail": "StatementVerificationError: statement verification refused GREETING:8754aa02c388; missing sentences keep labelled device voice",
+      "outcome": "quality",
+      "at": "2026-11-10T18:52:08.321Z"
+    },
+    {
+      "request": "M-007:ceb",
+      "slot": "PAY",
+      "variant": "paypal",
+      "textSha256": "34f3c502c632f09aef80ccd397dc46561d36ef93895a52622a0d64ef42fbe189",
+      "previousStatus": "not_verified",
+      "startedAt": "2026-11-10T18:52:08.324Z",
+      "detail": "StatementVerificationError: statement verification refused PAY:34f3c502c632; missing sentences keep labelled device voice",
+      "outcome": "quality",
+      "at": "2026-11-10T18:52:29.773Z"
+    },
+    {
+      "request": "M-060:fil",
+      "slot": "GREETING",
+      "variant": "default",
+      "textSha256": "d3e23788cc8ba8f3d5da84319a1371f921af3a6bf60f7672411f1c0149c4e8a5",
+      "previousStatus": "not_verified",
+      "startedAt": "2026-11-10T18:52:29.777Z",
+      "detail": "StatementVerificationError: statement verification refused GREETING:d3e23788cc8b; missing sentences keep labelled device voice",
+      "outcome": "quality",
+      "at": "2026-11-10T18:52:49.144Z"
+    },
+    {
+      "request": "M-060:fil",
+      "slot": "PREMIUM",
+      "variant": "default",
+      "textSha256": "99b13ab8c0f3e7c0ed20e4d5246ef5633144c7a03c1506b41f010db359e00fba",
+      "previousStatus": "not_verified",
+      "startedAt": "2026-11-10T18:52:49.146Z",
+      "outcome": "published",
+      "at": "2026-11-10T18:53:10.592Z"
+    },
+    {
+      "request": "M-060:fil",
+      "slot": "DEDUCTION",
+      "variant": "default",
+      "textSha256": "079a8d5b93b577d44a1ac84202ba41a85a7fecd51fc7173b10389767d6e12cd6",
+      "previousStatus": "not_verified",
+      "startedAt": "2026-11-10T18:53:10.599Z",
+      "outcome": "published",
+      "at": "2026-11-10T18:53:26.275Z"
+    },
+    {
+      "request": "M-060:fil",
+      "slot": "PAY",
+      "variant": "paypal",
+      "textSha256": "9567827aaede3e44d1c6e2e56978fdc106507e19e710a1d18d7fdae49fc161d0",
+      "previousStatus": "not_verified",
+      "startedAt": "2026-11-10T18:53:26.277Z",
+      "detail": "StatementVerificationError: statement verification refused PAY:9567827aaede; missing sentences keep labelled device voice",
+      "outcome": "quality",
+      "at": "2026-11-10T18:53:45.597Z"
+    },
+    {
+      "request": "M-060:fil",
+      "slot": "AI_NOTE",
+      "variant": "seeded",
+      "textSha256": "7f5f53867948e9993dc700959007dffc2160c87de32f44af3a9380ca9fe3e6d4",
+      "previousStatus": "not_verified",
+      "startedAt": "2026-11-10T18:53:45.599Z",
+      "detail": "StatementVerificationError: statement verification refused AI_NOTE:7f5f53867948; missing sentences keep labelled device voice",
+      "outcome": "quality",
+      "at": "2026-11-10T18:53:46.506Z"
+    },
+    {
+      "request": "M-018:ceb",
+      "slot": "DELIVERY",
+      "variant": "default",
+      "textSha256": "8bcd03a5b50571071bb7819c2460d362d9e18d908665b1d8ef36d3057bd945a3",
+      "previousStatus": "not_verified",
+      "startedAt": "2026-11-10T18:53:46.509Z",
+      "outcome": "published",
+      "at": "2026-11-10T18:54:00.863Z"
+    },
+    {
+      "request": "M-018:ceb",
+      "slot": "PREMIUM",
+      "variant": "default",
+      "textSha256": "59859c5b5420cce607f417dc98590e6f342b64dd74701f16fbd5c99411dee563",
+      "previousStatus": "not_verified",
+      "startedAt": "2026-11-10T18:54:00.865Z",
+      "detail": "StatementVerificationError: statement verification refused PREMIUM:59859c5b5420; missing sentences keep labelled device voice",
+      "outcome": "quality",
+      "at": "2026-11-10T18:54:14.323Z"
+    },
+    {
+      "request": "M-018:ceb",
+      "slot": "BONUS",
+      "variant": "default",
+      "textSha256": "a8d577afcb594d5999bee44e82d944f8fc791ef001ff0a5ba7764b061eaf990f",
+      "previousStatus": "not_verified",
+      "startedAt": "2026-11-10T18:54:14.327Z",
+      "outcome": "published",
+      "at": "2026-11-10T18:54:25.701Z"
+    },
+    {
+      "request": "M-018:ceb",
+      "slot": "DEDUCTION",
+      "variant": "default",
+      "textSha256": "ff4fa9e5ec2fe2cfd9fc3fc55323d88ee3bc8bfe5ffc3f0454143ae971ccdece",
+      "previousStatus": "not_verified",
+      "startedAt": "2026-11-10T18:54:25.704Z",
+      "detail": "StatementVerificationError: statement verification refused DEDUCTION:ff4fa9e5ec2f; missing sentences keep labelled device voice",
+      "outcome": "quality",
+      "at": "2026-11-10T18:54:39.023Z"
+    },
+    {
+      "request": "M-018:ceb",
+      "slot": "PAY",
+      "variant": "paypal",
+      "textSha256": "8dd779afb9f9305e912fd2b4b404383b0e0a6731a5bdd2b77823015abe5f7b42",
+      "previousStatus": "not_verified",
+      "startedAt": "2026-11-10T18:54:39.026Z",
+      "detail": "StatementVerificationError: statement verification refused PAY:8dd779afb9f9; missing sentences keep labelled device voice",
+      "outcome": "quality",
+      "at": "2026-11-10T18:55:02.294Z"
+    },
+    {
+      "request": "M-018:ceb",
+      "slot": "SOURCES",
+      "variant": "default",
+      "textSha256": "b8ef4820a5002860612157b08fa8bb0f369a9c1bd103f35ff64ab03fbcb23ecc",
+      "previousStatus": "not_verified",
+      "startedAt": "2026-11-10T18:55:02.296Z",
+      "outcome": "published",
+      "at": "2026-11-10T18:55:18.889Z"
+    },
+    {
+      "request": "M-022:ceb",
+      "slot": "DELIVERY",
+      "variant": "default",
+      "textSha256": "f31db268d51758f1afc1f6a515c80189629c903fb5941938fa4b8129c643a31d",
+      "previousStatus": "not_verified",
+      "startedAt": "2026-11-10T18:55:18.892Z",
+      "detail": "StatementVerificationError: statement verification refused DELIVERY:f31db268d517; missing sentences keep labelled device voice",
+      "outcome": "quality",
+      "at": "2026-11-10T18:55:33.853Z"
+    },
+    {
+      "request": "M-022:ceb",
+      "slot": "DEDUCTION",
+      "variant": "default",
+      "textSha256": "d3eabddda28bccd1a975995c8b8fba616149e4b59c17619ed7269d0396037067",
+      "previousStatus": "not_verified",
+      "startedAt": "2026-11-10T18:55:33.856Z",
+      "outcome": "published",
+      "at": "2026-11-10T18:55:47.922Z"
+    },
+    {
+      "request": "M-022:ceb",
+      "slot": "PAY",
+      "variant": "paypal",
+      "textSha256": "65623f26432ccc681d739920444b0aca4de2b1325da85306dac06ab937ba5035",
+      "previousStatus": "not_verified",
+      "startedAt": "2026-11-10T18:55:47.925Z",
+      "outcome": "published",
+      "at": "2026-11-10T18:56:07.995Z"
+    },
+    {
+      "request": "M-022:ceb",
+      "slot": "SOURCES",
+      "variant": "default",
+      "textSha256": "97e6934a131f7cd0ff5dd903ea921c1eb89d2256f233770b2c0ae1ed531cb553",
+      "previousStatus": "not_verified",
+      "startedAt": "2026-11-10T18:56:07.997Z",
+      "outcome": "published",
+      "at": "2026-11-10T18:56:24.079Z"
+    },
+    {
+      "request": "M-002:ceb",
+      "slot": "GREETING",
+      "variant": "default",
+      "textSha256": "1e08b3d0a7cd3c092bb9436c4595fe85472de93b8edb6c7830e768d72926e40d",
+      "previousStatus": "not_verified",
+      "startedAt": "2026-11-10T18:56:24.082Z",
+      "detail": "StatementVerificationError: statement verification refused GREETING:1e08b3d0a7cd; missing sentences keep labelled device voice",
+      "outcome": "quality",
+      "at": "2026-11-10T18:56:45.284Z"
+    },
+    {
+      "request": "M-002:ceb",
+      "slot": "DELIVERY",
+      "variant": "default",
+      "textSha256": "5149103b0a1f5f4f83cc56d8e7dec9041ed58d79bf7dc4519029adf5ab0147ab",
+      "previousStatus": "not_verified",
+      "startedAt": "2026-11-10T18:56:45.287Z",
+      "detail": "StatementVerificationError: statement verification refused DELIVERY:5149103b0a1f; missing sentences keep labelled device voice",
+      "outcome": "quality",
+      "at": "2026-11-10T18:56:59.267Z"
+    },
+    {
+      "request": "M-002:ceb",
+      "slot": "DEDUCTION",
+      "variant": "default",
+      "textSha256": "b6e3018261b374bf395c24be5f702d92cf2d84e18ccb76828e3da6fea4fa26ff",
+      "previousStatus": "not_verified",
+      "startedAt": "2026-11-10T18:56:59.277Z",
+      "outcome": "published",
+      "at": "2026-11-10T18:57:08.060Z"
+    },
+    {
+      "request": "M-031:en",
+      "slot": "GREETING",
+      "variant": "default",
+      "textSha256": "5001953557bdbe230894f918a0cca79b09b611e3ed6c7ae4c43bd1c8f7c0aed2",
+      "previousStatus": "not_verified",
+      "startedAt": "2026-11-10T18:57:08.063Z",
+      "detail": "StatementVerificationError: statement verification refused GREETING:5001953557bd; missing sentences keep labelled device voice",
+      "outcome": "quality",
+      "at": "2026-11-10T18:57:20.373Z"
+    },
+    {
+      "request": "M-031:en",
+      "slot": "DEDUCTION",
+      "variant": "default",
+      "textSha256": "0b624a25a17665c72784d9f0908cd258f2544aac55bc657dfabdee6ab1fed915",
+      "previousStatus": "not_verified",
+      "startedAt": "2026-11-10T18:57:20.376Z",
+      "outcome": "published",
+      "at": "2026-11-10T18:57:33.541Z"
+    },
+    {
+      "request": "M-031:en",
+      "slot": "PAY",
+      "variant": "paypal",
+      "textSha256": "95b870d17372538218a832f630d8ffdb241a68a9459af39a32ae47f5dc1b25b7",
+      "previousStatus": "not_verified",
+      "startedAt": "2026-11-10T18:57:33.545Z",
+      "detail": "StatementVerificationError: statement verification refused PAY:95b870d17372; missing sentences keep labelled device voice",
+      "outcome": "quality",
+      "at": "2026-11-10T18:57:53.363Z"
+    },
+    {
+      "request": "M-031:en",
+      "slot": "HELP",
+      "variant": "default",
+      "textSha256": "d93b3ff231e189f984938c8dad268b1fa90461c0a70bf47622d8153389bd2f62",
+      "previousStatus": "not_verified",
+      "startedAt": "2026-11-10T18:57:53.368Z",
+      "detail": "StatementVerificationError: statement verification refused HELP:d93b3ff231e1; missing sentences keep labelled device voice",
+      "outcome": "quality",
+      "at": "2026-11-10T18:57:54.228Z"
+    },
+    {
+      "request": "M-031:en",
+      "slot": "AI_NOTE",
+      "variant": "seeded",
+      "textSha256": "f6fe08315997e6a3e225863ef791849810accbdc55966ce772658e6b03120931",
+      "previousStatus": "not_verified",
+      "startedAt": "2026-11-10T18:57:54.232Z",
+      "detail": "StatementVerificationError: statement verification refused AI_NOTE:f6fe08315997; missing sentences keep labelled device voice",
+      "outcome": "quality",
+      "at": "2026-11-10T18:57:55.659Z"
+    }
+  ],
+  "dailyResetsAt": "2026-11-11T08:00:00.000Z",
   "keyResets": [
     {
       "keyId": "545f0873",
       "dropped": null,
       "models": {
         "gemini-3.8-flash-tts": {
-          "used": 6,
+          "used": 3,
           "cap": 10,
-          "remaining": 4,
+          "remaining": 7,
           "cooling": null,
-          "resetsAt": "2026-11-05T08:00:00.000Z",
-          "nextEligibleAt": "2026-11-04T11:09:35.113Z"
+          "resetsAt": "2026-11-11T08:00:00.000Z",
+          "nextEligibleAt": "2026-11-10T19:06:15.172Z"
         },
         "gemini-3.8-flash": {
-          "used": 1,
+          "used": 0,
           "cap": 10,
-          "remaining": 9,
+          "remaining": 10,
           "cooling": null,
-          "resetsAt": "2026-11-05T08:00:00.000Z",
-          "nextEligibleAt": "2026-11-04T11:09:35.113Z"
+          "resetsAt": "2026-11-11T08:00:00.000Z",
+          "nextEligibleAt": "2026-11-10T19:06:15.172Z"
         },
         "gemini-3.6-flash": {
+          "used": 2,
+          "cap": 10,
+          "remaining": 8,
+          "cooling": null,
+          "resetsAt": "2026-11-11T08:00:00.000Z",
+          "nextEligibleAt": "2026-11-10T19:06:15.172Z"
+        },
+        "gemini-2.5-flash": {
           "used": 10,
           "cap": 10,
           "remaining": 0,
           "cooling": null,
-          "resetsAt": "2026-11-05T08:00:00.000Z",
-          "nextEligibleAt": "2026-11-05T08:00:00.000Z"
-        },
-        "gemini-2.5-flash": {
-          "used": 6,
-          "cap": 10,
-          "remaining": 4,
-          "cooling": null,
-          "resetsAt": "2026-11-05T08:00:00.000Z",
-          "nextEligibleAt": "2026-11-04T11:09:35.113Z"
+          "resetsAt": "2026-11-11T08:00:00.000Z",
+          "nextEligibleAt": "2026-11-11T08:00:00.000Z"
         }
       }
     },
@@ -57,38 +797,38 @@
       "dropped": null,
       "models": {
         "gemini-3.8-flash-tts": {
-          "used": 6,
+          "used": 9,
           "cap": 10,
-          "remaining": 4,
+          "remaining": 1,
           "cooling": null,
-          "resetsAt": "2026-11-05T08:00:00.000Z",
-          "nextEligibleAt": "2026-11-04T11:09:35.113Z"
+          "resetsAt": "2026-11-11T08:00:00.000Z",
+          "nextEligibleAt": "2026-11-10T19:06:15.172Z"
         },
         "gemini-3.8-flash": {
-          "used": 2,
+          "used": 1,
           "cap": 10,
-          "remaining": 8,
+          "remaining": 9,
           "cooling": null,
-          "resetsAt": "2026-11-05T08:00:00.000Z",
-          "nextEligibleAt": "2026-11-04T11:09:35.113Z"
+          "resetsAt": "2026-11-11T08:00:00.000Z",
+          "nextEligibleAt": "2026-11-10T19:06:15.172Z"
         },
         "gemini-3.6-flash": {
-          "used": 10,
+          "used": 0,
           "cap": 10,
-          "remaining": 0,
+          "remaining": 10,
           "cooling": null,
-          "resetsAt": "2026-11-05T08:00:00.000Z",
-          "nextEligibleAt": "2026-11-05T08:00:00.000Z"
+          "resetsAt": "2026-11-11T08:00:00.000Z",
+          "nextEligibleAt": "2026-11-10T19:06:15.172Z"
         },
         "gemini-2.5-flash": {
           "used": 1,
           "cap": 10,
           "remaining": 0,
           "cooling": null,
-          "unavailable": "HTTP 404: {\"error\":{\"code\":404,\"message\":\"This model models/gemini-2.5-flash is no longer available to new users. Please update your code to use models/gemini-3.8-flash for the latest features and improvements. We recommend you to use the Interactions API (https://ai.google.dev/gemini-api/docs/get-started).\",\"status\":\"NOT_FOUND\"}}",
-          "resetsAt": "2026-11-05T08:00:00.000Z",
+          "unavailable": "HTTP 404: {\"error\":{\"code\":404,\"message\":\"This model models/gemini-2.5-flash is no longer available to new users. Please update your code to use models/gemini-3.8-flash for the latest features and improvements. We recommend you to use the Interactions API (https://aistudio.google.com/docs/get-started).\",\"status\":\"NOT_FOUND\"}}",
+          "resetsAt": "2026-11-11T08:00:00.000Z",
           "nextEligibleAt": null,
-          "eligibilityReason": "Model unavailable to this account; access recovery time unknown."
+          "eligibilityReason": "Account/model access recovery time unknown; reset does not guarantee access."
         }
       }
     },
@@ -97,38 +837,38 @@
       "dropped": null,
       "models": {
         "gemini-3.8-flash-tts": {
-          "used": 4,
+          "used": 2,
           "cap": 10,
-          "remaining": 6,
+          "remaining": 8,
           "cooling": null,
-          "resetsAt": "2026-11-05T08:00:00.000Z",
-          "nextEligibleAt": "2026-11-04T11:09:35.113Z"
+          "resetsAt": "2026-11-11T08:00:00.000Z",
+          "nextEligibleAt": "2026-11-10T19:06:27.657Z"
         },
         "gemini-3.8-flash": {
-          "used": 0,
+          "used": 1,
           "cap": 10,
-          "remaining": 10,
+          "remaining": 9,
           "cooling": null,
-          "resetsAt": "2026-11-05T08:00:00.000Z",
-          "nextEligibleAt": "2026-11-04T11:09:35.113Z"
+          "resetsAt": "2026-11-11T08:00:00.000Z",
+          "nextEligibleAt": "2026-11-10T19:06:15.172Z"
         },
         "gemini-3.6-flash": {
-          "used": 10,
+          "used": 2,
           "cap": 10,
-          "remaining": 0,
+          "remaining": 8,
           "cooling": null,
-          "resetsAt": "2026-11-05T08:00:00.000Z",
-          "nextEligibleAt": "2026-11-05T08:00:00.000Z"
+          "resetsAt": "2026-11-11T08:00:00.000Z",
+          "nextEligibleAt": "2026-11-10T19:06:15.172Z"
         },
         "gemini-2.5-flash": {
           "used": 1,
           "cap": 10,
           "remaining": 0,
           "cooling": null,
-          "unavailable": "HTTP 404: {\"error\":{\"code\":404,\"message\":\"This model models/gemini-2.5-flash is no longer available to new users. Please update your code to use models/gemini-3.8-flash for the latest features and improvements. We recommend you to use the Interactions API (https://ai.google.dev/gemini-api/docs/get-started).\",\"status\":\"NOT_FOUND\"}}",
-          "resetsAt": "2026-11-05T08:00:00.000Z",
+          "unavailable": "HTTP 404: {\"error\":{\"code\":404,\"message\":\"This model models/gemini-2.5-flash is no longer available to new users. Please update your code to use models/gemini-3.8-flash for the latest features and improvements. We recommend you to use the Interactions API (https://aistudio.google.com/docs/get-started).\",\"status\":\"NOT_FOUND\"}}",
+          "resetsAt": "2026-11-11T08:00:00.000Z",
           "nextEligibleAt": null,
-          "eligibilityReason": "Model unavailable to this account; access recovery time unknown."
+          "eligibilityReason": "Account/model access recovery time unknown; reset does not guarantee access."
         }
       }
     },
@@ -137,38 +877,38 @@
       "dropped": null,
       "models": {
         "gemini-3.8-flash-tts": {
-          "used": 9,
+          "used": 1,
           "cap": 10,
-          "remaining": 1,
+          "remaining": 9,
           "cooling": null,
-          "resetsAt": "2026-11-05T08:00:00.000Z",
-          "nextEligibleAt": "2026-11-04T11:09:35.113Z"
+          "resetsAt": "2026-11-11T08:00:00.000Z",
+          "nextEligibleAt": "2026-11-10T19:06:15.172Z"
         },
         "gemini-3.8-flash": {
           "used": 1,
           "cap": 10,
           "remaining": 9,
           "cooling": null,
-          "resetsAt": "2026-11-05T08:00:00.000Z",
-          "nextEligibleAt": "2026-11-04T11:09:35.113Z"
+          "resetsAt": "2026-11-11T08:00:00.000Z",
+          "nextEligibleAt": "2026-11-10T19:06:15.172Z"
         },
         "gemini-3.6-flash": {
-          "used": 6,
+          "used": 1,
           "cap": 10,
-          "remaining": 4,
+          "remaining": 9,
           "cooling": null,
-          "resetsAt": "2026-11-05T08:00:00.000Z",
-          "nextEligibleAt": "2026-11-04T11:09:35.113Z"
+          "resetsAt": "2026-11-11T08:00:00.000Z",
+          "nextEligibleAt": "2026-11-10T19:06:15.172Z"
         },
         "gemini-2.5-flash": {
           "used": 1,
           "cap": 10,
           "remaining": 0,
           "cooling": null,
-          "unavailable": "HTTP 404: {\"error\":{\"code\":404,\"message\":\"This model models/gemini-2.5-flash is no longer available to new users. Please update your code to use models/gemini-3.8-flash for the latest features and improvements. We recommend you to use the Interactions API (https://ai.google.dev/gemini-api/docs/get-started).\",\"status\":\"NOT_FOUND\"}}",
-          "resetsAt": "2026-11-05T08:00:00.000Z",
+          "unavailable": "HTTP 404: {\"error\":{\"code\":404,\"message\":\"This model models/gemini-2.5-flash is no longer available to new users. Please update your code to use models/gemini-3.8-flash for the latest features and improvements. We recommend you to use the Interactions API (https://aistudio.google.com/docs/get-started).\",\"status\":\"NOT_FOUND\"}}",
+          "resetsAt": "2026-11-11T08:00:00.000Z",
           "nextEligibleAt": null,
-          "eligibilityReason": "Model unavailable to this account; access recovery time unknown."
+          "eligibilityReason": "Account/model access recovery time unknown; reset does not guarantee access."
         }
       }
     },
@@ -177,38 +917,38 @@
       "dropped": null,
       "models": {
         "gemini-3.8-flash-tts": {
-          "used": 2,
+          "used": 1,
           "cap": 10,
-          "remaining": 8,
+          "remaining": 9,
           "cooling": null,
-          "resetsAt": "2026-11-05T08:00:00.000Z",
-          "nextEligibleAt": "2026-11-04T11:09:35.113Z"
+          "resetsAt": "2026-11-11T08:00:00.000Z",
+          "nextEligibleAt": "2026-11-10T19:06:15.172Z"
         },
         "gemini-3.8-flash": {
-          "used": 2,
+          "used": 0,
           "cap": 10,
-          "remaining": 8,
+          "remaining": 10,
           "cooling": null,
-          "resetsAt": "2026-11-05T08:00:00.000Z",
-          "nextEligibleAt": "2026-11-04T11:09:35.113Z"
+          "resetsAt": "2026-11-11T08:00:00.000Z",
+          "nextEligibleAt": "2026-11-10T19:06:15.172Z"
         },
         "gemini-3.6-flash": {
-          "used": 10,
+          "used": 1,
           "cap": 10,
-          "remaining": 0,
+          "remaining": 9,
           "cooling": null,
-          "resetsAt": "2026-11-05T08:00:00.000Z",
-          "nextEligibleAt": "2026-11-05T08:00:00.000Z"
+          "resetsAt": "2026-11-11T08:00:00.000Z",
+          "nextEligibleAt": "2026-11-10T19:06:15.172Z"
         },
         "gemini-2.5-flash": {
           "used": 1,
           "cap": 10,
           "remaining": 0,
           "cooling": null,
-          "unavailable": "HTTP 404: {\"error\":{\"code\":404,\"message\":\"This model models/gemini-2.5-flash is no longer available to new users. Please update your code to use models/gemini-3.8-flash for the latest features and improvements. We recommend you to use the Interactions API (https://ai.google.dev/gemini-api/docs/get-started).\",\"status\":\"NOT_FOUND\"}}",
-          "resetsAt": "2026-11-05T08:00:00.000Z",
+          "unavailable": "HTTP 404: {\"error\":{\"code\":404,\"message\":\"This model models/gemini-2.5-flash is no longer available to new users. Please update your code to use models/gemini-3.8-flash for the latest features and improvements. We recommend you to use the Interactions API (https://aistudio.google.com/docs/get-started).\",\"status\":\"NOT_FOUND\"}}",
+          "resetsAt": "2026-11-11T08:00:00.000Z",
           "nextEligibleAt": null,
-          "eligibilityReason": "Model unavailable to this account; access recovery time unknown."
+          "eligibilityReason": "Account/model access recovery time unknown; reset does not guarantee access."
         }
       }
     },
@@ -217,36 +957,36 @@
       "dropped": null,
       "models": {
         "gemini-3.8-flash-tts": {
-          "used": 6,
-          "cap": 10,
-          "remaining": 4,
-          "cooling": null,
-          "resetsAt": "2026-11-05T08:00:00.000Z",
-          "nextEligibleAt": "2026-11-04T11:09:35.113Z"
-        },
-        "gemini-3.8-flash": {
           "used": 1,
           "cap": 10,
           "remaining": 9,
           "cooling": null,
-          "resetsAt": "2026-11-05T08:00:00.000Z",
-          "nextEligibleAt": "2026-11-04T11:09:35.113Z"
+          "resetsAt": "2026-11-11T08:00:00.000Z",
+          "nextEligibleAt": "2026-11-10T19:06:15.172Z"
+        },
+        "gemini-3.8-flash": {
+          "used": 0,
+          "cap": 10,
+          "remaining": 10,
+          "cooling": null,
+          "resetsAt": "2026-11-11T08:00:00.000Z",
+          "nextEligibleAt": "2026-11-10T19:06:15.172Z"
         },
         "gemini-3.6-flash": {
-          "used": 9,
+          "used": 0,
           "cap": 10,
-          "remaining": 1,
+          "remaining": 10,
           "cooling": null,
-          "resetsAt": "2026-11-05T08:00:00.000Z",
-          "nextEligibleAt": "2026-11-04T11:09:35.113Z"
+          "resetsAt": "2026-11-11T08:00:00.000Z",
+          "nextEligibleAt": "2026-11-10T19:06:15.172Z"
         },
         "gemini-2.5-flash": {
-          "used": 7,
+          "used": 10,
           "cap": 10,
-          "remaining": 3,
+          "remaining": 0,
           "cooling": null,
-          "resetsAt": "2026-11-05T08:00:00.000Z",
-          "nextEligibleAt": "2026-11-04T11:09:35.113Z"
+          "resetsAt": "2026-11-11T08:00:00.000Z",
+          "nextEligibleAt": "2026-11-11T08:00:00.000Z"
         }
       }
     },
@@ -255,38 +995,38 @@
       "dropped": null,
       "models": {
         "gemini-3.8-flash-tts": {
-          "used": 6,
+          "used": 8,
           "cap": 10,
-          "remaining": 4,
+          "remaining": 2,
           "cooling": null,
-          "resetsAt": "2026-11-05T08:00:00.000Z",
-          "nextEligibleAt": "2026-11-04T11:09:35.113Z"
+          "resetsAt": "2026-11-11T08:00:00.000Z",
+          "nextEligibleAt": "2026-11-10T19:06:15.172Z"
         },
         "gemini-3.8-flash": {
           "used": 0,
           "cap": 10,
           "remaining": 10,
           "cooling": null,
-          "resetsAt": "2026-11-05T08:00:00.000Z",
-          "nextEligibleAt": "2026-11-04T11:09:35.113Z"
+          "resetsAt": "2026-11-11T08:00:00.000Z",
+          "nextEligibleAt": "2026-11-10T19:06:15.172Z"
         },
         "gemini-3.6-flash": {
-          "used": 10,
+          "used": 1,
           "cap": 10,
-          "remaining": 0,
+          "remaining": 9,
           "cooling": null,
-          "resetsAt": "2026-11-05T08:00:00.000Z",
-          "nextEligibleAt": "2026-11-05T08:00:00.000Z"
+          "resetsAt": "2026-11-11T08:00:00.000Z",
+          "nextEligibleAt": "2026-11-10T19:06:15.172Z"
         },
         "gemini-2.5-flash": {
           "used": 1,
           "cap": 10,
           "remaining": 0,
           "cooling": null,
-          "unavailable": "HTTP 404: {\"error\":{\"code\":404,\"message\":\"This model models/gemini-2.5-flash is no longer available to new users. Please update your code to use models/gemini-3.8-flash for the latest features and improvements. We recommend you to use the Interactions API (https://ai.google.dev/gemini-api/docs/get-started).\",\"status\":\"NOT_FOUND\"}}",
-          "resetsAt": "2026-11-05T08:00:00.000Z",
+          "unavailable": "HTTP 404: {\"error\":{\"code\":404,\"message\":\"This model models/gemini-2.5-flash is no longer available to new users. Please update your code to use models/gemini-3.8-flash for the latest features and improvements. We recommend you to use the Interactions API (https://aistudio.google.com/docs/get-started).\",\"status\":\"NOT_FOUND\"}}",
+          "resetsAt": "2026-11-11T08:00:00.000Z",
           "nextEligibleAt": null,
-          "eligibilityReason": "Model unavailable to this account; access recovery time unknown."
+          "eligibilityReason": "Account/model access recovery time unknown; reset does not guarantee access."
         }
       }
     },
@@ -295,36 +1035,36 @@
       "dropped": null,
       "models": {
         "gemini-3.8-flash-tts": {
+          "used": 1,
+          "cap": 10,
+          "remaining": 9,
+          "cooling": null,
+          "resetsAt": "2026-11-11T08:00:00.000Z",
+          "nextEligibleAt": "2026-11-10T19:06:15.172Z"
+        },
+        "gemini-3.8-flash": {
           "used": 2,
           "cap": 10,
           "remaining": 8,
           "cooling": null,
-          "resetsAt": "2026-11-05T08:00:00.000Z",
-          "nextEligibleAt": "2026-11-04T11:09:35.113Z"
+          "resetsAt": "2026-11-11T08:00:00.000Z",
+          "nextEligibleAt": "2026-11-10T19:06:15.172Z"
         },
-        "gemini-3.8-flash": {
+        "gemini-3.6-flash": {
           "used": 0,
           "cap": 10,
           "remaining": 10,
           "cooling": null,
-          "resetsAt": "2026-11-05T08:00:00.000Z",
-          "nextEligibleAt": "2026-11-04T11:09:35.113Z"
+          "resetsAt": "2026-11-11T08:00:00.000Z",
+          "nextEligibleAt": "2026-11-10T19:06:15.172Z"
         },
-        "gemini-3.6-flash": {
+        "gemini-2.5-flash": {
           "used": 10,
           "cap": 10,
           "remaining": 0,
           "cooling": null,
-          "resetsAt": "2026-11-05T08:00:00.000Z",
-          "nextEligibleAt": "2026-11-05T08:00:00.000Z"
-        },
-        "gemini-2.5-flash": {
-          "used": 8,
-          "cap": 10,
-          "remaining": 2,
-          "cooling": null,
-          "resetsAt": "2026-11-05T08:00:00.000Z",
-          "nextEligibleAt": "2026-11-04T11:09:35.113Z"
+          "resetsAt": "2026-11-11T08:00:00.000Z",
+          "nextEligibleAt": "2026-11-11T08:00:00.000Z"
         }
       }
     },
@@ -333,36 +1073,36 @@
       "dropped": null,
       "models": {
         "gemini-3.8-flash-tts": {
-          "used": 8,
+          "used": 5,
           "cap": 10,
-          "remaining": 2,
+          "remaining": 5,
           "cooling": null,
-          "resetsAt": "2026-11-05T08:00:00.000Z",
-          "nextEligibleAt": "2026-11-04T11:09:35.113Z"
+          "resetsAt": "2026-11-11T08:00:00.000Z",
+          "nextEligibleAt": "2026-11-10T19:06:15.172Z"
         },
         "gemini-3.8-flash": {
           "used": 0,
           "cap": 10,
           "remaining": 10,
           "cooling": null,
-          "resetsAt": "2026-11-05T08:00:00.000Z",
-          "nextEligibleAt": "2026-11-04T11:09:35.113Z"
+          "resetsAt": "2026-11-11T08:00:00.000Z",
+          "nextEligibleAt": "2026-11-10T19:06:15.172Z"
         },
         "gemini-3.6-flash": {
-          "used": 8,
+          "used": 2,
           "cap": 10,
-          "remaining": 2,
+          "remaining": 8,
           "cooling": null,
-          "resetsAt": "2026-11-05T08:00:00.000Z",
-          "nextEligibleAt": "2026-11-04T11:09:35.113Z"
+          "resetsAt": "2026-11-11T08:00:00.000Z",
+          "nextEligibleAt": "2026-11-10T19:06:15.172Z"
         },
         "gemini-2.5-flash": {
-          "used": 4,
+          "used": 10,
           "cap": 10,
-          "remaining": 6,
+          "remaining": 0,
           "cooling": null,
-          "resetsAt": "2026-11-05T08:00:00.000Z",
-          "nextEligibleAt": "2026-11-04T11:09:35.113Z"
+          "resetsAt": "2026-11-11T08:00:00.000Z",
+          "nextEligibleAt": "2026-11-11T08:00:00.000Z"
         }
       }
     },
@@ -371,38 +1111,38 @@
       "dropped": null,
       "models": {
         "gemini-3.8-flash-tts": {
-          "used": 4,
+          "used": 3,
           "cap": 10,
-          "remaining": 6,
+          "remaining": 7,
           "cooling": null,
-          "resetsAt": "2026-11-05T08:00:00.000Z",
-          "nextEligibleAt": "2026-11-04T11:09:35.113Z"
+          "resetsAt": "2026-11-11T08:00:00.000Z",
+          "nextEligibleAt": "2026-11-10T19:06:15.172Z"
         },
         "gemini-3.8-flash": {
-          "used": 1,
+          "used": 0,
           "cap": 10,
-          "remaining": 9,
+          "remaining": 10,
           "cooling": null,
-          "resetsAt": "2026-11-05T08:00:00.000Z",
-          "nextEligibleAt": "2026-11-04T11:09:35.113Z"
+          "resetsAt": "2026-11-11T08:00:00.000Z",
+          "nextEligibleAt": "2026-11-10T19:06:15.172Z"
         },
         "gemini-3.6-flash": {
-          "used": 10,
+          "used": 0,
           "cap": 10,
-          "remaining": 0,
+          "remaining": 10,
           "cooling": null,
-          "resetsAt": "2026-11-05T08:00:00.000Z",
-          "nextEligibleAt": "2026-11-05T08:00:00.000Z"
+          "resetsAt": "2026-11-11T08:00:00.000Z",
+          "nextEligibleAt": "2026-11-10T19:06:15.172Z"
         },
         "gemini-2.5-flash": {
           "used": 1,
           "cap": 10,
           "remaining": 0,
           "cooling": null,
-          "unavailable": "HTTP 404: {\"error\":{\"code\":404,\"message\":\"This model models/gemini-2.5-flash is no longer available to new users. Please update your code to use models/gemini-3.8-flash for the latest features and improvements. We recommend you to use the Interactions API (https://ai.google.dev/gemini-api/docs/get-started).\",\"status\":\"NOT_FOUND\"}}",
-          "resetsAt": "2026-11-05T08:00:00.000Z",
+          "unavailable": "HTTP 404: {\"error\":{\"code\":404,\"message\":\"This model models/gemini-2.5-flash is no longer available to new users. Please update your code to use models/gemini-3.8-flash for the latest features and improvements. We recommend you to use the Interactions API (https://aistudio.google.com/docs/get-started).\",\"status\":\"NOT_FOUND\"}}",
+          "resetsAt": "2026-11-11T08:00:00.000Z",
           "nextEligibleAt": null,
-          "eligibilityReason": "Model unavailable to this account; access recovery time unknown."
+          "eligibilityReason": "Account/model access recovery time unknown; reset does not guarantee access."
         }
       }
     },
@@ -411,36 +1151,36 @@
       "dropped": null,
       "models": {
         "gemini-3.8-flash-tts": {
-          "used": 4,
+          "used": 1,
           "cap": 10,
-          "remaining": 6,
+          "remaining": 9,
           "cooling": null,
-          "resetsAt": "2026-11-05T08:00:00.000Z",
-          "nextEligibleAt": "2026-11-04T11:09:35.113Z"
+          "resetsAt": "2026-11-11T08:00:00.000Z",
+          "nextEligibleAt": "2026-11-10T19:06:15.172Z"
         },
         "gemini-3.8-flash": {
           "used": 0,
           "cap": 10,
           "remaining": 10,
           "cooling": null,
-          "resetsAt": "2026-11-05T08:00:00.000Z",
-          "nextEligibleAt": "2026-11-04T11:09:35.113Z"
+          "resetsAt": "2026-11-11T08:00:00.000Z",
+          "nextEligibleAt": "2026-11-10T19:06:15.172Z"
         },
         "gemini-3.6-flash": {
+          "used": 0,
+          "cap": 10,
+          "remaining": 10,
+          "cooling": null,
+          "resetsAt": "2026-11-11T08:00:00.000Z",
+          "nextEligibleAt": "2026-11-10T19:06:15.172Z"
+        },
+        "gemini-2.5-flash": {
           "used": 10,
           "cap": 10,
           "remaining": 0,
           "cooling": null,
-          "resetsAt": "2026-11-05T08:00:00.000Z",
-          "nextEligibleAt": "2026-11-05T08:00:00.000Z"
-        },
-        "gemini-2.5-flash": {
-          "used": 5,
-          "cap": 10,
-          "remaining": 5,
-          "cooling": null,
-          "resetsAt": "2026-11-05T08:00:00.000Z",
-          "nextEligibleAt": "2026-11-04T11:09:35.113Z"
+          "resetsAt": "2026-11-11T08:00:00.000Z",
+          "nextEligibleAt": "2026-11-11T08:00:00.000Z"
         }
       }
     },
@@ -449,63 +1189,67 @@
       "dropped": null,
       "models": {
         "gemini-3.8-flash-tts": {
-          "used": 6,
+          "used": 7,
           "cap": 10,
-          "remaining": 4,
+          "remaining": 3,
           "cooling": null,
-          "resetsAt": "2026-11-05T08:00:00.000Z",
-          "nextEligibleAt": "2026-11-04T11:09:35.113Z"
+          "resetsAt": "2026-11-11T08:00:00.000Z",
+          "nextEligibleAt": "2026-11-10T19:06:15.172Z"
         },
         "gemini-3.8-flash": {
+          "used": 1,
+          "cap": 10,
+          "remaining": 9,
+          "cooling": null,
+          "resetsAt": "2026-11-11T08:00:00.000Z",
+          "nextEligibleAt": "2026-11-10T19:06:15.172Z"
+        },
+        "gemini-3.6-flash": {
           "used": 0,
           "cap": 10,
           "remaining": 10,
           "cooling": null,
-          "resetsAt": "2026-11-05T08:00:00.000Z",
-          "nextEligibleAt": "2026-11-04T11:09:35.113Z"
-        },
-        "gemini-3.6-flash": {
-          "used": 10,
-          "cap": 10,
-          "remaining": 0,
-          "cooling": null,
-          "resetsAt": "2026-11-05T08:00:00.000Z",
-          "nextEligibleAt": "2026-11-05T08:00:00.000Z"
+          "resetsAt": "2026-11-11T08:00:00.000Z",
+          "nextEligibleAt": "2026-11-10T19:06:15.172Z"
         },
         "gemini-2.5-flash": {
           "used": 1,
           "cap": 10,
           "remaining": 0,
           "cooling": null,
-          "unavailable": "HTTP 404: {\"error\":{\"code\":404,\"message\":\"This model models/gemini-2.5-flash is no longer available to new users. Please update your code to use models/gemini-3.8-flash for the latest features and improvements. We recommend you to use the Interactions API (https://ai.google.dev/gemini-api/docs/get-started).\",\"status\":\"NOT_FOUND\"}}",
-          "resetsAt": "2026-11-05T08:00:00.000Z",
+          "unavailable": "HTTP 404: {\"error\":{\"code\":404,\"message\":\"This model models/gemini-2.5-flash is no longer available to new users. Please update your code to use models/gemini-3.8-flash for the latest features and improvements. We recommend you to use the Interactions API (https://aistudio.google.com/docs/get-started).\",\"status\":\"NOT_FOUND\"}}",
+          "resetsAt": "2026-11-11T08:00:00.000Z",
           "nextEligibleAt": null,
-          "eligibilityReason": "Model unavailable to this account; access recovery time unknown."
+          "eligibilityReason": "Account/model access recovery time unknown; reset does not guarantee access."
         }
       }
     }
   ],
   "totals": {
     "gemini-3.8-flash-tts": {
-      "used": 63,
+      "used": 42,
       "cap": 120,
-      "remaining": 57
+      "remaining": 78
     },
     "gemini-3.8-flash": {
-      "used": 8,
+      "used": 6,
       "cap": 120,
-      "remaining": 112
+      "remaining": 114
     },
     "gemini-3.6-flash": {
-      "used": 113,
+      "used": 9,
       "cap": 120,
-      "remaining": 7
+      "remaining": 111
     },
     "gemini-2.5-flash": {
-      "used": 37,
+      "used": 57,
       "cap": 50,
-      "remaining": 20
+      "remaining": 0
     }
+  },
+  "previousRun": {
+    "at": "2026-11-04T11:09:35.113Z",
+    "outcome": "service_unavailable"
   },
   "planned": [
     {
@@ -575,8 +1319,86 @@
           "variant": "default",
           "textSha256": "20f39d259ff3015681091fd30db7068901c461e806e14046c0d8a66cfcff3b54",
           "status": "not_verified",
-          "reason": "StatementVerificationError: statement verification refused GREETING:20f39d259ff3, DEDUCTION:dd5888b7dac7, PAY:d5e83fa357ea, AI_NOTE:7f5f53867948; missing sentences keep labelled device voice",
-          "nextEligibleAt": null
+          "reason": "Invalid timestamp \"pagsisikap.\" 4.998-5.698 s; previous end 4.648 s; AAC duration 5.24 s",
+          "lastRefusal": {
+            "kind": "quality",
+            "detail": "Invalid timestamp \"pagsisikap.\" 4.998-5.698 s; previous end 4.648 s; AAC duration 5.24 s",
+            "at": "2026-11-10T19:01:37.209Z",
+            "cer": 0.085,
+            "transcript": "Magandang araw po, Ginoong Bacos. Salamat po sa inyong pagsisikap.",
+            "audioSha256": "963cda235dbce7a364d3d622e3fefb7b4d598682b8d6bb728444a99993f74027",
+            "asrModel": "gemini-2.5-flash"
+          },
+          "nextEligibleAt": "2026-11-11T08:00:00.000Z",
+          "eligibilityReason": "Usable gemini-2.5-flash accounts reached the self-imposed cap. Next quota reset shown; higher-model service recovery and a passing quality result have no known time.",
+          "refusalEvidence": [
+            {
+              "voice": "Sulafat",
+              "retake": false,
+              "wavRequestHash": "531da5a88b8b8f45a1973e6c25e401dc596c05079160410b4bdcff31128cb60c",
+              "audioSha256": "d0f69f888533a97a0cb2c332f4464cb1c21afe8939aac59aa9634134866714e5",
+              "durationSeconds": 5.52,
+              "transcripts": [
+                {
+                  "asrModel": "gemini-2.5-flash",
+                  "asrCacheHash": "1cdadd2b8d6560c2aa45930e04b352e79aab3ac8a7ca0e77e1aba1e320993d0d",
+                  "transcript": "Magandang araw po Ginoong Bakos Salamat po sa inyong pagsisikap",
+                  "cer": 0.102,
+                  "detail": "Failed unique contiguous exact-number/initialism anchor alignment: fact:HONORIFIC_NAME=\"Gng. Bacus\""
+                }
+              ]
+            },
+            {
+              "voice": "Sulafat",
+              "retake": true,
+              "wavRequestHash": "1de4912f7685d3f74ebe7d1975d0340016d1ba2bbf662cfdedfb53d05dfacfe5",
+              "audioSha256": "9a89b6c31480c655550125673a8fa8b0481e7c3dd9e1ec9564db8965fc15e0f2",
+              "durationSeconds": 6.36,
+              "transcripts": [
+                {
+                  "asrModel": "gemini-2.5-flash",
+                  "asrCacheHash": "749f571b596cad693986cb289369e58301fc84707f0132e4d42109a28b6cd266",
+                  "transcript": "Magandang araw po, Ginoong Bacus. Salamat po sa inyong pagsisikap.",
+                  "cer": 0.068,
+                  "detail": "Failed unique contiguous exact-number/initialism anchor alignment: fact:HONORIFIC_NAME=\"Gng. Bacus\""
+                }
+              ]
+            },
+            {
+              "voice": "Achird",
+              "retake": false,
+              "wavRequestHash": "3a929c4efa3bf3e41af8bc66f0a9556040d4313bb3c06bef500420038f1ab501",
+              "audioSha256": "e4585ba555a8d4da417169de746883e86e0cb68910e82c59d0e61aafb1d42a5a",
+              "durationSeconds": 5.68,
+              "transcripts": [
+                {
+                  "asrModel": "gemini-2.5-flash",
+                  "asrCacheHash": "039a28aeba6ac3251d45452d03290433867fecfd53f11371ded90161651e1121",
+                  "transcript": "Magandang araw po, Ginoong Bakos. Salamat po sa inyong pagsisikap.",
+                  "cer": 0.102,
+                  "detail": "Invalid timestamp \"pagsisikap.\" 5.09-5.86 s; previous end 4.89 s; AAC duration 5.68 s"
+                }
+              ]
+            },
+            {
+              "voice": "Achird",
+              "retake": true,
+              "wavRequestHash": "e8807399785c5cf55614d7e83e24a7141bfa90eb1042454438cdf0a5b5ab38bb",
+              "audioSha256": "963cda235dbce7a364d3d622e3fefb7b4d598682b8d6bb728444a99993f74027",
+              "durationSeconds": 5.24,
+              "transcripts": [
+                {
+                  "asrModel": "gemini-2.5-flash",
+                  "asrCacheHash": "8916efe3840e6b9946acb0daf551de047b176113e975b305b3ddd6a14d1220e7",
+                  "transcript": "Magandang araw po, Ginoong Bacos. Salamat po sa inyong pagsisikap.",
+                  "cer": 0.085,
+                  "detail": "Invalid timestamp \"pagsisikap.\" 4.998-5.698 s; previous end 4.648 s; AAC duration 5.24 s"
+                }
+              ]
+            }
+          ],
+          "serviceRecoveryAt": null,
+          "nextAction": "Fresh attempts refused; do not restart this take budget in another process. Study the retained transcript after quota eligibility."
         },
         {
           "slot": "DELIVERY",
@@ -600,17 +1422,13 @@
           "slot": "DEDUCTION",
           "variant": "default",
           "textSha256": "dd5888b7dac7dab3ebdbfe0ff58a2853ef2f1ec58b9c6a5e6b1414757bf8ed96",
-          "status": "not_verified",
-          "reason": "StatementVerificationError: statement verification refused GREETING:20f39d259ff3, DEDUCTION:dd5888b7dac7, PAY:d5e83fa357ea, AI_NOTE:7f5f53867948; missing sentences keep labelled device voice",
-          "nextEligibleAt": null
+          "status": "published"
         },
         {
           "slot": "PAY",
           "variant": "paypal",
           "textSha256": "d5e83fa357ea1757df08a18af277502df9cd042802da94ccea930e6e35c705b7",
-          "status": "not_verified",
-          "reason": "StatementVerificationError: statement verification refused GREETING:20f39d259ff3, DEDUCTION:dd5888b7dac7, PAY:d5e83fa357ea, AI_NOTE:7f5f53867948; missing sentences keep labelled device voice",
-          "nextEligibleAt": null
+          "status": "published"
         },
         {
           "slot": "SOURCES",
@@ -628,9 +1446,7 @@
           "slot": "AI_NOTE",
           "variant": "seeded",
           "textSha256": "7f5f53867948e9993dc700959007dffc2160c87de32f44af3a9380ca9fe3e6d4",
-          "status": "not_verified",
-          "reason": "StatementVerificationError: statement verification refused GREETING:20f39d259ff3, DEDUCTION:dd5888b7dac7, PAY:d5e83fa357ea, AI_NOTE:7f5f53867948; missing sentences keep labelled device voice",
-          "nextEligibleAt": null
+          "status": "published"
         }
       ]
     },
@@ -660,8 +1476,97 @@
           "variant": "default",
           "textSha256": "1ab5768d7f45d39c450e3723e39ffb591472ce6c35ebf91f0ad173982da65026",
           "status": "not_verified",
-          "reason": "StatementVerificationError: statement verification refused BONUS:1ab5768d7f45, HELP:d93b3ff231e1, AI_NOTE:f6fe08315997; missing sentences keep labelled device voice",
-          "nextEligibleAt": null
+          "reason": "Invalid timestamp \"cents\" 4.05-4.38 s; previous end 3.95 s; AAC duration 4.32 s",
+          "lastRefusal": {
+            "kind": "quality",
+            "detail": "Invalid timestamp \"cents\" 4.05-4.38 s; previous end 3.95 s; AAC duration 4.32 s",
+            "at": "2026-11-10T19:03:19.482Z",
+            "cer": 0,
+            "transcript": "Quality bonus twenty-one dollars and eighty-five cents",
+            "words": [
+              {
+                "text": "Quality",
+                "start": 0,
+                "end": 0.48
+              },
+              {
+                "text": "bonus",
+                "start": 0.86,
+                "end": 1.37
+              },
+              {
+                "text": "twenty-one",
+                "start": 1.81,
+                "end": 2.39
+              },
+              {
+                "text": "dollars",
+                "start": 2.48,
+                "end": 2.83
+              },
+              {
+                "text": "and",
+                "start": 3.01,
+                "end": 3.17
+              },
+              {
+                "text": "eighty-five",
+                "start": 3.35,
+                "end": 3.95
+              },
+              {
+                "text": "cents",
+                "start": 4.05,
+                "end": 4.38
+              }
+            ],
+            "durationSeconds": 4.32
+          },
+          "nextEligibleAt": "2026-11-11T08:00:00.000Z",
+          "eligibilityReason": "Usable gemini-2.5-flash accounts reached the self-imposed cap. Next quota reset shown; higher-model service recovery and a passing quality result have no known time.",
+          "refusalEvidence": [
+            {
+              "voice": "Sulafat",
+              "retake": false,
+              "wavRequestHash": "b8b27b58073325a3e8c6567fd1df54c13b4940798f508b260d88ecd8b98b3faa",
+              "audioSha256": "34ed9af1600d4c6e8e83064a1f781083b229e668d07e90a6fdd56c03722a9677",
+              "durationSeconds": 4.32,
+              "transcripts": [
+                {
+                  "asrModel": "gemini-2.5-flash",
+                  "asrCacheHash": "b1976054631e50f143bae3c5ee359204562a7b276e3dac710340a9b4e5d629c1",
+                  "transcript": "Quality bonus twenty-one dollars and eighty-five cents",
+                  "cer": 0,
+                  "detail": "Invalid timestamp \"cents\" 4.175-4.565 s; previous end 4.135 s; AAC duration 4.32 s"
+                },
+                {
+                  "asrModel": "gemini-2.5-flash",
+                  "asrCacheHash": "b1976054631e50f143bae3c5ee359204562a7b276e3dac710340a9b4e5d629c1",
+                  "transcript": "Quality bonus twenty-one dollars and eighty-five cents",
+                  "cer": 0,
+                  "detail": "Invalid timestamp \"cents\" 4.05-4.38 s; previous end 3.95 s; AAC duration 4.32 s"
+                }
+              ]
+            },
+            {
+              "voice": "Sulafat",
+              "retake": true,
+              "wavRequestHash": "3a6e5349471bd71c4d3db98b36c6ad82fe26f73bcb46bf3e8248d65e7cc07746",
+              "audioSha256": "9cec77c0154999ca6efc024d63732cc76df4793ee969223ec05f23897f1ab04e",
+              "durationSeconds": 5,
+              "transcripts": [
+                {
+                  "asrModel": "gemini-2.5-flash",
+                  "asrCacheHash": "ed32af5ef35d1bf5c2977798b182e2b26af351ea81fca169c2226cbe95d11b97",
+                  "transcript": "Quality bonus twenty one dollars and eighty five cents",
+                  "cer": 0,
+                  "detail": "Invalid timestamp \"cents\" 4.962-5.292 s; previous end 4.882 s; AAC duration 5 s"
+                }
+              ]
+            }
+          ],
+          "serviceRecoveryAt": null,
+          "nextAction": "Independent timestamps still refused; study the retained transcript before any fresh sentence request."
         },
         {
           "slot": "DEDUCTION",
@@ -686,16 +1591,92 @@
           "variant": "default",
           "textSha256": "d93b3ff231e189f984938c8dad268b1fa90461c0a70bf47622d8153389bd2f62",
           "status": "not_verified",
-          "reason": "StatementVerificationError: statement verification refused BONUS:1ab5768d7f45, HELP:d93b3ff231e1, AI_NOTE:f6fe08315997; missing sentences keep labelled device voice",
-          "nextEligibleAt": null
+          "reason": "Invalid timestamp \"bodega\" 4.14-4.62 s; previous end 3.85 s; AAC duration 4.2 s",
+          "lastRefusal": {
+            "kind": "quality",
+            "detail": "Invalid timestamp \"bodega\" 4.14-4.62 s; previous end 3.85 s; AAC duration 4.2 s",
+            "at": "2026-11-10T19:03:51.912Z",
+            "cer": 0.068,
+            "transcript": "Questions C Treasurer Annalyn at the bodega",
+            "audioSha256": "5001f81945262c6ec3d2a11d25d55a10deb61d4d2e09744f0b236969ca2a1ffd",
+            "asrModel": "gemini-2.5-flash"
+          },
+          "nextEligibleAt": "2026-11-11T08:00:00.000Z",
+          "eligibilityReason": "Usable gemini-2.5-flash accounts reached the self-imposed cap. Next quota reset shown; higher-model service recovery and a passing quality result have no known time.",
+          "refusalEvidence": [
+            {
+              "voice": "Sulafat",
+              "retake": false,
+              "wavRequestHash": "4b7b066f121e27904fa53cee977448fb6963b936b453eb959f60ef57b7619bdd",
+              "audioSha256": "6e1eb6044098412b7fe24d3b9ad82d4f7cc2d12f31612102181d5ac6f29531fc",
+              "durationSeconds": 3.96,
+              "transcripts": [
+                {
+                  "asrModel": "gemini-2.5-flash",
+                  "asrCacheHash": "ba744a9bd7bc6de8e882c72f76a5bcdad997de0db363ade11dd08d1e364effe9",
+                  "transcript": "Questions, see treasurer and at the bodega.",
+                  "cer": 0.091,
+                  "detail": "Failed unique contiguous exact-number/initialism anchor alignment: fact:TREASURER=\"Analyn\""
+                }
+              ]
+            },
+            {
+              "voice": "Sulafat",
+              "retake": true,
+              "wavRequestHash": "8c6ccdab58a8ced3fabd13ef9d802b49579ecd29f05f2e9e6cd992e5be94e121",
+              "audioSha256": "985f26a70ec6ce0c663a322760f16a4e53c973b16f58c167b4bc0f262a2b234a",
+              "durationSeconds": 3.92,
+              "transcripts": [
+                {
+                  "asrModel": "gemini-3.6-flash",
+                  "asrCacheHash": "fb521e96a92fe6202bcd15eee63897c2e0981970942098983a117895998e58eb",
+                  "transcript": "Questions? See Treasure Ann Lynn at the bodega.",
+                  "cer": 0.091,
+                  "detail": "Failed unique contiguous exact-number/initialism anchor alignment: fact:TREASURER=\"Analyn\""
+                }
+              ]
+            },
+            {
+              "voice": "Achird",
+              "retake": false,
+              "wavRequestHash": "18353a1e30c63dd34882f55144e4b2f9585ca5f771ba1122db67681b677c6b10",
+              "audioSha256": "e9687f0f0489300265c30d5612fd29d2498f688fbd3ea4417172afc0bde82ea1",
+              "durationSeconds": 4.16,
+              "transcripts": [
+                {
+                  "asrModel": "gemini-2.5-flash",
+                  "asrCacheHash": "355b41c242f61dfbe97a582995d4badba259c2e871e460310863c5ac2699f504",
+                  "transcript": "questions See treasurer Annlin at the Bodega",
+                  "cer": 0.045,
+                  "detail": "Invalid timestamp \"Bodega\" 3.775-4.315 s; previous end 3.695 s; AAC duration 4.16 s"
+                }
+              ]
+            },
+            {
+              "voice": "Achird",
+              "retake": true,
+              "wavRequestHash": "e49c167b8561f711ee0ea2606eb99eee676d813ac47742a879018eb92ecc35a5",
+              "audioSha256": "5001f81945262c6ec3d2a11d25d55a10deb61d4d2e09744f0b236969ca2a1ffd",
+              "durationSeconds": 4.2,
+              "transcripts": [
+                {
+                  "asrModel": "gemini-2.5-flash",
+                  "asrCacheHash": "4fb383f0ed5cfd97e33ad52d9504e1b2ce459ffa148a0d63584536167c8f19ff",
+                  "transcript": "Questions C Treasurer Annalyn at the bodega",
+                  "cer": 0.068,
+                  "detail": "Invalid timestamp \"bodega\" 4.14-4.62 s; previous end 3.85 s; AAC duration 4.2 s"
+                }
+              ]
+            }
+          ],
+          "serviceRecoveryAt": null,
+          "nextAction": "Fresh attempts refused; do not restart this take budget in another process. Study the retained transcript after quota eligibility."
         },
         {
           "slot": "AI_NOTE",
           "variant": "seeded",
           "textSha256": "f6fe08315997e6a3e225863ef791849810accbdc55966ce772658e6b03120931",
-          "status": "not_verified",
-          "reason": "StatementVerificationError: statement verification refused BONUS:1ab5768d7f45, HELP:d93b3ff231e1, AI_NOTE:f6fe08315997; missing sentences keep labelled device voice",
-          "nextEligibleAt": null
+          "status": "published"
         }
       ]
     },
@@ -707,8 +1688,102 @@
           "variant": "default",
           "textSha256": "8754aa02c388cb73ec5ddd9d95e890692675576991082af403160ce5c475fc15",
           "status": "not_verified",
-          "reason": "StatementVerificationError: statement verification refused GREETING:8754aa02c388, PAY:34f3c502c632; missing sentences keep labelled device voice",
-          "nextEligibleAt": null
+          "reason": "Invalid timestamp \"paghago.\" 4.091-4.671 s; previous end 3.901 s; AAC duration 4.64 s",
+          "lastRefusal": {
+            "kind": "quality",
+            "detail": "Invalid timestamp \"paghago.\" 4.091-4.671 s; previous end 3.901 s; AAC duration 4.64 s",
+            "at": "2026-11-10T19:03:55.899Z",
+            "cer": 0.019,
+            "transcript": "Maayong adlaw ngong Dioning. Salamat sa inyong paghago.",
+            "words": [
+              {
+                "text": "Maayong",
+                "start": 0,
+                "end": 0.501
+              },
+              {
+                "text": "adlaw",
+                "start": 0.571,
+                "end": 0.951
+              },
+              {
+                "text": "ngong",
+                "start": 1.051,
+                "end": 1.341
+              },
+              {
+                "text": "Dioning.",
+                "start": 1.451,
+                "end": 2.111
+              },
+              {
+                "text": "Salamat",
+                "start": 2.761,
+                "end": 3.281
+              },
+              {
+                "text": "sa",
+                "start": 3.311,
+                "end": 3.461
+              },
+              {
+                "text": "inyong",
+                "start": 3.631,
+                "end": 3.901
+              },
+              {
+                "text": "paghago.",
+                "start": 4.091,
+                "end": 4.671
+              }
+            ],
+            "durationSeconds": 4.64
+          },
+          "nextEligibleAt": "2026-11-11T08:00:00.000Z",
+          "eligibilityReason": "Usable gemini-2.5-flash accounts reached the self-imposed cap. Next quota reset shown; higher-model service recovery and a passing quality result have no known time.",
+          "refusalEvidence": [
+            {
+              "voice": "Sulafat",
+              "retake": false,
+              "wavRequestHash": "2be19eec4f5fbcac859108d749b310cae8f1d746df83143d8a9aaf0ca3aa3291",
+              "audioSha256": "000a3d245dcca66710bf8a91330b197c376a7e155fe05ddd9a63d7db7888b1f8",
+              "durationSeconds": 4.64,
+              "transcripts": [
+                {
+                  "asrModel": "gemini-2.5-flash",
+                  "asrCacheHash": "9b8836f1d51b1876d944b5e1b0ae46cfe8997e9e38e31eda4634359723741019",
+                  "transcript": "Maayong adlaw nung Dioning Salamat sa inyong paghago",
+                  "cer": 0.019,
+                  "detail": "Invalid timestamp \"paghago\" 4.164-4.674 s; previous end 4.094 s; AAC duration 4.64 s"
+                },
+                {
+                  "asrModel": "gemini-2.5-flash",
+                  "asrCacheHash": "9b8836f1d51b1876d944b5e1b0ae46cfe8997e9e38e31eda4634359723741019",
+                  "transcript": "Maayong adlaw ngong Dioning. Salamat sa inyong paghago.",
+                  "cer": 0.019,
+                  "detail": "Invalid timestamp \"paghago.\" 4.091-4.671 s; previous end 3.901 s; AAC duration 4.64 s"
+                }
+              ]
+            },
+            {
+              "voice": "Sulafat",
+              "retake": true,
+              "wavRequestHash": "18cfde298a38a2352a816d699ae91bd06c0034af3c123c04946ad597ef75ed04",
+              "audioSha256": "3cfef0d887b8f7c22fc509da56ba45e335d4c6a4de2dfed8c61b65647a4c2563",
+              "durationSeconds": 4.4,
+              "transcripts": [
+                {
+                  "asrModel": "gemini-3.6-flash",
+                  "asrCacheHash": "937a7b87a4fbd42e63869bbf8a0427f0702ef6af1cf51da99f2b6b612833cf7e",
+                  "transcript": "Maayong adlaw Nong Duning Salamat sa inyong paghago",
+                  "cer": 0.038,
+                  "detail": "Failed unique contiguous exact-number/initialism anchor alignment: fact:HONORIFIC_NAME=\"Nong Dioning\""
+                }
+              ]
+            }
+          ],
+          "serviceRecoveryAt": null,
+          "nextAction": "Independent timestamps still refused; study the retained transcript before any fresh sentence request."
         },
         {
           "slot": "DELIVERY",
@@ -739,8 +1814,70 @@
           "variant": "paypal",
           "textSha256": "34f3c502c632f09aef80ccd397dc46561d36ef93895a52622a0d64ef42fbe189",
           "status": "not_verified",
-          "reason": "StatementVerificationError: statement verification refused GREETING:8754aa02c388, PAY:34f3c502c632; missing sentences keep labelled device voice",
-          "nextEligibleAt": null
+          "reason": "Failed unique contiguous exact-number/initialism anchor alignment: fact:FX_FEE=\"three porsiyento\"",
+          "lastRefusal": {
+            "kind": "quality",
+            "detail": "Failed unique contiguous exact-number/initialism anchor alignment: fact:FX_FEE=\"three porsiyento\"",
+            "at": "2026-11-10T19:04:36.321Z",
+            "cer": 0.028,
+            "transcript": "Ang inyong bayad karon season sixty-two dollars and seventy-one cents sa inyong PayPal sa peso mga three thousand nine hundred nineteen pesos gibana-bana sa dili pa ang three percent nga bayad sa PayPal sa pag-ilis",
+            "audioSha256": "50867910fe3fd3087f8735d243a8877a7d726582343a0dbca70ab3182c64e293",
+            "asrModel": "gemini-2.5-flash"
+          },
+          "nextEligibleAt": "2026-11-11T08:00:00.000Z",
+          "eligibilityReason": "Usable gemini-2.5-flash accounts reached the self-imposed cap. Next quota reset shown; higher-model service recovery and a passing quality result have no known time.",
+          "refusalEvidence": [
+            {
+              "voice": "Sulafat",
+              "retake": false,
+              "wavRequestHash": "d36468cd6c93c9b61438886462269148586cc67a423a5b9c9b0191c88bc4cc61",
+              "audioSha256": "9e764a7bfd41ffbf5cd5886a3c54b9b25b5b6201ab1488a156a6b43fdcd2a264",
+              "durationSeconds": 19.12,
+              "transcripts": [
+                {
+                  "asrModel": "gemini-3.6-flash",
+                  "asrCacheHash": "1f2210d4d808579a25ef6a6f90d33c485999cee6395870df729fce015d138f43",
+                  "transcript": "Ang inyong bayad karong season, sixty-two dollars and seventy-one cents sa inyong PayPal. Sa peso mga three thousand nine hundred nineteen pesos, gibanabana. Sa dili pa ang tres porsyento nga bayad sa PayPal sa pag-ilis.",
+                  "cer": 0.014,
+                  "detail": "Failed unique contiguous exact-number/initialism anchor alignment: fact:FX_FEE=\"three porsiyento\""
+                }
+              ]
+            },
+            {
+              "voice": "Sulafat",
+              "retake": true,
+              "wavRequestHash": "de670ea9ee207ba9c4d49edf3f652042f1e8892a2955459ca8d3e26292eeee83",
+              "audioSha256": "1be6df96fc9506db4215a23e3a23a405a5726a4e79eb93188c3e55fd21ce85c6",
+              "durationSeconds": 18.04,
+              "transcripts": [
+                {
+                  "asrModel": "gemini-2.5-flash",
+                  "asrCacheHash": "2ed7f490dcfd60859be2c415527b7f5b9288204a7908d0ae411bbaac438ec019",
+                  "transcript": "Ang inyong bayad karong season sixty two dollars and seventy one cents sa inyong PayPal Sa peso mga three thousand nine hundred nineteen pesos Gibana-bana sa diili pa ang three percent nga bayad sa PayPal sa pag-ilis",
+                  "cer": 0.028,
+                  "detail": "Invalid timestamp \"pag-ilis\" 17.517-18.067 s; previous end 17.437 s; AAC duration 18.04 s"
+                }
+              ]
+            },
+            {
+              "voice": "Achird",
+              "retake": false,
+              "wavRequestHash": "eaf21f0b99fb23eae86ff92d59b113a8ad35d6d4aac2c6aa5e27c7f7d3a5476c",
+              "audioSha256": "50867910fe3fd3087f8735d243a8877a7d726582343a0dbca70ab3182c64e293",
+              "durationSeconds": 17.84,
+              "transcripts": [
+                {
+                  "asrModel": "gemini-2.5-flash",
+                  "asrCacheHash": "f99d8ba7979ac75dcbf7deea92190bc2c791429c84d472a16ef841819bee48e5",
+                  "transcript": "Ang inyong bayad karon season sixty-two dollars and seventy-one cents sa inyong PayPal sa peso mga three thousand nine hundred nineteen pesos gibana-bana sa dili pa ang three percent nga bayad sa PayPal sa pag-ilis",
+                  "cer": 0.028,
+                  "detail": "Failed unique contiguous exact-number/initialism anchor alignment: fact:FX_FEE=\"three porsiyento\""
+                }
+              ]
+            }
+          ],
+          "serviceRecoveryAt": null,
+          "nextAction": "Fresh attempts refused; do not restart this take budget in another process. Study the retained transcript after quota eligibility."
         },
         {
           "slot": "SOURCES",
@@ -770,8 +1907,112 @@
           "variant": "default",
           "textSha256": "d3e23788cc8ba8f3d5da84319a1371f921af3a6bf60f7672411f1c0149c4e8a5",
           "status": "not_verified",
-          "reason": "StatementVerificationError: statement verification refused GREETING:d3e23788cc8b, PREMIUM:99b13ab8c0f3, DEDUCTION:079a8d5b93b5, PAY:9567827aaede, AI_NOTE:7f5f53867948; missing sentences keep labelled device voice",
-          "nextEligibleAt": null
+          "reason": "Failed unique contiguous exact-number/initialism anchor alignment: fact:HONORIFIC_NAME=\"G. Sumampao\"",
+          "lastRefusal": {
+            "kind": "quality",
+            "detail": "Failed unique contiguous exact-number/initialism anchor alignment: fact:HONORIFIC_NAME=\"G. Sumampao\"",
+            "at": "2026-11-10T19:04:41.827Z",
+            "cer": 0.1,
+            "transcript": "Magandang araw po Ginoong Sumampao. Salamat po sa inyong pagsisikap.",
+            "words": [
+              {
+                "text": "Magandang",
+                "start": 0.021,
+                "end": 0.501
+              },
+              {
+                "text": "araw",
+                "start": 0.531,
+                "end": 0.831
+              },
+              {
+                "text": "po",
+                "start": 0.851,
+                "end": 1.051
+              },
+              {
+                "text": "Ginoong",
+                "start": 1.201,
+                "end": 1.631
+              },
+              {
+                "text": "Sumampao.",
+                "start": 1.651,
+                "end": 2.361
+              },
+              {
+                "text": "Salamat",
+                "start": 3.041,
+                "end": 3.551
+              },
+              {
+                "text": "po",
+                "start": 3.581,
+                "end": 3.741
+              },
+              {
+                "text": "sa",
+                "start": 3.781,
+                "end": 3.871
+              },
+              {
+                "text": "inyong",
+                "start": 3.911,
+                "end": 4.221
+              },
+              {
+                "text": "pagsisikap.",
+                "start": 4.271,
+                "end": 5.061
+              }
+            ],
+            "durationSeconds": 5.4
+          },
+          "nextEligibleAt": "2026-11-11T08:00:00.000Z",
+          "eligibilityReason": "Usable gemini-2.5-flash accounts reached the self-imposed cap. Next quota reset shown; higher-model service recovery and a passing quality result have no known time.",
+          "refusalEvidence": [
+            {
+              "voice": "Sulafat",
+              "retake": false,
+              "wavRequestHash": "2674bc2d47f585bff6a930abd5fc0cb25bbaba66b121baf8b71dd26e0b973739",
+              "audioSha256": "b9763148cd3053a496d80b496a1b7c7c3d986ea9578d950cd804c254a30aad6c",
+              "durationSeconds": 5.4,
+              "transcripts": [
+                {
+                  "asrModel": "gemini-2.5-flash",
+                  "asrCacheHash": "eb2f6c34f38971c567d25de4ab5da71f5fc3073d18d5974eda94bf5ab2a159bd",
+                  "transcript": "Magandang araw po Ginoong Sumampaw Salamat po sa inyong pagsisikap",
+                  "cer": 0.117,
+                  "detail": "Invalid timestamp \"pagsisikap\" 5.094-5.764 s; previous end 4.934 s; AAC duration 5.4 s"
+                },
+                {
+                  "asrModel": "gemini-2.5-flash",
+                  "asrCacheHash": "eb2f6c34f38971c567d25de4ab5da71f5fc3073d18d5974eda94bf5ab2a159bd",
+                  "transcript": "Magandang araw po Ginoong Sumampao. Salamat po sa inyong pagsisikap.",
+                  "cer": 0.1,
+                  "detail": "Failed unique contiguous exact-number/initialism anchor alignment: fact:HONORIFIC_NAME=\"G. Sumampao\""
+                }
+              ]
+            },
+            {
+              "voice": "Sulafat",
+              "retake": true,
+              "wavRequestHash": "97ffcfe46099f813891981238037f3ea00ede1e55c5e2ee972ef75e9cb60b7be",
+              "audioSha256": "fa5fe68e63ff069a31fc13ab261487ff95849932c25b2731c149c228b8662f64",
+              "durationSeconds": 5.68,
+              "transcripts": [
+                {
+                  "asrModel": "gemini-2.5-flash",
+                  "asrCacheHash": "4236abdd7973ac6eed9a01b4c74aaee1af633d9c2cb9c4147ca2163227188618",
+                  "transcript": "Magandang araw po, Ginoong Sumampaw. Salamat po sa inyong pagsisikap.",
+                  "cer": 0.117,
+                  "detail": "Failed unique contiguous exact-number/initialism anchor alignment: fact:HONORIFIC_NAME=\"G. Sumampao\""
+                }
+              ]
+            }
+          ],
+          "serviceRecoveryAt": null,
+          "nextAction": "Independent timestamps still refused; study the retained transcript before any fresh sentence request."
         },
         {
           "slot": "DELIVERY",
@@ -783,9 +2024,7 @@
           "slot": "PREMIUM",
           "variant": "default",
           "textSha256": "99b13ab8c0f3e7c0ed20e4d5246ef5633144c7a03c1506b41f010db359e00fba",
-          "status": "not_verified",
-          "reason": "StatementVerificationError: statement verification refused GREETING:d3e23788cc8b, PREMIUM:99b13ab8c0f3, DEDUCTION:079a8d5b93b5, PAY:9567827aaede, AI_NOTE:7f5f53867948; missing sentences keep labelled device voice",
-          "nextEligibleAt": null
+          "status": "published"
         },
         {
           "slot": "BONUS",
@@ -797,17 +2036,93 @@
           "slot": "DEDUCTION",
           "variant": "default",
           "textSha256": "079a8d5b93b577d44a1ac84202ba41a85a7fecd51fc7173b10389767d6e12cd6",
-          "status": "not_verified",
-          "reason": "StatementVerificationError: statement verification refused GREETING:d3e23788cc8b, PREMIUM:99b13ab8c0f3, DEDUCTION:079a8d5b93b5, PAY:9567827aaede, AI_NOTE:7f5f53867948; missing sentences keep labelled device voice",
-          "nextEligibleAt": null
+          "status": "published"
         },
         {
           "slot": "PAY",
           "variant": "paypal",
           "textSha256": "9567827aaede3e44d1c6e2e56978fdc106507e19e710a1d18d7fdae49fc161d0",
           "status": "not_verified",
-          "reason": "StatementVerificationError: statement verification refused GREETING:d3e23788cc8b, PREMIUM:99b13ab8c0f3, DEDUCTION:079a8d5b93b5, PAY:9567827aaede, AI_NOTE:7f5f53867948; missing sentences keep labelled device voice",
-          "nextEligibleAt": null
+          "reason": "Invalid timestamp \"pagpapalit\" 18.174-18.774 s; previous end 18.064 s; AAC duration 18.6 s",
+          "lastRefusal": {
+            "kind": "quality",
+            "detail": "Invalid timestamp \"pagpapalit\" 18.174-18.774 s; previous end 18.064 s; AAC duration 18.6 s",
+            "at": "2026-11-10T19:05:27.183Z",
+            "cer": 0.035,
+            "transcript": "Ang inyong bayad ngayong season Fifty five dollars and ninety six cents sa inyong PayPal Sa piso humigit kumulang three thousand four hundred ninety seven pesos tantya bago ang three percent na singil ng PayPal sa pagpapalit",
+            "audioSha256": "04d2873be5a0c352386f84fd7fcc8c1e0359d82f557ab49d37d302b92709781d",
+            "asrModel": "gemini-2.5-flash"
+          },
+          "nextEligibleAt": "2026-11-11T08:00:00.000Z",
+          "eligibilityReason": "Usable gemini-2.5-flash accounts reached the self-imposed cap. Next quota reset shown; higher-model service recovery and a passing quality result have no known time.",
+          "refusalEvidence": [
+            {
+              "voice": "Sulafat",
+              "retake": false,
+              "wavRequestHash": "983081b60cf6b317a6cc1f236848f7bb8f78519540caf9ceceb19e448adf893f",
+              "audioSha256": "bb6cf7396f0b64efab640532f54c387a63c5cb54b8025cc176750ece8273fbfb",
+              "durationSeconds": 18.24,
+              "transcripts": [
+                {
+                  "asrModel": "gemini-2.5-flash",
+                  "asrCacheHash": "b26b247035ac578df65a5514e7ea1125dcae034db9bcaa6014fca3ab4dcabbb8",
+                  "transcript": "Ang inyong bayad ngayong season, fifty-five dollars and ninety-six cents sa inyong PayPal. Sa piso, humigit-kumulang three thousand four hundred ninety-seven piso. Tansya siya bago ang three porsyento na singil ng PayPal sa pagpapalit.",
+                  "cer": 0.026,
+                  "detail": "Failed unique contiguous exact-number/initialism anchor alignment: fact:NET_PHP=\"humigit-kumulang three thousand four hundred ninety-seven piso, tantiya\""
+                }
+              ]
+            },
+            {
+              "voice": "Sulafat",
+              "retake": true,
+              "wavRequestHash": "12f214fd664509d3cf76fa92689effea4c8d8277c0d0a5a754e67108b58d0736",
+              "audioSha256": "e1972520e7049ead8db684097c0262a1f6db0c933e344dc878f7b53455660d4e",
+              "durationSeconds": 19.48,
+              "transcripts": [
+                {
+                  "asrModel": "gemini-2.5-flash",
+                  "asrCacheHash": "f4e612abceea605d705a18de8fd699d325d5e339158c89bdac7974dd8c288c6d",
+                  "transcript": "Ang inyong bayad ngayong season fifty-five dollars and ninety-six cents sa inyong PayPal sa piso humigit-kumulang three thousand four hundred ninety-seven peso Tantya bago ang three porsyento na singil ng PayPal sa pagpapalit",
+                  "cer": 0.013,
+                  "detail": "Invalid timestamp \"pagpapalit\" 18.96-19.55 s; previous end 18.84 s; AAC duration 19.48 s"
+                }
+              ]
+            },
+            {
+              "voice": "Achird",
+              "retake": false,
+              "wavRequestHash": "ac5abcdad412d521fe4f3a6200402b7b77c99658c762000b60fca35176bf2403",
+              "audioSha256": "118248fab3913b1b5990f1d147c0b58c79a3d6e7e0678c443f10a5ed90c53d11",
+              "durationSeconds": 19.68,
+              "transcripts": [
+                {
+                  "asrModel": "gemini-2.5-flash",
+                  "asrCacheHash": "f307be03f89d9afa4d12da96a116ef4e032ba59ec2f92100026790ccf1abece1",
+                  "transcript": "Ang inyong bayad ngayong season 55 and 96 cents sa inyong PayPal Sa piso humigit kumulang 3,000 497 piso Tantya bago ang 3% na singil ng PayPal sa pagpapalit",
+                  "cer": 0.106,
+                  "detail": "Failed unique contiguous exact-number/initialism anchor alignment: fact:NET_USD=\"fifty-five dollars and ninety-six cents\"; fact:NET_PHP=\"humigit-kumulang three thousand four hundred ninety-seven piso, tantiya\"; fact:FX_FEE=\"three porsiyento\""
+                }
+              ]
+            },
+            {
+              "voice": "Achird",
+              "retake": true,
+              "wavRequestHash": "3ea5220f1bca08fff15083be63f9dd0bfa9adaf381d97b938da9a15ae04efe73",
+              "audioSha256": "04d2873be5a0c352386f84fd7fcc8c1e0359d82f557ab49d37d302b92709781d",
+              "durationSeconds": 18.6,
+              "transcripts": [
+                {
+                  "asrModel": "gemini-2.5-flash",
+                  "asrCacheHash": "39c54cbc572197d9c265a3d15824388cd7f21f8bbbc21723266b27b04710fbe2",
+                  "transcript": "Ang inyong bayad ngayong season Fifty five dollars and ninety six cents sa inyong PayPal Sa piso humigit kumulang three thousand four hundred ninety seven pesos tantya bago ang three percent na singil ng PayPal sa pagpapalit",
+                  "cer": 0.035,
+                  "detail": "Invalid timestamp \"pagpapalit\" 18.174-18.774 s; previous end 18.064 s; AAC duration 18.6 s"
+                }
+              ]
+            }
+          ],
+          "serviceRecoveryAt": null,
+          "nextAction": "Fresh attempts refused; do not restart this take budget in another process. Study the retained transcript after quota eligibility."
         },
         {
           "slot": "SOURCES",
@@ -825,9 +2140,7 @@
           "slot": "AI_NOTE",
           "variant": "seeded",
           "textSha256": "7f5f53867948e9993dc700959007dffc2160c87de32f44af3a9380ca9fe3e6d4",
-          "status": "not_verified",
-          "reason": "StatementVerificationError: statement verification refused GREETING:d3e23788cc8b, PREMIUM:99b13ab8c0f3, DEDUCTION:079a8d5b93b5, PAY:9567827aaede, AI_NOTE:7f5f53867948; missing sentences keep labelled device voice",
-          "nextEligibleAt": null
+          "status": "published"
         }
       ]
     },
@@ -844,33 +2157,149 @@
           "slot": "DELIVERY",
           "variant": "default",
           "textSha256": "8bcd03a5b50571071bb7819c2460d362d9e18d908665b1d8ef36d3057bd945a3",
-          "status": "not_verified",
-          "reason": "StatementVerificationError: statement verification refused DELIVERY:8bcd03a5b505, PREMIUM:59859c5b5420, BONUS:a8d577afcb59, DEDUCTION:ff4fa9e5ec2f, PAY:8dd779afb9f9, SOURCES:b8ef4820a500; missing sentences keep labelled device voice",
-          "nextEligibleAt": null
+          "status": "published"
         },
         {
           "slot": "PREMIUM",
           "variant": "default",
           "textSha256": "59859c5b5420cce607f417dc98590e6f342b64dd74701f16fbd5c99411dee563",
           "status": "not_verified",
-          "reason": "StatementVerificationError: statement verification refused DELIVERY:8bcd03a5b505, PREMIUM:59859c5b5420, BONUS:a8d577afcb59, DEDUCTION:ff4fa9e5ec2f, PAY:8dd779afb9f9, SOURCES:b8ef4820a500; missing sentences keep labelled device voice",
-          "nextEligibleAt": null
+          "reason": "Failed unique contiguous exact-number/initialism anchor alignment: fact:PAYER=\"Lantern Bay Chocolate Co.\"",
+          "lastRefusal": {
+            "kind": "quality",
+            "detail": "Failed unique contiguous exact-number/initialism anchor alignment: fact:PAYER=\"Lantern Bay Chocolate Co.\"",
+            "at": "2026-11-10T19:06:06.647Z",
+            "cer": 0.105,
+            "transcript": "Premium Geekins Lantern Bay Chocolate company thirty-five dollars and fifty-five cents Walay Kaltas",
+            "audioSha256": "a9b6adc1bc51fc90ebd63c2de1421f541e4d97ee67b08f44a1aee0a4696d66af",
+            "asrModel": "gemini-2.5-flash"
+          },
+          "nextEligibleAt": "2026-11-11T08:00:00.000Z",
+          "eligibilityReason": "Usable gemini-2.5-flash accounts reached the self-imposed cap. Next quota reset shown; higher-model service recovery and a passing quality result have no known time.",
+          "refusalEvidence": [
+            {
+              "voice": "Sulafat",
+              "retake": false,
+              "wavRequestHash": "e4725c7926e0f947a80ebac02c8ed300f769635b8f74b5d15d005998f6f72f79",
+              "audioSha256": "b9d152fabb2efbb21b8adc3cba39dd67acf00d54c694b34da7ed31ef5b490566",
+              "durationSeconds": 8.24,
+              "transcripts": [
+                {
+                  "asrModel": "gemini-3.6-flash",
+                  "asrCacheHash": "3a2d5fe6e0bf7b71c9b19cc711fcd82301aa33a3df1f5eaaff301e194b5afed6",
+                  "transcript": "Premium gikan sa Lantern Bay Chocolate Company katulo'y lima ka pesos ug kalim-an ug lima ka sentavos wala ikaltas",
+                  "cer": 0.474,
+                  "detail": "CER 0.474 exceeds 0.12"
+                }
+              ]
+            },
+            {
+              "voice": "Sulafat",
+              "retake": true,
+              "wavRequestHash": "319ae74834a5be27b800e8d575a4f0a135ff3fc00e8330414137b5000b6e6e21",
+              "audioSha256": "60fb9b81951c4faab23a90395b48eb78ade1dcfda51e67f8f2d79b2c61c2ec25",
+              "durationSeconds": 8.28,
+              "transcripts": [
+                {
+                  "asrModel": "gemini-2.5-flash",
+                  "asrCacheHash": "1425fa7fe28167be436992bcba6045f215c6da2e04d6b7527b6e60782a0c8794",
+                  "transcript": "Brimium geegan salanturn bay chocolate co thirty-five dollars and fifty-five cents",
+                  "cer": 0.211,
+                  "detail": "CER 0.211 exceeds 0.12"
+                }
+              ]
+            },
+            {
+              "voice": "Achird",
+              "retake": false,
+              "wavRequestHash": "76151eb48ceb6f56ffa3bc6d987f988939513f1792081cbd6f4574df4d3915f8",
+              "audioSha256": "9810de18a955ed5143594d5d45054659511378b52376f961f59a120594aa6bfc",
+              "durationSeconds": 9.32,
+              "transcripts": [
+                {
+                  "asrModel": "gemini-2.5-flash",
+                  "asrCacheHash": "7040e687efe018885fd4e56ba95bdbf29897373e647d59d6475ab5de5f76625a",
+                  "transcript": "Premium Geek Lantern Bay Chocolate Company thirty-five dollars and fifty-five cents Walay Kaltas",
+                  "cer": 0.126,
+                  "detail": "CER 0.126 exceeds 0.12"
+                }
+              ]
+            },
+            {
+              "voice": "Achird",
+              "retake": true,
+              "wavRequestHash": "a14a2dd2e64e4e2fc4aa0fc12648731829fbbb589eaee511240f6d460fa44675",
+              "audioSha256": "a9b6adc1bc51fc90ebd63c2de1421f541e4d97ee67b08f44a1aee0a4696d66af",
+              "durationSeconds": 8.92,
+              "transcripts": [
+                {
+                  "asrModel": "gemini-2.5-flash",
+                  "asrCacheHash": "27f6905521594baf4d4de498ffb38d1c4956379a28429b4b28dea3c6bf165df4",
+                  "transcript": "Premium Geekins Lantern Bay Chocolate company thirty-five dollars and fifty-five cents Walay Kaltas",
+                  "cer": 0.105,
+                  "detail": "Failed unique contiguous exact-number/initialism anchor alignment: fact:PAYER=\"Lantern Bay Chocolate Co.\""
+                }
+              ]
+            }
+          ],
+          "serviceRecoveryAt": null,
+          "nextAction": "Fresh attempts refused; do not restart this take budget in another process. Study the retained transcript after quota eligibility."
         },
         {
           "slot": "BONUS",
           "variant": "default",
           "textSha256": "a8d577afcb594d5999bee44e82d944f8fc791ef001ff0a5ba7764b061eaf990f",
-          "status": "not_verified",
-          "reason": "StatementVerificationError: statement verification refused DELIVERY:8bcd03a5b505, PREMIUM:59859c5b5420, BONUS:a8d577afcb59, DEDUCTION:ff4fa9e5ec2f, PAY:8dd779afb9f9, SOURCES:b8ef4820a500; missing sentences keep labelled device voice",
-          "nextEligibleAt": null
+          "status": "published"
         },
         {
           "slot": "DEDUCTION",
           "variant": "default",
           "textSha256": "ff4fa9e5ec2fe2cfd9fc3fc55323d88ee3bc8bfe5ffc3f0454143ae971ccdece",
-          "status": "not_verified",
-          "reason": "StatementVerificationError: statement verification refused DELIVERY:8bcd03a5b505, PREMIUM:59859c5b5420, BONUS:a8d577afcb59, DEDUCTION:ff4fa9e5ec2f, PAY:8dd779afb9f9, SOURCES:b8ef4820a500; missing sentences keep labelled device voice",
-          "nextEligibleAt": null
+          "status": "waiting_on_quota",
+          "reason": "PoolExhaustedError: No Gemini key is ready for gemini-2.5-flash until 2026-11-11T08:00:00.000Z (2026-11-11 00:00 Pacific); 6 keys: 5 at the daily cap. Stopping rather than waiting more than 5 min; statements without a clip fall back to the labelled device voice.",
+          "lastRefusal": {
+            "kind": "quota",
+            "detail": "PoolExhaustedError: No Gemini key is ready for gemini-2.5-flash until 2026-11-11T08:00:00.000Z (2026-11-11 00:00 Pacific); 6 keys: 5 at the daily cap. Stopping rather than waiting more than 5 min; statements without a clip fall back to the labelled device voice.",
+            "at": "2026-11-10T19:06:15.170Z"
+          },
+          "nextEligibleAt": "2026-11-11T08:00:00.000Z",
+          "eligibilityReason": "Usable gemini-2.5-flash accounts reached the self-imposed cap. Next quota reset shown; higher-model service recovery and a passing quality result have no known time.",
+          "refusalEvidence": [
+            {
+              "voice": "Sulafat",
+              "retake": false,
+              "wavRequestHash": "722df4d84f9626563d68da9161cdcecd500deca2a9e1cc468654abfd5c54d67c",
+              "audioSha256": "fbba978ac47403d356be1a38fc71678aabd4a81aeb9530e7a5e21f31dfcfd07d",
+              "durationSeconds": 6.84,
+              "transcripts": [
+                {
+                  "asrModel": "gemini-3.6-flash",
+                  "asrCacheHash": "db4d64ad1b9e7334ad852df00f84179b3d1b98b4c2dd9823064908e926bc1a2d",
+                  "transcript": "gikaltasan ug otsentay nuybe sentabos para sa si bi yu ar wan resolusyon sa bord",
+                  "cer": 0.324,
+                  "detail": "CER 0.324 exceeds 0.12"
+                }
+              ]
+            },
+            {
+              "voice": "Sulafat",
+              "retake": true,
+              "wavRequestHash": "8edcdd78683261ac63a57377ec4b9c620d9f313731773a4a04463a93d665d6ea",
+              "audioSha256": "d5e33660cb77c4fba89b6bd625749148fb52c24290d0fa6a6e424cc8c49030ab",
+              "durationSeconds": 7.84,
+              "transcripts": [
+                {
+                  "asrModel": "gemini-2.5-flash",
+                  "asrCacheHash": "dfd3bfbbdb9a317b590e25aeae46526086a82e23e14013d4229e4fbf43637df4",
+                  "transcript": "Gikaltasan og eighty nine cents para sa CBU R one resolusyon sa board",
+                  "cer": 0,
+                  "detail": "Invalid timestamp \"board\" 7.55-8.01 s; previous end 7.37 s; AAC duration 7.84 s"
+                }
+              ]
+            }
+          ],
+          "serviceRecoveryAt": null,
+          "nextAction": "Resume this variant in original plan order after quota eligibility, carrying the cumulative take count across all passes."
         },
         {
           "slot": "CREDIT",
@@ -883,16 +2312,61 @@
           "variant": "paypal",
           "textSha256": "8dd779afb9f9305e912fd2b4b404383b0e0a6731a5bdd2b77823015abe5f7b42",
           "status": "not_verified",
-          "reason": "StatementVerificationError: statement verification refused DELIVERY:8bcd03a5b505, PREMIUM:59859c5b5420, BONUS:a8d577afcb59, DEDUCTION:ff4fa9e5ec2f, PAY:8dd779afb9f9, SOURCES:b8ef4820a500; missing sentences keep labelled device voice",
-          "nextEligibleAt": null
+          "reason": "Invalid timestamp \"pag-ilis.\" 18.912-19.462 s; previous end 18.822 s; AAC duration 19.28 s",
+          "lastRefusal": {
+            "kind": "quality",
+            "detail": "Invalid timestamp \"pag-ilis.\" 18.912-19.462 s; previous end 18.822 s; AAC duration 19.28 s",
+            "at": "2026-11-10T18:55:02.294Z",
+            "cer": 0.018,
+            "transcript": "Ang inyong bayad karong season, fifty-five dollars and sixty-three cents sa inyong PayPal. Sa peso, mga three thousand four hundred seventy-six pesos giba na ba na? Sa dili pa ang three porsyento nga bayad sa PayPal sa pag-ilis.",
+            "audioSha256": "a5b9ca16d1ec93e90dcf4f597d348348bf69cf206a814a42470f9c94b894416a",
+            "asrModel": "gemini-2.5-flash"
+          },
+          "nextEligibleAt": "2026-11-11T08:00:00.000Z",
+          "eligibilityReason": "Usable gemini-2.5-flash accounts reached the self-imposed cap. Next quota reset shown; higher-model service recovery and a passing quality result have no known time.",
+          "notRetriedReason": "PoolExhaustedError: No Gemini key is ready for gemini-2.5-flash until 2026-11-11T08:00:00.000Z (2026-11-11 00:00 Pacific); 6 keys: 5 at the daily cap. Stopping rather than waiting more than 5 min; statements without a clip fall back to the labelled device voice.",
+          "refusalEvidence": [
+            {
+              "voice": "Sulafat",
+              "retake": false,
+              "wavRequestHash": "c3035749ad6dd01f06a6cac1832846c696c90c6c3d81da91be22901315d60a94",
+              "audioSha256": "1a7b60b7011ddaa1166fd1bd5c3f076920881fffb3b092fdaa1501f6782e415d",
+              "durationSeconds": 18.6,
+              "transcripts": [
+                {
+                  "asrModel": "gemini-3.6-flash",
+                  "asrCacheHash": "919db04946d392646e0e3909f1423c333180cee5efe3300e7204ec48a09aa3c6",
+                  "transcript": "Ang inyong bayad karong season fifty five dollars and sixty three cents sa inyong PayPal Sa peso mga three thousand four hundred seventy six pesos kiba na ba na Sa dili pa ang three percent nga bayad sa PayPal sa pag-ilis",
+                  "cer": 0.041,
+                  "detail": "Failed unique contiguous exact-number/initialism anchor alignment: fact:NET_PHP=\"mga three thousand four hundred seventy-six pesos, gibanabana\"; fact:FX_FEE=\"three porsiyento\""
+                }
+              ]
+            },
+            {
+              "voice": "Sulafat",
+              "retake": true,
+              "wavRequestHash": "540f57df90122880377bacbf71f57e4b4aaa6adefb9e0b5683279095b8adb1fc",
+              "audioSha256": "a5b9ca16d1ec93e90dcf4f597d348348bf69cf206a814a42470f9c94b894416a",
+              "durationSeconds": 19.28,
+              "transcripts": [
+                {
+                  "asrModel": "gemini-2.5-flash",
+                  "asrCacheHash": "1b587a361f4f291d53a00468d1bda9c3acd639dd97df69460e70e5b20b8b169f",
+                  "transcript": "Ang inyong bayad karong season, fifty-five dollars and sixty-three cents sa inyong PayPal. Sa peso, mga three thousand four hundred seventy-six pesos giba na ba na? Sa dili pa ang three porsyento nga bayad sa PayPal sa pag-ilis.",
+                  "cer": 0.018,
+                  "detail": "Invalid timestamp \"pag-ilis.\" 18.912-19.462 s; previous end 18.822 s; AAC duration 19.28 s"
+                }
+              ]
+            }
+          ],
+          "serviceRecoveryAt": null,
+          "nextAction": "Resume this variant in original plan order after quota eligibility, carrying the cumulative take count across all passes."
         },
         {
           "slot": "SOURCES",
           "variant": "default",
           "textSha256": "b8ef4820a5002860612157b08fa8bb0f369a9c1bd103f35ff64ab03fbcb23ecc",
-          "status": "not_verified",
-          "reason": "StatementVerificationError: statement verification refused DELIVERY:8bcd03a5b505, PREMIUM:59859c5b5420, BONUS:a8d577afcb59, DEDUCTION:ff4fa9e5ec2f, PAY:8dd779afb9f9, SOURCES:b8ef4820a500; missing sentences keep labelled device voice",
-          "nextEligibleAt": null
+          "status": "published"
         },
         {
           "slot": "HELP",
@@ -915,9 +2389,7 @@
           "slot": "GREETING",
           "variant": "default",
           "textSha256": "53ea7e4fb6e58ff5f091a5666d640c03c3098151ddb109af053274a0530a931a",
-          "status": "waiting_on_service",
-          "reason": "GeminiCallError: fetch failed",
-          "nextEligibleAt": null
+          "status": "published"
         },
         {
           "slot": "DELIVERY",
@@ -941,41 +2413,114 @@
           "slot": "DEDUCTION",
           "variant": "default",
           "textSha256": "fc069027fbd4a0429a2ed3e12a348d690fe0035e99ea1133b27048f52a7e7d71",
-          "status": "waiting_on_service",
-          "reason": "GeminiCallError: fetch failed",
-          "nextEligibleAt": null
+          "status": "published"
         },
         {
           "slot": "PAY",
           "variant": "paypal",
           "textSha256": "cc823bfda9b4926d7605b30956d45898fbc6a00b3cbbb546184f5215bb3fd5f1",
-          "status": "waiting_on_service",
-          "reason": "GeminiCallError: fetch failed",
-          "nextEligibleAt": null
+          "status": "published"
         },
         {
           "slot": "SOURCES",
           "variant": "default",
           "textSha256": "d7c515180a4cb4d638e185299b0a41ff25248e401916bc0fcc7f8c1bc19cc590",
-          "status": "waiting_on_service",
-          "reason": "GeminiCallError: fetch failed",
-          "nextEligibleAt": null
+          "status": "published"
         },
         {
           "slot": "HELP",
           "variant": "default",
           "textSha256": "d93b3ff231e189f984938c8dad268b1fa90461c0a70bf47622d8153389bd2f62",
-          "status": "waiting_on_service",
-          "reason": "GeminiCallError: fetch failed",
-          "nextEligibleAt": null
+          "status": "not_verified",
+          "reason": "Invalid timestamp \"bodega\" 4.14-4.62 s; previous end 3.85 s; AAC duration 4.2 s",
+          "lastRefusal": {
+            "kind": "quality",
+            "detail": "Invalid timestamp \"bodega\" 4.14-4.62 s; previous end 3.85 s; AAC duration 4.2 s",
+            "at": "2026-11-10T19:03:51.912Z",
+            "cer": 0.068,
+            "transcript": "Questions C Treasurer Annalyn at the bodega",
+            "audioSha256": "5001f81945262c6ec3d2a11d25d55a10deb61d4d2e09744f0b236969ca2a1ffd",
+            "asrModel": "gemini-2.5-flash",
+            "sharedFrom": "M-014:en HELP.default",
+            "note": "Same text and retained AAC/transcript cache; later shared evidence is still refused, no additional network call."
+          },
+          "nextEligibleAt": "2026-11-11T08:00:00.000Z",
+          "eligibilityReason": "Usable gemini-2.5-flash accounts reached the self-imposed cap. Next quota reset shown; higher-model service recovery and a passing quality result have no known time.",
+          "notRetriedReason": "PoolExhaustedError: No Gemini key is ready for gemini-2.5-flash until 2026-11-11T08:00:00.000Z (2026-11-11 00:00 Pacific); 6 keys: 5 at the daily cap. Stopping rather than waiting more than 5 min; statements without a clip fall back to the labelled device voice.",
+          "refusalEvidence": [
+            {
+              "voice": "Sulafat",
+              "retake": false,
+              "wavRequestHash": "4b7b066f121e27904fa53cee977448fb6963b936b453eb959f60ef57b7619bdd",
+              "audioSha256": "6e1eb6044098412b7fe24d3b9ad82d4f7cc2d12f31612102181d5ac6f29531fc",
+              "durationSeconds": 3.96,
+              "transcripts": [
+                {
+                  "asrModel": "gemini-2.5-flash",
+                  "asrCacheHash": "ba744a9bd7bc6de8e882c72f76a5bcdad997de0db363ade11dd08d1e364effe9",
+                  "transcript": "Questions, see treasurer and at the bodega.",
+                  "cer": 0.091,
+                  "detail": "Failed unique contiguous exact-number/initialism anchor alignment: fact:TREASURER=\"Analyn\""
+                }
+              ]
+            },
+            {
+              "voice": "Sulafat",
+              "retake": true,
+              "wavRequestHash": "8c6ccdab58a8ced3fabd13ef9d802b49579ecd29f05f2e9e6cd992e5be94e121",
+              "audioSha256": "985f26a70ec6ce0c663a322760f16a4e53c973b16f58c167b4bc0f262a2b234a",
+              "durationSeconds": 3.92,
+              "transcripts": [
+                {
+                  "asrModel": "gemini-3.6-flash",
+                  "asrCacheHash": "fb521e96a92fe6202bcd15eee63897c2e0981970942098983a117895998e58eb",
+                  "transcript": "Questions? See Treasure Ann Lynn at the bodega.",
+                  "cer": 0.091,
+                  "detail": "Failed unique contiguous exact-number/initialism anchor alignment: fact:TREASURER=\"Analyn\""
+                }
+              ]
+            },
+            {
+              "voice": "Achird",
+              "retake": false,
+              "wavRequestHash": "18353a1e30c63dd34882f55144e4b2f9585ca5f771ba1122db67681b677c6b10",
+              "audioSha256": "e9687f0f0489300265c30d5612fd29d2498f688fbd3ea4417172afc0bde82ea1",
+              "durationSeconds": 4.16,
+              "transcripts": [
+                {
+                  "asrModel": "gemini-2.5-flash",
+                  "asrCacheHash": "355b41c242f61dfbe97a582995d4badba259c2e871e460310863c5ac2699f504",
+                  "transcript": "questions See treasurer Annlin at the Bodega",
+                  "cer": 0.045,
+                  "detail": "Invalid timestamp \"Bodega\" 3.775-4.315 s; previous end 3.695 s; AAC duration 4.16 s"
+                }
+              ]
+            },
+            {
+              "voice": "Achird",
+              "retake": true,
+              "wavRequestHash": "e49c167b8561f711ee0ea2606eb99eee676d813ac47742a879018eb92ecc35a5",
+              "audioSha256": "5001f81945262c6ec3d2a11d25d55a10deb61d4d2e09744f0b236969ca2a1ffd",
+              "durationSeconds": 4.2,
+              "transcripts": [
+                {
+                  "asrModel": "gemini-2.5-flash",
+                  "asrCacheHash": "4fb383f0ed5cfd97e33ad52d9504e1b2ce459ffa148a0d63584536167c8f19ff",
+                  "transcript": "Questions C Treasurer Annalyn at the bodega",
+                  "cer": 0.068,
+                  "detail": "Invalid timestamp \"bodega\" 4.14-4.62 s; previous end 3.85 s; AAC duration 4.2 s"
+                }
+              ]
+            }
+          ],
+          "serviceRecoveryAt": null,
+          "nextAction": "Resume this variant in original plan order after quota eligibility, carrying the cumulative take count across all passes."
         },
         {
           "slot": "AI_NOTE",
           "variant": "seeded",
           "textSha256": "f6fe08315997e6a3e225863ef791849810accbdc55966ce772658e6b03120931",
-          "status": "waiting_on_service",
-          "reason": "GeminiCallError: fetch failed",
-          "nextEligibleAt": null
+          "status": "published"
         }
       ]
     },
@@ -993,8 +2538,55 @@
           "variant": "default",
           "textSha256": "f31db268d51758f1afc1f6a515c80189629c903fb5941938fa4b8129c643a31d",
           "status": "not_verified",
-          "reason": "StatementVerificationError: statement verification refused DELIVERY:f31db268d517, DEDUCTION:d3eabddda28b, PAY:65623f26432c, SOURCES:97e6934a131f; missing sentences keep labelled device voice",
-          "nextEligibleAt": null
+          "reason": "Invalid timestamp \"one\" 8.512-8.792 s; previous end 8.282 s; AAC duration 8.56 s",
+          "lastRefusal": {
+            "kind": "quality",
+            "detail": "Invalid timestamp \"one\" 8.512-8.792 s; previous end 8.282 s; AAC duration 8.56 s",
+            "at": "2026-11-10T18:55:33.853Z",
+            "cer": 0.034,
+            "transcript": "Nagdala mo og ninety-six point five kilos nga uga nga kakaw eighty kilos niini grade one",
+            "audioSha256": "12b4afcfe1444f85711127b3ff4828c1f72c60ffdf2c13372e9c775b8627e8b2",
+            "asrModel": "gemini-2.5-flash"
+          },
+          "nextEligibleAt": "2026-11-11T08:00:00.000Z",
+          "eligibilityReason": "Usable gemini-2.5-flash accounts reached the self-imposed cap. Next quota reset shown; higher-model service recovery and a passing quality result have no known time.",
+          "notRetriedReason": "PoolExhaustedError: No Gemini key is ready for gemini-2.5-flash until 2026-11-11T08:00:00.000Z (2026-11-11 00:00 Pacific); 6 keys: 5 at the daily cap. Stopping rather than waiting more than 5 min; statements without a clip fall back to the labelled device voice.",
+          "refusalEvidence": [
+            {
+              "voice": "Sulafat",
+              "retake": false,
+              "wavRequestHash": "dc5b7d002946da64304e94744bb96e6bc1fab9c82f4dd04b355d8b01a809f005",
+              "audioSha256": "b15fa0c5244e5d3fcc3014daca2578bacd1b06493a4092c28dea7739139a937d",
+              "durationSeconds": 7.2,
+              "transcripts": [
+                {
+                  "asrModel": "gemini-3.6-flash",
+                  "asrCacheHash": "027a3ad60e2a5f067b5d05e916b55fb25fb147536c196e8d73293d1a414061ac",
+                  "transcript": "Nagdala mog nobentay sais punto singko kilos nga uga na cacao otsenta kilos niini grade one",
+                  "cer": 0.261,
+                  "detail": "CER 0.261 exceeds 0.12"
+                }
+              ]
+            },
+            {
+              "voice": "Sulafat",
+              "retake": true,
+              "wavRequestHash": "46ed04b884453a59d8014015a89a24a2dc87b58bd021380d799d3d171d31179c",
+              "audioSha256": "12b4afcfe1444f85711127b3ff4828c1f72c60ffdf2c13372e9c775b8627e8b2",
+              "durationSeconds": 8.56,
+              "transcripts": [
+                {
+                  "asrModel": "gemini-2.5-flash",
+                  "asrCacheHash": "d31f63f13c466ca177c71544e77f9c6a658db8ac6edb322641c195a893f3c844",
+                  "transcript": "Nagdala mo og ninety-six point five kilos nga uga nga kakaw eighty kilos niini grade one",
+                  "cer": 0.034,
+                  "detail": "Invalid timestamp \"one\" 8.512-8.792 s; previous end 8.282 s; AAC duration 8.56 s"
+                }
+              ]
+            }
+          ],
+          "serviceRecoveryAt": null,
+          "nextAction": "Resume this variant in original plan order after quota eligibility, carrying the cumulative take count across all passes."
         },
         {
           "slot": "PREMIUM",
@@ -1012,25 +2604,19 @@
           "slot": "DEDUCTION",
           "variant": "default",
           "textSha256": "d3eabddda28bccd1a975995c8b8fba616149e4b59c17619ed7269d0396037067",
-          "status": "not_verified",
-          "reason": "StatementVerificationError: statement verification refused DELIVERY:f31db268d517, DEDUCTION:d3eabddda28b, PAY:65623f26432c, SOURCES:97e6934a131f; missing sentences keep labelled device voice",
-          "nextEligibleAt": null
+          "status": "published"
         },
         {
           "slot": "PAY",
           "variant": "paypal",
           "textSha256": "65623f26432ccc681d739920444b0aca4de2b1325da85306dac06ab937ba5035",
-          "status": "not_verified",
-          "reason": "StatementVerificationError: statement verification refused DELIVERY:f31db268d517, DEDUCTION:d3eabddda28b, PAY:65623f26432c, SOURCES:97e6934a131f; missing sentences keep labelled device voice",
-          "nextEligibleAt": null
+          "status": "published"
         },
         {
           "slot": "SOURCES",
           "variant": "default",
           "textSha256": "97e6934a131f7cd0ff5dd903ea921c1eb89d2256f233770b2c0ae1ed531cb553",
-          "status": "not_verified",
-          "reason": "StatementVerificationError: statement verification refused DELIVERY:f31db268d517, DEDUCTION:d3eabddda28b, PAY:65623f26432c, SOURCES:97e6934a131f; missing sentences keep labelled device voice",
-          "nextEligibleAt": null
+          "status": "published"
         },
         {
           "slot": "HELP",
@@ -1054,16 +2640,110 @@
           "variant": "default",
           "textSha256": "1e08b3d0a7cd3c092bb9436c4595fe85472de93b8edb6c7830e768d72926e40d",
           "status": "not_verified",
-          "reason": "StatementVerificationError: statement verification refused GREETING:1e08b3d0a7cd, DELIVERY:5149103b0a1f, DEDUCTION:b6e3018261b3; missing sentences keep labelled device voice",
-          "nextEligibleAt": null
+          "reason": "Failed unique contiguous exact-number/initialism anchor alignment: fact:HONORIFIC_NAME=\"Nang Ciay\"",
+          "lastRefusal": {
+            "kind": "quality",
+            "detail": "Failed unique contiguous exact-number/initialism anchor alignment: fact:HONORIFIC_NAME=\"Nang Ciay\"",
+            "at": "2026-11-10T18:56:45.284Z",
+            "cer": 0.041,
+            "transcript": "Maayong adlaw nang Chai. Salamat sa inyong paghago.",
+            "audioSha256": "b4b65a32fff0719386cc115c30ecbad43f3298dd283ed37587e5b22644fac0bc",
+            "asrModel": "gemini-2.5-flash"
+          },
+          "nextEligibleAt": "2026-11-11T08:00:00.000Z",
+          "eligibilityReason": "Usable gemini-2.5-flash accounts reached the self-imposed cap. Next quota reset shown; higher-model service recovery and a passing quality result have no known time.",
+          "notRetriedReason": "PoolExhaustedError: No Gemini key is ready for gemini-2.5-flash until 2026-11-11T08:00:00.000Z (2026-11-11 00:00 Pacific); 6 keys: 5 at the daily cap. Stopping rather than waiting more than 5 min; statements without a clip fall back to the labelled device voice.",
+          "refusalEvidence": [
+            {
+              "voice": "Sulafat",
+              "retake": false,
+              "wavRequestHash": "caec0342a7ed0dbf61595e5f260175dc1b88b36560a78272b5f7aa731191e12c",
+              "audioSha256": "cad43a3eb06ef9700f0c8bc136537a8a4921db14b4bea2547a7d4142f7d3c43f",
+              "durationSeconds": 4.56,
+              "transcripts": [
+                {
+                  "asrModel": "gemini-2.5-flash",
+                  "asrCacheHash": "472dd4d55ce6e7f0d7a0f5d79ce6a2d5e3846206b6d8fccb9b4f9984794a5e8f",
+                  "transcript": "Maayong adlaw ninyo Chiay. Salamat sa inyong paghago.",
+                  "cer": 0.082,
+                  "detail": "Failed unique contiguous exact-number/initialism anchor alignment: fact:HONORIFIC_NAME=\"Nang Ciay\""
+                }
+              ]
+            },
+            {
+              "voice": "Sulafat",
+              "retake": true,
+              "wavRequestHash": "0f27a30664e3bc3e68b0a624c8466e0986b35b53eaccdcdcecde2205bc2ffa97",
+              "audioSha256": "b4b65a32fff0719386cc115c30ecbad43f3298dd283ed37587e5b22644fac0bc",
+              "durationSeconds": 4.32,
+              "transcripts": [
+                {
+                  "asrModel": "gemini-2.5-flash",
+                  "asrCacheHash": "1d9423c0fa3183ec7b5a7da268ef9badbc7ca5d021d1049d5fadd2f23c3d56f8",
+                  "transcript": "Maayong adlaw nang Chai. Salamat sa inyong paghago.",
+                  "cer": 0.041,
+                  "detail": "Failed unique contiguous exact-number/initialism anchor alignment: fact:HONORIFIC_NAME=\"Nang Ciay\""
+                }
+              ]
+            }
+          ],
+          "serviceRecoveryAt": null,
+          "nextAction": "Resume this variant in original plan order after quota eligibility, carrying the cumulative take count across all passes."
         },
         {
           "slot": "DELIVERY",
           "variant": "default",
           "textSha256": "5149103b0a1f5f4f83cc56d8e7dec9041ed58d79bf7dc4519029adf5ab0147ab",
           "status": "not_verified",
-          "reason": "StatementVerificationError: statement verification refused GREETING:1e08b3d0a7cd, DELIVERY:5149103b0a1f, DEDUCTION:b6e3018261b3; missing sentences keep labelled device voice",
-          "nextEligibleAt": null
+          "reason": "Failed unique contiguous exact-number/initialism anchor alignment: fact:GRADE_SUMMARY=\"sixty kilos niini Grade one\"",
+          "lastRefusal": {
+            "kind": "quality",
+            "detail": "Failed unique contiguous exact-number/initialism anchor alignment: fact:GRADE_SUMMARY=\"sixty kilos niini Grade one\"",
+            "at": "2026-11-10T18:56:59.267Z",
+            "cer": 0.038,
+            "transcript": "Nagdala muog seventy four kilos nga uga nga cacao Sixty kilos ni ini grade one",
+            "audioSha256": "dcce658149452225fdcfaf292a6c383792b72c0301b3189b31045c055da31035",
+            "asrModel": "gemini-2.5-flash"
+          },
+          "nextEligibleAt": "2026-11-11T08:00:00.000Z",
+          "eligibilityReason": "Usable gemini-2.5-flash accounts reached the self-imposed cap. Next quota reset shown; higher-model service recovery and a passing quality result have no known time.",
+          "notRetriedReason": "PoolExhaustedError: No Gemini key is ready for gemini-2.5-flash until 2026-11-11T08:00:00.000Z (2026-11-11 00:00 Pacific); 6 keys: 5 at the daily cap. Stopping rather than waiting more than 5 min; statements without a clip fall back to the labelled device voice.",
+          "refusalEvidence": [
+            {
+              "voice": "Sulafat",
+              "retake": false,
+              "wavRequestHash": "3eb479687d6397317b16720f15fb0c1ddc799013ae6b58984c3786acf9c77cc4",
+              "audioSha256": "c4b34c8710998aada3d6ca01c426c1d98a74658048312ab6f743b323c0543736",
+              "durationSeconds": 7.76,
+              "transcripts": [
+                {
+                  "asrModel": "gemini-3.6-flash",
+                  "asrCacheHash": "4e6c34337fdd338cb5bc035d5c85c4a416b6cd1c7ff52f261e259869b4506456",
+                  "transcript": "Nagdala mo'g seventy four kilos nga uga nga kakaw sixty kilos ni Ine grade one",
+                  "cer": 0.077,
+                  "detail": "Failed unique contiguous exact-number/initialism anchor alignment: fact:GRADE_SUMMARY=\"sixty kilos niini Grade one\""
+                }
+              ]
+            },
+            {
+              "voice": "Sulafat",
+              "retake": true,
+              "wavRequestHash": "e14fb451d04041d3fb2e1d004f478697a075ef10c1fd49909560229a7de1a307",
+              "audioSha256": "dcce658149452225fdcfaf292a6c383792b72c0301b3189b31045c055da31035",
+              "durationSeconds": 8.24,
+              "transcripts": [
+                {
+                  "asrModel": "gemini-2.5-flash",
+                  "asrCacheHash": "24d1c8ce42957e17b4cb483a0773e67ea46986faac960b279e273159d9bcdf2c",
+                  "transcript": "Nagdala muog seventy four kilos nga uga nga cacao Sixty kilos ni ini grade one",
+                  "cer": 0.038,
+                  "detail": "Failed unique contiguous exact-number/initialism anchor alignment: fact:GRADE_SUMMARY=\"sixty kilos niini Grade one\""
+                }
+              ]
+            }
+          ],
+          "serviceRecoveryAt": null,
+          "nextAction": "Resume this variant in original plan order after quota eligibility, carrying the cumulative take count across all passes."
         },
         {
           "slot": "PREMIUM",
@@ -1081,9 +2761,7 @@
           "slot": "DEDUCTION",
           "variant": "default",
           "textSha256": "b6e3018261b374bf395c24be5f702d92cf2d84e18ccb76828e3da6fea4fa26ff",
-          "status": "not_verified",
-          "reason": "StatementVerificationError: statement verification refused GREETING:1e08b3d0a7cd, DELIVERY:5149103b0a1f, DEDUCTION:b6e3018261b3; missing sentences keep labelled device voice",
-          "nextEligibleAt": null
+          "status": "published"
         },
         {
           "slot": "PAY",
@@ -1119,8 +2797,55 @@
           "variant": "default",
           "textSha256": "5001953557bdbe230894f918a0cca79b09b611e3ed6c7ae4c43bd1c8f7c0aed2",
           "status": "not_verified",
-          "reason": "StatementVerificationError: statement verification refused GREETING:5001953557bd, DEDUCTION:0b624a25a176, PAY:95b870d17372, HELP:d93b3ff231e1, AI_NOTE:f6fe08315997; missing sentences keep labelled device voice",
-          "nextEligibleAt": null
+          "reason": "Invalid timestamp \"hard\" 4.19-4.47 s; previous end 3.97 s; AAC duration 4.28 s; Invalid timestamp \"work.\" 4.57-4.88 s; previous end 4.47 s; AAC duration 4.28 s",
+          "lastRefusal": {
+            "kind": "quality",
+            "detail": "Invalid timestamp \"hard\" 4.19-4.47 s; previous end 3.97 s; AAC duration 4.28 s; Invalid timestamp \"work.\" 4.57-4.88 s; previous end 4.47 s; AAC duration 4.28 s",
+            "at": "2026-11-10T18:57:20.373Z",
+            "cer": 0.061,
+            "transcript": "Good day, Mrs. Juwon. Thank you for your hard work.",
+            "audioSha256": "8d2311a261c334f969f937f2980073f22f8d538e8dd3b86f18aa831bf42f8484",
+            "asrModel": "gemini-2.5-flash"
+          },
+          "nextEligibleAt": "2026-11-11T08:00:00.000Z",
+          "eligibilityReason": "Usable gemini-2.5-flash accounts reached the self-imposed cap. Next quota reset shown; higher-model service recovery and a passing quality result have no known time.",
+          "notRetriedReason": "PoolExhaustedError: No Gemini key is ready for gemini-2.5-flash until 2026-11-11T08:00:00.000Z (2026-11-11 00:00 Pacific); 6 keys: 5 at the daily cap. Stopping rather than waiting more than 5 min; statements without a clip fall back to the labelled device voice.",
+          "refusalEvidence": [
+            {
+              "voice": "Sulafat",
+              "retake": false,
+              "wavRequestHash": "a8a0363c8e12d1a69dc3790881158d99dba92c08f5e0386cf755c5f1bc1ff6b9",
+              "audioSha256": "dabcee2779a544f2826dce4c5cc64f9b47ba97d87f2255f90e9d83cf417fa7d6",
+              "durationSeconds": 4.16,
+              "transcripts": [
+                {
+                  "asrModel": "gemini-3.6-flash",
+                  "asrCacheHash": "6d0f1cd753cabb0ec39e084314ecaa375cd272605b38e512bb9f0fc49451b674",
+                  "transcript": "Good day Mrs. Jammawan. Thank you for your hard work.",
+                  "cer": 0.041,
+                  "detail": "Failed unique contiguous exact-number/initialism anchor alignment: fact:HONORIFIC_NAME=\"Mrs. Jumawan\""
+                }
+              ]
+            },
+            {
+              "voice": "Sulafat",
+              "retake": true,
+              "wavRequestHash": "e0add626e757e068bf2074b4adca1200d55a0d8f996deca998c1a8dfee8493d7",
+              "audioSha256": "8d2311a261c334f969f937f2980073f22f8d538e8dd3b86f18aa831bf42f8484",
+              "durationSeconds": 4.28,
+              "transcripts": [
+                {
+                  "asrModel": "gemini-2.5-flash",
+                  "asrCacheHash": "9d5e318f55873b417ef81b64414d6d14b5b358032c4d0176313898b4d1433563",
+                  "transcript": "Good day, Mrs. Juwon. Thank you for your hard work.",
+                  "cer": 0.061,
+                  "detail": "Invalid timestamp \"hard\" 4.19-4.47 s; previous end 3.97 s; AAC duration 4.28 s; Invalid timestamp \"work.\" 4.57-4.88 s; previous end 4.47 s; AAC duration 4.28 s"
+                }
+              ]
+            }
+          ],
+          "serviceRecoveryAt": null,
+          "nextAction": "Resume this variant in original plan order after quota eligibility, carrying the cumulative take count across all passes."
         },
         {
           "slot": "DELIVERY",
@@ -1144,17 +2869,62 @@
           "slot": "DEDUCTION",
           "variant": "default",
           "textSha256": "0b624a25a17665c72784d9f0908cd258f2544aac55bc657dfabdee6ab1fed915",
-          "status": "not_verified",
-          "reason": "StatementVerificationError: statement verification refused GREETING:5001953557bd, DEDUCTION:0b624a25a176, PAY:95b870d17372, HELP:d93b3ff231e1, AI_NOTE:f6fe08315997; missing sentences keep labelled device voice",
-          "nextEligibleAt": null
+          "status": "published"
         },
         {
           "slot": "PAY",
           "variant": "paypal",
           "textSha256": "95b870d17372538218a832f630d8ffdb241a68a9459af39a32ae47f5dc1b25b7",
           "status": "not_verified",
-          "reason": "StatementVerificationError: statement verification refused GREETING:5001953557bd, DEDUCTION:0b624a25a176, PAY:95b870d17372, HELP:d93b3ff231e1, AI_NOTE:f6fe08315997; missing sentences keep labelled device voice",
-          "nextEligibleAt": null
+          "reason": "Invalid timestamp \"it\" 16.254-16.364 s; previous end 16.204 s; AAC duration 16.32 s",
+          "lastRefusal": {
+            "kind": "quality",
+            "detail": "Invalid timestamp \"it\" 16.254-16.364 s; previous end 16.204 s; AAC duration 16.32 s",
+            "at": "2026-11-10T18:57:53.363Z",
+            "cer": 0,
+            "transcript": "Your pay this season, twenty six dollars and sixty five cents to your PayPal In pesos, that is about one thousand six hundred sixty five pesos estimate before PayPal's three percent fee to change it",
+            "audioSha256": "47e3bd2a5a177318511b27805fe7295519ae88ef7e49661ca2bf43437cce655a",
+            "asrModel": "gemini-2.5-flash"
+          },
+          "nextEligibleAt": "2026-11-11T08:00:00.000Z",
+          "eligibilityReason": "Usable gemini-2.5-flash accounts reached the self-imposed cap. Next quota reset shown; higher-model service recovery and a passing quality result have no known time.",
+          "notRetriedReason": "PoolExhaustedError: No Gemini key is ready for gemini-2.5-flash until 2026-11-11T08:00:00.000Z (2026-11-11 00:00 Pacific); 6 keys: 5 at the daily cap. Stopping rather than waiting more than 5 min; statements without a clip fall back to the labelled device voice.",
+          "refusalEvidence": [
+            {
+              "voice": "Sulafat",
+              "retake": false,
+              "wavRequestHash": "2c6cb324c1608069a2a7e112b5154fadd28a425757c3451ebed71a11a8baebe4",
+              "audioSha256": "b93fe02f9cd54d2b2ae499b7b7a0cbc45e10c32b5208c8cc130f1b0de3289e8f",
+              "durationSeconds": 16.88,
+              "transcripts": [
+                {
+                  "asrModel": "gemini-2.5-flash",
+                  "asrCacheHash": "b357be3b4b2aa1e4a29c932fee8915744c84e019d37ab9d3b610508b77afc17c",
+                  "transcript": "Your pay this season twenty six dollars and sixty five cents to your PayPal In pesos that is about one thousand six hundred sixty five pesos estimate before PayPal's three percent fee to change it",
+                  "cer": 0,
+                  "detail": "Invalid timestamp \"change\" 16.63-16.96 s; previous end 16.48 s; AAC duration 16.88 s; Invalid timestamp \"it\" 17-17.16 s; previous end 16.96 s; AAC duration 16.88 s"
+                }
+              ]
+            },
+            {
+              "voice": "Sulafat",
+              "retake": true,
+              "wavRequestHash": "00f0431c97def37cb41dce99fc76b36c9aa5578c9938b6c9fa33f6fa5ab20c50",
+              "audioSha256": "47e3bd2a5a177318511b27805fe7295519ae88ef7e49661ca2bf43437cce655a",
+              "durationSeconds": 16.32,
+              "transcripts": [
+                {
+                  "asrModel": "gemini-2.5-flash",
+                  "asrCacheHash": "3923dfcc4a2c33548dc05083fcf99fa836c6e0c028fa11981b6a7ced22ae409d",
+                  "transcript": "Your pay this season, twenty six dollars and sixty five cents to your PayPal In pesos, that is about one thousand six hundred sixty five pesos estimate before PayPal's three percent fee to change it",
+                  "cer": 0,
+                  "detail": "Invalid timestamp \"it\" 16.254-16.364 s; previous end 16.204 s; AAC duration 16.32 s"
+                }
+              ]
+            }
+          ],
+          "serviceRecoveryAt": null,
+          "nextAction": "Resume this variant in original plan order after quota eligibility, carrying the cumulative take count across all passes."
         },
         {
           "slot": "PAY",
@@ -1173,16 +2943,95 @@
           "variant": "default",
           "textSha256": "d93b3ff231e189f984938c8dad268b1fa90461c0a70bf47622d8153389bd2f62",
           "status": "not_verified",
-          "reason": "StatementVerificationError: statement verification refused GREETING:5001953557bd, DEDUCTION:0b624a25a176, PAY:95b870d17372, HELP:d93b3ff231e1, AI_NOTE:f6fe08315997; missing sentences keep labelled device voice",
-          "nextEligibleAt": null
+          "reason": "Invalid timestamp \"bodega\" 4.14-4.62 s; previous end 3.85 s; AAC duration 4.2 s",
+          "lastRefusal": {
+            "kind": "quality",
+            "detail": "Invalid timestamp \"bodega\" 4.14-4.62 s; previous end 3.85 s; AAC duration 4.2 s",
+            "at": "2026-11-10T19:03:51.912Z",
+            "cer": 0.068,
+            "transcript": "Questions C Treasurer Annalyn at the bodega",
+            "audioSha256": "5001f81945262c6ec3d2a11d25d55a10deb61d4d2e09744f0b236969ca2a1ffd",
+            "asrModel": "gemini-2.5-flash",
+            "sharedFrom": "M-014:en HELP.default",
+            "note": "Same text and retained AAC/transcript cache; later shared evidence is still refused, no additional network call."
+          },
+          "nextEligibleAt": "2026-11-11T08:00:00.000Z",
+          "eligibilityReason": "Usable gemini-2.5-flash accounts reached the self-imposed cap. Next quota reset shown; higher-model service recovery and a passing quality result have no known time.",
+          "notRetriedReason": "PoolExhaustedError: No Gemini key is ready for gemini-2.5-flash until 2026-11-11T08:00:00.000Z (2026-11-11 00:00 Pacific); 6 keys: 5 at the daily cap. Stopping rather than waiting more than 5 min; statements without a clip fall back to the labelled device voice.",
+          "refusalEvidence": [
+            {
+              "voice": "Sulafat",
+              "retake": false,
+              "wavRequestHash": "4b7b066f121e27904fa53cee977448fb6963b936b453eb959f60ef57b7619bdd",
+              "audioSha256": "6e1eb6044098412b7fe24d3b9ad82d4f7cc2d12f31612102181d5ac6f29531fc",
+              "durationSeconds": 3.96,
+              "transcripts": [
+                {
+                  "asrModel": "gemini-2.5-flash",
+                  "asrCacheHash": "ba744a9bd7bc6de8e882c72f76a5bcdad997de0db363ade11dd08d1e364effe9",
+                  "transcript": "Questions, see treasurer and at the bodega.",
+                  "cer": 0.091,
+                  "detail": "Failed unique contiguous exact-number/initialism anchor alignment: fact:TREASURER=\"Analyn\""
+                }
+              ]
+            },
+            {
+              "voice": "Sulafat",
+              "retake": true,
+              "wavRequestHash": "8c6ccdab58a8ced3fabd13ef9d802b49579ecd29f05f2e9e6cd992e5be94e121",
+              "audioSha256": "985f26a70ec6ce0c663a322760f16a4e53c973b16f58c167b4bc0f262a2b234a",
+              "durationSeconds": 3.92,
+              "transcripts": [
+                {
+                  "asrModel": "gemini-3.6-flash",
+                  "asrCacheHash": "fb521e96a92fe6202bcd15eee63897c2e0981970942098983a117895998e58eb",
+                  "transcript": "Questions? See Treasure Ann Lynn at the bodega.",
+                  "cer": 0.091,
+                  "detail": "Failed unique contiguous exact-number/initialism anchor alignment: fact:TREASURER=\"Analyn\""
+                }
+              ]
+            },
+            {
+              "voice": "Achird",
+              "retake": false,
+              "wavRequestHash": "18353a1e30c63dd34882f55144e4b2f9585ca5f771ba1122db67681b677c6b10",
+              "audioSha256": "e9687f0f0489300265c30d5612fd29d2498f688fbd3ea4417172afc0bde82ea1",
+              "durationSeconds": 4.16,
+              "transcripts": [
+                {
+                  "asrModel": "gemini-2.5-flash",
+                  "asrCacheHash": "355b41c242f61dfbe97a582995d4badba259c2e871e460310863c5ac2699f504",
+                  "transcript": "questions See treasurer Annlin at the Bodega",
+                  "cer": 0.045,
+                  "detail": "Invalid timestamp \"Bodega\" 3.775-4.315 s; previous end 3.695 s; AAC duration 4.16 s"
+                }
+              ]
+            },
+            {
+              "voice": "Achird",
+              "retake": true,
+              "wavRequestHash": "e49c167b8561f711ee0ea2606eb99eee676d813ac47742a879018eb92ecc35a5",
+              "audioSha256": "5001f81945262c6ec3d2a11d25d55a10deb61d4d2e09744f0b236969ca2a1ffd",
+              "durationSeconds": 4.2,
+              "transcripts": [
+                {
+                  "asrModel": "gemini-2.5-flash",
+                  "asrCacheHash": "4fb383f0ed5cfd97e33ad52d9504e1b2ce459ffa148a0d63584536167c8f19ff",
+                  "transcript": "Questions C Treasurer Annalyn at the bodega",
+                  "cer": 0.068,
+                  "detail": "Invalid timestamp \"bodega\" 4.14-4.62 s; previous end 3.85 s; AAC duration 4.2 s"
+                }
+              ]
+            }
+          ],
+          "serviceRecoveryAt": null,
+          "nextAction": "Resume this variant in original plan order after quota eligibility, carrying the cumulative take count across all passes."
         },
         {
           "slot": "AI_NOTE",
           "variant": "seeded",
           "textSha256": "f6fe08315997e6a3e225863ef791849810accbdc55966ce772658e6b03120931",
-          "status": "not_verified",
-          "reason": "StatementVerificationError: statement verification refused GREETING:5001953557bd, DEDUCTION:0b624a25a176, PAY:95b870d17372, HELP:d93b3ff231e1, AI_NOTE:f6fe08315997; missing sentences keep labelled device voice",
-          "nextEligibleAt": null
+          "status": "published"
         }
       ]
     },
@@ -1193,9 +3042,7 @@
           "slot": "GREETING",
           "variant": "default",
           "textSha256": "06233f5976bdd6e624240252e293a4249a8efa8d2cd10a166f490965fec3124f",
-          "status": "waiting_on_service",
-          "reason": "AsrUnavailableError: ASR service unavailable after bounded backoff; stopped to preserve free quota. Cached takes retained. {\"error\":{\"code\":503,\"message\":\"This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.\",\"status\":\"UNAVAILABLE\"}}",
-          "nextEligibleAt": null
+          "status": "published"
         },
         {
           "slot": "DELIVERY",
@@ -1219,25 +3066,68 @@
           "slot": "DEDUCTION",
           "variant": "default",
           "textSha256": "5a12cd17b7afd62deeba04099f4989228f8b743ce55bc5dc636764219bd9c7a1",
-          "status": "waiting_on_service",
-          "reason": "AsrUnavailableError: ASR service unavailable after bounded backoff; stopped to preserve free quota. Cached takes retained. {\"error\":{\"code\":503,\"message\":\"This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.\",\"status\":\"UNAVAILABLE\"}}",
-          "nextEligibleAt": null
+          "status": "not_verified",
+          "reason": "CER 0.494 exceeds 0.12",
+          "lastRefusal": {
+            "kind": "quality",
+            "detail": "CER 0.494 exceeds 0.12",
+            "at": "2026-11-10T18:51:02.090Z",
+            "cer": 0.494,
+            "transcript": "Gikaltasan og dos dollars ug siyete sentimos para sa CBU",
+            "audioSha256": "710e547be206a6fde399ee052cf4f907a64a96c764c811e9d99cbb243ded4646",
+            "asrModel": "gemini-3.6-flash"
+          },
+          "nextEligibleAt": "2026-11-11T08:00:00.000Z",
+          "eligibilityReason": "Usable gemini-2.5-flash accounts reached the self-imposed cap. Next quota reset shown; higher-model service recovery and a passing quality result have no known time.",
+          "notRetriedReason": "PoolExhaustedError: No Gemini key is ready for gemini-2.5-flash until 2026-11-11T08:00:00.000Z (2026-11-11 00:00 Pacific); 6 keys: 5 at the daily cap. Stopping rather than waiting more than 5 min; statements without a clip fall back to the labelled device voice.",
+          "refusalEvidence": [
+            {
+              "voice": "Sulafat",
+              "retake": false,
+              "wavRequestHash": "f986200462542506904476854229ece5fb4846be568cf4b138c4f7d02adb0288",
+              "audioSha256": "f31abcf75b1838176493fa41bde21cd8e7a9e608163786684e05964900c596fe",
+              "durationSeconds": 7.48,
+              "transcripts": [
+                {
+                  "asrModel": "gemini-3.6-flash",
+                  "asrCacheHash": "3e1d743f7b5ee0f8f5eb59b9033c138d03511ce74fdaf86550ae94aba321a503",
+                  "transcript": "Yikaltasan ug two dollars and seven cents para sa CBO R one Resolusyon sa Board",
+                  "cer": 0.062,
+                  "detail": "Failed unique contiguous exact-number/initialism anchor alignment: fact:RULE_LABEL=\"CBU\""
+                }
+              ]
+            },
+            {
+              "voice": "Sulafat",
+              "retake": true,
+              "wavRequestHash": "2b53afdb06943ecbf6343fd5d9a2dc7afee65a8b98e2b7290751e02173f17345",
+              "audioSha256": "710e547be206a6fde399ee052cf4f907a64a96c764c811e9d99cbb243ded4646",
+              "durationSeconds": 7.92,
+              "transcripts": [
+                {
+                  "asrModel": "gemini-3.6-flash",
+                  "asrCacheHash": "a6d9b3a8b8af4f42461ba7973dcb1fd3191a4e04900a57964e42be7430773cb5",
+                  "transcript": "Gikaltasan og dos dollars ug siyete sentimos para sa CBU",
+                  "cer": 0.494,
+                  "detail": "CER 0.494 exceeds 0.12"
+                }
+              ]
+            }
+          ],
+          "serviceRecoveryAt": null,
+          "nextAction": "Resume this variant in original plan order after quota eligibility, carrying the cumulative take count across all passes."
         },
         {
           "slot": "PAY",
           "variant": "cash_nodate",
           "textSha256": "b622aad6a9402b5d70b71cff2f5d8f7d81d1e90c29a2b4a9ac6a5385a6c15947",
-          "status": "waiting_on_service",
-          "reason": "AsrUnavailableError: ASR service unavailable after bounded backoff; stopped to preserve free quota. Cached takes retained. {\"error\":{\"code\":503,\"message\":\"This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.\",\"status\":\"UNAVAILABLE\"}}",
-          "nextEligibleAt": null
+          "status": "published"
         },
         {
           "slot": "SOURCES",
           "variant": "default",
           "textSha256": "e30d8950bfe1806a38b25b0289ea26d5637b58da8370ac71d5d3e0d0e78ce394",
-          "status": "waiting_on_service",
-          "reason": "AsrUnavailableError: ASR service unavailable after bounded backoff; stopped to preserve free quota. Cached takes retained. {\"error\":{\"code\":503,\"message\":\"This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later.\",\"status\":\"UNAVAILABLE\"}}",
-          "nextEligibleAt": null
+          "status": "published"
         },
         {
           "slot": "HELP",
@@ -1254,108 +3144,1035 @@
       ]
     }
   ],
-  "failures": [
+  "synthetic": true,
+  "notice": "All people, payroll and audio are synthetic. PayPal-derived facts: Simulated PayPal sandbox. Seed stand-in, not a Claude recording. The audit agent is paused. Missing clips use labelled device voice; native review remains pending.",
+  "cacheOnlyRecovery": {
+    "at": "2026-11-10T18:58:57.030Z",
+    "newEntries": 5,
+    "networkRequests": 0,
+    "quotaLedgerUnchanged": true,
+    "quotaLedgerSha256": "baae377d00d39ced55fb6d92712adaa4ec0dc8aa0fa0884324c94f253b4dbfa6"
+  },
+  "detail": "PoolExhaustedError: No Gemini key is ready for gemini-2.5-flash until 2026-11-11T08:00:00.000Z (2026-11-11 00:00 Pacific); 6 keys: 5 at the daily cap. Stopping rather than waiting more than 5 min; statements without a clip fall back to the labelled device voice.",
+  "qualityContinuation": {
+    "startedAt": "2026-11-10T19:01:10.377Z",
+    "at": "2026-11-10T19:06:15.172Z",
+    "asrModels": [
+      "gemini-2.5-flash"
+    ],
+    "note": "Retains six observed 3.8 failures and six 3.6 failures in the preceding run; no re-probe of those open circuits. Known 2.5 account exclusions retained. Every physical request is serialized through KeyPool and the real shared ledger. At most two fresh verbatim sentence takes after diagnosis; timing-only candidates get independent AAC transcription. Cumulative audit found three two-pass take overruns; see takeBudgetAudit. The per-continuation bound was not a cumulative round bound.",
+    "attempts": [
+      {
+        "request": "M-014:fil",
+        "slot": "GREETING",
+        "variant": "default",
+        "textSha256": "20f39d259ff3015681091fd30db7068901c461e806e14046c0d8a66cfcff3b54",
+        "startedAt": "2026-11-10T19:01:11.700Z",
+        "method": "fresh-verbatim",
+        "voice": "Achird",
+        "detail": "StatementVerificationError: statement verification refused GREETING:20f39d259ff3; missing sentences keep labelled device voice",
+        "outcome": "quality",
+        "ttsCalls": 2,
+        "at": "2026-11-10T19:01:37.209Z"
+      },
+      {
+        "request": "M-014:fil",
+        "slot": "DEDUCTION",
+        "variant": "default",
+        "textSha256": "dd5888b7dac7dab3ebdbfe0ff58a2853ef2f1ec58b9c6a5e6b1414757bf8ed96",
+        "startedAt": "2026-11-10T19:01:37.212Z",
+        "method": "fresh-verbatim",
+        "voice": "Achird",
+        "outcome": "published",
+        "ttsCalls": 2,
+        "at": "2026-11-10T19:02:33.189Z"
+      },
+      {
+        "request": "M-014:fil",
+        "slot": "PAY",
+        "variant": "paypal",
+        "textSha256": "d5e83fa357ea1757df08a18af277502df9cd042802da94ccea930e6e35c705b7",
+        "startedAt": "2026-11-10T19:02:33.192Z",
+        "method": "fresh-verbatim",
+        "voice": "Achird",
+        "outcome": "published",
+        "ttsCalls": 2,
+        "at": "2026-11-10T19:03:13.035Z"
+      },
+      {
+        "request": "M-014:en",
+        "slot": "BONUS",
+        "variant": "default",
+        "textSha256": "1ab5768d7f45d39c450e3723e39ffb591472ce6c35ebf91f0ad173982da65026",
+        "startedAt": "2026-11-10T19:03:13.038Z",
+        "method": "independent-retranscription",
+        "voice": "Sulafat",
+        "transcript": "Quality bonus twenty-one dollars and eighty-five cents",
+        "words": [
+          {
+            "text": "Quality",
+            "start": 0,
+            "end": 0.48
+          },
+          {
+            "text": "bonus",
+            "start": 0.86,
+            "end": 1.37
+          },
+          {
+            "text": "twenty-one",
+            "start": 1.81,
+            "end": 2.39
+          },
+          {
+            "text": "dollars",
+            "start": 2.48,
+            "end": 2.83
+          },
+          {
+            "text": "and",
+            "start": 3.01,
+            "end": 3.17
+          },
+          {
+            "text": "eighty-five",
+            "start": 3.35,
+            "end": 3.95
+          },
+          {
+            "text": "cents",
+            "start": 4.05,
+            "end": 4.38
+          }
+        ],
+        "duration": 4.32,
+        "detail": "StatementVerificationError: statement verification refused BONUS: independent AAC timestamps/text/anchors refused; missing sentences keep labelled device voice",
+        "outcome": "quality",
+        "ttsCalls": 0,
+        "at": "2026-11-10T19:03:19.482Z"
+      },
+      {
+        "request": "M-014:en",
+        "slot": "HELP",
+        "variant": "default",
+        "textSha256": "d93b3ff231e189f984938c8dad268b1fa90461c0a70bf47622d8153389bd2f62",
+        "startedAt": "2026-11-10T19:03:19.484Z",
+        "method": "fresh-verbatim",
+        "voice": "Achird",
+        "detail": "StatementVerificationError: statement verification refused HELP:d93b3ff231e1; missing sentences keep labelled device voice",
+        "outcome": "quality",
+        "ttsCalls": 2,
+        "at": "2026-11-10T19:03:51.912Z"
+      },
+      {
+        "request": "M-007:ceb",
+        "slot": "GREETING",
+        "variant": "default",
+        "textSha256": "8754aa02c388cb73ec5ddd9d95e890692675576991082af403160ce5c475fc15",
+        "startedAt": "2026-11-10T19:03:51.924Z",
+        "method": "independent-retranscription",
+        "voice": "Sulafat",
+        "transcript": "Maayong adlaw ngong Dioning. Salamat sa inyong paghago.",
+        "words": [
+          {
+            "text": "Maayong",
+            "start": 0,
+            "end": 0.501
+          },
+          {
+            "text": "adlaw",
+            "start": 0.571,
+            "end": 0.951
+          },
+          {
+            "text": "ngong",
+            "start": 1.051,
+            "end": 1.341
+          },
+          {
+            "text": "Dioning.",
+            "start": 1.451,
+            "end": 2.111
+          },
+          {
+            "text": "Salamat",
+            "start": 2.761,
+            "end": 3.281
+          },
+          {
+            "text": "sa",
+            "start": 3.311,
+            "end": 3.461
+          },
+          {
+            "text": "inyong",
+            "start": 3.631,
+            "end": 3.901
+          },
+          {
+            "text": "paghago.",
+            "start": 4.091,
+            "end": 4.671
+          }
+        ],
+        "duration": 4.64,
+        "detail": "StatementVerificationError: statement verification refused GREETING: independent AAC timestamps/text/anchors refused; missing sentences keep labelled device voice",
+        "outcome": "quality",
+        "ttsCalls": 0,
+        "at": "2026-11-10T19:03:55.899Z"
+      },
+      {
+        "request": "M-007:ceb",
+        "slot": "PAY",
+        "variant": "paypal",
+        "textSha256": "34f3c502c632f09aef80ccd397dc46561d36ef93895a52622a0d64ef42fbe189",
+        "startedAt": "2026-11-10T19:03:55.901Z",
+        "method": "fresh-verbatim",
+        "voice": "Achird",
+        "detail": "StatementVerificationError: statement verification refused PAY:34f3c502c632; missing sentences keep labelled device voice",
+        "outcome": "quality",
+        "ttsCalls": 2,
+        "at": "2026-11-10T19:04:36.321Z"
+      },
+      {
+        "request": "M-060:fil",
+        "slot": "GREETING",
+        "variant": "default",
+        "textSha256": "d3e23788cc8ba8f3d5da84319a1371f921af3a6bf60f7672411f1c0149c4e8a5",
+        "startedAt": "2026-11-10T19:04:36.324Z",
+        "method": "independent-retranscription",
+        "voice": "Sulafat",
+        "transcript": "Magandang araw po Ginoong Sumampao. Salamat po sa inyong pagsisikap.",
+        "words": [
+          {
+            "text": "Magandang",
+            "start": 0.021,
+            "end": 0.501
+          },
+          {
+            "text": "araw",
+            "start": 0.531,
+            "end": 0.831
+          },
+          {
+            "text": "po",
+            "start": 0.851,
+            "end": 1.051
+          },
+          {
+            "text": "Ginoong",
+            "start": 1.201,
+            "end": 1.631
+          },
+          {
+            "text": "Sumampao.",
+            "start": 1.651,
+            "end": 2.361
+          },
+          {
+            "text": "Salamat",
+            "start": 3.041,
+            "end": 3.551
+          },
+          {
+            "text": "po",
+            "start": 3.581,
+            "end": 3.741
+          },
+          {
+            "text": "sa",
+            "start": 3.781,
+            "end": 3.871
+          },
+          {
+            "text": "inyong",
+            "start": 3.911,
+            "end": 4.221
+          },
+          {
+            "text": "pagsisikap.",
+            "start": 4.271,
+            "end": 5.061
+          }
+        ],
+        "duration": 5.4,
+        "detail": "StatementVerificationError: statement verification refused GREETING: independent AAC timestamps/text/anchors refused; missing sentences keep labelled device voice",
+        "outcome": "quality",
+        "ttsCalls": 0,
+        "at": "2026-11-10T19:04:41.827Z"
+      },
+      {
+        "request": "M-060:fil",
+        "slot": "PAY",
+        "variant": "paypal",
+        "textSha256": "9567827aaede3e44d1c6e2e56978fdc106507e19e710a1d18d7fdae49fc161d0",
+        "startedAt": "2026-11-10T19:04:41.829Z",
+        "method": "fresh-verbatim",
+        "voice": "Achird",
+        "detail": "StatementVerificationError: statement verification refused PAY:9567827aaede; missing sentences keep labelled device voice",
+        "outcome": "quality",
+        "ttsCalls": 2,
+        "at": "2026-11-10T19:05:27.183Z"
+      },
+      {
+        "request": "M-018:ceb",
+        "slot": "PREMIUM",
+        "variant": "default",
+        "textSha256": "59859c5b5420cce607f417dc98590e6f342b64dd74701f16fbd5c99411dee563",
+        "startedAt": "2026-11-10T19:05:27.186Z",
+        "method": "fresh-verbatim",
+        "voice": "Achird",
+        "detail": "StatementVerificationError: statement verification refused PREMIUM:59859c5b5420; missing sentences keep labelled device voice",
+        "outcome": "quality",
+        "ttsCalls": 2,
+        "at": "2026-11-10T19:06:06.647Z"
+      },
+      {
+        "request": "M-018:ceb",
+        "slot": "DEDUCTION",
+        "variant": "default",
+        "textSha256": "ff4fa9e5ec2fe2cfd9fc3fc55323d88ee3bc8bfe5ffc3f0454143ae971ccdece",
+        "startedAt": "2026-11-10T19:06:06.650Z",
+        "method": "fresh-verbatim",
+        "voice": "Achird",
+        "detail": "PoolExhaustedError: No Gemini key is ready for gemini-2.5-flash until 2026-11-11T08:00:00.000Z (2026-11-11 00:00 Pacific); 6 keys: 5 at the daily cap. Stopping rather than waiting more than 5 min; statements without a clip fall back to the labelled device voice.",
+        "outcome": "quota",
+        "ttsCalls": 1,
+        "at": "2026-11-10T19:06:15.170Z"
+      }
+    ]
+  },
+  "takeBudgetAudit": {
+    "at": "2026-11-10T19:12:43.841Z",
+    "limit": 2,
+    "uniqueFreshRequests": 42,
+    "variants": [
+      {
+        "request": "M-014:fil",
+        "slot": "GREETING",
+        "variant": "default",
+        "textSha256": "20f39d259ff3015681091fd30db7068901c461e806e14046c0d8a66cfcff3b54",
+        "takes": [
+          {
+            "requestHash": "3a929c4efa3bf3e41af8bc66f0a9556040d4313bb3c06bef500420038f1ab501",
+            "voice": "Achird",
+            "retake": false,
+            "marked": false,
+            "at": "2026-11-10T19:01:18.441Z"
+          },
+          {
+            "requestHash": "e8807399785c5cf55614d7e83e24a7141bfa90eb1042454438cdf0a5b5ab38bb",
+            "voice": "Achird",
+            "retake": true,
+            "marked": false,
+            "at": "2026-11-10T19:01:31.033Z"
+          }
+        ]
+      },
+      {
+        "request": "M-014:fil",
+        "slot": "DEDUCTION",
+        "variant": "default",
+        "textSha256": "dd5888b7dac7dab3ebdbfe0ff58a2853ef2f1ec58b9c6a5e6b1414757bf8ed96",
+        "takes": [
+          {
+            "requestHash": "7456c362b9f7fa063923c75d6bffe23ecd71ffbc2bc3c3dc16a898d9eb385f2b",
+            "voice": "Achird",
+            "retake": false,
+            "marked": false,
+            "at": "2026-11-10T19:01:44.955Z"
+          },
+          {
+            "requestHash": "00d827d85da97205c1c906fb768ac15c1545645427f4e3185d229e5e3395d73b",
+            "voice": "Achird",
+            "retake": true,
+            "marked": false,
+            "at": "2026-11-10T19:02:27.022Z"
+          }
+        ]
+      },
+      {
+        "request": "M-014:fil",
+        "slot": "PAY",
+        "variant": "paypal",
+        "textSha256": "d5e83fa357ea1757df08a18af277502df9cd042802da94ccea930e6e35c705b7",
+        "takes": [
+          {
+            "requestHash": "a5ac36d2b9ceb19fdce1b743521f3d4ad9c64aa6cd56141c970dab9e9902722a",
+            "voice": "Achird",
+            "retake": false,
+            "marked": false,
+            "at": "2026-11-10T19:02:43.587Z"
+          },
+          {
+            "requestHash": "ea32f4f7ba167728f8afb931d517ef3838fcd410e943da74f89eeacf2567f0dc",
+            "voice": "Achird",
+            "retake": true,
+            "marked": false,
+            "at": "2026-11-10T19:03:02.070Z"
+          }
+        ]
+      },
+      {
+        "request": "M-014:en",
+        "slot": "HELP",
+        "variant": "default",
+        "textSha256": "d93b3ff231e189f984938c8dad268b1fa90461c0a70bf47622d8153389bd2f62",
+        "takes": [
+          {
+            "requestHash": "18353a1e30c63dd34882f55144e4b2f9585ca5f771ba1122db67681b677c6b10",
+            "voice": "Achird",
+            "retake": false,
+            "marked": false,
+            "at": "2026-11-10T19:03:25.424Z"
+          },
+          {
+            "requestHash": "e49c167b8561f711ee0ea2606eb99eee676d813ac47742a879018eb92ecc35a5",
+            "voice": "Achird",
+            "retake": true,
+            "marked": false,
+            "at": "2026-11-10T19:03:45.952Z"
+          }
+        ]
+      },
+      {
+        "request": "M-007:ceb",
+        "slot": "PAY",
+        "variant": "paypal",
+        "textSha256": "34f3c502c632f09aef80ccd397dc46561d36ef93895a52622a0d64ef42fbe189",
+        "takes": [
+          {
+            "requestHash": "de670ea9ee207ba9c4d49edf3f652042f1e8892a2955459ca8d3e26292eeee83",
+            "voice": "Sulafat",
+            "retake": true,
+            "marked": false,
+            "at": "2026-11-10T18:52:19.546Z"
+          },
+          {
+            "requestHash": "eaf21f0b99fb23eae86ff92d59b113a8ad35d6d4aac2c6aa5e27c7f7d3a5476c",
+            "voice": "Achird",
+            "retake": false,
+            "marked": false,
+            "at": "2026-11-10T19:04:07.591Z"
+          },
+          {
+            "requestHash": "5f4ab561d305266179be53a1a50ae7a4bc2700042350fad4e4f4b481a3da6c73",
+            "voice": "Achird",
+            "retake": true,
+            "marked": false,
+            "at": "2026-11-10T19:04:26.581Z"
+          }
+        ]
+      },
+      {
+        "request": "M-060:fil",
+        "slot": "GREETING",
+        "variant": "default",
+        "textSha256": "d3e23788cc8ba8f3d5da84319a1371f921af3a6bf60f7672411f1c0149c4e8a5",
+        "takes": [
+          {
+            "requestHash": "97ffcfe46099f813891981238037f3ea00ede1e55c5e2ee972ef75e9cb60b7be",
+            "voice": "Sulafat",
+            "retake": true,
+            "marked": false,
+            "at": "2026-11-10T18:52:43.490Z"
+          }
+        ]
+      },
+      {
+        "request": "M-060:fil",
+        "slot": "PREMIUM",
+        "variant": "default",
+        "textSha256": "99b13ab8c0f3e7c0ed20e4d5246ef5633144c7a03c1506b41f010db359e00fba",
+        "takes": [
+          {
+            "requestHash": "b87ace99cfc24b04d5b51d0b36b76e78f33035a001e9ea1711c370218929ef65",
+            "voice": "Sulafat",
+            "retake": true,
+            "marked": false,
+            "at": "2026-11-10T18:53:03.567Z"
+          }
+        ]
+      },
+      {
+        "request": "M-060:fil",
+        "slot": "DEDUCTION",
+        "variant": "default",
+        "textSha256": "079a8d5b93b577d44a1ac84202ba41a85a7fecd51fc7173b10389767d6e12cd6",
+        "takes": [
+          {
+            "requestHash": "be5f574f5df620825481818704ae69c43637482adb1efef51ad9098c033bf176",
+            "voice": "Sulafat",
+            "retake": true,
+            "marked": false,
+            "at": "2026-11-10T18:53:18.953Z"
+          }
+        ]
+      },
+      {
+        "request": "M-060:fil",
+        "slot": "PAY",
+        "variant": "paypal",
+        "textSha256": "9567827aaede3e44d1c6e2e56978fdc106507e19e710a1d18d7fdae49fc161d0",
+        "takes": [
+          {
+            "requestHash": "12f214fd664509d3cf76fa92689effea4c8d8277c0d0a5a754e67108b58d0736",
+            "voice": "Sulafat",
+            "retake": true,
+            "marked": false,
+            "at": "2026-11-10T18:53:37.810Z"
+          },
+          {
+            "requestHash": "ac5abcdad412d521fe4f3a6200402b7b77c99658c762000b60fca35176bf2403",
+            "voice": "Achird",
+            "retake": false,
+            "marked": false,
+            "at": "2026-11-10T19:04:52.040Z"
+          },
+          {
+            "requestHash": "3ea5220f1bca08fff15083be63f9dd0bfa9adaf381d97b938da9a15ae04efe73",
+            "voice": "Achird",
+            "retake": true,
+            "marked": false,
+            "at": "2026-11-10T19:05:15.992Z"
+          }
+        ]
+      },
+      {
+        "request": "M-018:ceb",
+        "slot": "DELIVERY",
+        "variant": "default",
+        "textSha256": "8bcd03a5b50571071bb7819c2460d362d9e18d908665b1d8ef36d3057bd945a3",
+        "takes": [
+          {
+            "requestHash": "78249e0d1767d205d7048ac848a69fee2fcef132d27c295b12da5a44ef9d8214",
+            "voice": "Sulafat",
+            "retake": true,
+            "marked": false,
+            "at": "2026-11-10T18:53:54.020Z"
+          }
+        ]
+      },
+      {
+        "request": "M-018:ceb",
+        "slot": "PREMIUM",
+        "variant": "default",
+        "textSha256": "59859c5b5420cce607f417dc98590e6f342b64dd74701f16fbd5c99411dee563",
+        "takes": [
+          {
+            "requestHash": "319ae74834a5be27b800e8d575a4f0a135ff3fc00e8330414137b5000b6e6e21",
+            "voice": "Sulafat",
+            "retake": true,
+            "marked": false,
+            "at": "2026-11-10T18:54:08.657Z"
+          },
+          {
+            "requestHash": "76151eb48ceb6f56ffa3bc6d987f988939513f1792081cbd6f4574df4d3915f8",
+            "voice": "Achird",
+            "retake": false,
+            "marked": false,
+            "at": "2026-11-10T19:05:33.633Z"
+          },
+          {
+            "requestHash": "a14a2dd2e64e4e2fc4aa0fc12648731829fbbb589eaee511240f6d460fa44675",
+            "voice": "Achird",
+            "retake": true,
+            "marked": false,
+            "at": "2026-11-10T19:05:51.864Z"
+          }
+        ]
+      },
+      {
+        "request": "M-018:ceb",
+        "slot": "BONUS",
+        "variant": "default",
+        "textSha256": "a8d577afcb594d5999bee44e82d944f8fc791ef001ff0a5ba7764b061eaf990f",
+        "takes": [
+          {
+            "requestHash": "0244416dea5e578ef792991d6255d181683dadc81bd3708432d4e76158918284",
+            "voice": "Sulafat",
+            "retake": true,
+            "marked": false,
+            "at": "2026-11-10T18:54:21.493Z"
+          }
+        ]
+      },
+      {
+        "request": "M-018:ceb",
+        "slot": "DEDUCTION",
+        "variant": "default",
+        "textSha256": "ff4fa9e5ec2fe2cfd9fc3fc55323d88ee3bc8bfe5ffc3f0454143ae971ccdece",
+        "takes": [
+          {
+            "requestHash": "8edcdd78683261ac63a57377ec4b9c620d9f313731773a4a04463a93d665d6ea",
+            "voice": "Sulafat",
+            "retake": true,
+            "marked": false,
+            "at": "2026-11-10T18:54:34.205Z"
+          },
+          {
+            "requestHash": "96b1c2fbc920ab478f86b5f5efcd42de509d65ca18fad3660f06bf3e88672798",
+            "voice": "Achird",
+            "retake": false,
+            "marked": false,
+            "at": "2026-11-10T19:06:14.832Z"
+          }
+        ]
+      },
+      {
+        "request": "M-018:ceb",
+        "slot": "PAY",
+        "variant": "paypal",
+        "textSha256": "8dd779afb9f9305e912fd2b4b404383b0e0a6731a5bdd2b77823015abe5f7b42",
+        "takes": [
+          {
+            "requestHash": "540f57df90122880377bacbf71f57e4b4aaa6adefb9e0b5683279095b8adb1fc",
+            "voice": "Sulafat",
+            "retake": true,
+            "marked": false,
+            "at": "2026-11-10T18:54:48.832Z"
+          }
+        ]
+      },
+      {
+        "request": "M-018:ceb",
+        "slot": "SOURCES",
+        "variant": "default",
+        "textSha256": "b8ef4820a5002860612157b08fa8bb0f369a9c1bd103f35ff64ab03fbcb23ecc",
+        "takes": [
+          {
+            "requestHash": "92c8d3da15290d9a52df68b2ec65b67b4249b4e9e341ec1a63363293d4030115",
+            "voice": "Sulafat",
+            "retake": true,
+            "marked": false,
+            "at": "2026-11-10T18:55:10.766Z"
+          }
+        ]
+      },
+      {
+        "request": "M-039:en",
+        "slot": "GREETING",
+        "variant": "default",
+        "textSha256": "53ea7e4fb6e58ff5f091a5666d640c03c3098151ddb109af053274a0530a931a",
+        "takes": [
+          {
+            "requestHash": "ce0d37202f813e1034e27703f7b46b8af69fc38ee84bad92cbb355c4e03c9303",
+            "voice": "Sulafat",
+            "retake": true,
+            "marked": false,
+            "at": "2026-11-10T18:44:37.802Z"
+          }
+        ]
+      },
+      {
+        "request": "M-039:en",
+        "slot": "PAY",
+        "variant": "paypal",
+        "textSha256": "cc823bfda9b4926d7605b30956d45898fbc6a00b3cbbb546184f5215bb3fd5f1",
+        "takes": [
+          {
+            "requestHash": "62abc45bc0652dc65ea4339ded28fe5f951f843f44639591e291b0f8f18ff08b",
+            "voice": "Sulafat",
+            "retake": false,
+            "marked": true,
+            "at": "2026-11-10T18:47:19.597Z"
+          }
+        ]
+      },
+      {
+        "request": "M-039:en",
+        "slot": "SOURCES",
+        "variant": "default",
+        "textSha256": "d7c515180a4cb4d638e185299b0a41ff25248e401916bc0fcc7f8c1bc19cc590",
+        "takes": [
+          {
+            "requestHash": "2271c0eb4351c7c5d333231c48c8bb9dcd5d84ed16b9eb112dc4bea1a117d70f",
+            "voice": "Sulafat",
+            "retake": false,
+            "marked": true,
+            "at": "2026-11-10T18:48:12.157Z"
+          }
+        ]
+      },
+      {
+        "request": "M-039:en",
+        "slot": "HELP",
+        "variant": "default",
+        "textSha256": "d93b3ff231e189f984938c8dad268b1fa90461c0a70bf47622d8153389bd2f62",
+        "takes": [
+          {
+            "requestHash": "18353a1e30c63dd34882f55144e4b2f9585ca5f771ba1122db67681b677c6b10",
+            "voice": "Achird",
+            "retake": false,
+            "marked": false,
+            "at": "2026-11-10T19:03:25.424Z"
+          },
+          {
+            "requestHash": "e49c167b8561f711ee0ea2606eb99eee676d813ac47742a879018eb92ecc35a5",
+            "voice": "Achird",
+            "retake": true,
+            "marked": false,
+            "at": "2026-11-10T19:03:45.952Z"
+          }
+        ]
+      },
+      {
+        "request": "M-022:ceb",
+        "slot": "DELIVERY",
+        "variant": "default",
+        "textSha256": "f31db268d51758f1afc1f6a515c80189629c903fb5941938fa4b8129c643a31d",
+        "takes": [
+          {
+            "requestHash": "46ed04b884453a59d8014015a89a24a2dc87b58bd021380d799d3d171d31179c",
+            "voice": "Sulafat",
+            "retake": true,
+            "marked": false,
+            "at": "2026-11-10T18:55:26.003Z"
+          }
+        ]
+      },
+      {
+        "request": "M-022:ceb",
+        "slot": "DEDUCTION",
+        "variant": "default",
+        "textSha256": "d3eabddda28bccd1a975995c8b8fba616149e4b59c17619ed7269d0396037067",
+        "takes": [
+          {
+            "requestHash": "7874295ce77bbcbf2521c79293164ec554378a19e0d8988c873d0ec3e3723090",
+            "voice": "Sulafat",
+            "retake": true,
+            "marked": false,
+            "at": "2026-11-10T18:55:42.217Z"
+          }
+        ]
+      },
+      {
+        "request": "M-022:ceb",
+        "slot": "PAY",
+        "variant": "paypal",
+        "textSha256": "65623f26432ccc681d739920444b0aca4de2b1325da85306dac06ab937ba5035",
+        "takes": [
+          {
+            "requestHash": "4faca0b079f75e1fb354165b4a03176230a803a5255166797e365f146c3c3d5c",
+            "voice": "Sulafat",
+            "retake": true,
+            "marked": false,
+            "at": "2026-11-10T18:55:58.037Z"
+          }
+        ]
+      },
+      {
+        "request": "M-022:ceb",
+        "slot": "SOURCES",
+        "variant": "default",
+        "textSha256": "97e6934a131f7cd0ff5dd903ea921c1eb89d2256f233770b2c0ae1ed531cb553",
+        "takes": [
+          {
+            "requestHash": "0a726dcf48039eaa11c377f1dd44a6126c632d00ef04f0dad74f9e4218caa349",
+            "voice": "Sulafat",
+            "retake": true,
+            "marked": false,
+            "at": "2026-11-10T18:56:16.335Z"
+          }
+        ]
+      },
+      {
+        "request": "M-002:ceb",
+        "slot": "GREETING",
+        "variant": "default",
+        "textSha256": "1e08b3d0a7cd3c092bb9436c4595fe85472de93b8edb6c7830e768d72926e40d",
+        "takes": [
+          {
+            "requestHash": "0f27a30664e3bc3e68b0a624c8466e0986b35b53eaccdcdcecde2205bc2ffa97",
+            "voice": "Sulafat",
+            "retake": true,
+            "marked": false,
+            "at": "2026-11-10T18:56:39.454Z"
+          }
+        ]
+      },
+      {
+        "request": "M-002:ceb",
+        "slot": "DELIVERY",
+        "variant": "default",
+        "textSha256": "5149103b0a1f5f4f83cc56d8e7dec9041ed58d79bf7dc4519029adf5ab0147ab",
+        "takes": [
+          {
+            "requestHash": "e14fb451d04041d3fb2e1d004f478697a075ef10c1fd49909560229a7de1a307",
+            "voice": "Sulafat",
+            "retake": true,
+            "marked": false,
+            "at": "2026-11-10T18:56:52.174Z"
+          }
+        ]
+      },
+      {
+        "request": "M-031:en",
+        "slot": "GREETING",
+        "variant": "default",
+        "textSha256": "5001953557bdbe230894f918a0cca79b09b611e3ed6c7ae4c43bd1c8f7c0aed2",
+        "takes": [
+          {
+            "requestHash": "e0add626e757e068bf2074b4adca1200d55a0d8f996deca998c1a8dfee8493d7",
+            "voice": "Sulafat",
+            "retake": true,
+            "marked": false,
+            "at": "2026-11-10T18:57:15.304Z"
+          }
+        ]
+      },
+      {
+        "request": "M-031:en",
+        "slot": "DEDUCTION",
+        "variant": "default",
+        "textSha256": "0b624a25a17665c72784d9f0908cd258f2544aac55bc657dfabdee6ab1fed915",
+        "takes": [
+          {
+            "requestHash": "0317194b2fb5c3883bc7d6d64a2873299af6d51244691674708790d9edf615c0",
+            "voice": "Sulafat",
+            "retake": true,
+            "marked": false,
+            "at": "2026-11-10T18:57:28.513Z"
+          }
+        ]
+      },
+      {
+        "request": "M-031:en",
+        "slot": "PAY",
+        "variant": "paypal",
+        "textSha256": "95b870d17372538218a832f630d8ffdb241a68a9459af39a32ae47f5dc1b25b7",
+        "takes": [
+          {
+            "requestHash": "00f0431c97def37cb41dce99fc76b36c9aa5578c9938b6c9fa33f6fa5ab20c50",
+            "voice": "Sulafat",
+            "retake": true,
+            "marked": false,
+            "at": "2026-11-10T18:57:43.853Z"
+          }
+        ]
+      },
+      {
+        "request": "M-031:en",
+        "slot": "HELP",
+        "variant": "default",
+        "textSha256": "d93b3ff231e189f984938c8dad268b1fa90461c0a70bf47622d8153389bd2f62",
+        "takes": [
+          {
+            "requestHash": "18353a1e30c63dd34882f55144e4b2f9585ca5f771ba1122db67681b677c6b10",
+            "voice": "Achird",
+            "retake": false,
+            "marked": false,
+            "at": "2026-11-10T19:03:25.424Z"
+          },
+          {
+            "requestHash": "e49c167b8561f711ee0ea2606eb99eee676d813ac47742a879018eb92ecc35a5",
+            "voice": "Achird",
+            "retake": true,
+            "marked": false,
+            "at": "2026-11-10T19:03:45.952Z"
+          }
+        ]
+      },
+      {
+        "request": "M-053:ceb",
+        "slot": "GREETING",
+        "variant": "default",
+        "textSha256": "06233f5976bdd6e624240252e293a4249a8efa8d2cd10a166f490965fec3124f",
+        "takes": [
+          {
+            "requestHash": "0a203c105dd6edb9eb8856a93e30733bd0c9c12d952ddcd852953c1eb8d57567",
+            "voice": "Sulafat",
+            "retake": true,
+            "marked": false,
+            "at": "2026-11-10T18:48:36.489Z"
+          }
+        ]
+      },
+      {
+        "request": "M-053:ceb",
+        "slot": "DEDUCTION",
+        "variant": "default",
+        "textSha256": "5a12cd17b7afd62deeba04099f4989228f8b743ce55bc5dc636764219bd9c7a1",
+        "takes": [
+          {
+            "requestHash": "2b53afdb06943ecbf6343fd5d9a2dc7afee65a8b98e2b7290751e02173f17345",
+            "voice": "Sulafat",
+            "retake": true,
+            "marked": false,
+            "at": "2026-11-10T18:50:51.495Z"
+          }
+        ]
+      },
+      {
+        "request": "M-053:ceb",
+        "slot": "PAY",
+        "variant": "cash_nodate",
+        "textSha256": "b622aad6a9402b5d70b71cff2f5d8f7d81d1e90c29a2b4a9ac6a5385a6c15947",
+        "takes": [
+          {
+            "requestHash": "c57745cf71405870c48aad73e93567c74713ae447d2165ce4535f923b6443ca1",
+            "voice": "Sulafat",
+            "retake": true,
+            "marked": false,
+            "at": "2026-11-10T18:51:12.633Z"
+          }
+        ]
+      },
+      {
+        "request": "M-053:ceb",
+        "slot": "SOURCES",
+        "variant": "default",
+        "textSha256": "e30d8950bfe1806a38b25b0289ea26d5637b58da8370ac71d5d3e0d0e78ce394",
+        "takes": [
+          {
+            "requestHash": "a636d25096ea94d1ea5f9c6460ad0443ec27b08b409cbfc2bdd8e264728be0d2",
+            "voice": "Sulafat",
+            "retake": true,
+            "marked": false,
+            "at": "2026-11-10T18:51:50.660Z"
+          }
+        ]
+      }
+    ],
+    "overruns": [
+      {
+        "request": "M-007:ceb",
+        "slot": "PAY",
+        "textSha256": "34f3c502c632f09aef80ccd397dc46561d36ef93895a52622a0d64ef42fbe189",
+        "limit": 2,
+        "actual": 3,
+        "reason": "Separate passes counted their own takes instead of carrying the cumulative per-sentence count; one Sulafat retake was followed by two Achird takes.",
+        "reservationsRetained": true,
+        "published": false,
+        "correction": "Cloud work stopped. Carry these exact take hashes and cumulative counts into every continuation; never reset the budget by voice or process."
+      },
+      {
+        "request": "M-060:fil",
+        "slot": "PAY",
+        "textSha256": "9567827aaede3e44d1c6e2e56978fdc106507e19e710a1d18d7fdae49fc161d0",
+        "limit": 2,
+        "actual": 3,
+        "reason": "Separate passes counted their own takes instead of carrying the cumulative per-sentence count; one Sulafat retake was followed by two Achird takes.",
+        "reservationsRetained": true,
+        "published": false,
+        "correction": "Cloud work stopped. Carry these exact take hashes and cumulative counts into every continuation; never reset the budget by voice or process."
+      },
+      {
+        "request": "M-018:ceb",
+        "slot": "PREMIUM",
+        "textSha256": "59859c5b5420cce607f417dc98590e6f342b64dd74701f16fbd5c99411dee563",
+        "limit": 2,
+        "actual": 3,
+        "reason": "Separate passes counted their own takes instead of carrying the cumulative per-sentence count; one Sulafat retake was followed by two Achird takes.",
+        "reservationsRetained": true,
+        "published": false,
+        "correction": "Cloud work stopped. Carry these exact take hashes and cumulative counts into every continuation; never reset the budget by voice or process."
+      }
+    ]
+  },
+  "observedService": [
     {
-      "request": "M-014:fil",
-      "kind": "quality",
-      "failed": [
-        "GREETING:20f39d259ff3",
-        "DEDUCTION:dd5888b7dac7",
-        "PAY:d5e83fa357ea",
-        "AI_NOTE:7f5f53867948"
+      "model": "gemini-3.8-flash",
+      "failures": 6,
+      "errors": [
+        {
+          "status": 503,
+          "providerStatus": "UNAVAILABLE",
+          "message": "This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later."
+        },
+        {
+          "status": 504,
+          "providerStatus": "DEADLINE_EXCEEDED",
+          "message": "Deadline expired before operation could complete."
+        }
       ],
-      "detail": "StatementVerificationError: statement verification refused GREETING:20f39d259ff3, DEDUCTION:dd5888b7dac7, PAY:d5e83fa357ea, AI_NOTE:7f5f53867948; missing sentences keep labelled device voice"
+      "nextRecoveryAt": null
     },
     {
-      "request": "M-014:en",
-      "kind": "quality",
-      "failed": [
-        "BONUS:1ab5768d7f45",
-        "HELP:d93b3ff231e1",
-        "AI_NOTE:f6fe08315997"
+      "model": "gemini-3.6-flash",
+      "failures": 6,
+      "successfulResponses": 3,
+      "errors": [
+        {
+          "status": 503,
+          "providerStatus": "UNAVAILABLE",
+          "message": "This model is currently experiencing high demand. Spikes in demand are usually temporary. Please try again later."
+        }
       ],
-      "detail": "StatementVerificationError: statement verification refused BONUS:1ab5768d7f45, HELP:d93b3ff231e1, AI_NOTE:f6fe08315997; missing sentences keep labelled device voice"
-    },
-    {
-      "request": "M-007:ceb",
-      "kind": "quality",
-      "failed": [
-        "GREETING:8754aa02c388",
-        "PAY:34f3c502c632"
-      ],
-      "detail": "StatementVerificationError: statement verification refused GREETING:8754aa02c388, PAY:34f3c502c632; missing sentences keep labelled device voice"
-    },
-    {
-      "request": "M-060:fil",
-      "kind": "quality",
-      "failed": [
-        "GREETING:d3e23788cc8b",
-        "PREMIUM:99b13ab8c0f3",
-        "DEDUCTION:079a8d5b93b5",
-        "PAY:9567827aaede",
-        "AI_NOTE:7f5f53867948"
-      ],
-      "detail": "StatementVerificationError: statement verification refused GREETING:d3e23788cc8b, PREMIUM:99b13ab8c0f3, DEDUCTION:079a8d5b93b5, PAY:9567827aaede, AI_NOTE:7f5f53867948; missing sentences keep labelled device voice"
-    },
-    {
-      "request": "M-018:ceb",
-      "kind": "quality",
-      "failed": [
-        "DELIVERY:8bcd03a5b505",
-        "PREMIUM:59859c5b5420",
-        "BONUS:a8d577afcb59",
-        "DEDUCTION:ff4fa9e5ec2f",
-        "PAY:8dd779afb9f9",
-        "SOURCES:b8ef4820a500"
-      ],
-      "detail": "StatementVerificationError: statement verification refused DELIVERY:8bcd03a5b505, PREMIUM:59859c5b5420, BONUS:a8d577afcb59, DEDUCTION:ff4fa9e5ec2f, PAY:8dd779afb9f9, SOURCES:b8ef4820a500; missing sentences keep labelled device voice"
-    },
-    {
-      "request": "M-039:en",
-      "kind": "service",
-      "detail": "GeminiCallError: fetch failed"
-    },
-    {
-      "request": "M-022:ceb",
-      "kind": "quality",
-      "failed": [
-        "DELIVERY:f31db268d517",
-        "DEDUCTION:d3eabddda28b",
-        "PAY:65623f26432c",
-        "SOURCES:97e6934a131f"
-      ],
-      "detail": "StatementVerificationError: statement verification refused DELIVERY:f31db268d517, DEDUCTION:d3eabddda28b, PAY:65623f26432c, SOURCES:97e6934a131f; missing sentences keep labelled device voice"
-    },
-    {
-      "request": "M-002:ceb",
-      "kind": "quality",
-      "failed": [
-        "GREETING:1e08b3d0a7cd",
-        "DELIVERY:5149103b0a1f",
-        "DEDUCTION:b6e3018261b3"
-      ],
-      "detail": "StatementVerificationError: statement verification refused GREETING:1e08b3d0a7cd, DELIVERY:5149103b0a1f, DEDUCTION:b6e3018261b3; missing sentences keep labelled device voice"
-    },
-    {
-      "request": "M-031:en",
-      "kind": "quality",
-      "failed": [
-        "GREETING:5001953557bd",
-        "DEDUCTION:0b624a25a176",
-        "PAY:95b870d17372",
-        "HELP:d93b3ff231e1",
-        "AI_NOTE:f6fe08315997"
-      ],
-      "detail": "StatementVerificationError: statement verification refused GREETING:5001953557bd, DEDUCTION:0b624a25a176, PAY:95b870d17372, HELP:d93b3ff231e1, AI_NOTE:f6fe08315997; missing sentences keep labelled device voice"
+      "nextRecoveryAt": null
     }
   ],
-  "synthetic": true,
-  "notice": "All people, payroll and audio are synthetic. PayPal-derived facts: Simulated PayPal sandbox. Seed stand-in, not a Claude recording. Missing clips use labelled device voice. Native review remains pending.",
-  "cacheOnlyRecovery": {
-    "at": "2026-11-04T11:11:53.678Z",
-    "newEntries": 0,
-    "networkRequests": 0,
-    "quotaLedgerUnchanged": true
+  "documentationAt": "2026-11-10T19:12:43.846Z",
+  "independentAudit": {
+    "at": "2026-11-10T19:18:58.175Z",
+    "published": 83,
+    "newCount": 24,
+    "immutableEntries": 64,
+    "counts": [
+      {
+        "request": "M-014:ceb",
+        "published": 9,
+        "planned": 9
+      },
+      {
+        "request": "M-014:fil",
+        "published": 8,
+        "planned": 9
+      },
+      {
+        "request": "M-014:en",
+        "published": 7,
+        "planned": 9
+      },
+      {
+        "request": "M-007:ceb",
+        "published": 7,
+        "planned": 9
+      },
+      {
+        "request": "M-060:fil",
+        "published": 7,
+        "planned": 9
+      },
+      {
+        "request": "M-018:ceb",
+        "published": 7,
+        "planned": 10
+      },
+      {
+        "request": "M-039:en",
+        "published": 8,
+        "planned": 9
+      },
+      {
+        "request": "M-022:ceb",
+        "published": 8,
+        "planned": 9
+      },
+      {
+        "request": "M-002:ceb",
+        "published": 7,
+        "planned": 9
+      },
+      {
+        "request": "M-031:en",
+        "published": 7,
+        "planned": 10
+      },
+      {
+        "request": "M-053:ceb",
+        "published": 8,
+        "planned": 9
+      }
+    ],
+    "assertions": "Every published frozen variant: exact AAC and text hashes, approved independent cached ASR, CER <= 0.12, strict numeric/initialism anchors, measured offsets, AAC mono codec and 32 kbps encoder metadata. All pre-existing manifest entries unchanged."
   },
-  "continuationNotRun": "Bounded ASR service refusal retained; no further cloud restart against the same observed outages. Service recovery time unknown."
+  "checks": {
+    "mediaTestsPassed": 388,
+    "apiMediaTestsPassed": 39,
+    "receiptTestsPassed": 4,
+    "mediaTypecheck": "passed",
+    "dependencyGate": "passed",
+    "scratchPostgresStopped": true
+  }
 }

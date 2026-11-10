@@ -189,6 +189,47 @@ describe("alignWords", () => {
     expect(STATEMENT_CER_LIMIT).toBe(0.12);
   });
 
+  it("inv.i1.cbu-amount: aligns spoken initials but refuses a changed deduction or initial", () => {
+    const expected = "Less forty-five cents for CBU, your capital build-up under R one.";
+    const anchors = [
+      { ref: "fact:DEDUCTION_USD", spoken: "forty-five cents", start: expected.indexOf("forty") },
+      { ref: "fact:RULE_LABEL", spoken: "CBU, your capital build-up", start: expected.indexOf("CBU") },
+      { ref: "rule:R1", spoken: "R one", start: expected.indexOf("R one") },
+    ];
+    const heard = expected.replace("CBU", "C B U");
+    expect(alignWords(words(heard.split(" ")), expected, 10, anchors)?.offsets).toEqual([
+      { ref: "fact:DEDUCTION_USD", at_ms: 300 },
+      { ref: "fact:RULE_LABEL", at_ms: 1200 },
+      { ref: "rule:R1", at_ms: 3300 },
+    ]);
+    for (const wrong of [
+      heard.replace("forty-five", "forty-six"),
+      heard.replace("R one", "R two"),
+      ...["C B X", "C B V", "CBX", "CBV"].map((initials) => heard.replace("C B U", initials)),
+    ])
+      expect(alignWords(words(wrong.split(" ")), expected, 10, anchors)).toBeNull();
+  });
+
+  it("inv.i1.treasurer-spelling: accepts a doubled n without accepting a different treasurer or amount", () => {
+    const expected = "Treasurer Analyn approved forty-five cents today.";
+    const anchors = [
+      { ref: "fact:TREASURER", spoken: "Analyn", start: expected.indexOf("Analyn") },
+      { ref: "fact:NET_USD", spoken: "forty-five cents", start: expected.indexOf("forty") },
+    ];
+    const heard = expected.replace("Analyn", "Annalyn");
+    expect(alignWords(words(heard.split(" ")), expected, 5, anchors)?.offsets).toEqual([
+      { ref: "fact:TREASURER", at_ms: 300 },
+      { ref: "fact:NET_USD", at_ms: 900 },
+    ]);
+    for (const wrong of [
+      heard.replace("forty-five", "forty-six"),
+      expected.replace("Analyn", "Annalin"),
+      expected.replace("Analyn", "Ann Lynn"),
+      expected.replace("Analyn", "Annabelle"),
+    ])
+      expect(alignWords(words(wrong.split(" ")), expected, 5, anchors)).toBeNull();
+  });
+
   it("uses reference position for repeated words, rejecting ambiguous recognition deletions", () => {
     expect(
       alignWords(words(["pay", "pay", "now"]), "pay pay now", 2, [{ ref: "second", spoken: "pay", start: 4 }])
