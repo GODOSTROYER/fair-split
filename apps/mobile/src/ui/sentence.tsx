@@ -8,8 +8,8 @@ import { Txt } from "./text";
 export { figures, type Segment } from "./figures";
 
 /**
- * Statement prose (Atkinson Hyperlegible Next) with every engine figure set in the figure face, tabular, with the
- * slashed zero and FS Sans's own ₱: "Money is always set in FS Sans, even inside Atkinson prose" (design §2.3).
+ * Statement prose in FS Sans with every engine figure set in the figure role: tabular, the slashed zero and FS Sans's
+ * own ₱ (DESIGN.md §1).
  */
 export function Sentence({
   segments,

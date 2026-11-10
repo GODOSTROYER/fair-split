@@ -37,7 +37,7 @@ export const messages = defineMessages({
     en: "You can change this any time.",
   },
   "M-ON-01.continue": { ceb: "Padayon", fil: "Magpatuloy", en: "Continue" },
-  /** The lot stencilled on the co-op's sacks, read aloud (the season mark reads "Season {season}"). */
+  /** The lot on the co-op's sacks, read aloud (the season mark reads "Season {season}"). */
   "M-ON-01.mark.lot": same("Lot {lot}"),
 
   /* "Klaro ba?" (the theme route: one theme, read at this phone's text size) */

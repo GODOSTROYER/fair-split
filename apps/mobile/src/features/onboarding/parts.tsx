@@ -3,7 +3,7 @@
  * the design's own materials (design §1 signatures 1 and 7, §2.5):
  * - the desk: a band of tablea lacquer, the colour of a roasted cacao tablet, whatever the app's theme;
  * - paper on it: the white original, square-cornered, casting the product's only shadow;
- * - the stencilled season and lot marks of the jute sacks;
+ * - the season and lot marks, as ids;
  * - the ink stamp of a person's decision, from the box stamped on a choice to the initials that land when a phone
  *   is paired.
  * Plus the choice plate that can speak itself in the phone's own voice (labelled, I8), the six-box pairing code and
@@ -112,8 +112,7 @@ export function Paper({
 /* ------------------------------------------------------------------ the season and lot marks */
 
 /**
- * "2026-A", "LB-PH-2026-03": the season and the lot as ids. UI gate round 3 (DESIGN.md §1) retires the stencilled
- * display face (the condensed figures with bridged counters): a mark is the id role, the one mono at 13 sp, like every
+ * "2026-A", "LB-PH-2026-03": the season and the lot as ids. UI gate round 3 (DESIGN.md §1): a mark is the id role, the one mono at 13 sp, like every
  * other id on the phone. Read as one label by a screen reader.
  */
 export function IdMark({
@@ -134,7 +133,7 @@ export function IdMark({
       accessibilityLabel={label}
       testID={testID}
       dataSet={{ mark: text }}
-      style={styles.stencil}
+      style={styles.mark}
     >
       <Txt
         kind="hash"
@@ -443,7 +442,7 @@ const styles = StyleSheet.create({
     gap: space.s16,
   },
   paper: { borderRadius: radius.none },
-  stencil: { flexDirection: "row", alignItems: "flex-end", alignSelf: "flex-start" },
+  mark: { flexDirection: "row", alignItems: "flex-end", alignSelf: "flex-start" },
   plate: {
     flexDirection: "row",
     alignItems: "stretch",

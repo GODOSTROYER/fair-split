@@ -1,6 +1,6 @@
 /**
  * M-ON-01 first run, language (design A0): the first screen anyone sees, so it carries the product's own materials.
- * The lockup with the season and lot stencilled as on the co-op's jute sacks; the question in all three languages
+ * The lockup with the season and lot as ids; the question in all three languages
  * at once (nobody has chosen one yet); and the three languages as three sheets of paper on the tablea desk, each
  * written and heard in its own language (the phone's own voice, labelled, I8), the chosen one stamped in ink. The
  * honest "not yet" for Hiligaynon, Waray and Bikol is written on the desk itself.
