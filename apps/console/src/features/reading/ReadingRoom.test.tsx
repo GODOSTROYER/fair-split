@@ -81,9 +81,13 @@ describe("W-TR-03 reading room", { timeout: 60_000 }, () => {
     expect(screen.getByTestId("W-TR-03.status").textContent).toMatch(/waits on the desk/);
     expect(within(screen.getByTestId("W-TR-03.film")).getAllByRole("link")).toHaveLength(12);
     expect(screen.getByTestId("W-TR-03.beds.row.0425").dataset.state).toBe("waiting");
-    // One stand-in tag, its canonical phrase whole (the tail for screen readers), no sentence beside it.
-    expect(screen.getByTestId("W-TR-03.footer").textContent).toBe("Seed stand-in, not a Claude recording");
-    expect(screen.getByTestId("W-TR-03.footer").classList.contains("fs-honesty")).toBe(true);
+    // One stand-in mark, a bare legend glyph (round 3): its canonical phrase whole as its title and its accessible
+    // name, no pill and no sentence beside it.
+    const mark = screen.getByTestId("W-TR-03.footer");
+    expect(mark.textContent).toBe("Seed stand-in, not a Claude recording");
+    expect(mark.getAttribute("title")).toBe("Seed stand-in, not a Claude recording");
+    expect(mark.hasAttribute("data-fs-glyph")).toBe(true);
+    expect(mark.dataset.kind).toBe("synthetic");
     // The one hero count: slips read in FS Sans (no dot-matrix), the words for screen readers.
     const progress = screen.getByTestId("W-TR-03.film.progress");
     expect(progress.querySelector(".fs-numeral")?.getAttribute("data-value")).toBe("0/48");
@@ -242,15 +246,21 @@ describe("W-TR-03 reading room", { timeout: 60_000 }, () => {
     r.unmount();
   });
 
-  it("sends slip 0462 to a person: a You cell, and Enter on its row opens W-TR-04", async () => {
+  it("sends slip 0462 to a person: a marigold row, a You cell, its step inline; Enter on its row opens W-TR-04", async () => {
     const r = await readingRun("reduced", `${READING}?photo=J`);
     act(() => r.stream.inject(rowsFor(["J"])));
     const you = await screen.findByTestId("W-TR-03.beds.you.0462");
+    // The row's one step, inline at its end (round 3): a secondary button whose name starts with its words.
     expect(you.getAttribute("href")).toBe("/season/2026-A/by-hand/0462");
-    expect(you.dataset.amountState).toBe("you");
-    expect(you.textContent).toMatch(/6\?\.50/);
+    expect(you.textContent).toBe("Enter by hand");
+    expect(you.getAttribute("aria-label")).toBe("Enter by hand, slip 0462");
+    expect(you.classList.contains("fs-flat")).toBe(true);
     expect(screen.getByTestId("W-TR-03.film.J").dataset.pending).toBe("");
     const row = screen.getByTestId("W-TR-03.beds.row.0462");
+    expect(row.dataset.needs).toBe("person");
+    expect(row.querySelector('[data-amount-state="you"]')?.textContent).toMatch(/6\?\.50/);
+    // Only the row a person must decide carries the bar.
+    expect(screen.getByTestId("W-TR-03.beds.row.0453").dataset.needs).toBeUndefined();
     await act(async () => {
       row.focus();
       fireEvent.keyDown(row, { key: "Enter" });
@@ -304,6 +314,10 @@ describe("W-TR-03 reading room", { timeout: 60_000 }, () => {
     expect(bench.compareDocumentPosition(screen.getByTestId("W-TR-03.film"))).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING,
     );
+    // The room fills the screen; the recorded exhibit starts after it (never sliced at the panel's edge).
+    const room = desk.closest(".fsc-read__room");
+    expect(room).not.toBeNull();
+    expect(room?.contains(screen.getByTestId("W-TR-03.heroes"))).toBe(false);
     r.unmount();
   });
 

@@ -1,15 +1,14 @@
-/* W-TR-04 By hand: one field at a time. The slip's crop and the logbook strip are paper (the only shadows); the
-   field is a 48 px condensed entry whose hidden digit sits in a canary cell (a person must decide), and the
-   committed value prints in ink with the treasurer's stamp. Every value is a --fs-* token.
+/* W-TR-04 By hand: one field at a time. The decision leads (the field, or once entered the result and the next
+   step), and the two witnesses sit side by side beneath it (UI gate round 3): the slip's crop, cut exactly to its
+   2 × 2 block of kilos, and the logbook strip, both paper (the only shadows). The field and the result use the one
+   money face (FS Sans semi-condensed at 500, never the heavy condensed): her hidden digit sits in a canary cell (a
+   person must decide), and the committed value prints in ink with the treasurer's stamp. Every value is a --fs-*
+   token.
 
-   The two witnesses fit the window: the crop over the logbook's lines 5 to 9 take the height the stage leaves
-   between the title and its ribbon, so the stained digit, logbook line 7, the field and the slab are all in view
-   at 1470 × 956 and at 1280 × 800 without a scroll. */
+   The witnesses are sized from the window's height, so the field, the stained digit, logbook line 7 and the slab
+   are all in view at 1920 × 1080, 1470 × 956 and 1280 × 800 without a scroll. */
 
 .fsc-hand {
-  /* Above the screen: the top bar (49; its old 110 with the pill row is kept as slack) and the screen's padding (28); the title block (62)
-     and its gap (20); below: the ribbon and the caption (107) and a breath (12). */
-  --fsc-hand-room: calc(100dvh - 339px);
   display: grid;
   align-content: start;
   gap: 20px;
@@ -49,9 +48,8 @@
   line-height: 1.375rem;
 }
 
-.fsc-hand__prompt .fs-glyph {
-  flex: none;
-  color: var(--fs-steel-line);
+.fsc-hand__prompt .fs-legend-glyph {
+  align-self: center;
 }
 
 .fsc-hand__reading {
@@ -64,17 +62,21 @@
 
 .fsc-hand__body {
   display: grid;
-  grid-template-columns: auto minmax(320px, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   align-items: start;
-  gap: 32px 48px;
+  gap: 28px;
 }
 
-/* The crop over the logbook strip, at the width whose stacked height fills the room: two captions and paddings
-   (80) plus the crop (1.776 : 1) and the strip (1.764 : 1), so height = 80 + 1.13 × width. */
+/* The two witnesses side by side under the decision, at the width whose height fits what the window leaves: the
+   stage's frame and bar, the title and the field's block take about 590 px; the taller of the two (the logbook
+   strip, 1.76 : 1, plus its caption and padding, 40) sets the height, so width ≈ 2 × 1.76 × (room − 40) + gap. */
 .fsc-hand__evidence {
   display: grid;
-  gap: 16px;
-  width: clamp(300px, calc((var(--fsc-hand-room) - 80px) * 0.885), 560px);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 24px;
+  width: clamp(520px, calc((100dvh - 630px) * 3.52 + 24px), 1080px);
+  max-width: 100%;
 }
 
 .fsc-hand__figure {
@@ -143,11 +145,11 @@
 /* ---------------------------------------------------------------- the entry */
 
 .fsc-hand__entry {
-  position: sticky;
-  top: 0;
   display: grid;
   align-content: start;
+  justify-items: start;
   gap: 12px;
+  max-width: 640px;
 }
 
 .fsc-hand__entry > .fsc-hand__prompt {
@@ -162,9 +164,10 @@
   justify-self: start;
 }
 
-/* The one field: 48 px condensed numerals; the hidden digit's cell is canary, because a person must decide. */
+/* The one field, in the money face at 48 px (round 3: no heavy condensed face); the hidden digit's cell is canary,
+   because a person must decide. */
 .fsc-hand__input {
-  width: 9ch;
+  width: 7.5ch;
   min-height: 72px;
   padding: 0 16px;
   border: 1.5px solid var(--fs-canary-border);
@@ -173,22 +176,17 @@
   color: var(--fs-ink);
   caret-color: var(--fs-pod);
   font-family: var(--fs-font-ui);
-  font-stretch: 75%;
-  font-weight: 760;
+  font-stretch: 87.5%;
+  font-weight: 500;
   font-size: 3rem;
   line-height: 1;
-  font-variant-numeric: tabular-nums lining-nums;
-  letter-spacing: 0.01em;
+  font-variant-numeric: lining-nums proportional-nums;
+  letter-spacing: -0.01em;
 }
 
 .fsc-hand__input::selection {
   background: var(--fs-canary);
   color: var(--fs-on-canary);
-}
-
-.fsc-hand__input:focus-visible {
-  outline: var(--fs-focus-width) solid var(--fs-pod);
-  outline-offset: var(--fs-focus-offset);
 }
 
 .fsc-hand__input:disabled {
@@ -260,7 +258,8 @@
 
 .fsc-hand__committed {
   display: grid;
-  gap: 10px;
+  justify-items: start;
+  gap: 8px;
 }
 
 .fsc-hand__ink {
@@ -271,13 +270,28 @@
   color: var(--fs-ink);
 }
 
-.fsc-hand__ink-value {
+/* The result, "64.80 − 0.30 = 64.50 kg", as one line in the money face: her entry and the net in ink, the slip's
+   tare and the operators quieter. */
+.fsc-hand__sum.fs-money {
   font-family: var(--fs-font-ui);
-  font-stretch: 75%;
-  font-weight: 760;
-  font-size: 3rem;
-  line-height: 1;
-  font-variant-numeric: tabular-nums lining-nums;
+  font-stretch: 87.5%;
+  font-weight: 500;
+  font-size: 2.25rem;
+  line-height: 2.5rem;
+  letter-spacing: -0.01em;
+}
+
+.fsc-hand__ink-value {
+  display: inline-block;
+  color: var(--fs-ink);
+}
+
+.fsc-hand__rest {
+  color: var(--fs-ink-3);
+}
+
+.fsc-hand__rest > .fsc-hand__net {
+  color: var(--fs-ink);
 }
 
 .fsc-hand__body[data-moment-phase="entered"] .fsc-hand__ink-value {
@@ -293,22 +307,21 @@
   color: var(--fs-ink-2);
 }
 
-.fsc-hand__net {
+.fsc-hand__committed > .fsc-hand__mismatch {
   margin: 0;
-  color: var(--fs-ink);
 }
 
+/* The next step, named for its work ("Review 3 holds"): the secondary button at full size, an arrow forward. */
 .fsc-hand__next {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  margin: 8px 0 0;
+  margin: 12px 0 0;
 }
 
-.fsc-hand__next-mark {
-  width: 8px;
-  height: 8px;
-  background: var(--fs-canary);
+.fsc-hand__go {
+  text-decoration: none;
+}
+
+.fsc-hand__arrow {
+  transform: scaleX(-1);
 }
 
 .fsc-hand__skipped {
@@ -320,25 +333,11 @@
   border-radius: var(--fs-radius-card);
 }
 
-/* Under 1280 px the stage's bar takes a second row and the screen's padding narrows. */
-@media (max-width: 1279px) {
-  .fsc-hand {
-    --fsc-hand-room: calc(100dvh - 371px);
-  }
-}
-
+/* A narrow screen stacks the two witnesses. */
 @media (max-width: 1099px) {
-  .fsc-hand__body {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
   .fsc-hand__evidence {
+    grid-template-columns: minmax(0, 1fr);
     width: auto;
     max-width: 560px;
-  }
-
-  .fsc-hand__entry {
-    position: static;
-    grid-row: 1;
   }
 }

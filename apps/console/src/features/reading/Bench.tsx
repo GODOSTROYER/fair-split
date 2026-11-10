@@ -195,7 +195,16 @@ export function Bench({ photo, slips, band, outline, zoom, onZoom, mode, testId,
         onPointerLeave={() => setTracking(false)}
         data-testid={`${testId}.viewport`}
       >
-        <Paper alt={READING_COPY.benchAlt(photo.photoId, serials)} className="fsc-bench__paper">
+        {/* The photo's own caption ("Code-composed · synthetic") is printed on the photo; the paper's glyph and its
+            alt text say it too, so no caption repeats it beneath (UI gate round 3). */}
+        <Paper
+          alt={
+            composition
+              ? `${READING_COPY.benchAlt(photo.photoId, serials)}. ${composition.label}`
+              : READING_COPY.benchAlt(photo.photoId, serials)
+          }
+          className="fsc-bench__paper"
+        >
           <div className="fsc-bench__frame">
             <div
               className="fsc-bench__zoomer"
@@ -235,11 +244,6 @@ export function Bench({ photo, slips, band, outline, zoom, onZoom, mode, testId,
           </div>
         </Paper>
       </div>
-      {photoExhibit(photo.photoId) && (
-        <p className="fs-t-micro fsc-bench__source" title={READING_COPY.sourceTitle}>
-          {photoExhibit(photo.photoId)?.label}
-        </p>
-      )}
     </section>
   );
 }

@@ -37,9 +37,29 @@ export const SPLIT = {
   fewerColumns: "Fewer columns",
   columns: "Columns",
   title: "Split review",
-  /** The header's one provenance line: run, lines, engine and rate card, and what the lines include. */
-  provenanceLine: (run: string, lines: number, sha: string, basis: string) =>
-    `${run} · ${lines} lines · engine v1 · rate card ${sha} · ${basis}`,
+  /**
+   * The header's one provenance line, trimmed (round 3): the run, its lines, the engine and the rate card. What the
+   * lines include ("after slip 0462 by hand") is the line's title.
+   */
+  provenanceLine: (run: string, lines: number, sha: string) =>
+    `${run} · ${lines} lines · engine v1 · rate card ${sha}`,
+  /** The grid's column words in the console's English (round 3): the money column says its currency. */
+  netColumn: "Net US$",
+  deductionsColumn: "Deductions",
+  /** The footer says what its figure is. */
+  totalsLabel: "Member net total",
+  /** The reconciliation above the grid: pool − deductions (+ credits) = member net, every figure the engine's. */
+  reconcile: {
+    pool: "Pool",
+    deductions: "deductions",
+    credits: "credits",
+    net: "member net",
+  },
+  reconcileSpoken: (pool: string, deductions: string, credits: string | null, net: string) =>
+    `Pool ${pool} minus deductions ${deductions}${credits ? ` plus credits ${credits}` : ""} equals member net ${net}`,
+  /** A narrow grid opens a line's calculation under it. */
+  showParts: (name: string) => `Show ${name}'s premium, bonus and deductions`,
+  partsColumn: "Parts",
   basis: {
     read: "before slip 0462",
     byHand: "after slip 0462 by hand",
@@ -92,12 +112,14 @@ export const HOLDS = {
   resolvedNote: "Decided. The engine recomputed every line.",
   overrideNote: "Two deliveries, an override: Ernesto co-signs it with the batch (R5).",
   // One line plus the decision (unslop spec §3.7). Every figure arrives from the engine's facts.
-  h1Engine: (amount: string, members: number, name: string) =>
-    `Counting both moves ${amount} from ${members} members to ${name}.`,
   h1EngineInside: (amount: string, members: number, shrink: string, limit: string) =>
     `Counting both moves ${amount} from ${members} members. Shrink ${shrink}, inside the ${limit} limit until slip 0462 is in.`,
-  h1Effect: (amount: string, members: number, shrink: string) =>
-    `+${amount} to ${members} members · shrink ${shrink}`,
+  /** Counting both, as a number line (round 3): what leaves the 63 and where it lands. */
+  h1Flow: (amount: string, members: number, name: string) =>
+    `${members} members −${amount} → ${name} +${amount}`,
+  /** Counting it once: the money back and the dial's move, directly above "Count it once" (round 3). */
+  h1Effect: (amount: string, members: number, shrinkBoth: string, shrinkOnce: string) =>
+    `+${amount} to ${members} members · ${shrinkBoth} → ${shrinkOnce}`,
   h1EffectInside: (amount: string, members: number) =>
     `+${amount} to ${members} members. Enter slip 0462 first to see the mass balance it settles.`,
   h1TitleOnce: (slip: string) => `Slip ${slip}, counted once`,

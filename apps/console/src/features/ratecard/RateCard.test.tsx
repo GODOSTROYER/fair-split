@@ -57,9 +57,14 @@ describe("W-TR-02 rate card", { timeout: 60_000 }, () => {
     const banded = screen.getByTestId("W-TR-02.pages").querySelectorAll("[data-band]");
     expect(banded).toHaveLength(1);
     expect(banded[0]?.textContent).toMatch(/^R3 Loan repayment/);
-    expect(screen.getByTestId("W-TR-02.footer").textContent).toBe(
+    // The stand-in is a bare legend glyph (round 3): its words whole as its title and accessible name, the page
+    // the pointed rule was quoted from as micro beside it.
+    const footer = screen.getByTestId("W-TR-02.footer");
+    expect(footer.querySelector("[data-fs-glyph]")?.getAttribute("title")).toBe(
       "Seed stand-in, not a Claude recording. Seeded quote on page 2.",
     );
+    expect(footer.textContent).toBe("Seed stand-in, not a Claude recording. Seeded quote on page 2.p. 2");
+    expect(screen.getByTestId("W-TR-02").textContent).not.toMatch(/[Bb]olted/);
     await expectNoAxeViolations(view.container);
   });
 
@@ -73,15 +78,23 @@ describe("W-TR-02 rate card", { timeout: 60_000 }, () => {
     const plate = screen.getByTestId("W-TR-02.refusal");
     const heading = within(plate).getByRole("heading");
     expect(document.activeElement).toBe(heading);
+    // The refusal is its title (round 3); its reason waits behind "Why" and never repeats the rule list.
+    expect(heading.textContent).toBe("Refused · Schedule A is closed until 2026-B");
     expect(scrolling).toHaveBeenCalledWith(expect.objectContaining({ block: "nearest" }));
     expect(screen.getByTestId("announcer").textContent).toBe(heading.textContent);
     expect(
       screen.getByTestId("W-TR-02.addCommit").compareDocumentPosition(plate) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
+    const why = screen.getByTestId("W-TR-02.why");
+    expect(why.tagName).toBe("DETAILS");
+    expect(why.hasAttribute("open")).toBe(false);
+    expect(within(why).getByText("Why").tagName).toBe("SUMMARY");
     expect(plate.textContent).toMatch(
-      /Closed list\. BR 2026-04, Schedule A, allows only CBU, hauling, loans with an Authority to Deduct and advances with a voucher\. A new deduction needs a new Board resolution for Season 2026-B\. Rate card [0-9a-f]{4} [0-9a-f]{4}\./,
+      /BR 2026-04 locked Schedule A for 2026-A\. A new deduction needs a 2026-B resolution\. Rate card [0-9a-f]{4} [0-9a-f]{4}\./,
     );
+    expect(plate.textContent).not.toMatch(/allows only|CBU|hauling|[Bb]olted/);
+    expect(screen.getByTestId("W-TR-02.add").textContent).toMatch(/Locked by BR 2026-04/);
     // The hash it cites prints once, in its own caption.
     expect(plate.textContent?.match(/Rate card [0-9a-f]{4} [0-9a-f]{4}\./g)).toHaveLength(1);
     expect(plate.querySelector(".fsc-rc__refusal-text .fs-t-caption")?.textContent).toMatch(

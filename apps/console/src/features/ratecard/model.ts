@@ -136,30 +136,26 @@ export function clauseLines(layer: TextLayer, quote: string, page: number): Clau
   return out;
 }
 
-/** The deductions Schedule A allows, in the co-op's words (R1–R4 of the closed list). */
-export function allowedDeductions(card: Card): string {
-  const words: Record<string, string> = {
-    R1: "CBU",
-    R2: "hauling",
-    R3: "loans with an Authority to Deduct",
-    R4: "advances with a voucher",
-  };
-  const ids = card.canonical.rules.closedList.deductionRuleIds.filter((id) => words[id]);
-  const list = ids.map((id) => words[id] as string);
-  if (list.length <= 1) return list.join("");
-  return `${list.slice(0, -1).join(", ")} and ${list[list.length - 1]}`;
-}
-
 export interface Refusal {
   readonly hash: string;
   readonly rateCard: string;
   readonly ratifiedOn: string;
 }
 
-/** The refusal plate (S1.7 W-TR-02), every part from the 409 and the card: its words, and apart the hash it cites. */
-export function refusalParts(card: Card, refusal: Refusal): { readonly body: string; readonly hash: string } {
+/**
+ * The refusal plate (S1.7 W-TR-02; UI gate round 3), every part from the 409 and the card: the title the plate
+ * leads with, its "Why" (one line, never the rule list the schedule beside it already prints), and apart the hash
+ * it cites.
+ */
+export function refusalParts(
+  card: Card,
+  refusal: Refusal,
+): { readonly title: string; readonly body: string; readonly hash: string } {
+  const season = seasonLabel(card);
+  const next = nextSeason(season);
   return {
-    body: RATECARD_COPY.refusalBody(refusal.rateCard, allowedDeductions(card), nextSeason(seasonLabel(card))),
+    title: RATECARD_COPY.refused(next),
+    body: RATECARD_COPY.refusalBody(refusal.rateCard, season, next),
     hash: RATECARD_COPY.refusalHash(format.hashGroups(refusal.hash)),
   };
 }

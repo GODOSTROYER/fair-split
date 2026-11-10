@@ -12,16 +12,31 @@ import type { ReactNode } from "react";
 import { Stamp } from "../../chrome/Stamp.js";
 import { format } from "../../lib/format.js";
 import { duplicateSerial, type HoldNoteRow } from "./HoldNote.js";
-import type { RowConfidence, RowSlip, SplitRow, SplitTotals } from "./model.js";
+import type { RowConfidence, SplitRow, SplitTotals } from "./model.js";
 import { en, SPLIT } from "./shared/copy.js";
 import { DigitSwap } from "./shared/DigitSwap.js";
-import { BALLPOINT, COPY_FILL, FORM_INK, SERIAL_RED } from "./shared/SlipPaper.js";
 
-/** A grid row: a member's line, the pinned totals, or the inline hold note under H1 (a full-width row). */
+/**
+ * A line's calculation, opened under it in a narrow grid (UI gate round 3): the columns a narrow container hides
+ * (premium, bonus, deductions, credit), as one full-width row. Every figure is the line's own.
+ */
+export interface DetailRow {
+  readonly kind: "detail";
+  /** The grid's row ID: the line's member number and ":detail". */
+  readonly memberNo: string;
+  readonly forMember: string;
+  readonly line: SplitRow;
+}
+
+/**
+ * A grid row: a member's line (opened or not, in a narrow grid), the pinned totals, the inline hold note under H1,
+ * or a line's opened calculation (both full-width rows).
+ */
 export type GridRow =
-  | ({ readonly kind: "line" } & SplitRow)
+  | ({ readonly kind: "line"; readonly expanded?: boolean } & SplitRow)
   | ({ readonly kind: "totals" } & SplitTotals & { readonly memberNo: "totals" })
-  | HoldNoteRow;
+  | HoldNoteRow
+  | DetailRow;
 
 export interface GridContext {
   /** Live events may animate; replayed history may not. */
@@ -33,8 +48,10 @@ export interface GridContext {
   readonly yieldLimit: string;
   /** The premium's per-kg pool rate for the tooltip, console only: "US$0.29523 a kg". */
   readonly premiumRate: string;
-  /** The seed's slip for a copy, so the slips cell crops the real sheet (its serial and Jessie's entries). */
+  /** The seed's slip for a copy (the H1 note compares the two sheets' fields). */
   readonly slip?: (serial: string, copy: SnapshotSlip["copy"]) => SnapshotSlip | undefined;
+  /** A narrow grid opens a line's hidden calculation under it (round 3): set by the grid. */
+  readonly toggleDetail?: (memberNo: string) => void;
 }
 
 type Props = CustomCellRendererProps<GridRow, unknown, GridContext>;
@@ -94,12 +111,16 @@ function amountWash(row: SplitRow, ctx: GridContext) {
 // ------------------------------------------------------------------------------------------------ member
 
 export function MemberCell({ data }: Props) {
-  if (data?.kind === "note") return null;
+  if (data?.kind === "note" || data?.kind === "detail") return null;
   if (!data) return null;
   if (data.kind === "totals") {
+    // The footer says what its Net figure is (round 3): the members' net total, over its lines.
     return (
       <Cell className="fsr-cell--member">
-        <span className="fs-t-label">{SPLIT.totalsLines(data.lines)}</span>
+        <span className="fsr-member">
+          <span className="fsr-member__name fs-t-label">{SPLIT.totalsLabel}</span>
+          <span className="fsr-member__meta fs-t-micro">{SPLIT.totalsLines(data.lines)}</span>
+        </span>
       </Cell>
     );
   }
@@ -116,68 +137,18 @@ export function MemberCell({ data }: Props) {
 // ------------------------------------------------------------------------------------------------ slips
 
 /**
- * A 24 × 18 crop of a slip's top corner, as the sheet is drawn everywhere else: the press's red serial and
- * Jessie's first entries in blue ballpoint on the copy's own paper. It is evidence, so it is paper.
+ * The slip count alone (UI gate round 3: no 30 px thumbnails, which read as noise at row height), and the pink
+ * carbon-copy chip only where a serial sits on the line twice.
  */
-function SlipCrop({ slip, index, sheet }: { slip: RowSlip; index: number; sheet: SnapshotSlip | undefined }) {
-  const values = sheet ? [sheet.boxes["1"], sheet.boxes["2"], sheet.boxes["3"]] : ["", "", ""];
-  const faint = slip.copy === "PINK_DUPLICATE";
-  return (
-    <svg
-      className="fsr-slips__crop"
-      viewBox="112 6 128 96"
-      width={24}
-      height={18}
-      aria-hidden="true"
-      focusable="false"
-      data-copy={slip.copy}
-      style={{ ["--i" as string]: String(index) }}
-    >
-      <rect x={0} y={0} width={240} height={300} fill={COPY_FILL[slip.copy]} />
-      <text x={226} y={30} textAnchor="end" fill={SERIAL_RED} opacity={faint ? 0.7 : 0.95} fontSize={22}>
-        {slip.serial}
-      </text>
-      <line x1={112} x2={226} y1={44} y2={44} stroke={FORM_INK} strokeWidth={1.5} opacity={0.6} />
-      {values.map((value, i) => (
-        <g key={`${i}-${value}`}>
-          <line
-            x1={112}
-            x2={226}
-            y1={65 + i * 22}
-            y2={65 + i * 22}
-            stroke={FORM_INK}
-            strokeWidth={1}
-            opacity={0.5}
-          />
-          <text x={118} y={62 + i * 22} fill={BALLPOINT} opacity={faint ? 0.62 : 0.94} fontSize={16}>
-            {value || "—"}
-          </text>
-        </g>
-      ))}
-    </svg>
-  );
-}
-
-export function SlipsCell({ data, context }: Props) {
-  if (data?.kind === "note") return null;
+export function SlipsCell({ data }: Props) {
+  if (data?.kind === "note" || data?.kind === "detail") return null;
   if (!data || data.kind === "totals") return null;
-  const shown = data.slips.slice(0, 3);
   // The carbon-copy chip: a serial on this line twice (the pink duplicate of H1), in the pink copy's own colour.
   const dup = duplicateSerial(data.slips);
   return (
     <Cell className="fsr-cell--slips">
       <span className="fsr-slips">
-        <span className="fsr-slips__stack" aria-hidden style={{ ["--n" as string]: String(shown.length) }}>
-          {shown.map((s, i) => (
-            <SlipCrop
-              key={`${s.serial}-${s.copy}-${s.photoId}`}
-              slip={s}
-              index={i}
-              sheet={context?.slip?.(s.serial, s.copy)}
-            />
-          ))}
-        </span>
-        <span className="fs-t-figure" aria-hidden>
+        <span className="fsr-slips__count fs-t-figure" aria-hidden>
           {data.slips.length}
         </span>
         <span className="fs-sr">{SPLIT.slipCount(data.slips.length)}</span>
@@ -194,7 +165,7 @@ export function SlipsCell({ data, context }: Props) {
 // ------------------------------------------------------------------------------------------------ kilos
 
 export function KgCell({ data, context }: Props) {
-  if (data?.kind === "note") return null;
+  if (data?.kind === "note" || data?.kind === "detail") return null;
   if (!data) return null;
   if (data.kind === "totals") return null;
   const ratio = Math.max(0, Math.min(2, data.treeRatio));
@@ -274,7 +245,7 @@ function ConfidenceBody({
 }
 
 export function ConfidenceCell({ data, context }: Props) {
-  if (data?.kind === "note") return null;
+  if (data?.kind === "note" || data?.kind === "detail") return null;
   if (!data || data.kind === "totals") return null;
   return (
     <Cell className="fsr-cell--conf">
@@ -311,7 +282,7 @@ function Part({
 }
 
 export function PremiumCell({ data, context }: Props) {
-  if (data?.kind === "note") return null;
+  if (data?.kind === "note" || data?.kind === "detail") return null;
   if (!data) return null;
   if (data.kind === "totals") {
     return (
@@ -328,7 +299,7 @@ export function PremiumCell({ data, context }: Props) {
 }
 
 export function BonusCell({ data, context }: Props) {
-  if (data?.kind === "note") return null;
+  if (data?.kind === "note" || data?.kind === "detail") return null;
   if (!data) return null;
   if (data.kind === "totals") {
     return (
@@ -351,7 +322,7 @@ const CATEGORY_WORD: Readonly<Record<"CBU" | "LOAN" | "ADVANCE", string>> = {
 };
 
 export function KaltasCell({ data }: Props) {
-  if (data?.kind === "note") return null;
+  if (data?.kind === "note" || data?.kind === "detail") return null;
   if (!data) return null;
   if (data.kind === "totals") {
     return (
@@ -379,7 +350,7 @@ export function KaltasCell({ data }: Props) {
 }
 
 export function CreditCell({ data }: Props) {
-  if (data?.kind === "note") return null;
+  if (data?.kind === "note" || data?.kind === "detail") return null;
   if (!data) return null;
   if (data.kind === "totals") {
     return (
@@ -415,7 +386,7 @@ export function CreditCell({ data }: Props) {
 }
 
 export function NetCell({ data, context }: Props) {
-  if (data?.kind === "note") return null;
+  if (data?.kind === "note" || data?.kind === "detail") return null;
   if (!data) return null;
   if (data.kind === "totals") {
     return (
@@ -447,10 +418,84 @@ export function NetCell({ data, context }: Props) {
   );
 }
 
+// ------------------------------------------------------------------------------------------------ a line's calculation
+
+/**
+ * A narrow grid's first column (round 3): opens the line's hidden calculation under it. The row's own click still
+ * opens the line or its hold; this button only shows the parts.
+ */
+export function ExpandCell({ data, context }: Props) {
+  if (data?.kind !== "line") return null;
+  const open = data.expanded === true;
+  return (
+    <Cell className="fsr-cell--expand">
+      <button
+        type="button"
+        className="fsr-expand"
+        aria-expanded={open}
+        aria-label={SPLIT.showParts(data.name)}
+        title={SPLIT.showParts(data.name)}
+        data-testid={`W-TR-05.expand.${data.memberNo}`}
+        onClick={(event) => {
+          event.stopPropagation();
+          context?.toggleDetail?.(data.memberNo);
+        }}
+      >
+        <Glyph name={open ? "ms:expand-less" : "ms:expand-more"} size={18} />
+      </button>
+    </Cell>
+  );
+}
+
+/** The opened calculation: premium + bonus − each ruled deduction (+ credit) = net, the line's own figures. */
+export function DetailView({ detail }: { readonly detail: DetailRow }) {
+  const r = detail.line;
+  return (
+    <dl className="fsr-detail fs-t-caption" data-testid={`W-TR-05.detail.${detail.forMember}`}>
+      <div className="fsr-detail__part">
+        <dt>{en("W-TR-05.col.premium")}</dt>
+        <dd className="fs-t-figure" data-amount-state={r.partsState}>
+          {CENTS(r.premiumCents)}
+        </dd>
+      </div>
+      <div className="fsr-detail__part">
+        <dt>{en("W-TR-05.col.bonus")}</dt>
+        <dd className="fs-t-figure" data-amount-state={r.partsState}>
+          +{CENTS(r.bonusCents)}
+        </dd>
+      </div>
+      {r.deductions.map((d) => (
+        <div key={`${d.ruleId}-${d.category}`} className="fsr-detail__part">
+          <dt>
+            {CATEGORY_WORD[d.category]} <span className="fs-t-micro fsr-detail__rule">{d.ruleId}</span>
+          </dt>
+          <dd className="fs-t-figure" data-amount-state={r.partsState}>
+            {format.amount(-d.amountCents)}
+          </dd>
+        </div>
+      ))}
+      {r.creditsCents > 0 && (
+        <div className="fsr-detail__part">
+          <dt>{SPLIT.creditReturned}</dt>
+          <dd className="fs-t-figure" data-amount-state={r.partsState}>
+            +{CENTS(r.creditsCents)}
+          </dd>
+        </div>
+      )}
+      <div className="fsr-detail__part fsr-detail__part--net">
+        <dt>{SPLIT.netColumn}</dt>
+        <dd className="fs-t-figure" data-amount-state={r.amountState}>
+          {CENTS(r.netCents)}
+        </dd>
+      </div>
+    </dl>
+  );
+}
+
 // ------------------------------------------------------------------------------------------------ rail
 
 export function RailCell({ data, context }: Props) {
-  if (data?.kind === "note") return null;
+  if (data?.kind === "note" || data?.kind === "detail") return null;
   if (!data || data.kind === "totals") return null;
   const cash = data.rail === "CASH" || data.movedToCash;
   return (
@@ -536,7 +581,7 @@ function statusLook(row: SplitRow): { readonly tone: GridTone; readonly glyph: G
 }
 
 export function StatusCell({ data, context }: Props) {
-  if (data?.kind === "note") return null;
+  if (data?.kind === "note" || data?.kind === "detail") return null;
   if (!data) return null;
   if (data.kind === "totals") {
     return (

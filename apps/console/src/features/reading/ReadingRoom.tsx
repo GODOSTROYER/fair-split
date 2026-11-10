@@ -9,7 +9,7 @@
 
 import type { RunEvent, SeasonSnapshot } from "@fairsplit/contracts";
 import { webRoutes } from "@fairsplit/contracts";
-import { Glyph, Numeral, useMotionMode } from "@fairsplit/ui-web";
+import { Glyph, HONESTY, LegendGlyph, Numeral, useMotionMode } from "@fairsplit/ui-web";
 import { useRouter } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ScreenRoot } from "../../chrome/ScreenRoot.js";
@@ -296,16 +296,9 @@ export function ReadingRoom({
   const treasurer = snapshot.officers.find((o) => o.role === "TREASURER") ?? null;
   const clerk = snapshot.officers.find((o) => o.role === "CLERK")?.shortName ?? "the clerk";
   const recorded = format.dateShort(snapshot.run.recordedOn);
-  // The provenance tag: its short word shows, the canonical sentence is its accessible name (spec §2.2).
-  const footer =
-    photo.set === "EARLIER" && photo.readOn ? (
-      <span>{READING_COPY.earlierFooter(format.dateShort(photo.readOn))}</span>
-    ) : (
-      <span>
-        {READING_COPY.standInTag}
-        <span className="fs-sr">{READING_COPY.standInRest}</span>
-      </span>
-    );
+  // The provenance (round 3): a bare legend glyph, its words its tooltip and accessible name, once per surface. A
+  // photo read earlier keeps its date as data beside the seeded-sample glyph.
+  const earlier = photo.set === "EARLIER" && photo.readOn ? format.dateShort(photo.readOn) : null;
   const toConfirm = state === "confirm-one" ? confirmRow(rows) : null;
   const confirmHold = toConfirm && view ? confirmHoldFor(view, snapshot, toConfirm.serial) : undefined;
 
@@ -317,132 +310,139 @@ export function ReadingRoom({
 
   return (
     <ScreenRoot id="W-TR-03" state={state} labelledBy="fsc-read-title" className="fsc-read">
-      <header className="fsc-read__head">
-        <h1 id="fsc-read-title" className="fs-t-title-1">
-          {READING_COPY.title}
-          <span className="fsc-read__context"> {season}</span>
-        </h1>
-      </header>
+      {/* The room fills the screen: the recorded exhibit starts below it, never sliced at the panel's edge. */}
+      <div className="fsc-read__room">
+        <header className="fsc-read__head">
+          <h1 id="fsc-read-title" className="fs-t-title-1">
+            {READING_COPY.title}
+            <span className="fsc-read__context"> {season}</span>
+          </h1>
+        </header>
 
-      <div
-        className="fsc-read__body"
-        {...moment.rootProps}
-        ref={bodyRef}
-        data-motion={mode}
-        data-testid="W-TR-03.room"
-      >
-        <div className="fsc-read__desk" data-testid="W-TR-03.desk">
-          <Bench
-            photo={photo}
-            slips={slips}
-            band={band}
-            outline={outline}
-            zoom={zoom}
-            onZoom={setZoom}
-            mode={mode}
-            testId="W-TR-03.bench"
-          />
-          <Filmstrip
-            season={season}
-            replay={film}
-            earlier={earlierPhotos(snapshot)}
-            active={photo.photoId}
-            testId="W-TR-03.film"
-          />
-        </div>
-        <div className="fsc-read__side" data-testid="W-TR-03.side">
-          {/* The screen's one hero count: the slips read, in FS Sans, the stand-in's mark beside it (round 3). */}
-          <div className="fsc-read__counter">
-            <p className="fsc-read__progress" data-testid="W-TR-03.film.progress">
-              <Numeral value={READING_COPY.progressDots(progress.read, progress.total)} decorative />
-              <span className="fs-sr">{READING_COPY.progress(progress.read, progress.total)}</span>
-            </p>
-            <span className="fsc-read__counter-unit fs-t-micro" aria-hidden>
-              {READING_COPY.progressUnit}
-            </span>
-            <span
-              id="fsc-reading-provenance"
-              className="fsc-read__provenance fs-honesty fs-t-micro"
-              data-testid="W-TR-03.footer"
-            >
-              <Glyph name="pencil" size={12} />
-              {footer}
-            </span>
-          </div>
-          <ExhibitLink season={season} />
-          <p className="fsc-read__status" role="status" data-testid="W-TR-03.status" data-state={state}>
-            <Glyph
-              name={state === "reading" ? "pencil" : state === "offline" ? "ms:wifi-off" : "triplicate-slip"}
-              size={16}
+        <div
+          className="fsc-read__body"
+          {...moment.rootProps}
+          ref={bodyRef}
+          data-motion={mode}
+          data-testid="W-TR-03.room"
+        >
+          <div className="fsc-read__desk" data-testid="W-TR-03.desk">
+            <Bench
+              photo={photo}
+              slips={slips}
+              band={band}
+              outline={outline}
+              zoom={zoom}
+              onZoom={setZoom}
+              mode={mode}
+              testId="W-TR-03.bench"
             />
-            <span>
-              {sentence}
-              {state === "offline" && ` ${READING_COPY.stateOffline}`}
-              {state === "live-paused" && ` ${READING_COPY.stateLivePaused}`}
-            </span>
-          </p>
-          <Beds
-            season={season}
-            photoId={photo.photoId}
-            slips={slips}
-            rows={rows}
-            landings={landings}
-            active={activeRow}
-            onActive={setActiveRow}
-            onOpenCrop={(serial) => {
-              const s = slips.find((x) => x.slip.serial === serial);
-              if (s) setZoom(zoomOnSlip(s.position, photo.photoId, serial));
-            }}
-            onByHand={(serial) => router.history.push(webRoutes.byHand(season, serial))}
-            tableRef={tableRef}
-            started={started || photo.set === "EARLIER"}
-            officers={snapshot.officers}
-            treasurer={treasurer}
-            notice={(serial) => quarantineNotice(snapshot, serial)}
-            testId="W-TR-03.beds"
-          />
-          {toConfirm?.zoomAgreed && (
-            <ConfirmZoomRead
+            <Filmstrip
               season={season}
-              row={toConfirm}
-              agreed={toConfirm.zoomAgreed}
-              hold={confirmHold}
-              inSession={inSession}
-              testId="W-TR-03.confirm"
+              replay={film}
+              earlier={earlierPhotos(snapshot)}
+              active={photo.photoId}
+              testId="W-TR-03.film"
             />
-          )}
-          {state === "blurred" && (
-            <RequestRescan photoId={photo.photoId} clerk={clerk} testId="W-TR-03.rescan" />
-          )}
-        </div>
-        <FlightLayer flights={flights} connectors={connectors} onDone={onFlightDone} />
-      </div>
-
-      <footer className="fsc-read__footer fs-t-caption">
-        {replay.available && (
-          <div className="fsc-read__replay" data-testid="W-TR-03.replay" data-state={replayState(replay)}>
-            <span className="fsc-read__replay-note" role="status">
-              {replay.running
-                ? READING_COPY.replayRunning(replay.rows, replay.total, recorded)
-                : replay.active
-                  ? READING_COPY.replayDone(replay.total, recorded)
-                  : READING_COPY.replayNote(recorded)}
-            </span>
-            <button
-              type="button"
-              className="fs-link fs-t-caption"
-              onClick={replay.running ? replay.stop : startReplay}
-              data-testid="W-TR-03.replay.toggle"
-            >
-              {replay.running
-                ? READING_COPY.replayStop
-                : replay.active
-                  ? READING_COPY.replayAgain
-                  : READING_COPY.replay}
-            </button>
           </div>
-        )}
-      </footer>
+          <div className="fsc-read__side" data-testid="W-TR-03.side">
+            {/* The screen's one hero count: the slips read, in FS Sans, the stand-in's mark beside it (round 3). */}
+            <div className="fsc-read__counter">
+              <p className="fsc-read__progress" data-testid="W-TR-03.film.progress">
+                <Numeral value={READING_COPY.progressDots(progress.read, progress.total)} decorative />
+                <span className="fs-sr">{READING_COPY.progress(progress.read, progress.total)}</span>
+              </p>
+              <span className="fsc-read__counter-unit fs-t-micro" aria-hidden>
+                {READING_COPY.progressUnit}
+              </span>
+              <span id="fsc-reading-provenance" className="fsc-read__provenance fs-t-micro">
+                {earlier ? (
+                  <>
+                    <LegendGlyph {...HONESTY.seededSample} testId="W-TR-03.footer" />
+                    <span>{READING_COPY.earlierRead(earlier)}</span>
+                  </>
+                ) : (
+                  <LegendGlyph {...HONESTY.seedStandIn} testId="W-TR-03.footer" />
+                )}
+              </span>
+            </div>
+            <ExhibitLink season={season} />
+            <p className="fsc-read__status" role="status" data-testid="W-TR-03.status" data-state={state}>
+              <Glyph
+                name={
+                  state === "reading" ? "pencil" : state === "offline" ? "ms:wifi-off" : "triplicate-slip"
+                }
+                size={16}
+              />
+              <span>
+                {sentence}
+                {state === "offline" && ` ${READING_COPY.stateOffline}`}
+                {state === "live-paused" && ` ${READING_COPY.stateLivePaused}`}
+              </span>
+            </p>
+            <Beds
+              season={season}
+              photoId={photo.photoId}
+              slips={slips}
+              rows={rows}
+              landings={landings}
+              active={activeRow}
+              onActive={setActiveRow}
+              onOpenCrop={(serial) => {
+                const s = slips.find((x) => x.slip.serial === serial);
+                if (s) setZoom(zoomOnSlip(s.position, photo.photoId, serial));
+              }}
+              onByHand={(serial) => router.history.push(webRoutes.byHand(season, serial))}
+              tableRef={tableRef}
+              started={started || photo.set === "EARLIER"}
+              officers={snapshot.officers}
+              treasurer={treasurer}
+              notice={(serial) => quarantineNotice(snapshot, serial)}
+              testId="W-TR-03.beds"
+            />
+            {toConfirm?.zoomAgreed && (
+              <ConfirmZoomRead
+                season={season}
+                row={toConfirm}
+                agreed={toConfirm.zoomAgreed}
+                hold={confirmHold}
+                inSession={inSession}
+                testId="W-TR-03.confirm"
+              />
+            )}
+            {state === "blurred" && (
+              <RequestRescan photoId={photo.photoId} clerk={clerk} testId="W-TR-03.rescan" />
+            )}
+          </div>
+          <FlightLayer flights={flights} connectors={connectors} onDone={onFlightDone} />
+        </div>
+
+        <footer className="fsc-read__footer fs-t-caption">
+          {replay.available && (
+            <div className="fsc-read__replay" data-testid="W-TR-03.replay" data-state={replayState(replay)}>
+              <span className="fsc-read__replay-note" role="status">
+                {replay.running
+                  ? READING_COPY.replayRunning(replay.rows, replay.total, recorded)
+                  : replay.active
+                    ? READING_COPY.replayDone(replay.total, recorded)
+                    : READING_COPY.replayNote(recorded)}
+              </span>
+              <button
+                type="button"
+                className="fs-link fs-t-caption"
+                onClick={replay.running ? replay.stop : startReplay}
+                data-testid="W-TR-03.replay.toggle"
+              >
+                {replay.running
+                  ? READING_COPY.replayStop
+                  : replay.active
+                    ? READING_COPY.replayAgain
+                    : READING_COPY.replay}
+              </button>
+            </div>
+          )}
+        </footer>
+      </div>
       <HeroExhibits snapshot={snapshot} />
     </ScreenRoot>
   );

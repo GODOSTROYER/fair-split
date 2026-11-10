@@ -56,9 +56,12 @@
   color: var(--fs-ink-3);
 }
 
-.fsr-split__tag {
-  grid-row: 1;
-  grid-column: 2;
+/* The provenance's legend glyphs (round 3): bare, after the micro line, their words in their title. */
+.fsr-split__head > .fsr-split__provenance {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--fs-space-4) var(--fs-space-8);
 }
 
 /* ------------------------------------------------------------------ the bench */
@@ -159,6 +162,36 @@
 /* Waiting for slip 0462: the drawing is dimmed, its caption text keeps the token contrast (ink-3 ≥ 4.5:1). */
 .fsr-dial__visual[data-status="PENDING"] svg {
   opacity: 0.72;
+}
+
+/* The limit reads from the dial itself (UI gate round 3): the 2 px limit tick in ink stands over lighter ticks; the
+   needle (and its hub) is marigold while shrink is over the limit and ink inside it, so 2.05% against 2.0% reads
+   even where the two sit 3° apart. The bench's dot-matrix reading takes the same tone. */
+.fsr-dial .fs-dial__tick {
+  stroke: var(--fs-rule-strong);
+  stroke-width: 1;
+}
+
+.fsr-dial .fs-dial__tick--limit {
+  stroke: var(--fs-ink);
+  stroke-width: 2;
+  stroke-linecap: butt;
+}
+
+.fsr-dial .fs-dial__needle {
+  stroke: var(--fs-ink);
+}
+
+.fsr-dial .fs-dial__hub {
+  fill: var(--fs-ink);
+}
+
+.fsr-dial .fs-dial[data-over] .fs-dial__needle {
+  stroke: var(--fs-canary-border);
+}
+
+.fsr-dial .fs-dial[data-over] .fs-dial__hub {
+  fill: var(--fs-canary-border);
 }
 
 /* MM-3 reduced: the needle cuts to its new value under a 200 ms crossfade, its reading with it. */
@@ -319,6 +352,47 @@
   box-shadow: inset 0 0 0 1px var(--fs-rule-strong);
 }
 
+/* The grid's arithmetic above it (round 3): "Pool US$4,273.50 − deductions 58.65 = member net US$4,214.85", then
+   the balance check. Labels in caption grey, figures in the money face; it sits at the tools row's end, over the
+   Net column, and wraps to its own line on a narrow screen. */
+.fsr-recon {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--fs-space-4) var(--fs-space-16);
+  margin-left: auto;
+}
+
+.fsr-recon__eq {
+  margin: 0;
+}
+
+.fsr-recon__line {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--fs-space-4) var(--fs-space-8);
+}
+
+.fsr-recon__term {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--fs-space-4);
+  white-space: nowrap;
+}
+
+.fsr-recon__word {
+  color: var(--fs-ink-3);
+}
+
+.fsr-recon__figure {
+  color: var(--fs-ink);
+}
+
+.fsr-recon__op {
+  color: var(--fs-ink-3);
+}
+
 /* "Columns": the secondary figures behind one quiet control. */
 .fsr-columns.fs-flat {
   display: inline-flex;
@@ -473,6 +547,14 @@
   border-bottom: 1px solid var(--fs-rule-strong);
 }
 
+/* The pinned total sits over the scrolling lines as a footer (round 3): a soft neutral edge above it says the lines
+   run on beneath, so a line cut at the viewport reads as scrolling, never as hidden by the total. */
+.fsr-grid .ag-floating-bottom {
+  position: relative;
+  z-index: 1;
+  box-shadow: 0 -8px 12px -10px color-mix(in srgb, var(--fs-ink) 45%, transparent);
+}
+
 /* A renderer fills its cell so a wash covers it edge to edge. */
 .fsr-cell {
   position: relative;
@@ -538,27 +620,114 @@
   line-height: 1.15;
 }
 
-/* Slips: the line's own sheets as 24 × 18 crops of their top corner (the red serial, Jessie's first entries),
-   fanned 5 px apart on the copies' own paper, then the count. Evidence, so paper: the only shadow in the grid. */
+/* Slips: the count alone (round 3: no thumbnails), the pink carbon-copy chip beside it only where relevant. */
 .fsr-slips {
   display: inline-flex;
   align-items: center;
   gap: var(--fs-space-8);
 }
 
-.fsr-slips__stack {
-  position: relative;
-  display: inline-block;
-  width: calc(24px + (var(--n, 1) - 1) * 5px);
-  height: 18px;
+.fsr-slips__count {
+  min-width: 1.5ch;
+  color: var(--fs-ink-2);
 }
 
-.fsr-slips__crop {
+/* ------------------------------------------------------------------ a narrow grid opens a line's parts */
+
+.fsr-expand {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--fs-radius-cell);
+  background: transparent;
+  color: var(--fs-ink-2);
+  cursor: pointer;
+}
+
+.fsr-expand:hover {
+  background: var(--fs-plate-2);
+  color: var(--fs-ink);
+}
+
+.fsr-expand[aria-expanded="true"] {
+  color: var(--fs-ink);
+}
+
+/* The opener's header names the column for screen readers only. */
+.fsr-grid .fsr-ag-expand-head .ag-header-cell-text {
   position: absolute;
-  top: 0;
-  left: calc(var(--i) * 5px);
-  display: block;
-  box-shadow: var(--fs-shadow-e1);
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.fsr-grid .ag-cell.fsr-ag-expand {
+  padding-inline: var(--fs-space-8);
+}
+
+/* In a narrow grid the held line's bar moves to the row's first cell, the opener. */
+.fsr-grid .fsr-row--held .ag-cell[col-id="expand"] {
+  box-shadow: inset 3px 0 0 var(--fs-canary);
+}
+
+.fsr-grid:is([data-columns="narrow"], [data-columns="slim"]) .fsr-row--held .ag-cell[col-id="member"] {
+  box-shadow: none;
+}
+
+/* The opened parts: one line of label and figure pairs under the line, aligned past the opener. */
+.fsr-grid .ag-row.fsr-row--detail {
+  background: var(--fs-plate-2);
+  cursor: default;
+}
+
+.fsr-detail__cell {
+  height: 100%;
+}
+
+.fsr-detail {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: var(--fs-space-24);
+  height: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 0 var(--fs-space-16) 0 56px;
+  overflow: hidden;
+  color: var(--fs-ink-3);
+}
+
+.fsr-detail__part {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--fs-space-8);
+  white-space: nowrap;
+}
+
+.fsr-detail dd {
+  margin: 0;
+  color: var(--fs-ink);
+}
+
+.fsr-detail dd[data-amount-state="pencil"] {
+  color: var(--fs-pencil);
+}
+
+.fsr-detail__rule {
+  color: var(--fs-ink-3);
+}
+
+.fsr-detail__part--net {
+  margin-left: auto;
+}
+
+.fsr-detail__part--net dt {
+  color: var(--fs-ink-2);
 }
 
 /* Kilos and the kilos-per-tree bar against the ratified limit (the tick sits at the limit). */
@@ -829,11 +998,12 @@
 /* ------------------------------------------------------------------ the balance check */
 
 /* A checked fact: a check and the word in ink, no pill (its equations in its title). */
+/* The balance check, at the end of the reconciliation line above the grid (round 3). */
 .fsr-split__totals {
   display: inline-flex;
   align-items: center;
   gap: var(--fs-space-4);
-  margin: var(--fs-space-4) 0 0;
+  margin: 0;
   color: var(--fs-ink);
 }
 
@@ -914,7 +1084,7 @@
   outline-offset: calc(-1 * var(--fs-focus-width));
 }
 
-.fsr-static .fsr-row--held > th:first-child {
+.fsr-static .fsr-row--held > :first-child {
   box-shadow: inset 3px 0 0 var(--fs-canary);
 }
 
@@ -953,4 +1123,11 @@
 
 .fsr-static .fsr-row--open > * {
   background: var(--fs-pod-wash);
+}
+
+/* An opened line's parts in the static table: one full-width cell at row height (round 3). */
+.fsr-static .fsr-row--detail > td {
+  height: 40px;
+  padding: 0;
+  background: var(--fs-plate-2);
 }

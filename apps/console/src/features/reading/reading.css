@@ -48,11 +48,6 @@
   pointer-events: none;
 }
 
-.fsc-bench__source {
-  margin: 8px 0 0;
-  color: var(--fs-ink-3);
-}
-
 .fsc-heroes {
   padding-top: 20px;
   border-top: 1px solid var(--fs-rule);
@@ -206,15 +201,18 @@
   stroke-width: 0.8;
 }
 
-/* Slip 0462's water stain: a soft bloom with a darker tide line where it dried. */
-.fsc-slip__stain-body {
-  fill: color-mix(in srgb, var(--fs-hatch) 34%, transparent);
-  stroke: color-mix(in srgb, var(--fs-hatch) 70%, transparent);
-  stroke-width: 0.9;
+/* Slip 0462's water stain (UI gate round 3): a 45° hatch mask over the hidden digit on a faint wash, never a grey
+   blot; the digit beneath stays blurred. At contact-sheet size the mask is a soft box. */
+.fsc-slip__stain-wash {
+  fill: color-mix(in srgb, var(--fs-hatch) 26%, transparent);
 }
 
-.fsc-slip__stain-bloom {
-  fill: color-mix(in srgb, var(--fs-hatch) 22%, transparent);
+.fsc-slip__stain-line {
+  fill: color-mix(in srgb, var(--fs-paper-ink) 34%, transparent);
+}
+
+.fsc-slip__stain-thumb {
+  fill: color-mix(in srgb, var(--fs-hatch) 48%, transparent);
 }
 
 /* MM-2 reduced: a 2 px pencil outline on the crop being read. */
@@ -227,14 +225,23 @@
 /* ---------------------------------------------------------------- W-TR-03 the room */
 
 .fsc-read {
-  /* The photo's height: the window less the top bar (49; its old 110 kept as slack), the screen's padding (28), this
-     page's title row and gap (54), the bench's heading row (40), the filmstrip under the photo (96) and a
-     breath above the ribbon and caption (107 + 12). */
-  --fsc-bench-h: max(260px, calc(100dvh - 447px));
+  /* The photo's height: the window less the stage's frame and top bar (86), the screen's padding (28), this page's
+     title row and gap (48), the bench's heading row (40), the filmstrip under the photo (96) and a breath at the
+     foot (62). No ribbon since round 3: the photo takes that height back. */
+  --fsc-bench-h: max(260px, calc(100dvh - 360px));
   display: grid;
   align-content: start;
   gap: 16px;
   max-width: 1320px;
+}
+
+/* The room fills the screen's visible height (the window less the stage's frame, bar and the screen's top padding),
+   so the recorded exhibit below it starts past the fold, never sliced at the panel's edge (UI gate round 3). */
+.fsc-read__room {
+  display: grid;
+  align-content: start;
+  gap: 16px;
+  min-height: calc(100dvh - 114px);
 }
 
 /* A factual header, the season in grey beside the name (reel 3's "October 2026"): the evidence gets the height. */
@@ -349,14 +356,15 @@
   display: none;
 }
 
-/* The stand-in tag (the honesty tag's anatomy, with the pencil): once per surface, at the counter's end. */
-.fsc-read__provenance.fs-honesty {
+/* The provenance: a bare legend glyph (its words are its title and accessible name), once per surface, at the
+   counter's end; a photo read earlier keeps its date as micro beside it (round 3). */
+.fsc-read__provenance {
+  display: inline-flex;
+  align-items: center;
   align-self: center;
+  gap: 6px;
   margin-left: auto;
-}
-
-.fsc-read__provenance .fs-glyph {
-  color: var(--fs-steel-line);
+  color: var(--fs-ink-3);
 }
 
 .fsc-read__exhibit {
@@ -747,12 +755,31 @@
   width: 52px;
 }
 
+/* The last column holds a reading's ring, or a row's one step ("Enter by hand"): as wide as its content. */
 .fsc-beds__table thead th:nth-child(6) {
-  width: 36px;
+  width: 1%;
+  min-width: 36px;
 }
 
 .fsc-beds__table [data-numeric] {
   text-align: right;
+}
+
+/* A row a person must decide (slip 0462): the split grid's 3 px marigold bar and its wash (UI gate round 3). */
+.fsc-beds__row[data-needs="person"] > th,
+.fsc-beds__row[data-needs="person"] > td {
+  background: var(--fs-canary-wash);
+}
+
+.fsc-beds__row[data-needs="person"] > th {
+  box-shadow: inset 3px 0 0 var(--fs-canary);
+}
+
+/* Its one step, inline at the row's end: the secondary button at row height. */
+.fsc-beds__act {
+  min-height: 32px;
+  padding: 0 12px;
+  text-decoration: none;
 }
 
 .fsc-beds__row {
@@ -801,25 +828,13 @@
 
 /* A narrow side column (the 42% of a 1280 px stage) keeps the member's name whole: tighter figure columns,
    and the name may take a second line. */
-@container (max-width: 520px) {
+@container (max-width: 600px) {
   .fsc-beds__table :is(th, td):nth-child(4),
   .fsc-beds__table :is(th, td):nth-child(5) {
     display: none;
   }
   .fsc-beds__table thead th:nth-child(1) {
     width: 58px;
-  }
-
-  .fsc-beds__table thead th:nth-child(4) {
-    width: 46px;
-  }
-
-  .fsc-beds__table thead th:nth-child(5) {
-    width: 44px;
-  }
-
-  .fsc-beds__table thead th:nth-child(6) {
-    width: 28px;
   }
 
   .fsc-beds__member > :first-child {
@@ -897,6 +912,7 @@
 
 .fsc-beds__ring {
   text-align: center;
+  white-space: nowrap;
 }
 
 .fsc-ring {
@@ -1029,7 +1045,7 @@
 /* Under 1280 px the stage's bar takes a second row and the screen's padding narrows. */
 @media (max-width: 1279px) {
   .fsc-read {
-    --fsc-bench-h: max(240px, calc(100dvh - 479px));
+    --fsc-bench-h: max(240px, calc(100dvh - 392px));
   }
 }
 

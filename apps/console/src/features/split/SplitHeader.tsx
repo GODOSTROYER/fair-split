@@ -10,7 +10,7 @@ import type { ReactNode } from "react";
 import { AppLink } from "../../chrome/AppLink.js";
 import { DataTable, Mirrored } from "../../chrome/DataTable.js";
 import { format } from "../../lib/format.js";
-import { type MassBalanceView, SPLIT_FILTERS, type SplitFilter } from "./model.js";
+import { type MassBalanceView, SPLIT_FILTERS, type SplitFilter, type SplitTotals } from "./model.js";
 import { en, SPLIT } from "./shared/copy.js";
 
 export interface PoolsView {
@@ -47,8 +47,56 @@ export interface SplitHeaderProps {
   readonly dialTestId?: string;
   /** Beneath the pool: the balance check (its equations in its title). */
   readonly proof?: ReactNode;
+  /** After the filters, before the columns toggle: the grid's reconciliation (pool − deductions = member net). */
+  readonly reconcile?: ReactNode;
   /** After the filters: the grid's "All columns" toggle. */
   readonly columns?: ReactNode;
+}
+
+/**
+ * The grid's arithmetic in one line above it (UI gate round 3): pool − deductions (+ credits) = member net, the
+ * footer's "Member net total". Every figure is the engine's conservation proof; the balance check sits at its end.
+ */
+export function Reconcile({
+  totals,
+  check,
+}: {
+  readonly totals: Pick<SplitTotals, "poolCents" | "deductionsCents" | "creditsCents" | "netCents">;
+  readonly check?: ReactNode;
+}) {
+  const pool = format.money(totals.poolCents);
+  const deductions = format.amount(totals.deductionsCents);
+  const credits = totals.creditsCents > 0 ? format.amount(totals.creditsCents) : null;
+  const net = format.money(totals.netCents);
+  const term = (word: string, figure: string, testId?: string) => (
+    <span className="fsr-recon__term">
+      <span className="fsr-recon__word fs-t-caption">{word}</span>
+      <span className="fsr-recon__figure fs-t-figure" data-testid={testId}>
+        {figure}
+      </span>
+    </span>
+  );
+  return (
+    <div className="fsr-recon" data-testid="W-TR-05.reconcile">
+      <p className="fsr-recon__eq">
+        <span className="fs-sr">{SPLIT.reconcileSpoken(pool, deductions, credits, net)}</span>
+        <span className="fsr-recon__line" aria-hidden>
+          {term(SPLIT.reconcile.pool, pool)}
+          <span className="fsr-recon__op">−</span>
+          {term(SPLIT.reconcile.deductions, deductions)}
+          {credits && (
+            <>
+              <span className="fsr-recon__op">+</span>
+              {term(SPLIT.reconcile.credits, credits)}
+            </>
+          )}
+          <span className="fsr-recon__op">=</span>
+          {term(SPLIT.reconcile.net, net, "W-TR-05.reconcile.net")}
+        </span>
+      </p>
+      {check}
+    </div>
+  );
 }
 
 export function dialLabel(dial: MassBalanceView): string {
@@ -153,6 +201,7 @@ export function DialReading({
   return (
     <span className="fsr-reading" data-testid={testId}>
       <span className="fsr-reading__value">
+        {/* The reading stays ink (amber is never text): over the limit, the needle and the limit tick say it. */}
         <Numeral value={value} size={size} label={SPLIT.dialSpoken(value)} />
         <span className="fsr-reading__unit" aria-hidden>
           %
@@ -180,6 +229,7 @@ export function SplitHeader({
   decidedWords = SPLIT.allDecided,
   dialTestId = "W-TR-05.dial",
   proof,
+  reconcile,
   columns,
 }: SplitHeaderProps) {
   const decided = open.holds === 0 && open.byHand === 0;
@@ -245,6 +295,7 @@ export function SplitHeader({
             />
           ))}
         </fieldset>
+        {reconcile}
         {columns}
       </div>
     </section>

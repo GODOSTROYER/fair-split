@@ -19,7 +19,6 @@ export const READING_COPY = {
   zoomInMark: "+",
   zoomOutMark: "−",
   zoomFit: "Fit",
-  sourceTitle: "Photos A–L are composed in code from synthetic hero flats and code-drawn slips.",
   zoomLevel: (scale: string) => `${scale}×`,
   beds: (id: string) => `Rows read from photo ${id}`,
   bedsKeys:
@@ -40,10 +39,12 @@ export const READING_COPY = {
   readTwice: "Seed stand-in, not a Claude recording",
   /** The canonical phrase, once per surface: the stand-in tag's whole text (its tail for screen readers). */
   footer: (_model: string, _date: string) => "Seed stand-in, not a Claude recording",
-  /** The stand-in tag: "Seed stand-in" shows; the pinned phrase is whole for screen readers and text. */
-  standInTag: "Seed stand-in",
-  standInRest: ", not a Claude recording",
-  earlierFooter: (date: string) => `Seeded sample · read ${date}`,
+  /** A photo read earlier: its date beside the seeded-sample glyph (the glyph says "Seeded sample"). */
+  earlierRead: (date: string) => `read ${date}`,
+  /** The by-hand row's inline action; its accessible name starts with these words (WCAG 2.5.3). */
+  byHandShort: "Enter by hand",
+  byHandName: (serial: string) => `Enter by hand, slip ${serial}`,
+  needsPerson: "Needs a person",
   /** The instrument: "48/48" in dots, "slips read" beside it. */
   progressDots: (read: number, total: number) => `${read}/${total}`,
   progressUnit: "slips read",

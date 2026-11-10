@@ -9,7 +9,7 @@
 
 import type { SnapshotSlip } from "@fairsplit/contracts";
 import { MOMENTS, type MomentPhase, TIMING } from "@fairsplit/motion";
-import { Glyph, Print } from "@fairsplit/ui-web";
+import { Glyph, HONESTY, LegendGlyph, Print } from "@fairsplit/ui-web";
 import { HOLDS } from "../split/shared/copy.js";
 import { copyWord, SlipPaper } from "../split/shared/SlipPaper.js";
 import type { NoRuleFacts, TwinRow, YieldFacts } from "./model.js";
@@ -118,6 +118,8 @@ export function TwinCompare({ a, b, rows, phase, animate, mode }: TwinComparePro
           typeRole="label"
           reveal={animate && ready}
         />
+        {/* The pair is the seed's (round 3): its legend glyph, the canonical phrase its title and accessible name. */}
+        <LegendGlyph {...HONESTY.seedStandIn} className="fsr-twin__glyph" testId="W-TR-06.twin.standIn" />
       </p>
     </div>
   );

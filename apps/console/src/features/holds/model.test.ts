@@ -80,7 +80,10 @@ describe("two voices, every digit from the engine", () => {
       const seeded = new Set(figures(seededLine(label)));
       expect(figures(v.engineLine).length, label).toBeGreaterThan(0);
       for (const figure of figures(v.engineLine)) expect(seeded.has(figure), `${label} ${figure}`).toBe(true);
-      expect(v.claudeLine, label).toBe(snapshot.holds.find((h) => h.label === label)?.claudeLine);
+      // H1's seed sentence goes (round 3): its captions say "pink duplicate" and its glyph says "stand-in".
+      expect(v.claudeLine, label).toBe(
+        label === "H1" ? null : snapshot.holds.find((h) => h.label === label)?.claudeLine,
+      );
       expect(v.claudeLine ?? "", label).not.toMatch(/\d/);
     }
   });
@@ -103,7 +106,9 @@ describe("two voices, every digit from the engine", () => {
     if (!h1) throw new Error("no H1");
     const v = voices(snapshot, view, h1);
     expect(v.title).toBe("Slip 0457 counted twice");
-    expect(v.effect).toBe("+US$17.94 to 63 members · shrink 1.62%");
+    // Counting both, as a number line; counting once, the money back and the dial's move (round 3).
+    expect(v.engineLine).toBe("63 members −US$17.94 → Nong Dioning +US$17.94");
+    expect(v.effect).toBe("+US$17.94 to 63 members · 2.05% → 1.62%");
     expect(voices(snapshot, view, { ...h1, state: "RESOLVED", resolution: "COUNT_ONCE" }).title).toBe(
       "Slip 0457, counted once",
     );

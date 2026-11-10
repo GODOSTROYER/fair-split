@@ -24,6 +24,9 @@ import {
   BonusCell,
   ConfidenceCell,
   CreditCell,
+  type DetailRow,
+  DetailView,
+  ExpandCell,
   type GridContext,
   type GridRow,
   KaltasCell,
@@ -44,6 +47,7 @@ import { en, SPLIT } from "./shared/copy.js";
 const SplitAgGrid = lazy(() => import("./SplitAgGrid.js").then((m) => ({ default: m.SplitAgGrid })));
 
 export type GridColumn =
+  | "expand"
   | "member"
   | "slips"
   | "kg"
@@ -67,6 +71,20 @@ export const SLIM_BELOW_PX = 760;
 
 /** The grid's column set: every column, the default ten, five in a narrow container, four beside a drawer. */
 export type ColumnSet = "all" | "default" | "narrow" | "slim";
+
+/** A set that hides the line's parts (premium, bonus, deductions) opens them under a line instead (round 3). */
+export function opensParts(set: ColumnSet): boolean {
+  return set === "narrow" || set === "slim";
+}
+
+/**
+ * Columns whose every value is zero say nothing (round 3): Credit hides until a credit is applied or waits for
+ * its hold. Every other money column always carries figures.
+ */
+export function zeroColumns(lines: readonly SplitRow[], totals: SplitTotals): ReadonlySet<GridColumn> {
+  const credit = totals.creditsCents !== 0 || lines.some((r) => r.creditsCents !== 0 || r.pendingCredit);
+  return new Set<GridColumn>(credit ? [] : ["credit"]);
+}
 
 export interface SplitGridProps {
   readonly rows: readonly SplitRow[];
@@ -101,6 +119,21 @@ function withNote(lines: readonly GridRow[], note: HoldNoteRow | null): GridRow[
   return [...lines.slice(0, at + 1), note, ...lines.slice(at + 1)];
 }
 
+/** Each opened line followed by its calculation (a full-width row), in a set that hides the line's parts. */
+function withDetails(lines: readonly GridRow[], open: ReadonlySet<string>): GridRow[] {
+  if (open.size === 0) return [...lines];
+  return lines.flatMap((r): GridRow[] => {
+    if (r.kind !== "line" || !open.has(r.memberNo)) return [r];
+    const detail: DetailRow = {
+      kind: "detail",
+      memberNo: `${r.memberNo}:detail`,
+      forMember: r.memberNo,
+      line: r,
+    };
+    return [r, detail];
+  });
+}
+
 /** Stable across renders: AG Grid treats a new defaultColDef as new columns and a new getRowId as a new grid. */
 const DEFAULT_COL: ColDef<GridRow> = {
   sortable: false,
@@ -114,6 +147,17 @@ const rowId = (p: { readonly data: GridRow }) => p.data.memberNo;
 function columnDefs(premiumRate: string): Record<GridColumn, ColDef<GridRow>> {
   const num = { type: "rightAligned", cellClass: "fsr-ag-num" } as const;
   return {
+    // A narrow grid's opener for a line's hidden parts: its header's words are for screen readers only.
+    expand: {
+      colId: "expand",
+      headerName: SPLIT.partsColumn,
+      headerClass: "fsr-ag-expand-head",
+      cellRenderer: ExpandCell,
+      width: 44,
+      pinned: "left",
+      lockPinned: true,
+      cellClass: "fsr-ag-expand",
+    },
     member: {
       colId: "member",
       headerName: en("W-TR-05.col.member"),
@@ -123,8 +167,8 @@ function columnDefs(premiumRate: string): Record<GridColumn, ColDef<GridRow>> {
       pinned: "left",
       lockPinned: true,
     },
-    // Room for the carbon-copy chip ("0457 ×2") beside the count.
-    slips: { colId: "slips", headerName: en("W-TR-05.col.slips"), cellRenderer: SlipsCell, width: 136 },
+    // The count alone, and room for the carbon-copy chip ("0457 ×2") beside it.
+    slips: { colId: "slips", headerName: en("W-TR-05.col.slips"), cellRenderer: SlipsCell, width: 112 },
     kg: { colId: "kg", headerName: en("W-TR-05.col.kg"), cellRenderer: KgCell, minWidth: 116, flex: 1 },
     confidence: {
       colId: "confidence",
@@ -151,9 +195,10 @@ function columnDefs(premiumRate: string): Record<GridColumn, ColDef<GridRow>> {
       cellRenderer: BonusCell,
       width: 84,
     },
+    // The console is English (round 3): "Deductions", never the Cebuano "Kaltas".
     kaltas: {
       colId: "kaltas",
-      headerName: en("W-TR-05.col.kaltas"),
+      headerName: SPLIT.deductionsColumn,
       cellRenderer: KaltasCell,
       minWidth: 128,
       flex: 1,
@@ -165,7 +210,8 @@ function columnDefs(premiumRate: string): Record<GridColumn, ColDef<GridRow>> {
       cellRenderer: CreditCell,
       width: 72,
     },
-    net: { ...num, colId: "net", headerName: en("W-TR-05.col.net"), cellRenderer: NetCell, width: 96 },
+    // The money column says its currency (round 3); the footer beneath it is the members' net total.
+    net: { ...num, colId: "net", headerName: SPLIT.netColumn, cellRenderer: NetCell, width: 104 },
     rail: { colId: "rail", headerName: en("W-TR-05.col.rail"), cellRenderer: RailCell, width: 84 },
     status: {
       colId: "status",
@@ -242,29 +288,62 @@ export function SplitGrid({
   // browser). Until then, and wherever nothing is laid out, the same lines print as a plain table.
   const measured = width > 0;
   const set: ColumnSet = columns ?? columnSetFor(width, showAll);
+  const parts = opensParts(set);
   const defs = useMemo(() => columnDefs(context.premiumRate), [context.premiumRate]);
+  // Columns whose every value is zero are hidden (Credit, until a credit applies or waits).
+  const hidden = useMemo(() => zeroColumns([...decisions, ...rows], totals), [decisions, rows, totals]);
   const colDefs = useMemo(
-    () => SETS[set].map((c) => (set === "narrow" ? { ...defs[c], ...NARROW_FIXED[c] } : defs[c])),
-    [defs, set],
+    () =>
+      [...(parts ? (["expand"] as const) : []), ...SETS[set]]
+        .filter((c) => !hidden.has(c))
+        .map((c) => (set === "narrow" ? { ...defs[c], ...NARROW_FIXED[c] } : defs[c])),
+    [defs, set, parts, hidden],
   );
-  // One grid row per line object: an unchanged line keeps its row, so AG Grid refreshes only the lines that moved.
-  const wrapped = useRef(new WeakMap<SplitRow, GridRow>());
-  const wrap1 = useCallback((r: SplitRow): GridRow => {
-    let row = wrapped.current.get(r);
-    if (!row) {
-      row = { kind: "line" as const, ...r };
-      wrapped.current.set(r, row);
-    }
-    return row;
+  // A narrow grid opens a line's hidden parts under it (round 3). Lines opened stay open across filters; a wider
+  // grid shows every part in its columns, so nothing opens there.
+  const [opened, setOpened] = useState<ReadonlySet<string>>(() => new Set());
+  const openParts = useMemo<ReadonlySet<string>>(() => (parts ? opened : new Set()), [parts, opened]);
+  const toggleDetail = useCallback((memberNo: string) => {
+    setOpened((prev) => {
+      const next = new Set(prev);
+      if (next.has(memberNo)) next.delete(memberNo);
+      else next.add(memberNo);
+      return next;
+    });
   }, []);
+  const gridContext = useMemo<GridContext>(() => ({ ...context, toggleDetail }), [context, toggleDetail]);
+  // One grid row per line object: an unchanged line keeps its row, so AG Grid refreshes only the lines that moved.
+  // An opened line is a row of its own (its chevron's state is its data), so AG Grid redraws that line alone.
+  const wrapped = useRef(new WeakMap<SplitRow, GridRow>());
+  const expandedRows = useRef(new WeakMap<SplitRow, GridRow>());
+  const wrap1 = useCallback(
+    (r: SplitRow): GridRow => {
+      const expanded = openParts.has(r.memberNo);
+      const cache = expanded ? expandedRows.current : wrapped.current;
+      let row = cache.get(r);
+      if (!row) {
+        row = expanded ? { kind: "line" as const, ...r, expanded: true } : { kind: "line" as const, ...r };
+        cache.set(r, row);
+      }
+      return row;
+    },
+    [openParts],
+  );
   // The H1 note sits under its held line while that hold is open (the drawer stays the only place to decide).
   // The held lines may be pinned above the others as decisions: the note follows H1 wherever it is.
   const note = useMemo(
     () => holdNote([...decisions, ...rows], context.slip),
     [decisions, rows, context.slip],
   );
-  const rowData = useMemo<GridRow[]>(() => withNote(rows.map(wrap1), note), [rows, wrap1, note]);
-  const topRows = useMemo<GridRow[]>(() => withNote(decisions.map(wrap1), note), [decisions, wrap1, note]);
+  // An opened line's parts sit right under it, before H1's note.
+  const rowData = useMemo<GridRow[]>(
+    () => withDetails(withNote(rows.map(wrap1), note), openParts),
+    [rows, wrap1, note, openParts],
+  );
+  const topRows = useMemo<GridRow[]>(
+    () => withDetails(withNote(decisions.map(wrap1), note), openParts),
+    [decisions, wrap1, note, openParts],
+  );
   const pinned = useMemo<GridRow[]>(
     () => [{ kind: "totals" as const, memberNo: "totals" as const, ...totals }],
     [totals],
@@ -288,6 +367,11 @@ export function SplitGrid({
         <div role="gridcell" tabIndex={-1} className="fsr-note__cell">
           <HoldNoteView note={p.data} onOpen={() => openNote(p.data as HoldNoteRow)} />
         </div>
+      ) : p.data?.kind === "detail" ? (
+        // biome-ignore lint/a11y/useSemanticElements: AG Grid's rows are divs; a <td> cannot sit in a div row.
+        <div role="gridcell" tabIndex={-1} className="fsr-detail__cell">
+          <DetailView detail={p.data} />
+        </div>
       ) : null,
     [openNote],
   );
@@ -304,22 +388,38 @@ export function SplitGrid({
       },
       "fsr-row--totals": (p) => p.data?.kind === "totals",
       "fsr-row--note": (p) => p.data?.kind === "note",
+      "fsr-row--detail": (p) => p.data?.kind === "detail",
       "fsr-row--decision": (p) => p.node.rowPinned === "top",
     }),
     [openMember],
   );
 
+  // A click on a line's parts opener only opens its parts (AG Grid hears the row's click before React does).
   const onRowClicked = useCallback((e: RowClickedEvent<GridRow>) => {
+    const target = e.event?.target;
+    if (target instanceof Element && target.closest(".fsr-expand")) return;
     const row = lineOf(e.data);
     if (row) open.current(row);
   }, []);
 
-  const onCellKeyDown = useCallback((e: CellKeyDownEvent<GridRow> | FullWidthCellKeyDownEvent<GridRow>) => {
-    const key = (e.event as KeyboardEvent | null | undefined)?.key;
-    if (key !== "Enter") return;
-    const row = lineOf(e.data ?? undefined);
-    if (row) open.current(row);
-  }, []);
+  const onCellKeyDown = useCallback(
+    (e: CellKeyDownEvent<GridRow> | FullWidthCellKeyDownEvent<GridRow>) => {
+      const key = (e.event as KeyboardEvent | null | undefined)?.key;
+      // On the opener's cell, Enter and Space open or close the line's parts.
+      if ("column" in e && e.column?.getColId() === "expand" && (key === "Enter" || key === " ")) {
+        const line = lineOf(e.data ?? undefined);
+        if (line) {
+          (e.event as KeyboardEvent | null | undefined)?.preventDefault();
+          toggleDetail(line.memberNo);
+        }
+        return;
+      }
+      if (key !== "Enter") return;
+      const row = lineOf(e.data ?? undefined);
+      if (row) open.current(row);
+    },
+    [toggleDetail],
+  );
 
   const gridApi = useRef<GridApi<GridRow> | null>(null);
   const onApi = useCallback((api: GridApi<GridRow> | null) => {
@@ -376,7 +476,7 @@ export function SplitGrid({
           columns={colDefs}
           rows={[...topRows, ...rowData]}
           totals={pinned[0] as GridRow}
-          context={context}
+          context={gridContext}
           {...(openMember !== undefined ? { openMember } : {})}
           onOpen={(row) => open.current(row)}
           onOpenNote={openNote}
@@ -401,7 +501,7 @@ export function SplitGrid({
               columnDefs={colDefs}
               pinnedTopRowData={topRows}
               pinnedBottomRowData={pinned}
-              context={context}
+              context={gridContext}
               getRowId={rowId}
               rowClassRules={rowClassRules}
               onRowClicked={onRowClicked}

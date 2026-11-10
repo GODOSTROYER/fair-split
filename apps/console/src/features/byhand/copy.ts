@@ -7,11 +7,9 @@ export const BY_HAND_COPY = {
   titleContext: "by hand",
   /** The header's micro line: who the slip belongs to. */
   who: (name: string, memberNo: string) => `${name} · ${memberNo}`,
-  /** The one line (spec §3.5), the reading as a figure, then the stand-in tag ("placeholder score" is cut). */
+  /** The one line (spec §3.5), the reading as a figure, then the stand-in's glyph ("placeholder score" is cut). */
   promptLine: "A stain hides one digit.",
   promptLinePlain: "The gross weight is unclear.",
-  standInTag: "Seed stand-in",
-  standInRest: ", not a Claude recording",
   /** The prompt as its words read in order (the tag's tail is for screen readers). */
   prompt: (_serial: string, _name: string, reading: string, _score: string | null) =>
     `A stain hides one digit. ${reading} Seed stand-in, not a Claude recording`,
@@ -55,10 +53,16 @@ export const BY_HAND_COPY = {
   skipped: (serial: string) => `Skipped. Approval waits for slip ${serial}.`,
   unskip: "Enter it now",
   committed: (name: string) => `Entered by ${name}`,
-  committedFrom: (name: string, line: number) => `Entered by ${name}, from logbook line ${line}`,
-  committedNet: (net: string) => `Net ${net} kg.`,
+  /** The result's one caption (round 3): who, and the witness line it came from or agrees with. */
+  committedFrom: (name: string, line: number) => `Entered by ${name} · logbook line ${line}`,
+  committedMatches: (name: string, line: number) => `Entered by ${name} · matches logbook line ${line}`,
   committedMismatch: (line: number, logbookNet: string) =>
     `Logbook line ${line} says ${logbookNet}: they don't match.`,
+  /** The result's kilos: "64.80 − 0.30 = 64.50 kg" (the slip's text and the server's derived net). */
+  minus: "−",
+  kg: (value: string) => `${value} kg`,
+  /** The next action, named for the work it opens. */
+  reviewHolds: (n: number) => (n === 1 ? "Review 1 hold" : `Review ${n} holds`),
   sending: "Entering the value.",
   next: "Next",
 } as const;

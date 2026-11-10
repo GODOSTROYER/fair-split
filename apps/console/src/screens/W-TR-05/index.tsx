@@ -6,7 +6,7 @@
 // W-TR-09; the route renders those, this screen marks their row.
 
 import { webRoutes } from "@fairsplit/contracts";
-import { Glyph, HonestyTag } from "@fairsplit/ui-web";
+import { Glyph, HONESTY, LegendGlyph } from "@fairsplit/ui-web";
 import { useRouter } from "@tanstack/react-router";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { AppLink } from "../../chrome/AppLink.js";
@@ -33,13 +33,13 @@ import {
   splitTotals,
 } from "../../features/split/model.js";
 import { SplitGrid } from "../../features/split/SplitGrid.js";
-import { type NextDecision, SplitHeader } from "../../features/split/SplitHeader.js";
+import { type NextDecision, Reconcile, SplitHeader } from "../../features/split/SplitHeader.js";
 import { en, SPLIT } from "../../features/split/shared/copy.js";
 import { stampFor } from "../../features/split/shared/people.js";
 import { useLiveEvents, useRunData } from "../../features/split/shared/run-data.js";
 import { waveDelays } from "../../features/split/wave.js";
+import { runLabel, seasonLabel } from "../../lib/display.js";
 import { format } from "../../lib/format.js";
-import { provenanceFooter } from "../../lib/provenance.js";
 import type { ScreenState } from "../../lib/screens.js";
 import type { SplitScreenProps } from "../contract.js";
 import "../../features/split/shared/runs.css";
@@ -144,9 +144,10 @@ export function Screen({ runSlug, hold, member }: SplitScreenProps) {
   else if (!hasLines(view)) state = "empty";
   else state = "ready";
 
-  const season = snapshot?.season.label ?? null;
+  const season = snapshot ? seasonLabel(snapshot.season.label) : null;
   const posted = view ? POSTED.includes(view.state) : false;
-  // The grid holds simulated PayPal statuses (posted, or any line already with the rail): one tag covers it.
+  // The grid holds simulated PayPal statuses (posted, or any line already with the rail): one legend glyph covers
+  // it (round 3: no pill; its words are its title and accessible name).
   const simulated = posted || rows.some((r) => statusLabel(r) !== null);
   const title = (
     <header className="fsr-screen__head fsr-split__head">
@@ -155,22 +156,29 @@ export function Screen({ runSlug, hold, member }: SplitScreenProps) {
         {season && <span className="fsr-split__context"> {season}</span>}
       </h1>
       {snapshot && view && hasLines(view) ? (
-        <p className="fsr-split__provenance fs-t-micro" data-testid="W-TR-05.provenance">
+        <p
+          className="fsr-split__provenance fs-t-micro"
+          data-testid="W-TR-05.provenance"
+          title={SPLIT.basis[splitBasis(view)]}
+        >
           {SPLIT.provenanceLine(
-            runSlug,
+            runLabel(runSlug).run,
             rows.length,
             format.hashGroups(snapshot.rateCard.sha256),
-            SPLIT.basis[splitBasis(view)],
           )}
-          {view.origin === "showcase" ? ` · ${provenanceFooter({ kind: "seeded" })}` : ""}
+          {view.origin === "showcase" && (
+            <LegendGlyph {...HONESTY.seedStandIn} className="fsr-split__glyph" />
+          )}
+          {simulated && (
+            <LegendGlyph
+              {...HONESTY.simulatedSandbox}
+              className="fsr-split__glyph"
+              testId="W-TR-05.simulated"
+            />
+          )}
         </p>
       ) : (
-        <p className="fsr-screen__slug fs-t-micro">{runSlug}</p>
-      )}
-      {simulated && (
-        <HonestyTag className="fsr-split__tag" testId="W-TR-05.simulated">
-          Simulated PayPal sandbox
-        </HonestyTag>
+        <p className="fsr-screen__slug fs-t-micro">{runLabel(runSlug).text}</p>
       )}
     </header>
   );
@@ -274,16 +282,21 @@ export function Screen({ runSlug, hold, member }: SplitScreenProps) {
         onFilter={setFilter}
         railsPlanned={!posted}
         decidedWords={decidedWords(view.state, replayed)}
-        proof={
-          <p
-            className="fsr-split__totals fs-t-label"
-            data-testid="W-TR-05.totals"
-            data-balanced={totals.balanced ? "" : undefined}
-            title={SPLIT.balancedTitle(format.amount(totals.grossCents))}
-          >
-            <Glyph name={totals.balanced ? "ms:check" : "ms:help"} size={14} />
-            {totals.balanced ? SPLIT.balanced : SPLIT.unbalanced}
-          </p>
+        reconcile={
+          <Reconcile
+            totals={totals}
+            check={
+              <p
+                className="fsr-split__totals fs-t-label"
+                data-testid="W-TR-05.totals"
+                data-balanced={totals.balanced ? "" : undefined}
+                title={SPLIT.balancedTitle(format.amount(totals.grossCents))}
+              >
+                <Glyph name={totals.balanced ? "ms:check" : "ms:help"} size={14} />
+                {totals.balanced ? SPLIT.balanced : SPLIT.unbalanced}
+              </p>
+            }
+          />
         }
         columns={
           <button

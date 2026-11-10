@@ -314,6 +314,9 @@ export function voices(snapshot: SeasonSnapshot, view: RunView, hold: RunHold): 
     case "DUPLICATE_SLIP": {
       const d = duplicateFacts(facts, seeded);
       const name = member?.consoleName ?? hold.memberNo ?? "";
+      // UI gate round 3: the engine's sentence becomes a number line ("63 members −US$17.94 → Nong Dioning
+      // +US$17.94"); the seed's pink-copy sentence goes (the captions "B · white original", "D · pink duplicate"
+      // say it, and the stand-in's glyph sits by the field match); the effect names the money and the dial's move.
       return {
         title: decided
           ? hold.resolution === "TWO_DELIVERIES"
@@ -322,11 +325,11 @@ export function voices(snapshot: SeasonSnapshot, view: RunView, hold: RunHold): 
           : en("W-TR-06.H1.title", { slip: d.serial }),
         engineLine: d.bothInside
           ? HOLDS.h1EngineInside(d.moved, d.others, d.shrinkBoth, d.limit)
-          : HOLDS.h1Engine(d.moved, d.others, name),
-        claudeLine: claude ?? en("W-TR-06.H1.claude"),
+          : HOLDS.h1Flow(d.moved, d.others, name),
+        claudeLine: null,
         effect: d.bothInside
           ? HOLDS.h1EffectInside(d.moved, d.others)
-          : HOLDS.h1Effect(d.moved, d.others, d.shrinkOnce),
+          : HOLDS.h1Effect(d.moved, d.others, d.shrinkBoth, d.shrinkOnce),
       };
     }
     case "IMPLAUSIBLE_YIELD": {

@@ -64,7 +64,10 @@ describe("W-TR-04 by hand", { timeout: 60_000 }, () => {
     expect(screen.getByTestId("W-TR-04.prompt").textContent).toBe(
       "A stain hides one digit. 6?.80 Seed stand-in, not a Claude recording",
     );
-    expect(screen.getByTestId("W-TR-04.prompt").querySelector(".fs-honesty")).not.toBeNull();
+    // The stand-in is a bare legend glyph (round 3), its words its title and accessible name: no pill.
+    const glyph = screen.getByTestId("W-TR-04.prompt").querySelector<HTMLElement>("[data-fs-glyph]");
+    expect(glyph?.getAttribute("title")).toBe("Seed stand-in, not a Claude recording");
+    expect(screen.getByTestId("W-TR-04.prompt").querySelector(".fs-honesty")).toBeNull();
     expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Slip 0462 by hand");
     expect(document.querySelector(".fsc-hand__who")?.textContent).toBe("Arnel Sumampao · M-060");
     expect(screen.getByTestId<HTMLInputElement>("W-TR-04.input").value).toBe("6▢.80");
@@ -110,10 +113,12 @@ describe("W-TR-04 by hand", { timeout: 60_000 }, () => {
     await waitFor(() => expect(screen.getByTestId("W-TR-04").dataset.state).toBe("committed"));
     await waitFor(() => expect(momentPhase(view.container, "MM-2")).toBe("done"));
     expect(tracedPhases("MM-2")).toEqual(["by-hand", "entered", "done"]);
-    expect(screen.getByTestId("W-TR-04.provenance").textContent).toBe("Entered by Analyn");
-    expect(screen.getByTestId("W-TR-04.net").textContent).toBe(
-      "Net 64.50 kg. Matches logbook page 14, line 7.",
+    // The result as one line of kilos (round 3), her entry in ink, then who and the witness it agrees with.
+    expect(screen.getByTestId("W-TR-04.net").textContent).toBe("64.80 − 0.30 = 64.50 kg");
+    expect(screen.getByTestId("W-TR-04.provenance").textContent).toBe(
+      "Entered by Analyn · matches logbook line 7",
     );
+    expect(screen.queryByTestId("W-TR-04.check")).toBeNull();
     expect(screen.getByTestId("W-TR-04.stamp").textContent).toBe("AS");
     expect(view.world.fields().find((f) => f.field === "gross_kg")?.finalValue).toBe("64.80");
     await waitFor(() => expect(screen.getByTestId("W-JG-01.runPill").dataset.step).toBe("holds"));
@@ -175,9 +180,11 @@ describe("W-TR-04 by hand", { timeout: 60_000 }, () => {
     await waitFor(() => expect(screen.getByTestId("W-JG-01.runPill").dataset.step).toBe("holds"));
     await view.navigate(BY_HAND);
     await waitFor(() => expect(screen.getByTestId("W-TR-04").dataset.state).toBe("committed"));
-    const net = screen.getByTestId("W-TR-04.net").textContent ?? "";
-    expect(net).not.toMatch(/Matches logbook/);
-    expect(net).toMatch(/Logbook line 7 says 64\.50: they don't match\./);
+    expect(screen.getByTestId("W-TR-04.provenance").textContent).toBe("Entered by Analyn");
+    expect(screen.getByTestId("W-TR-04.committed").textContent).not.toMatch(/[Mm]atches logbook/);
+    expect(screen.getByTestId("W-TR-04.check").textContent).toBe(
+      "Logbook line 7 says 64.50: they don't match.",
+    );
   });
 
   it("with nothing to name the session's field (fs-api today), the slab says why and nothing is posted", async () => {
@@ -209,9 +216,7 @@ describe("W-TR-04 by hand", { timeout: 60_000 }, () => {
       fireEvent.keyDown(screen.getByTestId("W-TR-04.commit.face"), { key: "Enter" });
     });
     await waitFor(() => expect(screen.getByTestId("W-TR-04").dataset.state).toBe("committed"));
-    expect(screen.getByTestId("W-TR-04.provenance").textContent).toBe(
-      "Entered by Analyn, from logbook line 7",
-    );
+    expect(screen.getByTestId("W-TR-04.provenance").textContent).toBe("Entered by Analyn · logbook line 7");
   });
 
   it("a digit the logbook disagrees with is a person's question, and this console cannot take it: the split would not follow", async () => {
@@ -297,6 +302,9 @@ describe("W-TR-04 by hand: focus once the field is answered", { timeout: 60_000 
     for (const at of after) expect([ink, next]).toContain(at);
     expect(after.at(-1)).toBe(next);
     expect(document.activeElement).toBe(next);
+    // The next step is named for its work, a full-size secondary button (round 3).
+    expect(next.textContent).toBe("Review 3 holds");
+    expect(next.classList.contains("fs-flat")).toBe(true);
   }
 
   it("Enter in the field: focus lands on the ink, then the Next link under it, never on <body>", async () => {

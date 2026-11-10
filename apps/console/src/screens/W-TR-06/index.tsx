@@ -337,6 +337,9 @@ export function Screen({ runSlug, holdId }: HoldDrawerProps) {
       ];
     }
 
+    // H1 leads with the decision (UI gate round 3): holds.css draws the number line, the money and the dial's move
+    // directly above "Count it once", then the paired receipts and their fields. The receipts stay in the card's
+    // markup (they hold no control, so the keyboard order is the same), so the card still says whose they are.
     const cardNode = (
       <HoldCard
         key={slabKey}

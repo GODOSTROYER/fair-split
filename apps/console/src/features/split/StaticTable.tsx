@@ -5,7 +5,7 @@
 
 import type { ColDef } from "ag-grid-community";
 import { type ComponentType, type KeyboardEvent, useState } from "react";
-import type { GridContext, GridRow } from "./cells.js";
+import { DetailView, type GridContext, type GridRow } from "./cells.js";
 import { type HoldNoteRow, HoldNoteView } from "./HoldNote.js";
 import type { SplitRow } from "./model.js";
 import { SPLIT } from "./shared/copy.js";
@@ -67,7 +67,7 @@ export function StaticTable({
                 data-col={col.colId}
                 data-numeric={col.type === "rightAligned" ? "" : undefined}
               >
-                {col.headerName}
+                {col.colId === "expand" ? <span className="fs-sr">{col.headerName}</span> : col.headerName}
               </th>
             ))}
           </tr>
@@ -79,6 +79,14 @@ export function StaticTable({
                 <tr key={row.memberNo} className="fsr-row--note">
                   <td colSpan={columns.length}>
                     <HoldNoteView note={row} onOpen={() => onOpenNote?.(row)} />
+                  </td>
+                </tr>
+              );
+            if (row.kind === "detail")
+              return (
+                <tr key={row.memberNo} className="fsr-row--detail">
+                  <td colSpan={columns.length}>
+                    <DetailView detail={row} />
                   </td>
                 </tr>
               );
@@ -99,8 +107,8 @@ export function StaticTable({
                   row.openHold ? SPLIT.openHold(row.openHold.label, row.name) : SPLIT.openLine(row.name)
                 }
               >
-                {columns.map((col, i) =>
-                  i === 0 ? (
+                {columns.map((col) =>
+                  col.colId === "member" ? (
                     <th key={col.colId} scope="row" data-col={col.colId}>
                       {cell(col, row)}
                     </th>
@@ -120,8 +128,8 @@ export function StaticTable({
         </tbody>
         <tfoot>
           <tr className="fsr-row--totals">
-            {columns.map((col, i) =>
-              i === 0 ? (
+            {columns.map((col) =>
+              col.colId === "member" ? (
                 <th key={col.colId} scope="row" data-col={col.colId}>
                   {cell(col, totals)}
                 </th>

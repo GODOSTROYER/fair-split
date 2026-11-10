@@ -119,6 +119,47 @@
   color: var(--fs-ink-2);
 }
 
+/* H1 leads with its decision (UI gate round 3): the number line in pencil (the engine's), then the effect as the
+   card's one figure, "+US$17.94 to 63 members · 2.05% → 1.62%", in the money face directly above "Count it once";
+   the paired receipts and their four fields follow (drawn last; in the markup they stay inside the card, and hold
+   no control, so the keyboard meets the decision first either way). */
+.fsr-mm3 .fs-hold__voice[data-voice="engine"] dd {
+  font-variant-numeric: lining-nums proportional-nums;
+}
+
+.fsr-mm3 .fs-hold__effect .fs-t-body {
+  color: var(--fs-ink);
+  font-stretch: 87.5%;
+  font-weight: 500;
+  font-size: 1.25rem;
+  line-height: 1.75rem;
+  font-variant-numeric: lining-nums proportional-nums;
+}
+
+.fsr-mm3 .fsr-hold .fs-hold__evidence {
+  order: 1;
+  padding-top: var(--fs-space-24);
+  border-top: 1px solid var(--fs-rule);
+}
+
+/* The decision sits right under its effect, not pinned to the drawer's foot: nothing scrolls between them. */
+.fsc-drawer .fsr-mm3 .fsr-hold .fs-hold__actions {
+  position: static;
+  margin-inline: 0;
+  padding: 0;
+  border-top: 0;
+  background: transparent;
+}
+
+/* Once H1 is decided its number line is history: the result above the card says what changed. */
+.fsr-mm3 .fsr-hold.fs-hold:is([data-state="resolved"], [data-state="excluded"]) .fs-hold__voices {
+  display: none;
+}
+
+.fsr-twin__glyph {
+  margin-left: var(--fs-space-4);
+}
+
 /* The dial, small, with its state pill beside it. */
 .fsr-hold__dial {
   display: flex;

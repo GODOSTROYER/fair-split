@@ -39,11 +39,14 @@ export interface SplitAgGridProps {
 }
 
 /**
- * The hold note under H1 spans the grid; every other row is cells. It keeps the grid's 40 px row height, so adding
- * or removing it never changes another row's height (AG Grid would redraw the rows, and a live wave would lose its
- * slide).
+ * The hold note under H1 and a narrow grid's opened line parts span the grid; every other row is cells. Both keep
+ * the grid's 40 px row height, so adding or removing one never changes another row's height (AG Grid would redraw
+ * the rows, and a live wave would lose its slide).
  */
-const isFullWidthRow = (p: IsFullWidthRowParams<GridRow>) => p.rowNode.data?.kind === "note";
+const isFullWidthRow = (p: IsFullWidthRowParams<GridRow>) => {
+  const kind = p.rowNode.data?.kind;
+  return kind === "note" || kind === "detail";
+};
 
 export function SplitAgGrid({ noRows, onApi, noteRenderer, ...props }: SplitAgGridProps) {
   const onGridReady = useCallback((e: GridReadyEvent<GridRow>) => onApi(e.api), [onApi]);

@@ -78,17 +78,29 @@ describe("W-TR-06 hold drawer", () => {
       expect(sinceOpen()).toEqual(["glide-in", "converge", "pairs", "ready"]);
       expect(screen.getByTestId("W-TR-06.card.gate").textContent).toBe("Blocks approval. Changes kilos.");
       const card = screen.getByTestId("W-TR-06.card");
-      // One engine line plus the decision (unslop spec §3.7); the copies' photos are their captions.
-      expect(card.textContent).toMatch(/Counting both moves US\$17\.94 from 63 members to Nong Dioning\./);
-      expect(card.textContent).toMatch(/\+US\$17\.94 to 63 members · shrink 1\.62%/);
+      // The decision leads (UI gate round 3): counting both as a number line, then the money back and the dial's
+      // move directly above "Count it once" (holds.css draws the paired receipts after them).
+      expect(card.textContent).toMatch(/63 members −US\$17\.94 → Nong Dioning \+US\$17\.94/);
+      expect(card.textContent).toMatch(/\+US\$17\.94 to 63 members · 2\.05% → 1\.62%/);
+      expect(card.textContent).not.toMatch(/Counting both moves/);
+      expect(card.textContent).not.toMatch(/pink copy of the same receipt/);
+      expect(card.querySelector(".fs-hold__effect")?.nextElementSibling).toBe(
+        card.querySelector(".fs-hold__actions"),
+      );
+      const twin = screen.getByTestId("W-TR-06.twin");
+      expect(card.contains(twin)).toBe(true);
+      // The copies' photos are their captions; the pair is the seed's, said by its glyph (its words its name).
       expect(card.textContent).toMatch(/B · white original/);
       expect(card.textContent).toMatch(/D · pink duplicate/);
-      expect(card.textContent).toMatch(/The second image is the office's pink copy of the same receipt\./);
-      expect(screen.getByTestId("W-TR-06.twin.verdict").textContent).toBe("4/4 fields match");
+      expect(screen.getByTestId("W-TR-06.twin.standIn").getAttribute("title")).toBe(
+        "Seed stand-in, not a Claude recording",
+      );
+      expect(screen.getByTestId("W-TR-06.twin.verdict").textContent).toBe(
+        "4/4 fields matchSeed stand-in, not a Claude recording",
+      );
       expect(screen.getByTestId("W-TR-06.twin.verdict").getAttribute("title")).toBe(
         "4 of 4 fields match. Same slip.",
       );
-      const twin = screen.getByTestId("W-TR-06.twin");
       expect(twin.dataset.lit).toBe("");
       // Canary is a person's decision: the matching field pairs light in turn (serial, date, member, net kg,
       // TIMING.pairStagger apart), with nothing drawn on the slips themselves: no underline, no highlight.

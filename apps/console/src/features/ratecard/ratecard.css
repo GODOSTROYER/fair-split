@@ -272,12 +272,19 @@
   color: var(--fs-steel-line);
 }
 
+/* The stand-in's legend glyph under the rules, and the pointed rule's page as micro (round 3). */
 .fsc-rc__footer {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  min-height: 16px;
   margin: 0;
-  color: var(--fs-pencil);
+  color: var(--fs-ink-3);
+}
+
+.fsc-rc__glyph {
+  margin-left: 8px;
+  vertical-align: -1px;
 }
 
 /* ---------------------------------------------------------------- MM-4: add a deduction */
@@ -373,44 +380,59 @@
   right: 8px;
 }
 
+/* The refusal is its title (round 3): "Refused · Schedule A is closed until 2026-B", steel and ink, never red. It
+   prints in as the 409 lands; its reason waits behind "Why". */
 .fsc-rc__refusal-word {
-  display: inline-flex;
-  align-items: center;
+  display: flex;
+  align-items: flex-start;
   gap: 8px;
   margin: 0;
-  color: var(--fs-ink-2);
+  color: var(--fs-ink);
 }
 
 .fsc-rc__refusal-word .fs-glyph {
+  margin-top: 3px;
   color: var(--fs-steel-line);
+}
+
+.fsc-rc__refusal-word[data-reveal="wipe"] {
+  animation: fs-wipe var(--fs-dur-print) linear both;
+}
+
+.fsc-rc__refusal-word[data-reveal="fade"] {
+  animation: fs-fade var(--fs-dur-reduced) var(--fs-ease-out) both;
+}
+
+.fsc-rc__why {
+  display: grid;
+  gap: 8px;
+}
+
+.fsc-rc__why > summary {
+  justify-self: start;
+  color: var(--fs-ink-2);
+  cursor: pointer;
 }
 
 .fsc-rc__refusal-text {
   margin: 0;
   max-width: 60ch;
-  color: var(--fs-ink);
-  font-size: 0.9375rem;
-  line-height: 1.375rem;
-}
-
-.fsc-rc__refusal-text[data-reveal="wipe"] {
-  animation: fs-wipe var(--fs-dur-print) linear both;
-}
-
-.fsc-rc__refusal-text[data-reveal="fade"] {
-  animation: fs-fade var(--fs-dur-reduced) var(--fs-ease-out) both;
+  color: var(--fs-ink-2);
+  font-size: 0.875rem;
+  line-height: 1.25rem;
 }
 
 .fsc-rc__refusal-action {
   padding-top: 4px;
 }
 
-/* A proposal is unhashed and not in force: no plate, a dashed frame, no bolts. */
+/* A proposal is unhashed and not in force: no plate, a hairline frame, no bolts (dashed means simulated only,
+   round 3; its "Not in force" chip says what it is). */
 .fsc-rc__proposal {
   display: grid;
   gap: 12px;
   padding: 18px 20px;
-  border: 1px dashed var(--fs-ink-3);
+  border: 1px solid var(--fs-rule);
   border-radius: var(--fs-radius-card);
 }
 

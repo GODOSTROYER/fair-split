@@ -173,6 +173,15 @@ export function Beds({
             const serial = slip.serial;
             const landing = landings[serial];
             const state = row === null ? "waiting" : landing ? "landing" : "printed";
+            // A doubtful field a person must type (slip 0462): the split grid's 3 px marigold bar on the row, and
+            // its one step inline at the row's end (UI gate round 3).
+            const byHand =
+              row !== null &&
+              !row.illegible &&
+              !row.entered &&
+              !row.confirmed &&
+              !row.zoomAgreed &&
+              row.pending.length > 0;
             return (
               <tr
                 key={serial}
@@ -184,6 +193,7 @@ export function Beds({
                 data-state={state}
                 data-serial={serial}
                 data-active={active === serial ? "" : undefined}
+                data-needs={byHand || row?.zoomAgreed ? "person" : undefined}
                 data-copy={row?.copy}
                 data-testid={`${testId}.row.${serial}`}
                 aria-describedby="fsc-reading-provenance"
@@ -248,13 +258,7 @@ export function Beds({
                           )}
                         </span>
                       ) : row.pending.length > 0 ? (
-                        <AppLink
-                          href={webRoutes.byHand(season, serial)}
-                          className="fsc-beds__you"
-                          data-testid={`${testId}.you.${serial}`}
-                          aria-label={READING_COPY.byHand(serial)}
-                          data-amount-state="you"
-                        >
+                        <span className="fsc-beds__you" data-amount-state="you">
                           {row.standIn ? (
                             <span className="fs-t-figure">{row.netKg}</span>
                           ) : (
@@ -265,7 +269,7 @@ export function Beds({
                               confidence={row.score ?? 0}
                             />
                           )}
-                        </AppLink>
+                        </span>
                       ) : (
                         <span className="fsc-beds__print fs-t-figure" data-amount-state="pencil">
                           {row.netKg}
@@ -277,7 +281,16 @@ export function Beds({
                     </td>
                     <td className="fsc-beds__print fs-t-figure">{row.grade}</td>
                     <td className="fsc-beds__ring">
-                      {!row.standIn && row.score !== null ? (
+                      {byHand ? (
+                        <AppLink
+                          href={webRoutes.byHand(season, serial)}
+                          className="fs-flat fsc-beds__act"
+                          data-testid={`${testId}.you.${serial}`}
+                          aria-label={READING_COPY.byHandName(serial)}
+                        >
+                          {READING_COPY.byHandShort}
+                        </AppLink>
+                      ) : !row.standIn && row.score !== null ? (
                         <>
                           <RingMark score={row.score} landing={landing !== undefined} />
                           <span className="fs-sr">{`${Math.round(row.score * 100)}%`}</span>

@@ -7,7 +7,7 @@
 // the field and the slab all sit above the stage's ribbon. Doubt becomes the treasurer's ink.
 
 import { type SeasonSnapshot, webRoutes } from "@fairsplit/contracts";
-import { Glyph, Paper, Slab, useMotionMode } from "@fairsplit/ui-web";
+import { Glyph, HONESTY, LegendGlyph, Paper, Slab, useMotionMode } from "@fairsplit/ui-web";
 import { useQuery } from "@tanstack/react-query";
 import {
   type ChangeEvent,
@@ -25,6 +25,7 @@ import { CommandNotice } from "../../chrome/CommandNotice.js";
 import { ScreenRoot } from "../../chrome/ScreenRoot.js";
 import { Stamp } from "../../chrome/Stamp.js";
 import { useAdapter, useCommand, useJudgeSession, useRunEvents, useStageRun } from "../../data/hooks.js";
+import { holdCards } from "../../data/run-view.js";
 import { focusAndReveal, useFocusAfterRemoval } from "../../lib/focus.js";
 import { format } from "../../lib/format.js";
 import { useMoment } from "../../lib/moment.js";
@@ -32,6 +33,7 @@ import { useNextStep, usePrefocus } from "../../stage/context.js";
 import { byHandHoldFor } from "../reading/model.js";
 import { SlipPaper } from "../reading/SlipPaper.js";
 import { boxFor } from "../reading/slip.js";
+import { isOpenHold } from "../split/model.js";
 import { BY_HAND_COPY } from "./copy.js";
 import { resolveFieldId } from "./field-id.js";
 import { LogbookPaper, logbookWindow } from "./LogbookPaper.js";
@@ -51,17 +53,21 @@ import {
 } from "./model.js";
 import "./byhand.css";
 
-/** The crop around gross, tare and net (the stain's reach), in the slip's own units. */
-function cropBox() {
+/**
+ * The crop: exactly the 2 × 2 block of gross, tare, net and MC less (the stain's reach), in the slip's own units,
+ * with a 2-unit margin that stays inside the 4-unit gutters, so no neighbouring box shows at its edges (round 3).
+ */
+export function cropBox() {
   const gross = boxFor("gross_kg");
   const tare = boxFor("tare_kg");
   const net = boxFor("net_kg");
   if (!gross || !tare || !net) return null;
+  const m = 2;
   return {
-    x: gross.x - 8,
-    y: gross.y - 8,
-    w: tare.x + tare.w - gross.x + 16,
-    h: net.y + net.h - gross.y + 16,
+    x: gross.x - m,
+    y: gross.y - m,
+    w: tare.x + tare.w - gross.x + m * 2,
+    h: net.y + net.h - gross.y + m * 2,
   };
 }
 
@@ -305,18 +311,13 @@ function ByHandField({
   };
 
   const member = snapshot.members.find((m) => m.memberNo === field.slip.memberNo);
-  // One line, the stand-in's reading as a figure, and the stand-in tag (its canonical phrase whole for readers).
+  // One line, the stand-in's reading as a figure, and the stand-in's legend glyph (round 3): its canonical phrase
+  // whole as its title and its accessible name, no pill.
   const prompt = (
     <>
       <span>{mask ? BY_HAND_COPY.promptLine : BY_HAND_COPY.promptLinePlain}</span>{" "}
       <span className="fsc-hand__reading fs-t-figure">{field.reading}</span>{" "}
-      <span className="fsc-hand__tag fs-honesty fs-t-micro">
-        <Glyph name="pencil" size={12} />
-        <span>
-          {BY_HAND_COPY.standInTag}
-          <span className="fs-sr">{BY_HAND_COPY.standInRest}</span>
-        </span>
-      </span>
+      <LegendGlyph {...HONESTY.seedStandIn} className="fsc-hand__glyph" />
     </>
   );
   const enteredBy = entered?.enteredBy ?? hold?.resolvedBy ?? null;
@@ -325,6 +326,19 @@ function ByHandField({
     snapshot.officers.find((o) => o.role === "TREASURER");
   const shownValue = committed ? (entered?.value ?? field.slip.boxes["6"]) : value;
   const netAfter = entered?.derived.net_kg ?? (committed ? field.slip.boxes["8"] : null);
+  // Who entered it, and the witness it agrees with, as one caption (round 3): "Entered by Analyn · logbook line 7".
+  const who = officer?.shortName ?? "Analyn";
+  const agrees = witness && netAfter ? sameKilos(netAfter, witness.netKgText) : null;
+  const provenance =
+    fromLogbook && witness
+      ? BY_HAND_COPY.committedFrom(who, witness.lineNo)
+      : witness && agrees
+        ? BY_HAND_COPY.committedMatches(who, witness.lineNo)
+        : BY_HAND_COPY.committed(who);
+  // The next action names the work it opens: "Review 3 holds" (the run's open hold cards), else the run pill's words.
+  const openCards = view ? holdCards(view).filter(isOpenHold).length : 0;
+  const nextWords =
+    next && next.id === "holds" && openCards > 0 ? BY_HAND_COPY.reviewHolds(openCards) : (next?.text ?? "");
   const slabLabel =
     mismatch && anyway
       ? BY_HAND_COPY.enterAnyway(value)
@@ -346,35 +360,9 @@ function ByHandField({
         </p>
       </header>
 
+      {/* The decision first (the field, or once entered the result and the next step), the two witnesses side by
+          side beneath it (UI gate round 3): no half of the screen stands empty. */}
       <div className="fsc-hand__body" {...moment.rootProps} data-motion={mode}>
-        <div className="fsc-hand__evidence" data-testid="W-TR-04.evidence">
-          <figure className="fsc-hand__figure">
-            <figcaption className="fs-t-micro fsc-hand__muted">{BY_HAND_COPY.crop(serial)}</figcaption>
-            <Paper alt={BY_HAND_COPY.cropAlt(serial)} className="fsc-hand__crop" testId="W-TR-04.crop">
-              <div
-                className="fsc-hand__crop-frame"
-                style={crop ? { aspectRatio: `${crop.w} / ${crop.h}` } : undefined}
-              >
-                <SlipPaper slip={field.slip} crop={crop} />
-              </div>
-            </Paper>
-          </figure>
-          {witness && lines && (
-            <figure className="fsc-hand__figure">
-              <figcaption className="fs-t-micro fsc-hand__muted">
-                {BY_HAND_COPY.logbook(witness.page.page, lines.from, lines.to)}
-              </figcaption>
-              <Paper
-                alt={BY_HAND_COPY.logbookAlt(witness.page.page, witness.lineNo, witness.netKgText)}
-                className="fsc-hand__logbook"
-                testId="W-TR-04.logbook"
-              >
-                <LogbookPaper page={witness.page} highlight={witness.lineNo} lines={lines} />
-              </Paper>
-            </figure>
-          )}
-        </div>
-
         <section
           ref={setEntry}
           className="fsc-hand__entry"
@@ -390,6 +378,8 @@ function ByHandField({
               <p id={`${inputId}-label`} className="fs-t-label fsc-hand__muted">
                 {BY_HAND_COPY.inputLabel(serial)}
               </p>
+              {/* The result as one line of kilos in the money face (round 3): her entry in ink, the slip's tare,
+                  the net it makes. Every figure is the slip's text or the server's derived net. */}
               <p className="fsc-hand__ink" data-amount-state="ink">
                 {officer && (
                   <Stamp
@@ -401,29 +391,34 @@ function ByHandField({
                     testId="W-TR-04.stamp"
                   />
                 )}
-                <span className="fsc-hand__ink-value">{shownValue}</span>
+                <span className="fsc-hand__sum fs-money" data-testid="W-TR-04.net">
+                  <span className="fsc-hand__ink-value">{shownValue}</span>
+                  {netAfter && (
+                    <span className="fsc-hand__rest">
+                      {` ${BY_HAND_COPY.minus} ${tare} = `}
+                      <span className="fsc-hand__net">{BY_HAND_COPY.kg(netAfter)}</span>
+                    </span>
+                  )}
+                </span>
               </p>
-              <p className="fs-t-label fsc-hand__by" data-testid="W-TR-04.provenance">
-                {fromLogbook && witness
-                  ? BY_HAND_COPY.committedFrom(officer?.shortName ?? "Analyn", witness.lineNo)
-                  : BY_HAND_COPY.committed(officer?.shortName ?? "Analyn")}
+              <p className="fs-t-caption fsc-hand__by" data-testid="W-TR-04.provenance">
+                {provenance}
               </p>
-              {netAfter && (
-                <p className="fs-t-label fsc-hand__net" data-testid="W-TR-04.net">
-                  {witness
-                    ? `${BY_HAND_COPY.committedNet(netAfter)} ${
-                        sameKilos(netAfter, witness.netKgText)
-                          ? BY_HAND_COPY.matches(witness.page.page, witness.lineNo)
-                          : BY_HAND_COPY.committedMismatch(witness.lineNo, witness.netKgText)
-                      }`
-                    : BY_HAND_COPY.committedNet(netAfter)}
+              {witness && agrees === false && (
+                <p className="fs-t-caption fsc-hand__mismatch" data-testid="W-TR-04.check">
+                  {BY_HAND_COPY.committedMismatch(witness.lineNo, witness.netKgText)}
                 </p>
               )}
               {next && hasNext && (
-                <p className="fsc-hand__next fs-t-label">
-                  <span className="fsc-hand__next-mark" aria-hidden />
-                  <AppLink href={next.to} className="fs-link" data-testid="W-TR-04.next">
-                    {next.text}
+                <p className="fsc-hand__next">
+                  <AppLink
+                    href={next.to}
+                    className="fs-flat fsc-hand__go"
+                    data-size="l"
+                    data-testid="W-TR-04.next"
+                  >
+                    {nextWords}
+                    <Glyph name="ms:arrow-back" size={18} className="fsc-hand__arrow" />
                   </AppLink>
                 </p>
               )}
@@ -579,6 +574,34 @@ function ByHandField({
             </>
           )}
         </section>
+
+        <div className="fsc-hand__evidence" data-testid="W-TR-04.evidence">
+          <figure className="fsc-hand__figure">
+            <figcaption className="fs-t-micro fsc-hand__muted">{BY_HAND_COPY.crop(serial)}</figcaption>
+            <Paper alt={BY_HAND_COPY.cropAlt(serial)} className="fsc-hand__crop" testId="W-TR-04.crop">
+              <div
+                className="fsc-hand__crop-frame"
+                style={crop ? { aspectRatio: `${crop.w} / ${crop.h}` } : undefined}
+              >
+                <SlipPaper slip={field.slip} crop={crop} />
+              </div>
+            </Paper>
+          </figure>
+          {witness && lines && (
+            <figure className="fsc-hand__figure">
+              <figcaption className="fs-t-micro fsc-hand__muted">
+                {BY_HAND_COPY.logbook(witness.page.page, lines.from, lines.to)}
+              </figcaption>
+              <Paper
+                alt={BY_HAND_COPY.logbookAlt(witness.page.page, witness.lineNo, witness.netKgText)}
+                className="fsc-hand__logbook"
+                testId="W-TR-04.logbook"
+              >
+                <LogbookPaper page={witness.page} highlight={witness.lineNo} lines={lines} />
+              </Paper>
+            </figure>
+          )}
+        </div>
       </div>
     </ScreenRoot>
   );

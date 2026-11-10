@@ -6,7 +6,7 @@
 // Rules before facts (I2): not even the treasurer can change the card mid-season.
 
 import type { SeasonSnapshot } from "@fairsplit/contracts";
-import { Chip, Glyph, Print, Slab, useMotionMode, useT } from "@fairsplit/ui-web";
+import { Chip, Glyph, HONESTY, LegendGlyph, Print, Slab, useMotionMode, useT } from "@fairsplit/ui-web";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { CommandNotice } from "../../chrome/CommandNotice.js";
 import { ScreenRoot } from "../../chrome/ScreenRoot.js";
@@ -142,7 +142,7 @@ export function RateCard({ snapshot }: { readonly snapshot: SeasonSnapshot }) {
     refusalHeading.current
       .closest(".fsc-rc__refusal")
       ?.scrollIntoView({ block: "nearest", behavior: mode === "reduced" ? "instant" : "smooth" });
-    announce(RATECARD_COPY.refused);
+    announce(refusalHeading.current.textContent ?? "");
   }, [plateShown, refusal, announce, mode]);
   const labelId = useId();
   const amountId = useId();
@@ -157,7 +157,11 @@ export function RateCard({ snapshot }: { readonly snapshot: SeasonSnapshot }) {
         <h1 id="fsc-rc-title" className="fs-t-title-1">
           {RATECARD_COPY.title}
         </h1>
-        <p className="fsc-rc__lede">{RATECARD_COPY.lede(card.canonical.resolutionNo, ratifiedOn)}</p>
+        <p className="fsc-rc__lede">
+          {RATECARD_COPY.lede(card.canonical.resolutionNo, ratifiedOn)}
+          {/* The printed rules are the seed's (round 3): a bare legend glyph, its words its title and name. */}
+          <LegendGlyph {...HONESTY.seedStandIn} className="fsc-rc__glyph" />
+        </p>
       </header>
 
       <div className="fsc-rc__body">
@@ -170,7 +174,6 @@ export function RateCard({ snapshot }: { readonly snapshot: SeasonSnapshot }) {
                 {RATECARD_COPY.schedule}
               </h2>
               <p className="fs-t-caption fsc-rc__muted">{RATECARD_COPY.scheduleLede}</p>
-              <p className="fs-t-caption">{RATECARD_COPY.tryDeduction}</p>
             </header>
             <ol className="fsc-rc__rules" data-testid="W-TR-02.rules">
               {rules.map((rule) => (
@@ -196,17 +199,29 @@ export function RateCard({ snapshot }: { readonly snapshot: SeasonSnapshot }) {
                 </li>
               ))}
             </ol>
-            <p className="fs-t-caption fsc-rc__footer" data-testid="W-TR-02.footer">
-              <Glyph name="pencil" size={14} />
-              <span>
-                {activeRule
-                  ? RATECARD_COPY.readFooter(CLAUDE_MODEL, activeRule.page)
-                  : RATECARD_COPY.readFooterIdle(CLAUDE_MODEL)}
-              </span>
+            {/* The stand-in's glyph (its words whole as its title and accessible name), and the page a pointed rule
+                was quoted from as micro (round 3: no sentence under the rules). */}
+            <p className="fs-t-micro fsc-rc__footer" data-testid="W-TR-02.footer">
+              <LegendGlyph
+                kind="synthetic"
+                label={
+                  activeRule
+                    ? RATECARD_COPY.readFooter(CLAUDE_MODEL, activeRule.page)
+                    : RATECARD_COPY.readFooterIdle(CLAUDE_MODEL)
+                }
+              />
+              {activeRule && <span aria-hidden>{RATECARD_COPY.page(activeRule.page)}</span>}
             </p>
           </section>
 
-          <HashPlate snapshot={snapshot} testId="W-TR-02.bolted" bright={mode === "reduced" && refusing} />
+          {/* Once a deduction is being added, the plate keeps its seal line only: the full hash and the two signatures
+              step back so the refusal sits in view (round 3). */}
+          <HashPlate
+            snapshot={snapshot}
+            testId="W-TR-02.bolted"
+            compact={adding}
+            bright={mode === "reduced" && refusing}
+          />
 
           <section
             className="fsc-rc__add"
@@ -266,7 +281,7 @@ export function RateCard({ snapshot }: { readonly snapshot: SeasonSnapshot }) {
                     onCommit={() => undefined}
                   />
                   <p className="fs-t-caption fsc-rc__muted">
-                    {t("slab.bolted", { card: card.canonical.resolutionNo })}
+                    {RATECARD_COPY.locked(card.canonical.resolutionNo)}
                   </p>
                 </div>
               </div>
@@ -280,18 +295,23 @@ export function RateCard({ snapshot }: { readonly snapshot: SeasonSnapshot }) {
               >
                 <span className="fsc-rc__refusal-bolt fsc-rc__refusal-bolt--l" aria-hidden />
                 <span className="fsc-rc__refusal-bolt fsc-rc__refusal-bolt--r" aria-hidden />
+                {/* The refusal is its title (round 3); the one-line reason waits behind "Why". */}
                 <h2
                   id="fsc-rc-refusal-title"
                   ref={refusalHeading}
                   tabIndex={-1}
                   className="fsc-rc__refusal-word fs-t-title-2"
+                  data-reveal={mode === "reduced" ? "fade" : "wipe"}
                 >
-                  <Glyph name="bolt" size={16} />
-                  {RATECARD_COPY.refused}
+                  <Glyph name="ms:lock" size={18} />
+                  {plate.title}
                 </h2>
-                <p className="fsc-rc__refusal-text" data-reveal={mode === "reduced" ? "fade" : "wipe"}>
-                  {plate.body} <span className="fs-t-caption">{plate.hash}</span>
-                </p>
+                <details className="fsc-rc__why" data-testid="W-TR-02.why">
+                  <summary className="fs-link fs-t-label">{RATECARD_COPY.why}</summary>
+                  <p className="fsc-rc__refusal-text">
+                    {plate.body} <span className="fs-t-caption">{plate.hash}</span>
+                  </p>
+                </details>
                 <div className="fsc-rc__refusal-action">
                   <Slab
                     label={RATECARD_COPY.propose(upcoming)}
