@@ -1,5 +1,5 @@
 /* The season slice's shared materials (W-TR-01, and the parts the Judge stage's first view borrows): the
-   stencilled marks, the run strip, the invoice and the pool with MM-S's arc, the contact sheet of photos and the
+   season mark, the run strip, the invoice and the pool with MM-S's arc, the contact sheet of photos and the
    eval waffle. Every colour, size and timing is a --fs-* token. Paper is the only thing with a shadow; money
    is outlined until PayPal says so; Claude's draft prints in pencil. */
 
@@ -51,7 +51,7 @@
   gap: 6px;
 }
 
-.fsc-mark__stencil {
+.fsc-mark__row {
   display: inline-flex;
   align-items: baseline;
   gap: 16px;
@@ -69,18 +69,7 @@
   color: var(--fs-ink-2);
 }
 
-/* The sack stencil, full size: the season's own name in paint, the lot beside it. */
-.fsc-mark[data-size="hero"] .fsc-mark__season {
-  font-size: 4.5rem;
-  line-height: 0.9;
-  letter-spacing: 0.01em;
-}
-
-.fsc-mark[data-size="hero"] .fsc-mark__lot {
-  font-size: 1.75rem;
-  line-height: 1;
-  letter-spacing: 0.02em;
-}
+/* As the screen's heading the season is the title step (FS Sans); the lot stays an id beside it. */
 
 .fsc-section-title {
   margin: 0;
@@ -89,7 +78,7 @@
 
 /* ---------------------------------------------------------------- the run strip */
 
-/* One flat plate, stencilled like a sack, with a V notch cut into its top and bottom edge between each stage
+/* One flat plate with a V notch cut into its top and bottom edge between each stage
    and the next: the sequence reads as a tally, not a checklist. */
 .fsc-strip {
   --fsc-notch: 7px;
@@ -139,7 +128,7 @@
   border-bottom: var(--fsc-notch) solid var(--fs-ground);
 }
 
-/* The stage's word in sentence case (the stencil is kept for season and lot marks, design §2.3). Done: ink,
+/* The stage's word in sentence case. Done: ink,
    after an ink tick. Not yet: a dashed print bed, the word faint in it. */
 .fsc-strip__word {
   display: inline-flex;
@@ -1058,10 +1047,6 @@ details[open] > summary.fsc-fund__draft-head > .fs-glyph:last-child {
 
   .fsc-contact[data-columns="6"] {
     --fsc-cols: 4;
-  }
-
-  .fsc-mark[data-size="hero"] .fsc-mark__season {
-    font-size: 3.5rem;
   }
 }
 

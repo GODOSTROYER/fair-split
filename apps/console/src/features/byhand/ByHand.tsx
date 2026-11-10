@@ -1,5 +1,5 @@
 // W-TR-04 By hand (S1.7, design §6 C4): one field at a time. The slip's crop at three times its photo size, the
-// logbook page's lines around the slip beneath it as a second witness, and one 48 px condensed field that shows
+// logbook page's lines around the slip beneath it as a second witness, and one field on the hero step that shows
 // "6▢.80" with the slot selected, so one keystroke fills it. As she types: "64.80 − 0.30 tare = 64.50 net.
 // Matches logbook page 14, line 7." "Use logbook line 7" fills the digit from the logbook's net plus the tare.
 // The commit is a d2 slab (or Enter); the value prints in ink with her AS stamp when the server's live

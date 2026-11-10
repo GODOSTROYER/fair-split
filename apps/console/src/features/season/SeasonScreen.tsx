@@ -1,4 +1,4 @@
-// W-TR-01 Season (S1.7, design §6 C1): the stencilled season mark, the run strip from ratified to paid, the
+// W-TR-01 Season (S1.7, design §6 C1): the season mark, the run strip from ratified to paid, the
 // invoice Claude drafted and code checked beside the pool it funds, the desk of photos to read and the eval
 // waffle. MM-S plays here when the invoice reads back as paid; the next human step is one linked sentence.
 // Everything is the stage's run: the first view before the first press, then the judge's session.

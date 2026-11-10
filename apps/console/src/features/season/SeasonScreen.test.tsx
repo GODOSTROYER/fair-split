@@ -1,4 +1,4 @@
-// W-TR-01 season: the stencilled season and lot, the run strip lit in its true sequence, the invoice beside the
+// W-TR-01 season: the season and lot, the run strip lit in its true sequence, the invoice beside the
 // pool, and BEAT-PAID (MM-S) when the invoice reads back as paid: the arc, the pool landing, "Funded" in jade.
 // Offline says so. A season the seed does not hold is a plain refusal, not a broken screen.
 

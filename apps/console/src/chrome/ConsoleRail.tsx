@@ -25,7 +25,7 @@ export interface RailActor {
 export interface ConsoleRailProps {
   readonly items: readonly RailItem[];
   readonly collapsed: boolean;
-  /** The stencilled season mark: "2026-A" (no longer printed in the rail; kept for its callers). */
+  /** The season mark: "2026-A" (no longer printed in the rail; kept for its callers). */
   readonly seasonMark?: string;
   /** The person the judge acts as. */
   readonly actor?: RailActor;

@@ -1,4 +1,4 @@
-// The season's quieter parts: the stencilled season mark, the run strip (six stages in a true sequence), the
+// The season's quieter parts: the season mark, the run strip (six stages in a true sequence), the
 // contact sheet of the replay photos, and the eval waffle. Built on ui-web's marks and the console's tokens.
 
 import type { SeasonSnapshot, SnapshotPhoto } from "@fairsplit/contracts";
@@ -14,7 +14,7 @@ import { SEASON_COPY } from "./copy.js";
 import type { StripStage } from "./model.js";
 import "./season.css";
 
-/** "2026-A" in the stencil cut, as on the jute sacks; the lot beside it and the co-op beneath. */
+/** "2026-A": the title step in FS Sans as a heading, an id in the mono otherwise; the lot beside it, the co-op beneath. */
 export function SeasonMark({
   snapshot,
   testId,
@@ -32,8 +32,10 @@ export function SeasonMark({
   // Spans throughout, so the mark can sit inside a heading.
   return (
     <span className="fsc-mark" data-size={size} data-testid={testId}>
-      <span className="fsc-mark__stencil">
-        <span className="fsc-mark__season fs-t-mark fsc-nowrap">{snapshot.season.label}</span>
+      <span className="fsc-mark__row">
+        <span className={`fsc-mark__season ${size === "hero" ? "fs-t-title" : "fs-t-mark"} fsc-nowrap`}>
+          {snapshot.season.label}
+        </span>
         {lot && (
           <span className="fsc-mark__lot fs-t-mark">
             <span className="fs-sr">, lot </span>
@@ -62,8 +64,7 @@ const STRIP_KEYS = {
 
 /**
  * The run strip: six stages in their true sequence on one plate, with a notch cut between each stage and the
- * next, like a tally cut into a sack's edge. Words are sentence case (the stencil belongs to season and lot marks
- * only). A stage that has not happened is a dashed print bed with its word faint inside, waiting to print; the
+ * next, like a tally cut into a sack's edge. Words are sentence case. A stage that has not happened is a dashed print bed with its word faint inside, waiting to print; the
  * first of them is next. A stage that has happened prints in ink after an ink tick. Funded is the one PayPal
  * decides, and lights only once the invoice has read back as paid; its jade is the arc's and the pool's, once
  * per event. Each stage lights only when register §7's condition holds.
@@ -87,7 +88,7 @@ export function RunStrip({
     <ol className="fsc-strip" aria-label={SEASON_COPY.strip} data-testid={testId}>
       {stages.map((stage) => {
         const state = stage.lit ? "lit" : stage.id === current ? "current" : "unlit";
-        // The word alone in the stencil; the ratification date prints beneath it, by the bolt.
+        // The word alone; the ratification date prints beneath it, by the bolt.
         const word =
           stage.id === "RATIFIED"
             ? t(STRIP_KEYS.RATIFIED, { date: "" }).trim()
