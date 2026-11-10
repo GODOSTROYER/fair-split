@@ -57,6 +57,7 @@ describe("the proof slice in /openapi.json", () => {
     expect(Object.keys((schema?.properties as Json) ?? {}).sort()).toEqual([
       "display",
       "items",
+      "provenance",
       "runSlug",
       "runState",
     ]);
