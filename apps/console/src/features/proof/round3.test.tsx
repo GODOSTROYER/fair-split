@@ -1,7 +1,8 @@
 // Proof and the brand view, UI gate round 3: one truth for counts and ids (the slips say which count is which, the
 // showcase run's invoice says it is the showcase's), the tag budget (one quiet indicator, at most two micro-tags on
-// PayPal money, bare glyphs elsewhere), three numeral roles, words at 13 px or more, and dashed lines for
-// simulated things only. Every figure is the bundle's own; none changes.
+// PayPal money, bare glyphs elsewhere), one family and one mono (every number in FS Sans's tabular figures, ids in
+// the mono), words at 13 px or more, and dashed lines for simulated things only. Every figure is the bundle's own;
+// none changes.
 
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -55,7 +56,7 @@ describe("the showcase run's invoice id says whose it is", () => {
   });
 });
 
-describe("three numeral roles in the plate facts", () => {
+describe("the plate facts' roles: ids in the mono, money in the figures", () => {
   it("marks ids for the id role and money for the money role, and nothing else", () => {
     expect(plateParts("paid", props).map((p) => p.role ?? "words")).toEqual(["id", "words", "money"]);
     expect(plateParts("ratified", props)[0]).toMatchObject({ role: "id", before: "card " });
@@ -115,17 +116,39 @@ describe("Proof's stylesheets hold round 3's floors", () => {
       for (const [, selector = "", body = ""] of blocks) {
         const size = /font-size:\s*([\d.]+)rem/.exec(body)?.[1];
         if (!size || Number(size) >= 0.8125) continue;
-        // The slip drawing's own print is evidence art inside an SVG, in px; the masked receiver is an id.
-        expect(selector.trim(), name).toBe(".pf-line__receiver");
+        // The slip drawing's own print is evidence art inside an SVG, in px; an id in the mono role and the masked
+        // receiver are ids.
+        expect(selector.trim(), name).toMatch(/^\.pf-line__receiver$|\.fs-t-id$/);
         expect(Number(size)).toBeGreaterThanOrEqual(0.75);
       }
     }
   });
 
-  it("keeps money and counts out of the code-like tabular figures (the id role's)", () => {
-    const tabular = [...rules(sheets.proof).matchAll(/([^{}]+)\{([^}]*tabular-nums[^}]*)\}/g)].map((m) =>
-      (m[1] ?? "").trim(),
-    );
-    expect(tabular).toEqual([".pf-hero__lot", ".pf-slipchip__no"]);
+  it("sets every number in FS Sans's tabular figures: nothing forces proportional figures (one money style)", () => {
+    for (const [name, css] of Object.entries(sheets)) {
+      expect(rules(css), name).not.toMatch(/proportional-nums|"tnum" 0/);
+    }
+  });
+
+  it("keeps the type on DESIGN.md's steps: no 15, 17, 18, 20 or 22 px words, and no off-step weights", () => {
+    for (const [name, css] of Object.entries(sheets)) {
+      // The slip drawing is evidence art (an SVG in px); everything else is in rem on the five steps.
+      const sizes = [...rules(css).matchAll(/font-size:\s*([\d.]+)rem/g)].map((m) => Number(m[1]));
+      for (const size of sizes) expect([0.75, 0.875, 1, 1.5, 3.5], name).toContain(size);
+      const weights = [...rules(css).matchAll(/([^{}]+)\{([^}]*)\}/g)]
+        .filter(([, selector = ""]) => !selector.includes("pf-crop__"))
+        .flatMap(([, , body = ""]) => [...body.matchAll(/font-weight:\s*(\d+)/g)].map((m) => Number(m[1])));
+      for (const weight of weights) expect([400, 430, 500, 520, 600], name).toContain(weight);
+    }
+  });
+
+  it("keeps red for PayPal's no: a check that does not match, and the withheld notice, read in ink", () => {
+    const declarations = rules(sheets.proof);
+    for (const selector of [".pf-verify__failure", ".pf-withheld", ".pf-plate__reason"]) {
+      const body = new RegExp(`\\${selector} \\{([^}]*)\\}`).exec(declarations)?.[1] ?? "";
+      expect(body, selector).toMatch(/color: var\(--fs-ink\)/);
+      expect(body, selector).not.toMatch(/--fs-red/);
+    }
+    expect(declarations).not.toMatch(/differs[^{]*\{[^}]*--fs-red/);
   });
 });

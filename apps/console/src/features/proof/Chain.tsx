@@ -120,7 +120,7 @@ export function slipScope(bundle: Pick<ProofBundle, "ledger">): {
   return { run, season };
 }
 
-/** One piece of a plate's fact line: words, an id (the id role's code-like figures) or money (the money role). */
+/** One piece of a plate's fact line: words, an id (the mono id role) or money (the money role). */
 export interface FactPart {
   readonly text: string;
   readonly role?: "id" | "money";
@@ -198,7 +198,7 @@ function FactLine({ parts }: { readonly parts: readonly FactPart[] }) {
           {i > 0 && " · "}
           {part.before}
           {part.role === "id" ? (
-            <span className="fs-t-hash">{part.text}</span>
+            <span className="fs-t-id">{part.text}</span>
           ) : part.role === "money" ? (
             <span className="pf-fact__money">{part.text}</span>
           ) : (
@@ -238,7 +238,7 @@ export function Chain(props: ChainProps) {
   const settled = isSettled(props.progress);
   return (
     <section className="pf-chain" aria-labelledby={`${baseId}-chain`} data-testid="W-PF-01.chain">
-      <h2 id={`${baseId}-chain`} className="pf-section__title">
+      <h2 id={`${baseId}-chain`} className="pf-section__title fs-t-title">
         {t("W-PF-01.chain")}
       </h2>
       <ol className="pf-chain__list">
@@ -271,7 +271,7 @@ export function Chain(props: ChainProps) {
                   onClick={() => toggle(plate)}
                   data-testid={`W-PF-01.plate.${plate}.toggle`}
                 >
-                  <span className="pf-plate__title">
+                  <span className="pf-plate__title fs-t-heading">
                     {t(PLATE_TITLE[plate])}
                     {PAYPAL_PLATES.has(plate) && (
                       <LegendGlyph
@@ -339,9 +339,7 @@ function Facts({ rows }: { readonly rows: readonly (readonly [string, ReactNode]
 }
 
 function Hash({ hex, all = true }: { readonly hex: string; readonly all?: boolean }) {
-  return (
-    <span className="fs-t-hash pf-hash">{all ? format.hashAllGroups(hex) : format.hashGroups(hex)}</span>
-  );
+  return <span className="fs-t-id pf-hash">{all ? format.hashAllGroups(hex) : format.hashGroups(hex)}</span>;
 }
 
 function Figure({ cents, state = "ink" }: { readonly cents: number; readonly state?: string }) {
@@ -369,7 +367,7 @@ function PlateBody({ plate, ...p }: ChainProps & { readonly plate: PlateName }) 
           rows={[
             [
               "Invoice",
-              <span key="n" className="fs-t-hash">
+              <span key="n" className="fs-t-id">
                 {bundle.invoice.invoiceNumber}
               </span>,
             ],
@@ -378,7 +376,7 @@ function PlateBody({ plate, ...p }: ChainProps & { readonly plate: PlateName }) 
             ["Due", <Figure key="d" cents={bundle.invoice.dueCents} state="landed" />],
             [
               "Reference",
-              <span key="r" className="fs-t-hash">
+              <span key="r" className="fs-t-id">
                 {bundle.invoice.reference}
               </span>,
             ],
@@ -431,12 +429,10 @@ function PlateBody({ plate, ...p }: ChainProps & { readonly plate: PlateName }) 
             ] as const
           ).map(([kind, label, testId]) => (
             <div key={kind}>
-              <p className="pf-plate__lead">
-                {label} <span className="fs-t-hash">· SHA-256, first 8</span>
-              </p>
+              <p className="pf-plate__lead">{label} · SHA-256, first 8</p>
               <ol className="pf-hashes" data-testid={testId}>
                 {photoGroups(bundle)[kind].map((d) => (
-                  <li key={d.documentId} className="fs-t-hash">
+                  <li key={d.documentId} className="fs-t-id">
                     {format.hashGroups(d.sha256)}
                   </li>
                 ))}
@@ -491,7 +487,7 @@ function PlateBody({ plate, ...p }: ChainProps & { readonly plate: PlateName }) 
               return (
                 <li key={a.keyId} className="pf-keys__key">
                   <span className="pf-keys__role">{a.role === "treasurer" ? "Treasurer" : "Chair"}</span>
-                  <span className="fs-t-hash">{a.keyId}</span>
+                  <span className="fs-t-id">{a.keyId}</span>
                   <span className="pf-keys__kind">{keyKindWords(reg?.kind ?? "", a.keyId)}</span>
                   <span className="pf-keys__meta">
                     Signs as {a.payload.approverId}
@@ -529,7 +525,7 @@ function Items({ bundle, items, names, rail, replayed = payoutReplayed(undefined
         rows={[
           [
             "Batch",
-            <span key="b" className="fs-t-hash">
+            <span key="b" className="fs-t-id">
               {bundle.batch.senderBatchId}
             </span>,
           ],
@@ -577,7 +573,7 @@ function Items({ bundle, items, names, rail, replayed = payoutReplayed(undefined
                   data-state={presentation.replayed ? "replay" : item.status}
                   data-testid={`W-PF-01.item.${item.senderItemId}`}
                 >
-                  <th scope="row" className="fs-t-hash">
+                  <th scope="row" className="fs-t-id">
                     {item.senderItemId}
                   </th>
                   {names && <td>{label?.name ?? ""}</td>}
@@ -592,9 +588,18 @@ function Items({ bundle, items, names, rail, replayed = payoutReplayed(undefined
                       <RailWord presentation={presentation} />
                     </Chip>
                   </td>
-                  <td className="fs-t-hash">{item.payoutItemId ?? "Not yet"}</td>
-                  <td className="fs-t-hash">
-                    {presentation.replayed ? "Replayed, simulated" : noticeOf(item)}
+                  <td>
+                    {item.payoutItemId ? <span className="fs-t-id">{item.payoutItemId}</span> : "Not yet"}
+                  </td>
+                  <td>
+                    {/* An event ID is an id; how a live run learned the status is words (never mono as a costume). */}
+                    {presentation.replayed ? (
+                      "Replayed, simulated"
+                    ) : item.source === "bundle" && item.eventId ? (
+                      <span className="fs-t-id">{item.eventId}</span>
+                    ) : (
+                      noticeOf(item)
+                    )}
                   </td>
                 </tr>
               );

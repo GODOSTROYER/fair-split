@@ -53,7 +53,7 @@ export function PlotField({
   );
   return (
     <section className="pf-plots" aria-labelledby={`${id}-plots`} data-testid="W-PF-01.plots">
-      <h2 id={`${id}-plots`} className="pf-section__title">
+      <h2 id={`${id}-plots`} className="pf-section__title fs-t-title">
         {PLOT_COPY.heading}
       </h2>
       <Mirrored

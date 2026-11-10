@@ -225,6 +225,10 @@ describe("W-BR-01 the brand's view of the season's run", () => {
     expect(screen.getByTestId("W-BR-01.invoice").querySelector("[data-quiet]")?.textContent).toBe(
       "Simulated PayPal sandbox",
     );
+    // The person reading must act (pay), so ui-web's amber state dot sits beside the words (never a fill).
+    expect(
+      screen.getByTestId("W-BR-01.invoice").querySelector('.fs-state-dot[data-kind="held"]'),
+    ).not.toBeNull();
     expect((screen.getByTestId("W-BR-01.export.csv") as HTMLButtonElement).disabled).toBe(true);
     expect(screen.getByTestId("W-PF-01.none")).toBeTruthy();
     await expectNoAxeViolations(view.container);

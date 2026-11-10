@@ -59,7 +59,7 @@ export function Figures({
   const total = tiers.netCents;
   return (
     <section className="pf-figures" aria-labelledby={`${id}-figures`} data-testid="W-PF-01.figures">
-      <h2 id={`${id}-figures`} className="pf-section__title">
+      <h2 id={`${id}-figures`} className="pf-section__title fs-t-title">
         {FIGURE_COPY.heading}
       </h2>
       <dl className="pf-ledger">

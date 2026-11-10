@@ -1,16 +1,16 @@
-// Proof's hero (S1.8 P1, design §6; UI gate rounds 2 and 3). A factual header first: the lot's id, then the
-// invoice as one money figure with its context in grey, the page's one quiet "Simulated PayPal sandbox" indicator
-// and the synthetic glyph. Then the verdict leads, beside the 180 px seal grown from the batch hash: the six
-// checks' count as the page's one hero numeral in FS Sans ("0/6", then "6/6"), the explicit result under it ("6 of 6
-// integrity checks match", seen and heard the same way), the sample-keys qualification beside it as a neutral key
-// chip (never a check mark), and "Verify in your browser" as the one primary. Where every dollar went sits beside
-// it (the money slot), and the six checks run under both, so all six are in view on a laptop's first screen. A
-// check that matches is ink, never jade (jade means money); only a mismatch is red, and it names its plate. In
-// Data mode the seal reads as its hash (S1.7).
+// Proof's hero (S1.8 P1, design §6; UI gate rounds 2 and 3). A factual header first: the headline on the title
+// step (the invoice as one money figure, its context in ink-3) with the lot's id under it in the mono, and the
+// page's one quiet "Simulated PayPal sandbox" indicator and the synthetic glyph. Then the verdict leads, beside the
+// 180 px seal grown from the batch hash: the six checks' count as the page's one hero number in FS Sans ("0/6",
+// then "6/6"), the explicit result under it ("6 of 6 integrity checks match", seen and heard the same way), the
+// sample-keys qualification as a neutral key chip (never a check mark), who signed, and "Verify in your browser" as
+// the one primary. Where every dollar went sits beside it (the money slot), and the six checks run under both, so
+// all six are in view on a laptop's first screen. A check that matches is ink, never jade (jade means money); a
+// mismatch is ink too, with its ✕ and the plate it names (red is only PayPal saying no). In Data mode the seal reads
+// as its hash (S1.7).
 
 import type { PlateName, ProofBundle } from "@fairsplit/contracts";
 import {
-  CurrencyFigure,
   Glyph,
   type GlyphName,
   HONESTY,
@@ -38,8 +38,16 @@ import {
   VERIFY_COPY,
   verdictWord,
 } from "./copy.js";
+import { KeyGlyph } from "./glyphs.js";
 import type { Verification, VerifyState } from "./useVerification.js";
 import { type CheckState, PLATES } from "./verify.js";
+
+/**
+ * The seal's size: LAYOUT.console.seal (180 px, the same as Approve's and the Chair's phone). Proof keeps the number
+ * here rather than importing the whole token module into its 110 KB first load (S2.11); proof.css sizes the box
+ * with --fs-console-seal, and a test holds the two equal.
+ */
+export const PROOF_SEAL = 180;
 
 export interface ProofHeroProps {
   readonly bundle: ProofBundle;
@@ -84,20 +92,16 @@ export function ProofHero({
   return (
     <section className="pf-hero" aria-labelledby="W-PF-01-title" data-testid="W-PF-01.hero">
       <header className="pf-head">
-        {/* The lot mark's line is held from the first frame (proof.css reserves its box): on a slow link the
-            bundle lands before the seed that names the lot, and the code fills the line in place, so nothing
-            under it moves. Empty, it says nothing to a screen reader. */}
-        <p className="pf-hero__lot" data-testid="W-PF-01.lot" aria-hidden={lotCode ? undefined : true}>
-          {lotCode ?? ""}
-        </p>
-        <div className="pf-head__row">
-          <Title id="W-PF-01-title" className="pf-hero__title">
+        <div className="pf-head__main">
+          {/* The headline on the title step: the invoice in its money figures, its context in ink-3. The verdict
+              below is the page's one hero number, so the amount is never a second one (round 3). */}
+          <Title id="W-PF-01-title" className="pf-hero__title fs-t-title">
             <span
-              className="pf-hero__amount fs-t-amount-hero"
+              className="pf-hero__amount fs-t-amount-l"
               data-amount-state="landed"
               data-testid="W-PF-01.invoice-amount"
             >
-              <CurrencyFigure display={amount} />
+              {amount}
             </span>{" "}
             <span className="pf-hero__context">
               {PAYER} · <SeasonText text={`Season ${seasonLabel}`} season={seasonLabel} /> ·{" "}
@@ -105,15 +109,27 @@ export function ProofHero({
               {where && <span className="fs-sr">{where}</span>}
             </span>
           </Title>
-          {/* The page's one quiet indicator (Proof has no top bar), and the synthetic glyph: a bare mark whose
-              words are its tooltip and its name. The full legend lives in What's real. */}
-          <p className="pf-head__tags">
-            <span className="pf-head__rail" data-testid="W-PF-01.rail" data-rail={rail}>
-              <HonestyTag quiet>{railShort(rail)}</HonestyTag>
-            </span>
-            <LegendGlyph {...HONESTY.syntheticSample} testId="W-PF-01.synthetic" />
+          {/* The headline's id line, under it (never an eyebrow above it): the lot, in the id role. Its line is held
+              from the first frame (proof.css reserves its box): on a slow link the bundle lands before the seed that
+              names the lot, and the code fills the line in place, so nothing under it moves. Empty, it says nothing
+              to a screen reader. */}
+          <p
+            className="pf-hero__lot fs-t-id"
+            data-testid="W-PF-01.lot"
+            title={lotCode ? "Cacao lot" : undefined}
+            aria-hidden={lotCode ? undefined : true}
+          >
+            {lotCode ?? ""}
           </p>
         </div>
+        {/* The page's one quiet indicator (Proof has no top bar), and the synthetic glyph: a bare mark whose words
+            are its tooltip and its name. The full legend lives in What's real. */}
+        <p className="pf-head__tags">
+          <span className="pf-head__rail" data-testid="W-PF-01.rail" data-rail={rail}>
+            <HonestyTag quiet>{railShort(rail)}</HonestyTag>
+          </span>
+          <LegendGlyph {...HONESTY.syntheticSample} testId="W-PF-01.synthetic" />
+        </p>
       </header>
       <VerifyPanel
         verification={verification}
@@ -124,7 +140,7 @@ export function ProofHero({
           <Mirrored
             testId="W-PF-01.seal"
             className="pf-hero__seal"
-            visual={<Seal batchSha256={bundle.batch.batchSha256} size={320} keys={keys} />}
+            visual={<Seal batchSha256={bundle.batch.batchSha256} size={PROOF_SEAL} keys={keys} />}
             table={
               <DataTable
                 caption="The batch seal, as its hash"
@@ -139,7 +155,7 @@ export function ProofHero({
                     cells: {
                       part: "Batch hash",
                       value: (
-                        <span className="fs-t-hash">{format.hashAllGroups(bundle.batch.batchSha256)}</span>
+                        <span className="fs-t-id">{format.hashAllGroups(bundle.batch.batchSha256)}</span>
                       ),
                     },
                   },
@@ -289,7 +305,7 @@ export function VerifyPanel({
                 decorative
                 testId="W-PF-01.verdict.count"
               />
-              <p className="pf-verify__result" data-testid="W-PF-01.verdict.result">
+              <p className="pf-verify__result fs-t-heading" data-testid="W-PF-01.verdict.result">
                 {resultWords}
               </p>
             </div>
@@ -324,7 +340,7 @@ export function VerifyPanel({
                   {sampleKeys && (
                     <p className="pf-verify__sample" data-testid="W-PF-01.verdict.sample">
                       <span className="pf-keychip" title={VERIFY_COPY.sampleTitle}>
-                        <KeyGlyph />
+                        <KeyGlyph className="pf-keychip__glyph" />
                         <span className="pf-keychip__words">
                           {wordInChip ? (
                             <span data-verdict="sample" data-testid="W-PF-01.verdict.word">
@@ -337,13 +353,6 @@ export function VerifyPanel({
                           <span className="fs-sr">. {VERIFY_COPY.sampleTitle}</span>
                         </span>
                       </span>
-                      {signers.length > 0 && (
-                        <span className="pf-verify__stamps" data-testid="W-PF-01.verdict.stamps">
-                          {signers.map((stamp) => (
-                            <InkStamp key={stamp.initials} stamp={stamp} />
-                          ))}
-                        </span>
-                      )}
                     </p>
                   )}
                 </div>
@@ -352,14 +361,29 @@ export function VerifyPanel({
                     <strong>{failurePlace}:</strong> {outcome.failure.reason}
                   </p>
                 )}
-                {sampleKeys && (
-                  <p className="pf-verify__keys fs-t-micro" data-testid="W-PF-01.verdict.keys">
-                    {VERIFY_COPY.sampleKeys(outcome.sampleKeys)}
-                  </p>
+                {/* Who signed: the officers' indigo stamps beside the key ids they signed with. */}
+                {(signers.length > 0 || sampleKeys) && (
+                  <div className="pf-verify__signed">
+                    {signers.length > 0 && (
+                      <span className="pf-verify__stamps" data-testid="W-PF-01.verdict.stamps">
+                        {signers.map((stamp) => (
+                          <InkStamp key={stamp.initials} stamp={stamp} />
+                        ))}
+                      </span>
+                    )}
+                    {sampleKeys && (
+                      <p className="pf-verify__keys fs-t-id" data-testid="W-PF-01.verdict.keys">
+                        {VERIFY_COPY.sampleKeys(outcome.sampleKeys)}
+                      </p>
+                    )}
+                  </div>
                 )}
                 {outcome.verdict === "partial" && <p className="pf-verify__note">{VERIFY_COPY.partial}</p>}
-                <p className="pf-verify__meta fs-t-micro">
-                  <span>{VERIFY_COPY.at(format.time(done.at))}</span>
+                <p className="pf-verify__meta fs-t-caption">
+                  <span>
+                    <time className="fs-t-id">{format.time(done.at)}</time>
+                    {VERIFY_COPY.atRest}
+                  </span>
                   <span aria-hidden> · </span>
                   <span
                     className="pf-verify__trust"
@@ -391,7 +415,10 @@ export function VerifyPanel({
             />
             {outcome?.anchors.invoiceNumber && outcome.anchors.senderBatchId && (
               <details className="pf-verify__ids">
-                <summary className="fs-t-label">{VERIFY_COPY.ids}</summary>
+                <summary className="pf-verify__ids-summary fs-t-label">
+                  <Glyph name="ms:expand-more" size={16} className="pf-summary__chevron" />
+                  {VERIFY_COPY.ids}
+                </summary>
                 <div className="pf-verify__anchors" data-testid="W-PF-01.verdict.anchors">
                   <p className="pf-verify__anchors-head">
                     <LegendGlyph kind="simulated" label={railShort(rail)} />
@@ -400,17 +427,17 @@ export function VerifyPanel({
                   <dl className="pf-kv">
                     <div>
                       <dt>Invoice</dt>
-                      <dd className="fs-t-hash">{outcome.anchors.invoiceNumber}</dd>
+                      <dd className="fs-t-id">{outcome.anchors.invoiceNumber}</dd>
                     </div>
                     {outcome.anchors.invoiceReference && (
                       <div>
                         <dt>Reference</dt>
-                        <dd className="fs-t-hash">{outcome.anchors.invoiceReference}</dd>
+                        <dd className="fs-t-id">{outcome.anchors.invoiceReference}</dd>
                       </div>
                     )}
                     <div>
                       <dt>Payout batch</dt>
-                      <dd className="fs-t-hash">{outcome.anchors.senderBatchId}</dd>
+                      <dd className="fs-t-id">{outcome.anchors.senderBatchId}</dd>
                     </div>
                     {outcome.anchors.batchNote && (
                       <div>
@@ -480,27 +507,5 @@ function KeepLastWord({ text }: { readonly text: string }) {
       {text.slice(0, at + 1)}
       <span className="pf-nowrap">{text.slice(at + 1)}</span>
     </>
-  );
-}
-
-/**
- * A key in the glyph set's line style (square caps, currentColor): the sample-keys chip's mark. The token glyph set
- * has no key yet (reported to WS-DS); the chip's words carry the meaning, so the drawing is hidden.
- */
-function KeyGlyph({ size = 16 }: { readonly size?: number }) {
-  return (
-    <svg
-      className="fs-glyph pf-keychip__glyph"
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      aria-hidden
-      focusable="false"
-    >
-      <g fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="square" strokeLinejoin="miter">
-        <circle cx={8} cy={12} r={4} />
-        <path d="M12 12h9M18 12v3.5M21 12v2.5" />
-      </g>
-    </svg>
   );
 }

@@ -3,10 +3,11 @@
 // ("6 of 6 integrity checks match", seen and heard alike), the sample keys beside it as a neutral key chip with no
 // check mark ("Sample keys · not PayPal-verified"), and the six checks read in a few words each.
 
+import { LAYOUT } from "@fairsplit/tokens";
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { CHECK_SHORT } from "./copy.js";
-import { VerifyPanel } from "./Hero.js";
+import { PROOF_SEAL, VerifyPanel } from "./Hero.js";
 import type { Verification } from "./useVerification.js";
 import { PLATES, type VerifyOutcome } from "./verify.js";
 
@@ -48,6 +49,10 @@ const done: Verification = {
 function count(): HTMLElement {
   return screen.getByTestId("W-PF-01.verdict.count");
 }
+
+it("draws the seal at the system's 180 px (LAYOUT.console.seal), the same as Approve's", () => {
+  expect(PROOF_SEAL).toBe(LAYOUT.console.seal);
+});
 
 describe("the verdict card", () => {
   it("before a check: 0/6 in ink-3, one short line, and Verify as the one primary", () => {
@@ -95,9 +100,14 @@ describe("the verdict card", () => {
     expect(chip?.textContent).toContain("never Verified");
     expect(verdict.querySelector('.pf-verdict [data-glyph="ms:check"]')).toBeNull();
     expect(screen.getByTestId("W-PF-01.verdict.keys").textContent).toBe("fs-analyn-s1 · fs-ernesto-s1");
+    // Round 3's one mono: the key ids and the check's time are the id role; the words around them are FS Sans.
+    expect(screen.getByTestId("W-PF-01.verdict.keys").classList.contains("fs-t-id")).toBe(true);
     expect(verdict.querySelector(".pf-verify__meta")?.textContent).toMatch(
       /^\d\d:\d\d:\d\d PHT · in this browser/,
     );
+    expect(verdict.querySelector(".pf-verify__meta time.fs-t-id")?.textContent).toMatch(/^\d\d:\d\d:\d\d$/);
+    // The headline count is FS Sans on the hero step, never a drawing.
+    expect(count().classList.contains("fs-t-hero")).toBe(true);
     expect(screen.getByTestId("W-PF-01.verdict.trust").textContent).toBe("keys.json");
     // The IDs wait behind a disclosure, with the simulated glyph (a glyph, not a tag: the page keeps its budget).
     const anchors = screen.getByTestId("W-PF-01.verdict.anchors");

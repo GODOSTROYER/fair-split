@@ -3,7 +3,7 @@
 // under the data-sharing agreement; complete receivers and plot details only in the export (C-23).
 
 import type { InvoiceStatus, ProofBundle, SeasonSnapshot } from "@fairsplit/contracts";
-import { Glyph, HonestyTag } from "@fairsplit/ui-web";
+import { Glyph, HonestyTag, StateDot } from "@fairsplit/ui-web";
 import { useState } from "react";
 import { payoutReplaySummary } from "../../data/payout-replay.js";
 import { SHOWCASE_LABEL } from "../../lib/display.js";
@@ -108,7 +108,7 @@ export function BrandHeader({
   return (
     <header className="br-strip" data-testid="W-BR-01.header" data-state={state}>
       <div className="br-strip__who">
-        <h1 className="br-strip__title" id="W-BR-01-title">
+        <h1 className="br-strip__title fs-t-title" id="W-BR-01-title">
           {BRAND_COPY.title(payer?.name ?? "the brand")}
         </h1>
         {payer && (
@@ -125,13 +125,15 @@ export function BrandHeader({
         >
           <dt>{BRAND_COPY.invoice}</dt>
           <dd>
-            {invoiceNumber && <span className="fs-t-hash">{invoiceNumber}</span>}
+            {invoiceNumber && <span className="fs-t-id">{invoiceNumber}</span>}
             {invoiceNumber && showcase && (
               <span className="br-strip__showcase fs-t-caption" data-testid="W-BR-01.invoice.showcase">
                 {SHOWCASE_LABEL}
               </span>
             )}{" "}
             <span className="br-strip__status">
+              {/* Waiting for the brand's payment: the person reading must act, so the amber dot (never a fill). */}
+              {state === "unpaid" && <StateDot kind="held" />}
               {state === "unpaid" || !invoiceStatus ? BRAND_COPY.unpaid : invoiceWords(invoiceStatus)}
             </span>
             {/* Before payment no Proof column sits under the strip, so its quiet indicator is the page's one. */}

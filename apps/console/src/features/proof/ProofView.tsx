@@ -17,7 +17,7 @@ import { Chain } from "./Chain.js";
 import { FAILURE_PLACE, FOOTER_COPY, PLATE_TITLE, provenanceWords, railName, STATE_COPY, t } from "./copy.js";
 import { Distribution } from "./Distribution.js";
 import { Figures } from "./Figures.js";
-import { ProofHero } from "./Hero.js";
+import { PROOF_SEAL, ProofHero } from "./Hero.js";
 import { type MemberLabel, shortRuleName } from "./Lines.js";
 import { isSettled } from "./model.js";
 import { PlotField, plotTiers } from "./PlotField.js";
@@ -131,7 +131,7 @@ export function ProofView({ page, verification, rail, names = null, level = "h1"
   if (page.phase === "error") {
     return (
       <div className="pf-state" data-testid="W-PF-01.error">
-        <Heading className="pf-state__title">{STATE_COPY.loadFailed}</Heading>
+        <Heading className="pf-state__title fs-t-title">{STATE_COPY.loadFailed}</Heading>
         <CommandNotice error={page.error} testId="W-PF-01.error.notice" onRetry={page.retry} />
       </div>
     );
@@ -141,7 +141,7 @@ export function ProofView({ page, verification, rail, names = null, level = "h1"
     return (
       <div className="pf-state" data-testid="W-PF-01.none">
         <Glyph name="seal" size={40} />
-        <Heading className="pf-state__title">
+        <Heading className="pf-state__title fs-t-title">
           {page.notPosted ? STATE_COPY.notPosted : STATE_COPY.none}
         </Heading>
         <p className="pf-state__lede">{STATE_COPY.noneHint}</p>
@@ -186,7 +186,7 @@ export function ProofView({ page, verification, rail, names = null, level = "h1"
           <section className="pf-card pf-money" aria-labelledby="W-PF-01-money" data-testid="W-PF-01.money">
             {/* The card's PayPal money carries the micro-tag beside its own figure (Distribution), not a pill here. */}
             <header className="pf-card__head">
-              <SubHeading id="W-PF-01-money" className="pf-card__title">
+              <SubHeading id="W-PF-01-money" className="pf-card__title fs-t-heading">
                 {MONEY_TITLE}
               </SubHeading>
             </header>
@@ -240,7 +240,7 @@ export function ProofView({ page, verification, rail, names = null, level = "h1"
       />
       {state === "failed" ? (
         <section className="pf-figures" data-testid="W-PF-01.figures.withheld">
-          <h2 className="pf-section__title">Where the money went</h2>
+          <h2 className="pf-section__title fs-t-title">Where the money went</h2>
           <p className="pf-figures__withheld">{STATE_COPY.withheldFigures}</p>
         </section>
       ) : (
@@ -281,10 +281,12 @@ function ProofLoading() {
   return (
     <div className="pf-loading" data-testid="W-PF-01.loading" aria-busy="true">
       <span className="fs-sr">Loading the Proof.</span>
+      {/* The beds hold the page's final sizes: the headline (title step), its id line, the 180 px seal and the
+          press. */}
       <div className="pf-loading__hero">
-        <PrintBed shape="line" width="40%" height={40} />
-        <PrintBed shape="line" width="70%" height={48} />
-        <PrintBed shape="seal" width={200} height={200} />
+        <PrintBed shape="line" width="60%" height={30} />
+        <PrintBed shape="line" width="20%" height={16} />
+        <PrintBed shape="seal" width={PROOF_SEAL} height={PROOF_SEAL} />
         <PrintBed shape="slab" width={232} height={48} />
       </div>
       <div className="pf-loading__plates">

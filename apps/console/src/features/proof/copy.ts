@@ -127,8 +127,8 @@ export const VERIFY_COPY = {
     checking: "checking",
     error: "not checked",
   },
-  /** The verdict's time, as a micro label: Davao is on Philippine time. */
-  at: (time: string) => `${time} PHT · in this browser`,
+  /** After the verdict's time (set in the id role): Davao is on Philippine time. */
+  atRest: " PHT · in this browser",
   /** The sample-keys chip: a neutral key glyph and these words after the verdict word ("Sample"), never a check. */
   sampleRest: " keys · not PayPal-verified",
   sampleTitle: "Signed with sample keys, so this Proof reads Sample, never Verified.",

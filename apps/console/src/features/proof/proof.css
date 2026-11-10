@@ -1,13 +1,15 @@
 /* Proof (W-PF-01) and the brand view's column (W-BR-01): one light reading column on Hayag (design §2.1, §6 P1,
    ADR-0016; UI gate rounds 2 and 3). The ground is plate, with no wash: colour only where it means something. One
-   680 px column (the Surface sets it), 1040 px from 1120 px wide. A factual header (the lot's id, the invoice, the
-   page's one quiet indicator), then the verdict card beside the money card, the six checks under both, then the
-   chain, the ledger, the plots and the fine print. Every colour is a token, every timing a --fs-dur-* or
-   --fs-ease-* variable. Jade appears only where the simulated PayPal confirmed money; a check that matches is ink;
-   red only where a check failed or PayPal failed. Spacing is the 4 px scale (4 · 8 · 12 · 16 · 20 · 24 · 32 · 48).
-   Round 3: three numeral roles (money and counts in the plain grotesk, ids and times in the code-like tabular set,
-   one dot-matrix count), words at 13 px or more and ids at 12 or more, and dashed lines for simulated things
-   only: a pending amount is neutral, never dashed. */
+   680 px column (the Surface sets it), 1040 px from 1120 px wide. A factual header (the invoice's headline with the
+   lot's id under it, the page's one quiet indicator), then the verdict card beside the money card, the six checks
+   under both, then the chain, the ledger, the plots and the fine print. Every colour is a token, every timing a
+   --fs-dur-* or --fs-ease-* variable. Jade appears only where the simulated PayPal confirmed money; a check that
+   matches is ink. Spacing is the 4 px scale (4 · 8 · 12 · 16 · 20 · 24 · 32 · 48).
+   Round 3 (DESIGN.md): one family and one mono. FS Sans sets every word and number in tabular figures, on the five
+   steps (the verdict's count is the page's one hero; the headline and the section titles are the title step; plate
+   and card headings the heading step; reading text the body step; secondary words 14 px); the mono sets ids,
+   hashes and times at 12 px. Red is only PayPal saying no: a check that does not match reads in ink with its ✕
+   glyph and its words. Dashed lines mean simulated only: a pending amount is neutral, never dashed. */
 
 /* Proof's ground is plate (decision.md §5). No wash behind the hero (UI gate round 2: a check result never
    glows, and colour only where it means something). */
@@ -26,8 +28,8 @@
   color: var(--fs-ink);
   font-family: var(--fs-font-ui);
   font-weight: 430;
-  font-size: 0.9375rem;
-  line-height: 1.4375rem;
+  font-size: 1rem;
+  line-height: 1.5rem;
 }
 
 .pf-page {
@@ -36,11 +38,6 @@
 }
 
 /* ------------------------------------------------------------------ amount grammar (S2.2.1), inline sizes */
-
-/* Money is the grotesk's plain lining figures (FS Sans's only tabular set is the id role's code-like one). */
-.pf [data-amount-state] {
-  font-variant-numeric: lining-nums proportional-nums;
-}
 
 .pf [data-amount-state="pencil"] {
   color: var(--fs-pencil);
@@ -61,73 +58,54 @@
 
 .pf-hero {
   display: grid;
-  gap: 24px;
+  gap: 32px;
   padding-bottom: 8px;
 }
 
+/* The headline and its id line on the left, the page's one quiet indicator on the right; they wrap on a phone. */
 .pf-head {
-  display: grid;
-  gap: 4px;
-}
-
-/* The lot is an id (round 3: the stencil display face is retired): the code-like tabular figures at 13 px, ink-3.
-   Its line box is held at its settled height while the seed that names the lot is still on its way. */
-.pf-hero__lot {
-  min-block-size: 1.25rem;
-  color: var(--fs-ink-3);
-  font-family: var(--fs-font-ui);
-  font-stretch: 87.5%;
-  font-weight: 500;
-  font-size: 0.8125rem;
-  line-height: 1.25rem;
-  letter-spacing: 0.01em;
-  font-variant-numeric: tabular-nums lining-nums;
-  font-feature-settings: "tnum" 1;
-}
-
-.pf-head__row {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 8px 24px;
 }
 
-/* The header names the thing: the invoice as one money figure, its context in grey (unslop spec §1.10). */
+.pf-head__main {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+/* The header's id line, under the headline: the lot in the id role (the mono, 12 px), ink-3. Its line box is held
+   at its settled height while the seed that names the lot is still on its way. */
+.pf-hero__lot {
+  min-block-size: 1rem;
+  margin: 0;
+  color: var(--fs-ink-3);
+  line-height: 1rem;
+}
+
+/* The headline names the thing on the title step (fs-t-title): the invoice in its money figures (fs-t-amount-l),
+   its context in ink-3 at reading weight. The verdict's count is the page's one hero number. */
 .pf-hero__title {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  gap: 4px 16px;
+  gap: 4px 12px;
   margin: 0;
-  font-stretch: 100%;
-  font-weight: 560;
-  font-size: 1.25rem;
-  line-height: 1.5rem;
-  letter-spacing: -0.01em;
 }
 
-/* Money is never bold: its size and the small raised US$ do the work. Proportional lining figures, solid ink. */
+/* Money is never bold: weight 500, solid ink, and never broken across lines. */
 .pf-hero__amount {
   color: var(--fs-ink);
-  font-stretch: 87.5%;
-  font-weight: 500;
-  letter-spacing: -0.02em;
   white-space: nowrap;
-}
-
-.pf .pf-hero__amount {
-  font-variant-numeric: lining-nums proportional-nums;
-}
-
-.pf-hero .pf-hero__amount {
-  font-size: 3rem;
-  line-height: 1;
 }
 
 .pf-hero__context {
   color: var(--fs-ink-3);
-  font-weight: 450;
+  font-weight: 430;
+  letter-spacing: -0.01em;
 }
 
 .pf-head__tags {
@@ -135,6 +113,7 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
+  min-height: 30px;
   margin: 0;
 }
 
@@ -144,7 +123,7 @@
 
 /* The way back to the console, above the header: a line arrow and the product's name, no underline at rest. */
 .pf-nav {
-  margin-bottom: 24px;
+  margin-bottom: 16px;
 }
 
 .pf-back {
@@ -152,7 +131,7 @@
   align-items: center;
   gap: 8px;
   justify-self: start;
-  min-height: 32px;
+  min-height: 40px;
   border-radius: var(--fs-radius-cell);
   color: var(--fs-ink-2);
   text-decoration: none;
@@ -180,7 +159,7 @@
   display: grid;
   gap: 16px;
   min-width: 0;
-  padding: 20px;
+  padding: 24px;
   border-radius: var(--fs-radius-card);
   background: var(--fs-plate);
   box-shadow: var(--fs-shadow-e1);
@@ -192,9 +171,9 @@
   column-gap: 24px;
 }
 
-/* The seal is the hero's mark at 180 px, the same size as Approve's (round 3). */
+/* The seal is the hero's mark at 180 px, the same size as Approve's (LAYOUT.console.seal, round 3). */
 .pf-hero__seal {
-  width: 180px;
+  width: var(--fs-console-seal);
 }
 
 .pf-hero__seal .fsc-mirrored__visual svg {
@@ -231,27 +210,21 @@
 .pf-verify__count {
   display: grid;
   justify-items: start;
-  gap: 12px;
+  gap: 4px;
   margin: 0 0 4px;
 }
 
+/* The result on the heading step (fs-t-heading), in ink; before a result, the state in ink-2 at reading weight. A
+   mismatch stays ink: red is only PayPal saying no, and the ✕ and the words below say it. */
 .pf-verify__result {
   margin: 0;
   color: var(--fs-ink);
-  font-weight: 560;
-  font-size: 1.0625rem;
-  line-height: 1.5rem;
-  letter-spacing: -0.005em;
 }
 
 .pf-verify__count:is([data-state="idle"], [data-state="stale"], [data-state="checking"], [data-state="error"])
   .pf-verify__result {
   color: var(--fs-ink-2);
-  font-weight: 450;
-}
-
-.pf-verify__count[data-state="mismatch"] .pf-verify__result {
-  color: var(--fs-red);
+  font-weight: 430;
 }
 
 .pf-verify__line {
@@ -268,25 +241,17 @@
   gap: 8px;
 }
 
-/* The verdict is an outlined ink badge, never jade (jade means money): "Sample" is a checked fact. */
+/* The verdict word is a checked fact, so no pill: its glyph and the word in ink, on the label step. Never jade
+   (jade means money) and never red (red is PayPal's no). */
 .pf-verdict {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  min-height: 24px;
-  padding: 0 10px 0 6px;
-  border: 1px solid var(--fs-ink);
-  border-radius: var(--fs-radius-cell);
+  min-height: 28px;
   color: var(--fs-ink);
-  font-stretch: 100%;
   font-weight: 520;
-  font-size: 0.8125rem;
-  line-height: 1rem;
-}
-
-.pf-verdict[data-verdict="failed"] {
-  border-color: var(--fs-red);
-  color: var(--fs-red);
+  font-size: 0.875rem;
+  line-height: 1.25rem;
 }
 
 /* The officers' indigo stamps (AS, EC) beside the sample-keys chip. */
@@ -305,20 +270,20 @@
 }
 
 /* The sample-keys qualification: a neutral chip, a line key and the words, never a check mark (a check would read
-   as verified). White face, the rule-strong ring, ink-2 words at 13 px. */
+   as verified). White face, the rule-strong ring, the cell radius (chips and keys), ink-2 words on the label step. */
 .pf-keychip {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  min-height: 24px;
-  padding: 2px 10px 2px 8px;
+  gap: 8px;
+  min-height: 28px;
+  padding: 4px 12px 4px 8px;
   border: 1px solid var(--fs-rule-strong);
-  border-radius: var(--fs-radius-control);
+  border-radius: var(--fs-radius-cell);
   background: var(--fs-plate);
   color: var(--fs-ink-2);
   font-weight: 520;
-  font-size: 0.8125rem;
-  line-height: 1.125rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
   cursor: help;
 }
 
@@ -335,6 +300,14 @@
   white-space: nowrap;
 }
 
+/* Who signed: the officers' stamps, then the key ids they signed with, on one line where it fits. */
+.pf-verify__signed {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+}
+
 .pf-verify__keys {
   margin: 0;
   color: var(--fs-ink-3);
@@ -348,15 +321,20 @@
 
 .pf-verify__note {
   color: var(--fs-ink-2);
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   line-height: 1.25rem;
 }
 
+/* Where the record stopped matching: ink, its place in the heading weight (red is only PayPal's no). */
 .pf-verify__failure {
   margin: 0;
-  color: var(--fs-red);
+  color: var(--fs-ink);
   font-size: 0.875rem;
   line-height: 1.25rem;
+}
+
+.pf-verify__failure > strong {
+  font-weight: 600;
 }
 
 .pf-verify__act {
@@ -366,9 +344,23 @@
   gap: 12px 16px;
 }
 
-.pf-verify__ids > summary {
+/* "IDs" opens on a line chevron, like the fees and the fine print (no browser triangle). */
+.pf-verify__ids-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 40px;
   color: var(--fs-ink-2);
+  list-style: none;
   cursor: pointer;
+}
+
+.pf-verify__ids-summary::-webkit-details-marker {
+  display: none;
+}
+
+.pf-verify__ids-summary:hover {
+  color: var(--fs-ink);
 }
 
 .pf-verify__anchors {
@@ -406,8 +398,8 @@
 
 .pf-kv dt {
   color: var(--fs-ink-3);
-  font-weight: 500;
-  font-size: 0.8125rem;
+  font-weight: 520;
+  font-size: 0.875rem;
   line-height: 1.25rem;
 }
 
@@ -415,9 +407,15 @@
   min-width: 0;
   margin: 0;
   color: var(--fs-ink);
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   line-height: 1.25rem;
   overflow-wrap: anywhere;
+}
+
+.pf-kv dd.fs-t-id {
+  align-self: center;
+  font-size: 0.75rem;
+  line-height: 1rem;
 }
 
 /* The six checks, two columns of three under both cards, in order down each column. */
@@ -453,9 +451,8 @@
 
 .pf-checks__no {
   color: var(--fs-ink-3);
-  font-stretch: 87.5%;
-  font-weight: 500;
-  font-size: 0.8125rem;
+  font-weight: 520;
+  font-size: 0.875rem;
 }
 
 /* Machine print: what will be checked reads in pencil until this browser has checked it. */
@@ -471,8 +468,8 @@
   gap: 6px;
   color: var(--fs-ink-3);
   font-weight: 520;
-  font-size: 0.8125rem;
-  line-height: 1rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
   white-space: nowrap;
 }
 
@@ -493,9 +490,11 @@
   color: var(--fs-ink-2);
 }
 
+/* A check that does not match: ink at the heading weight, with its ✕ (red is only PayPal saying no). */
 .pf-checks__row[data-state="differs"] .pf-checks__what,
 .pf-checks__row[data-state="differs"] .pf-checks__state {
-  color: var(--fs-red);
+  color: var(--fs-ink);
+  font-weight: 600;
 }
 
 /* The result prints: a 180 ms linear clip wipe, left to right, one check after another (machines print). */
@@ -520,26 +519,18 @@
   gap: 8px 16px;
 }
 
+/* The card's heading is the heading step (fs-t-heading). */
 .pf-card__title {
   margin: 0;
-  font-weight: 560;
-  font-size: 1.0625rem;
-  line-height: 1.5rem;
 }
 
-/* The run's line: counts in micro, the whole sentence for a screen reader. A replay prints its sentence. */
+/* The run's line: counts in secondary words, the whole sentence for a screen reader. A replay prints its
+   sentence. */
 .pf-progress {
   margin: 0;
   color: var(--fs-ink-2);
-  font-stretch: 87.5%;
-  font-weight: 500;
-  font-size: 0.8125rem;
-  line-height: 1.25rem;
-}
-
-.pf-progress[data-replayed] {
-  font-stretch: 100%;
   font-weight: 430;
+  font-size: 0.875rem;
   line-height: 1.25rem;
 }
 
@@ -563,10 +554,10 @@
 
 .pf-dist__seg {
   min-width: 3px;
-  border-radius: 3px;
+  border-radius: var(--fs-radius-2);
 }
 
-/* Axis labels are quantities: the grotesk's plain figures, 13 px, ink-3. */
+/* Axis labels are quantities: the figure role (14 px numerals), ink-3. */
 .pf-dist__axis {
   position: relative;
   height: 24px;
@@ -574,7 +565,7 @@
   color: var(--fs-ink-3);
   font-stretch: 87.5%;
   font-weight: 500;
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   line-height: 1.25rem;
 }
 
@@ -613,7 +604,7 @@
 .pf-dist__swatch {
   width: 10px;
   height: 10px;
-  border-radius: 3px;
+  border-radius: var(--fs-radius-2);
 }
 
 /* Confirmed by the simulated PayPal: flush jade. On its way: a hollow neutral ring (pending, never dashed).
@@ -686,12 +677,12 @@
   min-width: 0;
 }
 
-/* Counts and money in the grotesk's plain figures (round 3's money role), right-aligned. */
+/* Counts and money in the figure role (tabular, 87.5 %, 500), right-aligned. */
 .pf-dist__count {
   color: var(--fs-ink-3);
   font-stretch: 87.5%;
   font-weight: 500;
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   text-align: right;
 }
 
@@ -707,7 +698,7 @@
 .pf-dist__note {
   margin: 0;
   color: var(--fs-ink-3);
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   line-height: 1.25rem;
 }
 
@@ -717,25 +708,27 @@
 
 /* ------------------------------------------------------------------ states */
 
+/* Proof withheld: our own check refused the record, so it is ink on plate-2 in a rule-strong line with its ✕,
+   never red (red is only PayPal saying no) and never a wash. */
 .pf-withheld {
   display: grid;
   grid-template-columns: 20px minmax(0, 1fr);
   gap: 12px;
   margin-bottom: 32px;
   padding: 16px;
-  border: 1px solid var(--fs-red);
+  border: 1px solid var(--fs-rule-strong);
   border-radius: var(--fs-radius-control);
-  background: var(--fs-red-wash);
+  background: var(--fs-plate-2);
   color: var(--fs-ink);
 }
 
 .pf-withheld > .fs-glyph {
-  color: var(--fs-red);
+  color: var(--fs-ink);
 }
 
 .pf-withheld__title {
-  color: var(--fs-red);
-  font-weight: 560;
+  color: var(--fs-ink);
+  font-weight: 600;
 }
 
 .pf-withheld__where {
@@ -755,11 +748,9 @@
   color: var(--fs-ink-3);
 }
 
+/* The state's title is the title step (fs-t-title). */
 .pf-state__title {
   max-width: 30ch;
-  font-weight: 560;
-  font-size: 1.375rem;
-  line-height: 1.75rem;
   text-wrap: balance;
 }
 
@@ -791,14 +782,11 @@
 
 /* ------------------------------------------------------------------ sections */
 
+/* A section's title is the title step (fs-t-title), on a rule, with more space above it than below. */
 .pf-section__title {
   margin-bottom: 16px;
-  padding-top: 24px;
+  padding-top: 32px;
   border-top: 1px solid var(--fs-rule);
-  font-weight: 560;
-  font-size: 1.25rem;
-  line-height: 1.5rem;
-  letter-spacing: -0.01em;
 }
 
 .pf-chain,
@@ -846,9 +834,8 @@
   border-radius: 50%;
   background: var(--fs-ground);
   color: var(--fs-ink);
-  font-stretch: 87.5%;
   font-weight: 520;
-  font-size: 0.9375rem;
+  font-size: 0.875rem;
 }
 
 /* An ink node once this browser has re-checked the plate: a person can see six marks, top to bottom. */
@@ -860,9 +847,10 @@
     color var(--fs-dur-reduced) var(--fs-ease-out);
 }
 
+/* A plate that does not match keeps an open ink node: no fill (only a match fills it), never red. */
 .pf-plate[data-state="differs"] .pf-plate__node {
-  border-color: var(--fs-red);
-  color: var(--fs-red);
+  border-color: var(--fs-ink);
+  color: var(--fs-ink);
 }
 
 /* Still waiting on PayPal: a hollow neutral node (pending), never dashed (dashed means simulated only). */
@@ -892,33 +880,31 @@
   cursor: pointer;
 }
 
+/* The plate's title is the heading step (fs-t-heading). */
 .pf-plate__title {
   display: inline-flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 4px 12px;
-  font-weight: 560;
-  font-size: 1rem;
-  line-height: 1.5rem;
 }
 
-/* The plate's fact is data, joined by " · " (unslop spec §1.7): words, counts and money in the grotesk's plain
-   figures, each id in the id role's code-like ones (round 3's numeral roles). */
+/* The plate's fact is data, joined by " · " (unslop spec §1.7): words and money in FS Sans's tabular figures at
+   14 px, each id in the mono id role. */
 .pf-plate__fact {
   grid-column: 1;
   color: var(--fs-ink-2);
-  font-stretch: 87.5%;
-  font-weight: 500;
-  font-size: 0.8125rem;
+  font-weight: 430;
+  font-size: 0.875rem;
   line-height: 1.25rem;
 }
 
-.pf-plate__fact .fs-t-hash {
+.pf-plate__fact .fs-t-id {
   line-height: inherit;
 }
 
 .pf-fact__money {
   color: var(--fs-ink);
+  font-weight: 500;
   white-space: nowrap;
 }
 
@@ -947,7 +933,7 @@
   gap: 6px;
   margin-top: 2px;
   color: var(--fs-ink-3);
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   line-height: 1.25rem;
 }
 
@@ -956,17 +942,17 @@
 }
 
 .pf-plate__check[data-state="differs"] {
-  color: var(--fs-red);
+  color: var(--fs-ink);
+  font-weight: 600;
 }
 
+/* An open plate is not a box in a box: its facts and tables sit in the plate's own column, grouped by space. */
 .pf-plate__body {
   grid-column: 2;
   display: grid;
-  gap: 14px;
+  gap: 16px;
   margin-top: 12px;
-  padding: 16px;
-  border: 1px solid var(--fs-rule);
-  background: var(--fs-plate);
+  padding: 0 0 8px;
 }
 
 .pf-plate__body[hidden] {
@@ -978,19 +964,19 @@
   align-items: center;
   gap: 8px;
   color: var(--fs-ink-2);
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   line-height: 1.25rem;
 }
 
 .pf-plate__reason {
-  color: var(--fs-red);
-  font-weight: 560;
+  color: var(--fs-ink);
+  font-weight: 600;
 }
 
 .pf-plate__note,
 .pf-plate__lead {
   color: var(--fs-ink-2);
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   line-height: 1.25rem;
 }
 
@@ -1013,12 +999,14 @@
 
 .pf-facts__row dt {
   color: var(--fs-ink-2);
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
 }
 
 .pf-facts__row dd {
   margin: 0;
   min-width: 0;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
   overflow-wrap: anywhere;
 }
 
@@ -1063,13 +1051,13 @@
 
 .pf-keys__role {
   grid-row: 1 / span 3;
-  font-weight: 520;
+  font-weight: 600;
 }
 
 .pf-keys__kind,
 .pf-keys__meta {
   color: var(--fs-ink-2);
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   line-height: 1.25rem;
 }
 
@@ -1082,16 +1070,18 @@
   background: var(--fs-plate);
 }
 
+/* A table (DESIGN.md §4): the header on the label step in ink-2 on plate-2, 36 px; rows 40 px on rule
+   separators; numbers right-aligned in tabular figures, ids in the mono. */
 .pf-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   line-height: 1.25rem;
 }
 
 .pf-table th,
 .pf-table td {
-  padding: 8px 10px;
+  padding: 10px 12px;
   border-bottom: 1px solid var(--fs-rule);
   text-align: left;
   vertical-align: middle;
@@ -1102,17 +1092,18 @@
   position: sticky;
   top: 0;
   z-index: 1;
+  padding-block: 8px;
   background: var(--fs-plate-2);
   color: var(--fs-ink-2);
-  font-weight: 560;
-  font-size: 0.8125rem;
+  font-weight: 520;
+  font-size: 0.875rem;
 }
 
 .pf-table tbody th {
-  font-weight: 560;
+  font-weight: 520;
 }
 
-/* Kilos and money: right-aligned in the grotesk's plain figures (the money role). */
+/* Kilos and money: right-aligned in the figure role. */
 .pf-table [data-numeric] {
   text-align: right;
 }
@@ -1129,6 +1120,10 @@
   min-height: 24px;
 }
 
+.pf-table tbody th.fs-t-id {
+  font-weight: 400;
+}
+
 /* The rail in one word. Cash is a 10 px hatch swatch and the word, never a pill (unslop spec §1.8). */
 .pf-rail {
   display: inline-flex;
@@ -1136,7 +1131,7 @@
   gap: 6px;
   color: var(--fs-ink-2);
   font-weight: 520;
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   line-height: 1.25rem;
 }
 
@@ -1144,7 +1139,7 @@
   flex: none;
   width: 10px;
   height: 10px;
-  border-radius: 3px;
+  border-radius: var(--fs-radius-2);
   background:
     repeating-linear-gradient(-45deg, var(--fs-hatch) 0 1.5px, transparent 1.5px 4px), var(--fs-plate);
   box-shadow: inset 0 0 0 1px var(--fs-rule-strong);
@@ -1185,7 +1180,7 @@
 
 .pf-lines__sum {
   color: var(--fs-ink-2);
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   line-height: 1.25rem;
 }
 
@@ -1214,11 +1209,11 @@
 }
 
 .pf-line__name {
-  font-weight: 560;
+  font-weight: 520;
 }
 
 .pf-line__receiver {
-  font-weight: 450;
+  font-weight: 430;
   font-size: 0.75rem;
   line-height: 1rem;
   overflow-wrap: break-word;
@@ -1314,14 +1309,14 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 2px 6px;
-  font-weight: 560;
+  font-weight: 520;
 }
 
 .pf-receipt__why {
   flex-basis: 100%;
   color: var(--fs-ink-2);
-  font-weight: 450;
-  font-size: 0.8125rem;
+  font-weight: 430;
+  font-size: 0.875rem;
   line-height: 1.25rem;
 }
 
@@ -1335,11 +1330,12 @@
   border-bottom: 0;
 }
 
+/* The net on the amount-l step (24/30 numerals). */
 .pf-receipt__row--net dd {
   font-stretch: 87.5%;
   font-weight: 500;
   font-size: 1.5rem;
-  line-height: 2rem;
+  line-height: 1.875rem;
 }
 
 .pf-trace__slips {
@@ -1351,38 +1347,35 @@
 
 .pf-trace__lead {
   color: var(--fs-ink-2);
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
 }
 
+/* A slip to open: a cell-radius chip on a rule-strong line; the open one is the selection (indigo line, pod wash),
+   like the framed peso, never a second ring. */
 .pf-slipchip {
   appearance: none;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   min-height: 32px;
-  padding: 0 10px;
-  border: 1px solid var(--fs-rule);
+  padding: 0 12px;
+  border: 1px solid var(--fs-rule-strong);
   border-radius: var(--fs-radius-cell);
   background: var(--fs-plate);
   color: var(--fs-ink);
   font: inherit;
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   cursor: pointer;
 }
 
 .pf-slipchip:hover {
-  border-color: var(--fs-ink-3);
+  border-color: var(--fs-steel-line);
+  background: var(--fs-plate-2);
 }
 
 .pf-slipchip[data-active] {
-  border-color: var(--fs-ink);
-  box-shadow: inset 0 0 0 1px var(--fs-ink);
-}
-
-.pf-slipchip__no {
-  font-stretch: 87.5%;
-  font-weight: 520;
-  font-variant-numeric: tabular-nums;
+  border-color: var(--fs-pod);
+  background: var(--fs-pod-wash);
 }
 
 .pf-slipchip__kg {
@@ -1443,8 +1436,9 @@
   font-weight: 450;
 }
 
+/* The slip's printed serial is evidence colour (the triplicate's red ink), never the UI's red. */
 .pf-crop__serial {
-  fill: var(--fs-red);
+  fill: var(--fs-evidence-serial);
   font-family: var(--fs-font-ui);
   font-stretch: 75%;
   font-weight: 700;
@@ -1494,14 +1488,13 @@
   justify-content: center;
   min-width: 40px;
   padding: 0;
-  font-size: 1.125rem;
 }
 
 .pf-crop__note,
 .pf-crop__missing {
   flex: 1 1 16rem;
   color: var(--fs-ink-2);
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   line-height: 1.25rem;
 }
 
@@ -1526,8 +1519,9 @@
   align-items: center;
   align-content: flex-start;
   gap: 4px 8px;
+  color: var(--fs-ink-2);
   font-weight: 520;
-  font-size: 0.9375rem;
+  font-size: 0.875rem;
   line-height: 1.5rem;
 }
 
@@ -1538,26 +1532,27 @@
   min-width: 0;
 }
 
+/* A ledger value on the body step at the numerals' weight, in tabular figures. */
 .pf-ledger__value {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
   gap: 2px 16px;
-  font-stretch: 87.5%;
+  color: var(--fs-ink);
   font-weight: 500;
-  font-size: 1.125rem;
+  font-size: 1rem;
   line-height: 1.5rem;
 }
 
 .pf-ledger__aside {
   color: var(--fs-ink-2);
-  font-weight: 500;
-  font-size: 0.9375rem;
+  font-weight: 430;
+  font-size: 0.875rem;
 }
 
 .pf-ledger__note {
   color: var(--fs-ink-2);
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   line-height: 1.25rem;
 }
 
@@ -1618,14 +1613,14 @@
   background: var(--fs-jade);
 }
 
-.pf-tier[data-tier="attested"] .pf-tier__swatch {
-  border-color: var(--fs-ink);
-  background: var(--fs-ink);
-}
-
-.pf-tier:is([data-tier="due"], [data-tier="reserved"]) .pf-tier__swatch {
+/* Hatch means cash: attested cash is the hatch on an ink line (a checked fact), cash still due the hatch alone. */
+.pf-tier:is([data-tier="attested"], [data-tier="due"], [data-tier="reserved"]) .pf-tier__swatch {
   background:
     repeating-linear-gradient(-45deg, var(--fs-hatch) 0 1.5px, transparent 1.5px 4px), var(--fs-plate);
+}
+
+.pf-tier[data-tier="attested"] .pf-tier__swatch {
+  border-color: var(--fs-ink);
 }
 
 .pf-tier__words {
@@ -1634,7 +1629,7 @@
 
 .pf-tier__sub {
   color: var(--fs-ink-2);
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   line-height: 1.25rem;
 }
 
@@ -1683,12 +1678,12 @@
 }
 
 .pf-fees__title {
-  font-weight: 560;
+  font-weight: 600;
 }
 
 .pf-fees__lede {
   color: var(--fs-ink-2);
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
 }
 
 .pf-fees__list {
@@ -1769,7 +1764,7 @@
   margin-top: 48px;
   border-top: 1px solid var(--fs-rule);
   color: var(--fs-ink-2);
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   line-height: 1.25rem;
 }
 
@@ -1890,29 +1885,22 @@ details[open] > summary > .pf-summary__chevron {
 /* ------------------------------------------------------------------ narrow screens */
 
 @media (max-width: 560px) {
-  .pf-hero__title {
-    font-size: 1.0625rem;
+  /* The headline's context drops to the body step under the amount, so a phone reads it in two short lines. */
+  .pf-hero__context {
+    font-size: 1rem;
     line-height: 1.5rem;
+    letter-spacing: 0;
   }
 
-  /* The amount never breaks, so on a phone it scales with the viewport instead of widening the hero and the page
-     (WCAG 1.4.10): a twelve-character amount (US$88,888.88, 5.44 em) still fits a 320 px viewport's 288 px
-     column. It keeps the header's 48 px from 400 px and never goes below 40 px. */
-  .pf-hero .pf-hero__amount {
-    font-size: clamp(2.5rem, 12vw, 3rem);
-    line-height: 1;
-  }
-
-  /* The seal sits small beside the count; the press and the IDs run under both. */
+  /* The seal sits above the verdict, so the count, the result and the sample keys get the card's whole width. */
   .pf-verify__card {
-    grid-template-columns: 96px minmax(0, 1fr);
-    column-gap: 16px;
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: 16px;
     padding: 16px;
   }
 
   .pf-hero__seal {
-    width: 96px;
-    align-self: start;
+    width: 120px;
   }
 
   .pf-card {

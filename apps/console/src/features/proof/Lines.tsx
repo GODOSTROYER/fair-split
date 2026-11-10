@@ -31,6 +31,7 @@ import { format } from "../../lib/format.js";
 import { useMoment } from "../../lib/moment.js";
 import { useViewportWidth } from "../../stage/layout.js";
 import { LINES_COPY } from "./copy.js";
+import { ZoomGlyph } from "./glyphs.js";
 import { itemsByMember, type LineStates, lineStateOf, type ProofItemView } from "./model.js";
 import { SlipCrop, slipAlt } from "./SlipCrop.js";
 
@@ -307,7 +308,7 @@ export function Lines({ bundle, items, lineStates, slips, ruleNames, markNames, 
                                 onClick={() => zoomTo(line.memberNo, serial)}
                               >
                                 <Glyph name="triplicate-slip" size={16} />
-                                <span className="pf-slipchip__no">{serial}</span>
+                                <span className="pf-slipchip__no fs-t-id">{serial}</span>
                                 {kg && <span className="pf-slipchip__kg">{kg}</span>}
                               </button>
                             );
@@ -494,7 +495,7 @@ function CropPanel({ serial, slip, zoom, tiles, panX, panY, onKey, onZoom }: Cro
           data-testid="W-PF-01.trace.zoom-out"
           aria-label={LINES_COPY.zoomOut}
         >
-          <span aria-hidden>−</span>
+          <ZoomGlyph dir="out" />
         </button>
         <button
           type="button"
@@ -504,7 +505,7 @@ function CropPanel({ serial, slip, zoom, tiles, panX, panY, onKey, onZoom }: Cro
           data-testid="W-PF-01.trace.zoom-in"
           aria-label={LINES_COPY.zoomIn}
         >
-          <span aria-hidden>+</span>
+          <ZoomGlyph dir="in" />
         </button>
         <span className="pf-crop__note">{LINES_COPY.cropNote}</span>
       </div>
@@ -638,7 +639,7 @@ function LineRows({
         {fold ? (
           <th scope="row">
             <div className="pf-line__who">
-              <span className="fs-t-hash">{line.memberNo}</span>
+              <span className="fs-t-id">{line.memberNo}</span>
               {names && <span className="pf-line__name">{label?.name ?? ""}</span>}
               {names && label?.receiverMasked && (
                 <span className="pf-table__receiver pf-line__receiver">
@@ -649,7 +650,7 @@ function LineRows({
             </div>
           </th>
         ) : (
-          <th scope="row" className="fs-t-hash">
+          <th scope="row" className="fs-t-id">
             {line.memberNo}
           </th>
         )}

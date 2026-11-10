@@ -146,20 +146,23 @@ describe("W-PF-01 loads without waiting on the seed", () => {
     }
   });
 
-  it("reserves the lot's line box at its settled height: one 1.25rem id line, laptop and phone alike", () => {
+  it("reserves the lot's line box at its settled height: one 1rem id line under the headline, laptop and phone alike", async () => {
     const rules = readRules("src/features/proof/proof.css");
+    // Round 3: the lot is an id in the mono role (fs-t-id, 12 px), on the header's id line under the headline, never
+    // an eyebrow above it.
+    await renderConsole({ path: webRoutes.proof(RUN) });
+    const hero = await screen.findByTestId("W-PF-01.hero");
+    const shown = within(hero).getByTestId("W-PF-01.lot");
+    expect(shown.classList.contains("fs-t-id")).toBe(true);
+    const title = document.getElementById("W-PF-01-title") as HTMLElement;
+    expect(title.compareDocumentPosition(shown) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     const lot = document.createElement("p");
-    lot.className = "pf-hero__lot";
+    lot.className = "pf-hero__lot fs-t-id";
     document.body.append(lot);
     try {
-      // Round 3: the lot is an id (13 px, the code-like figures), no longer the retired stencil display face.
-      expect(cascaded(rules, lot, "font-size", { width: 1470, motion: "full" })).toBe("0.8125rem");
-      expect(cascaded(rules, lot, "font-variant-numeric", { width: 1470, motion: "full" })).toContain(
-        "tabular-nums",
-      );
       for (const [width, size] of [
-        [1470, "1.25rem"],
-        [390, "1.25rem"],
+        [1470, "1rem"],
+        [390, "1rem"],
       ] as const) {
         const medium = { width, motion: "full" } as const;
         expect(cascaded(rules, lot, "line-height", medium)).toBe(size);
@@ -210,9 +213,10 @@ function lengthPx(value: string, width: number, em: number): number {
 }
 
 describe("W-PF-01's hero reflows on a phone (WCAG 2.2 1.4.10)", () => {
-  // The amount never breaks (white-space: nowrap), so at hero size (72 px) it alone would widen the hero, and the
-  // page, past a 320 px viewport. Measured in Chromium in FS Sans Proof at stretch 75 % and weight 800: the seed's
-  // US$4,333.50 advances 4.929 em, a twelve-character US$88,888.88 5.438 em.
+  // The amount never breaks (white-space: nowrap). Round 3 sets it on the headline's title step (the verdict's
+  // count is the page's one hero number), so it must fit a 320 px viewport at its one size. An upper bound for a
+  // twelve-character US$88,888.88, measured in Chromium in FS Sans Proof at stretch 75 % and weight 800 (wider than
+  // the 87.5 %/500 it now uses): 5.438 em.
   const TWELVE_CHARACTERS_EM = 5.438;
   const rules = [
     ...readRules("../../packages/tokens/src/generated/theme.web.css"),
@@ -220,13 +224,13 @@ describe("W-PF-01's hero reflows on a phone (WCAG 2.2 1.4.10)", () => {
     ...readRules("src/features/proof/proof.css").map((rule) => ({ ...rule, order: rule.order + 100_000 })),
   ];
 
-  it("scales the header amount down to fit the column at 320 and 360 px, and keeps 3rem where it fits", () => {
+  it("keeps the header amount on the title step (24 px) at every width, whole and inside the column", () => {
     const hero = document.createElement("section");
     hero.className = "pf-hero";
     const title = document.createElement("h1");
     title.className = "pf-hero__title";
     const amount = document.createElement("span");
-    amount.className = "pf-hero__amount fs-t-amount-hero";
+    amount.className = "pf-hero__amount fs-t-amount-l";
     title.append(amount);
     hero.append(title);
     document.body.append(hero);
@@ -239,10 +243,9 @@ describe("W-PF-01's hero reflows on a phone (WCAG 2.2 1.4.10)", () => {
         // The Proof surface's column: 680 px, inside a 16 px gutter on each side.
         const column = Math.min(680, width - 2 * 16);
         expect(TWELVE_CHARACTERS_EM * size, `at ${width} px`).toBeLessThanOrEqual(column);
-        // The line box follows the figure: never a 72 px line around a smaller amount.
-        expect(leading, `at ${width} px`).toBe(size);
-        if (width > 560) expect(size, `at ${width} px`).toBe(48);
-        else expect(size, `at ${width} px`).toBeGreaterThanOrEqual(40);
+        // The title step's numerals: 24 px on a 30 px line, at every width.
+        expect(size, `at ${width} px`).toBe(24);
+        expect(leading, `at ${width} px`).toBe(30);
       }
     } finally {
       hero.remove();
@@ -328,7 +331,7 @@ describe("W-PF-01 Proof: the season's settled run", () => {
     );
     // Ids keep the id role's code-like figures; money keeps the grotesk's plain ones.
     const paid = screen.getByTestId("W-PF-01.plate.paid.fact");
-    expect(paid.querySelector(".fs-t-hash")?.textContent).toBe("FS-2026A-r37");
+    expect(paid.querySelector(".fs-t-id")?.textContent).toBe("FS-2026A-r37");
     expect(paid.querySelector(".pf-fact__money")?.textContent).toBe("US$4,333.50");
     // The header names the thing: the invoice, its context in grey, and in words for a screen reader that it was
     // marked paid in a simulated sandbox (the tag beside it says so on screen).
@@ -447,6 +450,13 @@ describe("W-PF-01 MM-7, tap a peso", () => {
     await waitFor(() => expect(lines.dataset.momentPhase).toBe("tiled"), { timeout: 3000 });
     expect(screen.getByTestId("W-PF-01.trace.paper").textContent).toContain("Synthetic sample");
     const zoomIn = screen.getByTestId("W-PF-01.trace.zoom-in");
+    // Round 3: the zoom controls draw their marks (no "+" or "−" character standing in for an icon); the name says
+    // what they do.
+    for (const zoom of [zoomIn, screen.getByTestId("W-PF-01.trace.zoom-out")]) {
+      expect(zoom.textContent).toBe("");
+      expect(zoom.querySelector("svg.fs-glyph")?.getAttribute("aria-hidden")).toBe("true");
+    }
+    expect(zoomIn.getAttribute("aria-label")).toBe("Zoom in");
     zoomIn.focus();
     fireEvent.click(zoomIn);
     await expectNoAxeViolations(view.container);
