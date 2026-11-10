@@ -75,7 +75,8 @@ describe("SSE hub and the workspace stream", () => {
       }),
     );
     const response = await t.request("/test-byte-pressure");
-    const reader = response.body!.getReader();
+    if (!response.body) throw new Error("SSE response body required");
+    const reader = response.body.getReader();
     try {
       await reader.read(); // Read the preamble, then stop consuming the event body.
       for (let i = 0; i < 20; i++) publish(bus, ws);

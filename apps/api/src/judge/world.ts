@@ -14,7 +14,7 @@
 // Not in a clone: a pay run (made when a judge claims the workspace, with a fresh runSeq), the replay
 // photos' rows (the replayed 28 Oct read writes them), keys, lines, holds and approvals.
 import type { SeasonSnapshot } from "@fairsplit/contracts";
-import { appendLedger, openSeedWindow, schema, systemScope, type Tx, uuidv7 } from "@fairsplit/db";
+import { appendLedgerBatch, openSeedWindow, schema, systemScope, type Tx, uuidv7 } from "@fairsplit/db";
 import { jcs, sha256Hex } from "@fairsplit/domain";
 import { getSnapshot } from "@fairsplit/seed";
 import { eq } from "drizzle-orm";
@@ -286,7 +286,7 @@ export async function materializeWorld(tx: Tx, workspaceId: string): Promise<Jud
 
   // The opening ledger, as in the showcase: the ratification first, then the archived photos' reads.
   const scope = systemScope(workspaceId, { kind: "system", id: "system:seed" });
-  for (const e of openingLedger(s)) {
+  const opening = openingLedger(s).map((e) => {
     const payload = { ...(e.payload as Record<string, unknown>) };
     if (typeof payload.documentId === "string" && typeof payload.photoId === "string") {
       const id = documentIdByPhoto.get(payload.photoId);
@@ -294,7 +294,7 @@ export async function materializeWorld(tx: Tx, workspaceId: string): Promise<Jud
         throw new Error(`judge world: the ledger names photo ${payload.photoId}, which the seed lacks`);
       payload.documentId = id;
     }
-    await appendLedger(tx, scope, {
+    return {
       kind: e.kind,
       payload,
       actor: {
@@ -303,8 +303,9 @@ export async function materializeWorld(tx: Tx, workspaceId: string): Promise<Jud
         impersonatedBy: e.impersonatedBy,
       },
       at: new Date(e.at),
-    });
-  }
+    };
+  });
+  await appendLedgerBatch(tx, scope, opening);
 
   return {
     workspaceId,
