@@ -94,6 +94,8 @@ export const STAGE = {
   phoneVisitBody: "The full stage: the co-op's console with the member's phone beside it.",
   phoneVisitCopy: "Copy the link",
   phoneVisitCopied: "Copied",
+  /** The phone visit's overflow menu (round 3): the laptop line, the link and Proof live behind it. */
+  visitMore: "More",
   frameAsleep: "The app's web build isn't answering on this server.",
   frameAsleepDetail:
     "fs-api serves it at /app. Until it loads, this is what the phone would show, from the seeded run.",
@@ -283,17 +285,23 @@ function whatsRealSections(f: WhatsRealFacts): readonly WhatsRealSection[] {
   ];
 }
 
+/** "Try to break it" (UI gate round 3): four rows, each a name and "Try"; a tried row says its refusal in place. */
 export const TRY_TO_BREAK = {
   title: "Try to break it",
   lede: "Refused by code. No money moves, no calls are made.",
   /** Before the first press: the attempts need a run. */
   needsRun: "Press Mark the invoice paid first.",
+  tryWord: "Try",
   refused: "Refused",
-  nothingSent: "Nothing sent",
+  blocked: "blocked",
+  armed: "Armed before key 2",
+  voided: "Changed payout refused. Both approvals voided.",
   why: "Why",
+  /** The rows' names, as the sheet lists them until the season slice's controls fill it. */
   attempts: [
-    "Make the invoice draft overcharge Lantern Bay: the policy lattice refuses it before any PayPal call.",
-    "Offset two invoice amounts or change the recipient: policy refuses the altered draft.",
-    "Arm a payout change before key 2: the Payouts tool re-hashes the batch, refuses the change and voids both approvals.",
+    "Overcharge the invoice draft",
+    "Offset shipping with a discount",
+    "Add an invoice recipient",
+    "Arm a payout change before key 2",
   ],
 } as const;

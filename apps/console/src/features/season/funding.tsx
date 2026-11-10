@@ -4,9 +4,14 @@
 // evidence: only a live `invoice.state` event plays it (its ID is the evidence); a run that was funded before
 // this page subscribed simply shows funded, drawn, still. The invoice plate carries Claude's recorded draft in
 // pencil: Claude chose the labels, every amount is the code's quote (I1).
+//
+// UI gate round 3 on the first view (the compact desk): the PayPal money values wear the one micro-tag (the invoice
+// always, the pool once the simulated PayPal funds it), the seeded lines a bare legend glyph; the pool is one line,
+// "Invoice US$4,333.50 − costs US$60.00 = US$4,273.50", pending grey with a hollow dot until it is funded; the
+// invoice's id is the showcase run's until the judge's own run has one.
 
 import { INVOICE_STATUS_LABELS, pickLabel, type SeasonSnapshot } from "@fairsplit/contracts";
-import { CurrencyFigure, Glyph, HonestyTag, useT } from "@fairsplit/ui-web";
+import { CurrencyFigure, Glyph, HONESTY, LegendGlyph, MicroTag, StateDot, useT } from "@fairsplit/ui-web";
 import { type MotionValue, motion, useMotionValue, useTransform } from "motion/react";
 import {
   type ReactNode,
@@ -22,6 +27,7 @@ import { DataTable, Mirrored } from "../../chrome/DataTable.js";
 import { Stamp } from "../../chrome/Stamp.js";
 import { useJudgeSession, useRunEvents } from "../../data/hooks.js";
 import type { RunView } from "../../data/run-view.js";
+import { stageInvoice } from "../../lib/display.js";
 import type { PaypalRail } from "../../lib/env.js";
 import { format } from "../../lib/format.js";
 import { type MomentController, useMoment } from "../../lib/moment.js";
@@ -32,16 +38,23 @@ import "./season.css";
 
 export type FundingMoment = MomentController<"MM-S">;
 
-/** An invoice status that names the simulated rail in words: the compact plate says it with the tag instead. */
-const SIMULATED_SUFFIX = / in the simulated PayPal sandbox$/;
-
+/**
+ * The invoice's title in words: the session's own number once it has one ("Draft invoice" before), and before
+ * the first press the showcase run's number, labelled as the showcase's (round 3: one id, said for what it is).
+ */
 export function invoiceTitle(
   snapshot: SeasonSnapshot,
   view: RunView | undefined,
   inSession: boolean,
 ): string {
   if (inSession) return view?.invoice.number ? SEASON_COPY.invoice(view.invoice.number) : "Draft invoice";
-  return `${SEASON_COPY.invoice(snapshot.run.invoice.invoiceNumber)} (seeded sample)`;
+  const id = stageInvoice(snapshot, view, false);
+  return id?.note ? `${SEASON_COPY.invoice(id.number)} (${id.note})` : SEASON_COPY.invoice(id?.number ?? "");
+}
+
+/** The micro-tag beside a PayPal money value: the simulated sandbox's, or the untested sandbox rail's words. */
+function RailMicroTag({ rail, testId }: { readonly rail: PaypalRail; readonly testId?: string }) {
+  return <MicroTag label={railTag(rail)} {...(testId ? { testId } : {})} />;
 }
 
 /**
@@ -148,7 +161,7 @@ export function HollowFigure({
   );
 }
 
-/** An inline amount: hollow is ink-2 with a dashed underline; landed is ink (S2.2.1, under 28 px). */
+/** An inline amount: hollow is the pending grey (never dashed: dashed means simulated); landed is ink (S2.2.1). */
 function InlineAmount({
   cents,
   landed,
@@ -349,6 +362,17 @@ export function FundingBlock({
     hash: format.hashGroups(snapshot.rateCard.sha256),
     lot: snapshot.lot.lotCode,
   });
+  // The first view's invoice id: the session's own run's once it has one, else the showcase's, labelled (round 3).
+  const inSession = session.session !== null;
+  const shownId = inSession ? null : stageInvoice(snapshot, view, false);
+  // The pool as one line only when the line is true: invoice minus the payout costs is the pool, to the cent.
+  const balanced = invoice.amountCents - pool.disbursementCents === pool.poolCents;
+  const fundedSourceTitle = `${fundedSource(rail)} ${provenanceFooter({
+    kind: "paypal",
+    source: "status_check",
+    rail,
+    provenance: view?.invoice.provenance,
+  })}`;
   return (
     <section
       className="fsc-fund"
@@ -371,40 +395,39 @@ export function FundingBlock({
             {compact ? (
               <>
                 {FIRST_VIEW_COPY.invoice}
-                <span className="fsc-fund__number fs-t-micro">
-                  {session.session !== null
-                    ? (view?.invoice.number ?? "draft")
-                    : `${invoice.invoiceNumber} · ${FIRST_VIEW_COPY.seededSample.toLowerCase()}`}
+                <span className="fsc-fund__number fs-t-micro" data-testid={`${screen}.invoice.id`}>
+                  {inSession ? (view?.invoice.number ?? "draft") : (shownId?.number ?? invoice.invoiceNumber)}
+                  {shownId?.note ? <span className="fsc-fund__id-note">{` · ${shownId.note}`}</span> : null}
                 </span>
               </>
             ) : (
-              invoiceTitle(snapshot, view, session.session !== null)
+              invoiceTitle(snapshot, view, inSession)
             )}
           </h2>
+          {/* On the first view the heading says where the invoice is ("Invoice sent."): the status stays for
+              assistive technology and the arc's table, not as a second line of words. */}
           <span
-            className="fsc-fund__status fs-t-caption"
+            className={compact ? "fs-sr" : "fsc-fund__status fs-t-caption"}
             data-state={funded ? "funded" : "waiting"}
             data-testid={`${screen}.invoice.status`}
           >
-            {compact && SIMULATED_SUFFIX.test(statusWord) ? (
-              <>
-                {statusWord.replace(SIMULATED_SUFFIX, "")} <HonestyTag>{railTag(rail)}</HonestyTag>
-              </>
-            ) : (
-              statusWord
-            )}
+            {statusWord}
           </span>
         </header>
         <div className="fsc-fund__total">
           <span className="fsc-fund__muted fs-t-label">{SEASON_COPY.invoiceTotal}</span>
-          <HollowFigure
-            cents={invoice.amountCents}
-            solid={funded ? 1 : 0}
-            landed={funded}
-            typeRole={totalRole}
-            anchor={from}
-            testId={`${screen}.invoice.amount`}
-          />
+          {/* The arc starts after the amount and its tag (compact), never through the tag. */}
+          <span className="fsc-fund__figure-row" ref={compact ? from : undefined}>
+            <HollowFigure
+              cents={invoice.amountCents}
+              solid={funded ? 1 : 0}
+              landed={funded}
+              typeRole={totalRole}
+              {...(compact ? {} : { anchor: from })}
+              testId={`${screen}.invoice.amount`}
+            />
+            {compact && <RailMicroTag rail={rail} testId={`${screen}.invoice.tag`} />}
+          </span>
           {compact ? (
             <span className="fsc-fund__estimate fs-t-micro" title={invoice.pesoEstimate}>
               {invoice.pesoEstimate.replace(/^about /, "≈ ").replace(/ \(estimate\)$/, "")}
@@ -429,7 +452,7 @@ export function FundingBlock({
             <summary className="fsc-fund__draft-head fs-t-label">
               <Glyph name="pencil" size={16} />
               {SEASON_COPY.invoiceLines.replace(/ \(seeded sample\)$/, "")}
-              <HonestyTag>{FIRST_VIEW_COPY.seededSample}</HonestyTag>
+              <LegendGlyph {...HONESTY.seededSample} testId={`${screen}.invoice.draft.mark`} />
               <Glyph name="ms:expand-more" size={18} />
             </summary>
             {draftBody}
@@ -542,10 +565,69 @@ export function FundingBlock({
             )}
           </h2>
           {(funded || moment.playing) && (
-            <FundedMark inset={values.inset} flood={values.flood} testId={`${screen}.funded`} />
+            <span className="fsc-fund__head-end">
+              {funded && compact && (
+                // When the simulated PayPal's status check read the invoice paid: its time, the words in its title.
+                <span
+                  className="fsc-fund__checked fs-t-micro"
+                  title={fundedSourceTitle}
+                  data-testid={`${screen}.funded.source`}
+                >
+                  {[FIRST_VIEW_COPY.statusCheck, paidAt ? format.time(paidAt) : null]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </span>
+              )}
+              <FundedMark inset={values.inset} flood={values.flood} testId={`${screen}.funded`} />
+            </span>
           )}
         </header>
-        {layout === "desk" ? (
+        {layout === "desk" && balanced ? (
+          // The desk's pool as one line (round 3): the invoice, minus the payout costs, is the pool. Until the
+          // simulated PayPal funds it the pool is pending (grey, a hollow dot); then ink, with the one micro-tag.
+          <p
+            className="fsc-fund__eq"
+            data-state={landed ? "landed" : "pending"}
+            data-testid={`${screen}.pool.eq`}
+          >
+            <span className="fs-sr">
+              {FIRST_VIEW_COPY.eqSpoken(
+                format.money(invoice.amountCents),
+                format.money(pool.disbursementCents),
+              )}
+            </span>
+            <span className="fsc-fund__eq-terms" aria-hidden>
+              {/* The arc lands on the invoice's own amount here: the money that funds the pool. */}
+              <span className="fsc-fund__eq-term" ref={to}>
+                <span className="fsc-fund__eq-word">{FIRST_VIEW_COPY.eqInvoice}</span>
+                <InlineAmount cents={invoice.amountCents} landed={landed} />
+              </span>
+              <span className="fsc-fund__eq-op">−</span>
+              <span className="fsc-fund__eq-term">
+                <span className="fsc-fund__eq-word">{FIRST_VIEW_COPY.eqCosts}</span>
+                <InlineAmount
+                  cents={pool.disbursementCents}
+                  landed={landed}
+                  testId={`${screen}.pool.disbursement`}
+                />
+              </span>
+            </span>
+            <span className="fsc-fund__eq-result">
+              <span className="fsc-fund__eq-op" aria-hidden>
+                =
+              </span>
+              {!landed && <StateDot kind="pending" />}
+              <HollowFigure
+                cents={pool.poolCents}
+                solid={values.poolSolid}
+                landed={landed}
+                typeRole="amount-l"
+                testId={`${screen}.pool.amount`}
+              />
+              {landed && compact && <RailMicroTag rail={rail} testId={`${screen}.pool.tag`} />}
+            </span>
+          </p>
+        ) : layout === "desk" ? (
           // The desk's strip: the pool's total and its three parts on one line, so the paper sits high.
           <div className="fsc-fund__strip">
             <HollowFigure
@@ -633,23 +715,6 @@ export function FundingBlock({
               </div>
             </dl>
           </>
-        )}
-        {funded && compact && (
-          <p
-            className="fsc-fund__source fsc-fund__source--tag"
-            title={`${fundedSource(rail)} ${provenanceFooter({
-              kind: "paypal",
-              source: "status_check",
-              rail,
-              provenance: view?.invoice.provenance,
-            })}`}
-            data-testid={`${screen}.funded.source`}
-          >
-            <HonestyTag>{railTag(rail)}</HonestyTag>
-            <span className="fs-t-micro fsc-fund__muted">
-              {["status check", paidAt ? format.time(paidAt) : null].filter(Boolean).join(" · ")}
-            </span>
-          </p>
         )}
         {funded && !compact && (
           <p className="fsc-fund__source fs-t-caption" data-testid={`${screen}.funded.source`}>

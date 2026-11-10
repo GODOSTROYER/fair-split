@@ -29,6 +29,8 @@ export interface StageBarProps {
   /** Opens the run's whole timeline (the Log sheet). */
   readonly onLog: () => void;
   readonly onReset: () => void;
+  /** An overflow menu at the end of the utilities (the phone visit's: the laptop line, the link, Proof). */
+  readonly overflow?: ReactNode;
 }
 
 /**
@@ -89,6 +91,7 @@ export function StageBar({
   onWhatsReal,
   onLog,
   onReset,
+  overflow,
 }: StageBarProps) {
   const t = useT();
   const proof = proofChipLabel(t, { ...checks, replayed });
@@ -132,6 +135,7 @@ export function StageBar({
           </button>
           <SoundToggle testId="W-JG-01.sound" className="fsc-barlink--fold" />
           {canReset && <ResetButton resetting={resetting} onReset={onReset} />}
+          {overflow}
         </div>
         {proofHref && (
           <AppLink

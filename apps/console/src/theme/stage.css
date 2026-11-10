@@ -1479,53 +1479,39 @@
   box-shadow: var(--fs-shadow-e1);
 }
 
-/* The laptop line: one line, under the bar. */
+/* Round 3: no laptop line under the bar (it lives in the bar's overflow menu), so the statement follows the bar.
+   The page's main region holds the film when there is one, and takes no room when there is none. */
 .fsc-visit {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px 12px;
-  min-height: 44px;
-  padding: 4px 8px 4px 16px;
-  border-radius: var(--fs-radius-card);
-  background: var(--fs-plate);
-  box-shadow: var(--fs-shadow-e1);
+  display: block;
+  order: 2;
 }
 
-.fsc-visit__line {
-  display: inline-flex;
-  flex: 1 1 auto;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 2px 8px;
-  min-width: 0;
-  color: var(--fs-ink);
-  font-size: 0.875rem;
-  line-height: 1.25rem;
-}
-
-.fsc-visit__px {
-  color: var(--fs-ink-3);
-}
-
-.fsc-visit__copy {
-  flex: none;
-}
-
-.fsc-visit__copied {
-  color: var(--fs-ink-2);
-}
-
-.fsc-visit__copied:empty {
-  display: none;
+.fsc-visit:has(> .fsc-visit__film:empty) {
+  position: absolute;
 }
 
 .fsc-visit__film {
-  flex: 1 1 100%;
+  display: block;
 }
 
 .fsc-visit__film:empty {
   display: none;
+}
+
+/* The overflow's laptop line: a quiet row at the top of the menu. */
+.fsc-visit__laptop {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+  margin: 0;
+  padding: 8px 12px 10px;
+  border-bottom: 1px solid var(--fs-rule);
+  color: var(--fs-ink-2);
+}
+
+.fsc-visit__px {
+  color: var(--fs-ink-3);
 }
 
 /* 1024–1439 px: the raised phone sits above drawers (its rail never covers either). */

@@ -1,6 +1,6 @@
 /* W-JG-01's first view and the stage extras the season slice adds: the desk of photos, the invoice beside the
-   pool with the one press, the five steps as numbers and the honesty row, "Play it for me" on the run pill and
-   its cursor. Every value is a --fs-* token (ADR-0016: radii from the scale, cards on e1; UI gate round 2: no
+   pool with the one press, the five steps as numbers, "Play it for me" on the run pill and its cursor, and "Try
+   to break it". Every value is a --fs-* token (ADR-0016: radii from the scale, cards on e1; UI gate round 2: no
    wash, colour only as a mark that means something, one spacing scale of 4/8/12/16/24/32). */
 
 /* ---------------------------------------------------------------- the first view */
@@ -8,12 +8,12 @@
 .fsc-first {
   display: grid;
   align-content: start;
-  gap: 24px;
+  gap: 32px;
   max-width: 1320px;
 }
 
 /* The first view is the stage's hero, on plate (no wash, UI gate round 2), and it fits the first screen at
-   1920 × 1080 (the story tiles and What's real in view on arrival), so its top and foot room are tighter. */
+   1920 × 1080 (the story tiles in view on arrival), so its top and foot room are tighter. */
 .fsc-console__screen:has(> .fsc-first) {
   padding-top: 20px;
   padding-bottom: 24px;
@@ -33,17 +33,39 @@
   min-width: 0;
 }
 
-.fsc-first__title {
+/* One line above the heading: the season, then the co-op (round 3: no stencil eyebrow). */
+.fsc-first__eyebrow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 8px;
   margin: 0;
+  color: var(--fs-ink-2);
+}
+
+.fsc-first__season {
   color: var(--fs-ink);
 }
 
-/* The hero's one line of facts, in the numeral face: "64 members · 1 invoice · 48 slips". */
+.fsc-first__sep {
+  color: var(--fs-ink-3);
+}
+
+/* The heading in two parts (round 3): what already happened in grey, then where the run is now, in ink. */
+.fsc-first__title {
+  margin: 0;
+  color: var(--fs-ink);
+  text-wrap: balance;
+}
+
+.fsc-first__title-done {
+  color: var(--fs-ink-3);
+}
+
+/* The hero's one line of facts: "64 members · 1 invoice". */
 .fsc-first__facts {
   margin: 0;
   color: var(--fs-ink-2);
-  font-size: 0.875rem;
-  line-height: 1.25rem;
 }
 
 /* The rate card as one quiet chip: a lock, its name, its hash and seal date in micro, then "Open". */
@@ -118,10 +140,10 @@
   color: var(--fs-ink-2);
 }
 
-/* Prints at about 84 px: still four slips each, and two rows of six leave the tiles and the strip in view. */
+/* Prints at about 100 px: still four slips each, and two rows of six leave the five steps in view. */
 .fsc-first__sheet > .fsc-contact {
-  grid-template-columns: repeat(6, minmax(0, 84px));
-  gap: 10px;
+  grid-template-columns: repeat(6, minmax(0, 100px));
+  gap: 12px;
 }
 
 .fsc-first__sheet .fsc-contact__link {
@@ -176,7 +198,7 @@
 }
 
 .fsc-tile__step {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 8px;
   color: var(--fs-ink-2);
@@ -217,6 +239,17 @@
   color: var(--fs-ink-3);
 }
 
+/* The pay split before the run settles is the plan: grey figures, "planned" beside them (round 3). */
+.fsc-tile[data-phase="planned"] .fsc-tile__figure,
+.fsc-tile[data-phase="planned"] .fsc-tile__no {
+  color: var(--fs-pending);
+}
+
+.fsc-tile__planned {
+  margin-left: auto;
+  color: var(--fs-pending);
+}
+
 @media (max-width: 1599px) {
   .fsc-tile {
     padding: 12px 16px;
@@ -228,8 +261,8 @@
 
   /* Half the desk is narrow: still two rows of six, smaller, so the panel ends on whole rows above the steps. */
   .fsc-first__sheet > .fsc-contact {
-    grid-template-columns: repeat(6, minmax(0, 66px));
-    gap: 8px;
+    grid-template-columns: repeat(6, minmax(0, 76px));
+    gap: 10px;
   }
 
   /* Below 1600 px the keycap gives the press's words the room. */
@@ -248,11 +281,8 @@
     padding-top: 16px;
   }
 
-  /* The season's stencil and the co-op's name share one line. */
-  .fsc-first__titles > .fsc-mark {
-    flex-direction: row;
-    align-items: baseline;
-    gap: 12px;
+  .fsc-first__titles {
+    gap: 4px;
   }
 
   .fsc-first__sheet {
@@ -277,45 +307,6 @@
   .fsc-tile + .fsc-tile {
     border-left: 0;
   }
-}
-
-/* ---------------------------------------------------------------- the honesty row (the legend for the marks) */
-
-/* Three marks in one line, each in the tag's anatomy: real code a solid ink square (solid is real), the simulated
-   PayPal sandbox the dashed steel ring, a synthetic sample the hatch. What's real (the top bar) explains them. */
-.fsc-real {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 20px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.fsc-real__part {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--fs-ink-3);
-}
-
-.fsc-real__mark {
-  flex: none;
-  width: 10px;
-  height: 10px;
-  border-radius: 2px;
-  background: var(--fs-ink-3);
-}
-
-.fsc-real__part[data-kind="simulated"] .fsc-real__mark {
-  border: 1.25px dashed var(--fs-steel-line);
-  border-radius: 50%;
-  background: transparent;
-}
-
-.fsc-real__part[data-kind="synthetic"] .fsc-real__mark {
-  background: repeating-linear-gradient(-45deg, var(--fs-ink-3) 0 1.5px, transparent 1.5px 3px);
 }
 
 .fsc-first__action {
@@ -522,15 +513,16 @@
   }
 }
 
+/* ---------------------------------------------------------------- "Try to break it" (What's real) */
+
+/* Four left-aligned rows, a rule between them: the attack's name, then "Try" at the row's end (round 3). The row
+   tried last opens in place to its result: a marigold dot, "Refused · <rule id>", and the one number blocked. */
 .fsc-tampers {
   display: grid;
-  gap: 8px;
-  margin-block: 12px;
-}
-
-.fsc-tampers__tag {
-  display: flex;
-  margin: 0;
+  margin: 8px 0 0;
+  padding: 0;
+  border-bottom: 1px solid var(--fs-rule);
+  list-style: none;
 }
 
 .fsc-tampers__hint {
@@ -538,24 +530,87 @@
   color: var(--fs-ink-2);
 }
 
-.fsc-tampers__result {
+.fsc-tamper {
   display: grid;
-  gap: 4px;
+  border-top: 1px solid var(--fs-rule);
 }
 
-.fsc-tampers__verdict {
+.fsc-tamper__row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 48px;
+}
+
+.fsc-tamper__name {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--fs-ink);
+}
+
+.fsc-tamper__was {
+  color: var(--fs-ink-3);
+}
+
+/* "Try": a quiet outlined button, sized to its word. */
+.fsc-tamper__try {
+  appearance: none;
+  flex: none;
+  min-width: 56px;
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--fs-rule-strong);
+  border-radius: var(--fs-radius-control);
+  background: var(--fs-plate);
+  color: var(--fs-ink);
+  cursor: pointer;
+}
+
+.fsc-tamper__try:hover:not(:disabled) {
+  border-color: var(--fs-steel-line);
+  background: var(--fs-plate-2);
+}
+
+.fsc-tamper__try:disabled {
+  color: var(--fs-ink-3);
+  cursor: default;
+}
+
+.fsc-tamper[data-state="pending"] .fsc-tamper__try {
+  color: var(--fs-ink-3);
+}
+
+/* The result, in place under the row's name. */
+.fsc-tamper__result {
+  display: grid;
+  gap: 4px;
+  padding: 0 0 14px;
+}
+
+.fsc-tamper__verdict {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
-  gap: 4px 10px;
+  align-items: center;
+  gap: 4px 8px;
   margin: 0;
   color: var(--fs-ink);
 }
 
-.fsc-tampers__verdict > .fs-t-micro {
+.fsc-tamper__sep {
+  color: var(--fs-ink-3);
+}
+
+.fsc-tamper__rule {
   color: var(--fs-ink-2);
 }
-.fsc-tampers .fs-flat {
-  white-space: normal;
-  text-align: left;
+
+/* The one number the attack would have changed, at the row's end. */
+.fsc-tamper__figure {
+  margin-left: auto;
+  color: var(--fs-ink);
+  white-space: nowrap;
+}
+
+.fsc-tamper__why {
+  padding-left: 16px;
 }

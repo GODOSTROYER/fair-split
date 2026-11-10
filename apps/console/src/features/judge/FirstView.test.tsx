@@ -3,6 +3,7 @@
 // reads in the console's words; autoplay presses with a visible cursor and stops before the keys.
 
 import { getSnapshot } from "@fairsplit/api-client/seed";
+import { tagBudget } from "@fairsplit/ui-web";
 import { act, configure, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { getResponse, HttpResponse, http } from "msw";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -30,19 +31,24 @@ async function press(testId: string) {
 }
 
 describe("W-JG-01 first view", { timeout: 60_000 }, () => {
-  it("keeps the short invoice action and season code whole while preserving its accessible name", async () => {
+  it("keeps the short invoice action whole, says where the run is, and names the season above it", async () => {
     await renderConsole({ path: "/judge" });
     const button = screen.getByRole("button", { name: /Mark Lantern Bay.s invoice paid/ });
     // The face's words; its Enter keycap is decoration, hidden from assistive tech.
     expect(button.querySelector(".fs-slab__words")?.textContent).toBe("Mark the invoice paid");
-    // The lines' fold names itself and wears the seeded tag; its note stays inside.
-    expect(screen.getByTestId("W-JG-01.invoice.draft").textContent).toContain("Invoice lines");
-    expect(screen.getByTestId("W-JG-01.invoice.draft").textContent).toContain("Seeded sample");
-    expect(screen.getByTestId("W-JG-01.invoice.draft").textContent).toContain(
-      "Claude did not draft these lines",
-    );
-    const heading = screen.getByRole("heading", { name: /Season 2026-A is ready to pay/ });
-    expect(heading.querySelector(".fsc-nowrap")?.textContent).toBe("2026-A");
+    // The lines' fold names itself and wears the seeded glyph (its words for a screen reader); its note stays
+    // inside.
+    const draft = screen.getByTestId("W-JG-01.invoice.draft");
+    expect(draft.textContent).toContain("Invoice lines");
+    expect(draft.textContent).toContain("Seeded sample");
+    expect(draft.querySelector(".fs-legend-glyph")?.getAttribute("title")).toBe("Seeded sample");
+    expect(draft.querySelector(".fs-honesty")).toBeNull();
+    expect(draft.textContent).toContain("Claude did not draft these lines");
+    // Round 3: the heading is a fact about the run, the past in grey and the present in ink.
+    const heading = screen.getByRole("heading", { level: 1, name: "Invoice sent. Awaiting payment." });
+    expect(heading.querySelector(".fsc-first__title-done")?.textContent).toBe("Invoice sent.");
+    expect(heading.querySelector(".fsc-first__title-now")?.textContent).toBe("Awaiting payment.");
+    expect(screen.getByTestId("W-JG-01.mark").textContent).toContain("Season 2026-A");
   });
 
   it("keeps the recording pill until the payment command answers", async () => {
@@ -80,11 +86,17 @@ describe("W-JG-01 first view", { timeout: 60_000 }, () => {
     world.payCash("M-031");
     const view = await renderConsole({ path: "/judge", world });
     await view.startSession();
+    // Round 3: never "settled" or "done" while the bodega's cash is due; the pay split is what happened.
     await waitFor(() =>
-      expect(screen.getByTestId("W-JG-01.title").textContent).toBe("Season 2026-A: 7 by PayPal, 57 in cash."),
+      expect(screen.getByTestId("W-JG-01.title").textContent).toBe("7 paid by PayPal. 57 due in cash."),
     );
+    expect(screen.getByTestId("W-JG-01.title").textContent).not.toMatch(/settled|done/i);
     expect(screen.getByTestId("W-JG-01.markPaid").textContent).toMatch(/Marked paid by Analyn/);
-    expect(screen.getByTestId("W-JG-01.status").textContent).not.toMatch(/plays next/);
+    const status = screen.getByTestId("W-JG-01.status");
+    expect(status.textContent).toMatch(/^PayPal complete · cash due/);
+    expect(screen.getByTestId("W-JG-01.continue").textContent).toBe("Review cash handover");
+    expect(screen.getByTestId("story-tiles.pay").textContent).toContain("7 PayPal · 57 cash");
+    expect(screen.getByTestId("story-tiles.pay").dataset.phase).toBe("settled");
   });
 
   it("inv.i8.a settled run whose payouts replayed names the replay, never PayPal payments", async () => {
@@ -103,11 +115,10 @@ describe("W-JG-01 first view", { timeout: 60_000 }, () => {
     const items = Object.entries(live.items).map(([id, item]) => [id, { ...item, provenance: "replay" }]);
     act(() => view.runtime.client.setQueryData(key, { ...live, items: Object.fromEntries(items) }));
     await waitFor(() =>
-      expect(screen.getByTestId("W-JG-01.title").textContent).toBe(
-        "Season 2026-A is settled: 7 payout statuses replayed (labelled), 57 in cash.",
-      ),
+      expect(screen.getByTestId("W-JG-01.title").textContent).toBe("7 payouts replayed. 57 due in cash."),
     );
-    expect(screen.getByTestId("W-JG-01.status").textContent).toMatch(/^Replayed payouts/);
+    expect(screen.getByTestId("W-JG-01.title").textContent).not.toMatch(/PayPal/);
+    expect(screen.getByTestId("W-JG-01.status").textContent).toMatch(/^Payouts replayed/);
   });
 
   it("shows the showcase with no calls: the desk, the bolted card, Claude's draft in pencil, the invoice hollow", async () => {
@@ -117,10 +128,22 @@ describe("W-JG-01 first view", { timeout: 60_000 }, () => {
     const root = await screen.findByTestId("W-JG-01");
     expect(root.dataset.state).toBe("ready");
     expect(within(root).getByRole("heading", { level: 1 }).textContent).toBe(
-      "Season 2026-A is ready to pay.",
+      "Invoice sent. Awaiting payment.",
     );
     expect(screen.getByTestId("W-JG-01.invoice.amount").dataset.amountState).toBe("hollow");
     expect(screen.getByTestId("W-JG-01.pool.amount").dataset.amountState).toBe("hollow");
+    // The invoice id before the press is the showcase run's, and says so (round 3: one id, said for what it is).
+    expect(screen.getByTestId("W-JG-01.invoice.id").textContent).toBe(
+      `${getSnapshot().run.invoice.invoiceNumber} · showcase run`,
+    );
+    // The pool as one line, true to the cent: the invoice, minus the payout costs, is the pool. Pending until the
+    // simulated PayPal funds it: grey, with a hollow dot, and no tag yet.
+    const eq = screen.getByTestId("W-JG-01.pool.eq");
+    expect(eq.dataset.state).toBe("pending");
+    expect(eq.textContent).toContain("Invoice US$4,333.50 minus costs US$60.00 equals the pool");
+    expect(eq.querySelector('.fs-state-dot[data-kind="pending"]')).toBeTruthy();
+    expect(screen.getByTestId("W-JG-01.pool.disbursement").textContent).toBe("US$60.00");
+    expect(screen.queryByTestId("W-JG-01.pool.tag")).toBeNull();
     const draft = screen.getByTestId("W-JG-01.invoice.draft");
     expect(draft.dataset.provenance).toBe("seeded");
     const figures = draft.querySelectorAll<HTMLElement>("[data-amount-state]");
@@ -130,9 +153,20 @@ describe("W-JG-01 first view", { timeout: 60_000 }, () => {
     expect(screen.getByTestId("W-JG-01.rules.sealed").textContent).toMatch(
       /^[0-9a-f]{4} [0-9a-f]{4} · sealed \d{1,2} [A-Z][a-z]{2}$/,
     );
-    // One mono line of facts under the title, and the press's honesty as its one tag.
-    expect(screen.getByTestId("W-JG-01.facts").textContent).toBe("64 members · 1 invoice · 48 slips");
-    expect(screen.getByTestId("W-JG-01.action").textContent).toContain("Simulated PayPal sandbox");
+    // One line of facts under the title; the slips' counts on the desk say their scope (round 3).
+    expect(screen.getByTestId("W-JG-01.facts").textContent).toBe("64 members · 1 invoice");
+    expect(screen.getByTestId("W-JG-01.slips").textContent).toBe("12 photos · 48 this run · 264 season");
+    // The PayPal money value wears the one micro-tag; a screen reader hears the whole label. No legend row, and
+    // the stage stays inside the tag budget (the top bar's indicator included).
+    const tag = screen.getByTestId("W-JG-01.invoice.tag");
+    expect(tag.dataset.fsTag).toBe("micro");
+    expect(tag.textContent).toContain("Simulated PayPal sandbox");
+    expect(screen.queryByTestId("W-JG-01.realStrip")).toBeNull();
+    expect(screen.getByTestId("W-JG-01.synthetic").querySelector("[data-fs-glyph]")).toBeTruthy();
+    const budget = tagBudget(screen.getByTestId("W-JG-01.stage"));
+    expect(budget).toMatchObject({ ok: true });
+    expect(budget.tags).toBeLessThanOrEqual(3);
+    expect(screen.getByTestId("story-tiles.pay").textContent).toContain("8 PayPal · 56 cash planned");
     expect(root.querySelectorAll(".fs-slab").length).toBeLessThanOrEqual(2);
     expect(screen.getByTestId("W-JG-01.markPaid").dataset.state).toBe("rest");
     expect(log.calls()).toEqual([]);
@@ -197,17 +231,22 @@ describe("W-JG-01 first view", { timeout: 60_000 }, () => {
     expect(screen.getByTestId("W-JG-01.invoice.amount").dataset.amountState).toBe("landed");
     expect(screen.getByTestId("W-JG-01.pool").dataset.state).toBe("landed");
     expect(screen.getByTestId("W-JG-01.funded").textContent).toBe("Funded");
-    expect(screen.getByTestId("W-JG-01.funded.source").textContent).toMatch(
-      /^Simulated PayPal sandboxstatus check/,
-    );
+    expect(screen.getByTestId("W-JG-01.funded.source").textContent).toMatch(/^status check · \d{2}:\d{2}/);
     expect(screen.getByTestId("W-JG-01.funded.source").getAttribute("title")).toMatch(
       /Simulated PayPal sandbox, status check/,
     );
+    // Funded, the pool is ink and wears the second micro-tag: still three tags on the stage at most.
+    expect(screen.getByTestId("W-JG-01.pool.eq").dataset.state).toBe("landed");
+    expect(screen.getByTestId("W-JG-01.pool.tag").dataset.fsTag).toBe("micro");
+    expect(tagBudget(screen.getByTestId("W-JG-01.stage")).ok).toBe(true);
     expect(screen.getByTestId("W-JG-01.status").textContent).toMatch(/^Funded\./);
     expect(screen.getByTestId("W-JG-01.markPaid").dataset.state).toBe("committed");
-    // The title follows the run: no longer "ready to pay" once the invoice has read back as paid.
-    expect(screen.getByTestId("W-JG-01.title").textContent).toBe("Season 2026-A is funded.");
-    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Season 2026-A is funded.");
+    // The title follows the run: the invoice read back as paid (the simulated record-payment marks it), the pool
+    // is funded.
+    expect(screen.getByTestId("W-JG-01.title").textContent).toMatch(
+      /^Invoice (marked )?paid\. Pool funded\.$/,
+    );
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toMatch(/Pool funded\.$/);
     await expectNoAxeViolations(view.container);
   });
 
@@ -246,9 +285,7 @@ describe("W-JG-01 first view", { timeout: 60_000 }, () => {
     const log = recordRequests();
     await renderConsole({ path: "/judge", world, handlers: [log.handler] });
     await press("W-JG-01.markPaid");
-    await waitFor(() =>
-      expect(screen.getByTestId("W-JG-01.title").textContent).toBe("Season 2026-A is funded."),
-    );
+    await waitFor(() => expect(screen.getByTestId("W-JG-01.title").textContent).toMatch(/Pool funded\.$/));
     expect(log.sent.some((r) => r.path === "/v1/judge/session")).toBe(true);
     expect(log.sent.filter((r) => r.path.endsWith("/mark-paid"))).toEqual([]);
     expect(screen.queryByTestId("W-JG-01.error")).toBeNull();
@@ -420,7 +457,7 @@ describe("server payment pacing", () => {
       ],
     });
     await press("W-JG-01.markPaid");
-    await waitFor(() => expect(screen.getByTestId("W-JG-01.title").textContent).toContain("is funded"));
+    await waitFor(() => expect(screen.getByTestId("W-JG-01.title").textContent).toContain("Pool funded"));
     expect(screen.queryByTestId("W-JG-01.error")).toBeNull();
   });
   it("shows a QUEUED delay, then retries exactly once", async () => {
@@ -465,7 +502,9 @@ describe("server payment pacing", () => {
     await act(async () => {
       fireEvent.click(screen.getByTestId("W-JG-01.reset"));
     });
-    await waitFor(() => expect(screen.getByTestId("W-JG-01.title").textContent).toContain("ready to pay"));
+    await waitFor(() =>
+      expect(screen.getByTestId("W-JG-01.title").textContent).toContain("Awaiting payment"),
+    );
     await new Promise((resolve) => setTimeout(resolve, 800));
     expect(calls).toBe(1);
     expect(screen.queryByText(/You're next/)).toBeNull();

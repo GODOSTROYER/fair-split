@@ -38,7 +38,7 @@ export const SEASON_COPY = {
     "Line labels: a placeholder written with the seed (no Claude recording in this build). Every amount is the engine's quote, checked by the live policy lattice before anything is sent.",
   invoiceLines: "Invoice lines (seeded sample)",
   invoiceLinesNote: (_recorded: string) =>
-    "Written with the seed; Claude did not draft these lines in this build. Every amount is the engine's quote; policy checks it before anything is sent.",
+    "Written with the seed; Claude did not draft these lines. Every amount is the engine's quote.",
   memo: (note: string) => `Memo: ${note}`,
   autoCancel: (date: string) => `Auto-cancels ${date} if unpaid.`,
   sentBy: (name: string) => `Sent by ${name}`,
@@ -84,30 +84,50 @@ export function fundedSource(rail: PaypalRail): string {
     : "The payment was recorded on the untested PayPal sandbox rail, then the invoice read back as paid with nothing due.";
 }
 
+/** A heading in two parts (UI gate round 3): what already happened in grey, then where the run is now, in ink. */
+export interface FirstViewTitle {
+  readonly done: string;
+  readonly now: string;
+}
+
 /** The first view's single action (W-JG-01), and what happens while it runs (UI gate round 2: one line each). */
 export const FIRST_VIEW_COPY = {
-  /** The hero's one mono line under the title. */
-  facts: (members: number, slips: number) => `${members} members · 1 invoice · ${slips} slips`,
+  /** The line above the heading: the season and the co-op (the season mark's stencil is retired, round 3). */
+  eyebrow: (season: string) => `Season ${season}`,
+  /** The hero's one line of facts under the title; the slips' counts sit on the desk, with their scope. */
+  facts: (members: number) => `${members} members · 1 invoice`,
   lede: (members: number, buyer: string) =>
     `${members} members' cacao went to ${buyer} in one lot. One invoice funds every member's share; the slips on the desk decide who gets what.`,
-  pressNote: (payer: string, amount: string, rail: PaypalRail) =>
-    `${payer}, ${amount}. ${rail === "simulator" ? "Simulated PayPal sandbox" : "Untested PayPal sandbox rail"}. The run starts once the invoice reads as paid.`,
+  /**
+   * The heading says where the run is, never more (round 3, decision 3). Before the press: the invoice is out and
+   * nobody has paid it. Funded: the invoice read back as paid (or marked paid, the simulated record-payment).
+   */
+  titleReady: { done: "Invoice sent.", now: "Awaiting payment." } satisfies FirstViewTitle,
+  titleFunded: (marked: boolean): FirstViewTitle => ({
+    done: marked ? "Invoice marked paid." : "Invoice paid.",
+    now: "Pool funded.",
+  }),
+  /**
+   * A settled run: PayPal counts only payouts its own evidence confirmed, and a replay says so. Cash is "due"
+   * until the bodega has handed every cash line over; it never reads settled or done while any is due.
+   */
+  titleSettled: (c: {
+    readonly paypal: number;
+    readonly cash: number;
+    readonly replayed: boolean;
+    readonly cashDue: boolean;
+  }): FirstViewTitle => ({
+    done: c.replayed ? `${c.paypal} payouts replayed.` : `${c.paypal} paid by PayPal.`,
+    now: c.cashDue ? `${c.cash} due in cash.` : `${c.cash} in cash.`,
+  }),
   srConsequence: "starts the run, changes a line",
   starting: "Starting your run.",
   pending: "Recording the payment.",
   funded: "Funded.",
   movedOn: "The invoice is paid. The run has moved on.",
-  /** A settled run's title: PayPal counts only payouts its own evidence confirmed; a replay says so. */
-  settled: (
-    season: string,
-    c: { readonly paypal: number; readonly cash: number; readonly replayed: boolean },
-  ) =>
-    c.replayed
-      ? `Season ${season} is settled: ${c.paypal} payout statuses replayed (labelled), ${c.cash} in cash.`
-      : `Season ${season}: ${c.paypal} by PayPal, ${c.cash} in cash.`,
-  /** A settled run's status line, beside the honesty tag. */
-  settledStatus: (replayed: boolean) =>
-    `${replayed ? "Replayed payouts" : "Payouts recorded"}. Cash at the bodega.`,
+  /** A settled run's status line: PayPal's part, then the cash still due (the pill's own words). */
+  settledStatus: (replayed: boolean, cashDue: boolean) =>
+    `${replayed ? "Payouts replayed" : "PayPal complete"}${cashDue ? " · cash due" : ""}`,
   openNext: "Next step",
   rules: "The rules, bolted before the first slip",
   openCard: "Open the rate card",
@@ -118,15 +138,18 @@ export const FIRST_VIEW_COPY = {
   /** The pool's strip and the desk's head (W-JG-01). */
   pool: "Pool",
   members: (n: number) => `${n} members`,
+  /** The pool as one line (round 3): "Invoice US$4,333.50 − costs US$60.00 = US$4,273.50". */
+  eqInvoice: "Invoice",
+  eqCosts: "costs",
+  eqSpoken: (invoice: string, costs: string) => `Invoice ${invoice} minus costs ${costs} equals the pool: `,
+  statusCheck: "status check",
   slips: "Slips",
-  slipsMicro: (photos: number, slips: number) => `${photos} photos · ${slips} slips`,
+  /** The desk's counts with their scope (round 3): this run's photos and slips, then the season's slip images. */
+  slipsMicro: (photos: number, counts: string) => `${photos} photos · ${counts}`,
   exhibit: "Claude's real readings of 10 hero slips",
   invoice: "Invoice",
   seededSample: "Seeded sample",
-  /** The honesty row: the legend for the marks the stage uses. */
-  realCode: "Real code",
   syntheticSample: "Synthetic sample",
-  titleFunded: (season: string) => `Season ${season} is funded.`,
   desk: "Slips",
   synthetic: "Synthetic samples",
   deskNote: (count: number, funded: boolean) =>

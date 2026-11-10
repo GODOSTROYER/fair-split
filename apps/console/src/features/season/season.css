@@ -217,9 +217,19 @@
   row-gap: 24px;
 }
 
+/* The invoice stands as tall as the pool and the paper beside it (round 3: equal columns), its seeded lines'
+   fold pinned to its foot. */
 .fsc-fund[data-layout="desk"] > .fsc-fund__invoice {
+  display: flex;
+  flex-direction: column;
   grid-row: 1 / span 2;
   grid-column: 1;
+  align-self: stretch;
+}
+
+/* The amount and its press sit in the middle of the card's height, the lines' fold at its foot. */
+.fsc-fund[data-layout="desk"] > .fsc-fund__invoice > :is(.fsc-fund__total, .fsc-fund__draft) {
+  margin-top: auto;
 }
 
 .fsc-fund[data-layout="desk"] > .fsc-fund__pool {
@@ -293,6 +303,79 @@
 .fsc-fund__part[data-aside] {
   padding-left: 24px;
   border-left: 1px solid var(--fs-rule);
+}
+
+/* The pool as one line (round 3): "Invoice US$4,333.50 − costs US$60.00 =" in the figure role, then the pool in
+   the money role. Pending (before the simulated PayPal funds it) the pool is grey with a hollow dot; funded it is
+   ink with the one micro-tag. The terms wrap under the result only when the column is narrow. */
+.fsc-fund__eq {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  margin: 0;
+}
+
+.fsc-fund__eq-terms {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+}
+
+.fsc-fund__eq-term {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.fsc-fund__eq-word {
+  color: var(--fs-ink-2);
+  font-size: 0.8125rem;
+  line-height: 1.25rem;
+}
+
+.fsc-fund__eq-op {
+  color: var(--fs-ink-3);
+  font-size: 1rem;
+  line-height: 1.25rem;
+}
+
+.fsc-fund__eq-result {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.fsc-fund__eq[data-state="pending"]
+  .fsc-figure
+  :is(.fsc-figure__hollow, .fsc-figure__solid, .fsc-figure__ink) {
+  color: var(--fs-pending);
+}
+
+/* The head's end: the status check's time, then "Funded". */
+.fsc-fund__head-end {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.fsc-fund__checked {
+  color: var(--fs-ink-3);
+}
+
+/* The invoice amount with its micro-tag beside it, on the figure's baseline. */
+.fsc-fund__figure-row {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+}
+
+.fsc-fund__id-note {
+  color: var(--fs-ink-3);
 }
 
 /* A narrow strip keeps one band: the parts stack as three short lines beside the total. */
@@ -428,7 +511,8 @@
   pointer-events: none;
 }
 
-/* An inline amount in flight is ink-2 with a dashed underline; landed is plain ink (S2.2.1). */
+/* An inline amount in flight is the pending grey; landed is plain ink (S2.2.1). Never dashed: dashed lines mean
+   simulated only (round 3). */
 .fsc-inline-amount {
   color: var(--fs-ink);
   white-space: nowrap;
@@ -436,9 +520,7 @@
 
 .fsc-inline-amount[data-amount-state="hollow"],
 .fsc-fund[data-moment-phase="arc"] .fsc-inline-amount {
-  color: var(--fs-ink);
-  text-decoration: underline dashed 1.5px var(--fs-ink-3);
-  text-underline-offset: 5px;
+  color: var(--fs-pending);
 }
 
 .fsc-fund__draft {
@@ -589,17 +671,8 @@ details[open] > summary.fsc-fund__draft-head > .fs-glyph:last-child {
   color: var(--fs-ink-3);
 }
 
-/* Funded on the first view: the honesty tag and the status check's time, never a sentence. */
-.fsc-fund__source--tag {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px 10px;
-  margin: 0;
-}
-
-.fsc-fund[data-compact] summary.fsc-fund__draft-head .fs-honesty {
-  margin-left: 4px;
+.fsc-fund[data-compact] summary.fsc-fund__draft-head .fs-legend-glyph {
+  margin-left: 2px;
 }
 
 /* The arc lives over the whole block and never takes a pointer. In Data mode its table takes a row. */

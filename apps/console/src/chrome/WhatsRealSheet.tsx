@@ -1,8 +1,9 @@
-// W-JG-02 "What's real" (S1.6; UI gate round 2): a sheet of five rows (Real code, the simulated PayPal sandbox,
-// Replayed, Synthetic, Not built), each its mark, its name and one line, with the details behind "More"; then
-// "Try to break it". This sheet is where the stage's explanations live: the screens keep only the tags. The
-// PayPal row follows the rail the API runs (ADR-0002). Opened from the stage bar. The attempts' controls are the
-// season slice's (ChromePortal "whatsReal.tryToBreak"); the plain list stands in until then.
+// W-JG-02 "What's real" (S1.6; UI gate rounds 2 and 3): a sheet of five rows (Real code, the simulated PayPal
+// sandbox, Replayed, Synthetic, Not built), each its mark, its name and one line, with the details behind "More";
+// then "Try to break it", four rows each with "Try". This sheet is where the stage's explanations live: the screens
+// keep only the marks. The PayPal row follows the rail the API runs (ADR-0002). Opened from the stage bar. The
+// attempts' controls are the season slice's (ChromePortal "whatsReal.tryToBreak"); the rows' names stand in until
+// then.
 
 import { Dialog } from "@base-ui/react/dialog";
 import { Glyph, type HonestyKind, LegendMark } from "@fairsplit/ui-web";
@@ -100,9 +101,8 @@ export function WhatsRealSheet({ open, onOpenChange, facts }: WhatsRealSheetProp
             <ChromeSlot name="whatsReal.tryToBreak" className="fsc-sheet__slot" />
             <ul className="fsc-sheet__attempts" data-testid="W-JG-01.tryToBreak.list">
               {TRY_TO_BREAK.attempts.map((attempt) => (
-                <li key={attempt}>
-                  <Glyph name="bolt" size={16} />
-                  <span>{attempt}</span>
+                <li key={attempt} className="fs-t-label">
+                  {attempt}
                 </li>
               ))}
             </ul>

@@ -47,7 +47,7 @@ import { type AutoplayState, type StageApi, StageContext } from "./context.js";
 import { StageDirector } from "./director.js";
 import { phoneRestsFolded, phoneSizeFor, useStageLayout, useViewportHeight } from "./layout.js";
 import { PhoneDock, type RaisedBy } from "./PhoneDock.js";
-import { PhoneVisit } from "./PhoneVisit.js";
+import { PhoneVisit, VisitMenu } from "./PhoneVisit.js";
 import { heroPaymentLanded } from "./personas.js";
 import { useStageBridge } from "./useStageBridge.js";
 
@@ -433,7 +433,10 @@ export function Stage({ children }: { readonly children: ReactNode }) {
                 />
               )
             }
-            proofHref={runSlug ? webRoutes.proof(runSlug) : null}
+            // The phone visit's bar keeps the product, the simulation status and its controls; Proof moves into
+            // its overflow menu, with the laptop line and the link (round 3).
+            proofHref={!visit && runSlug ? webRoutes.proof(runSlug) : null}
+            overflow={visit ? <VisitMenu proofHref={runSlug ? webRoutes.proof(runSlug) : null} /> : null}
             checks={checks}
             replayed={replayed}
             canReset={inSession || session.status === "failed"}
