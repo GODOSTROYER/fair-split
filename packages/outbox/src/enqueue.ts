@@ -9,6 +9,7 @@
 import { isTransaction, type JsonValue, schema as s, type Tx, toJsonObject } from "@fairsplit/db";
 import { eq } from "drizzle-orm";
 import { TASK_NAMES, type TaskName } from "./_shims/contracts.js";
+import { jsonbBytes } from "./jsonb-size.js";
 
 /** Task arguments are ids (Render Workflows caps arguments at 4 MB; we cap at 8 KB). */
 export type TaskArgs = { [key: string]: JsonValue };
@@ -49,7 +50,7 @@ export async function enqueue(
   if (!dedupeKey || dedupeKey.length > 200)
     throw new TypeError("enqueue: dedupeKey must be 1–200 characters");
   const json = toJsonObject(args, `${name}.args`);
-  if (Buffer.byteLength(JSON.stringify(json)) > MAX_ARGS_BYTES) {
+  if (jsonbBytes(json) > MAX_ARGS_BYTES) {
     throw new RangeError(`enqueue: ${name} args exceed ${MAX_ARGS_BYTES} bytes; pass ids, not payloads`);
   }
   const runAfter = opts.runAfter ?? (opts.delayMs ? new Date(Date.now() + opts.delayMs) : undefined);
