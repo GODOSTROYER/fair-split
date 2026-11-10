@@ -1,4 +1,140 @@
-# AU3 round 4: M-014 Cebuano complete; 59/101 verified clips
+# AU3 round 5: 83/101 verified clips; exact remaining refusals recorded
+
+All people, payroll and audio are synthetic. PayPal-derived facts are **Simulated PayPal sandbox**.
+Seeded readings are a **Seed stand-in, not a Claude recording**. The audit agent is paused;
+nothing claims Claude drafted an invoice. Native pronunciation and naturalness review remains open.
+
+## Result
+
+Started **2026-11-10T18:44:29.414Z**, after the required 5 November 08:00 UTC reset.
+Cloud work stopped **2026-11-10T19:06:15.172Z** on **quota_refused**. **83/101** planned variants
+are independently verified and published, **24 added this round**. M-014 Cebuano remains 9/9;
+its API completion guard stays enabled. Every missing sentence keeps the labelled device voice.
+
+| Planned request, original order | Verified/planned |
+| ------------------------------- | ---------------: |
+| M-014:ceb                       |              9/9 |
+| M-014:fil                       |              8/9 |
+| M-014:en                        |              7/9 |
+| M-007:ceb                       |              7/9 |
+| M-060:fil                       |              7/9 |
+| M-018:ceb                       |             7/10 |
+| M-039:en                        |              8/9 |
+| M-022:ceb                       |              8/9 |
+| M-002:ceb                       |              7/9 |
+| M-031:en                        |             7/10 |
+| M-053:ceb                       |              8/9 |
+
+All ten service-blocked variants were retried first, in their original order: seven published,
+three received quality refusals. All other missing variants were then visited in plan order;
+already verified Rhea PAY.cash_nodate was retained, and PAY.paypal remains refused. The first pass
+published 17 clips. Two lexical fixes recovered five additional AI_NOTE clips cache-only with
+**zero network requests and an unchanged quota ledger**. A studied quality continuation added two
+Filipino clips, then stopped on the usable 2.5 accounts' cap. No WAV, unverified candidate,
+changed frozen sentence, guessed timestamp or relaxed threshold is published.
+
+## Diagnosis and verification policy
+
+- Exact-token CBU canonicalizes to c b u, keeping the measured first-letter onset. The long rule-label
+  anchor additionally requires the exact C B U sequence. Tests refuse C B V, C B X, CBV, CBX,
+  a changed deduction and R two. CER remains **0.12**, with the exact number-word sequence gate intact.
+- Only whole-token Annalyn canonicalizes to Analyn, an independent transcript's doubled-n spelling.
+  Annalin, Ann Lynn, Annabelle and a changed amount remain refused. The source text and its hash stay frozen.
+- Good-text/bad-timestamp AACs were independently transcribed again without new TTS. English BONUS
+  still failed; its actual words/times and measured duration are retained in the validation file.
+- Wrong takes received verbatim sentence requests on the approved voice shortlist. Missing ASR capacity
+  stops generation. Original and refused caches remain intact under media/.cache/. No service restart or paid model.
+
+## Stop and exact eligibility
+
+Next usable-ASR quota eligibility: **11 November 2026, 08:00:00 UTC / 13:30:00 IST**.
+That is a quota reset, not a promise of correct speech, account access or service recovery.
+3.8 returned HTTP 503 UNAVAILABLE and HTTP 504 DEADLINE_EXCEEDED; 3.6 returned HTTP 503 UNAVAILABLE.
+Their existing six-failure circuits stayed open during the continuation. The approved 2.5 fallback
+served verification; seven account/model pairs returned 404 NOT_FOUND (no access for new users).
+Five usable accounts then reached the self-imposed 10-per-key/model/day cap. No 429 occurred.
+
+Exact final refusal: PoolExhaustedError: No Gemini key is ready for gemini-2.5-flash until 2026-11-11T08:00:00.000Z (2026-11-11 00:00 Pacific); 6 keys: 5 at the daily cap. Stopping rather than waiting more than 5 min; statements without a clip fall back to the labelled device voice.
+
+| Model                | Counted reservations this Pacific day | Remaining eligible-account reservations |
+| -------------------- | ------------------------------------: | --------------------------------------: |
+| gemini-3.8-flash-tts |                                    42 |                                      78 |
+| gemini-3.8-flash     |                                     6 |                                     114 |
+| gemini-3.6-flash     |                                     9 |                                     111 |
+| gemini-2.5-flash     |                                    57 |                                       0 |
+
+Refusals, transient failures and interrupted reservations count; none was refunded. Caps are
+self-imposed guesses, not measured Google entitlements. Higher models retain quota but their
+service recovery time is **unknown**. All key IDs, model-specific refusals and next eligibility
+times are in audio/statement-validation.json; no key value is stored in this handoff or evidence.
+
+## Cumulative take-budget overruns
+
+The cumulative audit found a mistake: the two passes used separate per-sentence counters.
+The continuation allowed two Achird takes after an earlier fresh Sulafat retake for three sentences:
+- M-007:ceb PAY: **3 fresh takes**, intended limit 2. None published.
+- M-060:fil PAY: **3 fresh takes**, intended limit 2. None published.
+- M-018:ceb PREMIUM: **3 fresh takes**, intended limit 2. None published.
+
+All 42 fresh TTS request hashes are accounted for in takeBudgetAudit,
+including these three extra requests and the final cached-only take awaiting ASR. Cloud work is stopped.
+**Carry the cumulative take hashes across voices and process restarts; do not reset the per-sentence budget.**
+The remaining requested bound was exceeded for these three variants; this is disclosed, not a claim of compliance.
+
+## Every remaining variant
+
+Each row's full transcript, exact AAC hash, ASR model, CER and failed anchor/timestamp detail is in
+audio/statement-validation.json under planned[].sentences[].refusalEvidence / lastRefusal.
+The next eligibility below is the usable-ASR quota reset; service and quality recovery remain unknown.
+- **M-014:fil GREETING.default**: Invalid timestamp "pagsisikap." 4.998-5.698 s; previous end 4.648 s; AAC duration 5.24 s Next quota eligibility: 2026-11-11T08:00:00.000Z.
+
+- **M-014:en BONUS.default**: Invalid timestamp "cents" 4.05-4.38 s; previous end 3.95 s; AAC duration 4.32 s Next quota eligibility: 2026-11-11T08:00:00.000Z.
+
+- **M-014:en HELP.default**: Invalid timestamp "bodega" 4.14-4.62 s; previous end 3.85 s; AAC duration 4.2 s Next quota eligibility: 2026-11-11T08:00:00.000Z.
+
+- **M-007:ceb GREETING.default**: Invalid timestamp "paghago." 4.091-4.671 s; previous end 3.901 s; AAC duration 4.64 s Next quota eligibility: 2026-11-11T08:00:00.000Z.
+
+- **M-007:ceb PAY.paypal**: Failed unique contiguous exact-number/initialism anchor alignment: fact:FX_FEE="three porsiyento" Next quota eligibility: 2026-11-11T08:00:00.000Z.
+
+- **M-060:fil GREETING.default**: Failed unique contiguous exact-number/initialism anchor alignment: fact:HONORIFIC_NAME="G. Sumampao" Next quota eligibility: 2026-11-11T08:00:00.000Z.
+
+- **M-060:fil PAY.paypal**: Invalid timestamp "pagpapalit" 18.174-18.774 s; previous end 18.064 s; AAC duration 18.6 s Next quota eligibility: 2026-11-11T08:00:00.000Z.
+
+- **M-018:ceb PREMIUM.default**: Failed unique contiguous exact-number/initialism anchor alignment: fact:PAYER="Lantern Bay Chocolate Co." Next quota eligibility: 2026-11-11T08:00:00.000Z.
+
+- **M-018:ceb DEDUCTION.default**: PoolExhaustedError: No Gemini key is ready for gemini-2.5-flash until 2026-11-11T08:00:00.000Z (2026-11-11 00:00 Pacific); 6 keys: 5 at the daily cap. Stopping rather than waiting more than 5 min; statements without a clip fall back to the labelled device voice. Next quota eligibility: 2026-11-11T08:00:00.000Z.
+
+- **M-018:ceb PAY.paypal**: Invalid timestamp "pag-ilis." 18.912-19.462 s; previous end 18.822 s; AAC duration 19.28 s Next quota eligibility: 2026-11-11T08:00:00.000Z.
+
+- **M-039:en HELP.default**: Invalid timestamp "bodega" 4.14-4.62 s; previous end 3.85 s; AAC duration 4.2 s Next quota eligibility: 2026-11-11T08:00:00.000Z.
+
+- **M-022:ceb DELIVERY.default**: Invalid timestamp "one" 8.512-8.792 s; previous end 8.282 s; AAC duration 8.56 s Next quota eligibility: 2026-11-11T08:00:00.000Z.
+
+- **M-002:ceb GREETING.default**: Failed unique contiguous exact-number/initialism anchor alignment: fact:HONORIFIC_NAME="Nang Ciay" Next quota eligibility: 2026-11-11T08:00:00.000Z.
+
+- **M-002:ceb DELIVERY.default**: Failed unique contiguous exact-number/initialism anchor alignment: fact:GRADE_SUMMARY="sixty kilos niini Grade one" Next quota eligibility: 2026-11-11T08:00:00.000Z.
+
+- **M-031:en GREETING.default**: Invalid timestamp "hard" 4.19-4.47 s; previous end 3.97 s; AAC duration 4.28 s; Invalid timestamp "work." 4.57-4.88 s; previous end 4.47 s; AAC duration 4.28 s Next quota eligibility: 2026-11-11T08:00:00.000Z.
+
+- **M-031:en PAY.paypal**: Invalid timestamp "it" 16.254-16.364 s; previous end 16.204 s; AAC duration 16.32 s Next quota eligibility: 2026-11-11T08:00:00.000Z.
+
+- **M-031:en HELP.default**: Invalid timestamp "bodega" 4.14-4.62 s; previous end 3.85 s; AAC duration 4.2 s Next quota eligibility: 2026-11-11T08:00:00.000Z.
+
+- **M-053:ceb DEDUCTION.default**: CER 0.494 exceeds 0.12 Next quota eligibility: 2026-11-11T08:00:00.000Z.
+
+## Resume and checks
+
+Keep ignored .env, media/.cache/tts/, media/.cache/tts-round5-independent/ and media/audio/.quota.json.
+Use the retained frozen plans and cached takes first. Resume the remaining variants in plan order
+after eligibility, honoring takeBudgetAudit across all passes. For the already-cached unverified
+M-018 Cebuano DEDUCTION Achird take, verify it before spending any new TTS request.
+Do not repeatedly restart against the same observed service outages. Keep the M-014 completion guard enabled.
+
+Final checks: **388 media tests passed; 39 API media tests passed; 4 receipt tests passed**. Media typecheck, Biome and the dependency gate passed. Independent audit rechecked all 83 published AAC hashes, exact cached ASR, strict anchors and measured offsets; all 64 pre-existing manifest entries are unchanged. Scratch Postgres is stopped. Publication remains partial and pending native review.
+
+---
+
+# Historical round 4: M-014 Cebuano complete; 59/101 verified clips
 
 All people, payroll and audio are synthetic. PayPal-derived facts are **Simulated PayPal sandbox**.
 Seeded readings are a **Seed stand-in, not a Claude recording**; the audit agent remains paused.
