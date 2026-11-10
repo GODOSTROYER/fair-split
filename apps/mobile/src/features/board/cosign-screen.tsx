@@ -17,6 +17,7 @@ import { format } from "../../_shims/domain";
 import { fontFamily } from "../../_shims/fonts";
 import { people } from "../../_shims/seed";
 import { radius, space, target } from "../../_shims/tokens.native";
+import { seasonLabel } from "../../lib/display";
 import { railLabel } from "../../lib/payout-status";
 import { feedback } from "../../platform/feedback";
 import { signHref } from "../../services/session";
@@ -24,9 +25,10 @@ import { useApp } from "../../state/app";
 import { useFs } from "../../theme/theme";
 import { focusFirst } from "../../ui/a11y";
 import { Screen } from "../../ui/chrome";
+import { MicroTag } from "../../ui/honesty";
 import { LanguagePicker } from "../../ui/language-picker";
 import { Sheet } from "../../ui/overlay";
-import { Banner, Button, HonestyPill, InkStamp, SectionTitle } from "../../ui/primitives";
+import { Banner, Button, InkStamp, SectionTitle } from "../../ui/primitives";
 import { SealView } from "../../ui/seal-view";
 import { figures, Sentence } from "../../ui/sentence";
 import { EmptyState, Skeleton } from "../../ui/states";
@@ -198,7 +200,7 @@ export function CosignScreen() {
 
       <View ref={top} style={styles.lead} accessible={false}>
         <Txt kind="title2" accessibilityRole="header">
-          {tr("M-BD-01.heading", { season: dto.seasonCode })}
+          {tr("M-BD-01.heading", { season: seasonLabel(dto.seasonCode) })}
         </Txt>
         <SignedAmount
           text={amount}
@@ -211,10 +213,9 @@ export function CosignScreen() {
           <Txt kind="body" color="ink2">
             {tr("M-BD-01.count", { n: dto.itemCount })}
           </Txt>
+          {/* Round 3: the one micro-tag beside the PayPal amount it covers. */}
           {dto.rail === "simulated" ? (
-            <HonestyPill testID="M-BD-01.rail">
-              {railLabel(dto.rail, "simulated_rail", lang).chip}
-            </HonestyPill>
+            <MicroTag testID="M-BD-01.rail" label={railLabel(dto.rail, "simulated_rail", lang).chip} />
           ) : null}
         </View>
         <Sentence segments={figures(tr(whyKey(dto), { threshold }))} testID="M-BD-01.why" />
@@ -307,10 +308,8 @@ export function CosignScreen() {
         />
       ) : null}
 
+      {/* Round 3: no raw ids on the phone. The batch is the seal and its hash above; only the expiry stays. */}
       <View style={styles.meta}>
-        <Txt kind="micro" color="ink2" selectable>
-          {tr("M-BD-01.batch", { batch: dto.senderBatchId })}
-        </Txt>
         {signable ? (
           <Txt kind="micro" color="ink2" testID="M-BD-01.expires">
             {tr("M-BD-01.expires", {

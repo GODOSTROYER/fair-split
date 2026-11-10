@@ -16,6 +16,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { format } from "../../_shims/domain";
 import { people } from "../../_shims/seed";
 import { radius, space, target } from "../../_shims/tokens.native";
+import { seasonLabel } from "../../lib/display";
+import { MARK_KIND } from "../../lib/honesty";
 import { railLabel } from "../../lib/payout-status";
 import { deviceKeyId } from "../../lib/signing";
 import { pirmaHref } from "../../services/session";
@@ -23,9 +25,10 @@ import { useApp } from "../../state/app";
 import { useFs } from "../../theme/theme";
 import { Screen } from "../../ui/chrome";
 import { Glyph } from "../../ui/glyph";
+import { LegendGlyph, MicroTag } from "../../ui/honesty";
 import { MomentMarker } from "../../ui/moment";
 import { HOLD_MS } from "../../ui/motion";
-import { Banner, Button, HonestyPill, InkStamp } from "../../ui/primitives";
+import { Banner, Button, InkStamp } from "../../ui/primitives";
 import { SealView } from "../../ui/seal-view";
 import { Slab } from "../../ui/slab";
 import { Skeleton } from "../../ui/states";
@@ -125,7 +128,7 @@ export function SignScreen() {
         </Txt>
         {dto ? (
           <Txt kind="micro" color="ink2">
-            {tr("M-BD-02.meta", { season: dto.seasonCode, name: people.chair.first })}
+            {tr("M-BD-02.meta", { season: seasonLabel(dto.seasonCode), name: people.chair.first })}
           </Txt>
         ) : null}
       </View>
@@ -192,9 +195,7 @@ export function SignScreen() {
         <View style={styles.doneZone} testID="M-BD-02.signed" accessibilityLiveRegion="polite">
           <Txt kind="bodyStrong">{tr("M-BD-02.signed", { key: key?.keyId ?? nextKeyId })}</Txt>
           {demoKey ? (
-            <HonestyPill testID="M-BD-02.demo-key" glyph="lock">
-              {tr("common.demoKey")}
-            </HonestyPill>
+            <LegendGlyph testID="M-BD-02.demo-key" kind={MARK_KIND.demoKey} label={tr("common.demoKey")} />
           ) : null}
           <Button tall variant="quiet" label={tr("M-BD-02.done")} onPress={back} testID="M-BD-02.done" />
         </View>
@@ -289,7 +290,7 @@ export function SignScreen() {
             />
           ) : null}
           <View style={styles.keyRow} testID="M-BD-02.key" accessible accessibilityLabel={keyLine}>
-            {demoKey ? <HonestyPill glyph="lock">{tr("common.demoKey")}</HonestyPill> : null}
+            {demoKey ? <LegendGlyph kind={MARK_KIND.demoKey} label={tr("common.demoKey")} /> : null}
             <Txt kind="micro" color="ink2" selectable>
               {demoKey ? (key?.keyId ?? null) : keyLine}
             </Txt>
@@ -344,11 +345,10 @@ export function SignScreen() {
             <Txt kind="body" color="ink2" align="center">
               {tr("M-BD-01.count", { n: dto.itemCount })}
             </Txt>
+            {/* Round 3: the one micro-tag, under the PayPal amount it covers. */}
             {dto.rail === "simulated" ? (
               <View style={styles.tagRow}>
-                <HonestyPill testID="M-BD-02.rail">
-                  {railLabel(dto.rail, "simulated_rail", lang).chip}
-                </HonestyPill>
+                <MicroTag testID="M-BD-02.rail" label={railLabel(dto.rail, "simulated_rail", lang).chip} />
               </View>
             ) : null}
           </View>

@@ -14,12 +14,14 @@ import type { CosignRequestDTO } from "../../_shims/api-client";
 import { format } from "../../_shims/domain";
 import { runSlug } from "../../_shims/seed";
 import { space } from "../../_shims/tokens.native";
+import { seasonLabel } from "../../lib/display";
 import { railLabel } from "../../lib/payout-status";
 import { apiOrigin } from "../../services/build";
 import { useApp } from "../../state/app";
 import { AmountDisplay } from "../../ui/amount";
 import { Screen } from "../../ui/chrome";
-import { Button, HashText, HonestyPill, Rule, SectionTitle } from "../../ui/primitives";
+import { MicroTag } from "../../ui/honesty";
+import { Button, HashText, Rule, SectionTitle } from "../../ui/primitives";
 import { SealView } from "../../ui/seal-view";
 import { EmptyState, Skeleton } from "../../ui/states";
 import { Txt } from "../../ui/text";
@@ -74,7 +76,7 @@ export function BoardBayadScreen() {
   return (
     <Screen testID="M-MB-01" state="run-summary" contentStyle={COLUMN} surface="plate">
       <Txt kind="title1" accessibilityRole="header">
-        {tr("M-MB-01.season", { code: run.seasonCode })}
+        {tr("M-MB-01.season", { code: seasonLabel(run.seasonCode) })}
       </Txt>
       <View style={styles.card}>
         <AmountDisplay
@@ -85,12 +87,10 @@ export function BoardBayadScreen() {
           testID="M-MB-01.runTotal"
         />
         <Txt kind="body" color="ink2">
-          {tr("M-MB-01.runRequest", { season: run.seasonCode, n: run.itemCount })}
+          {tr("M-MB-01.runRequest", { season: seasonLabel(run.seasonCode), n: run.itemCount })}
         </Txt>
         {run.rail === "simulated" ? (
-          <HonestyPill testID="M-MB-01.runRail">
-            {railLabel(run.rail, "simulated_rail", lang).chip}
-          </HonestyPill>
+          <MicroTag testID="M-MB-01.runRail" label={railLabel(run.rail, "simulated_rail", lang).chip} />
         ) : null}
         <Rule />
         <SectionTitle>{tr("M-MB-01.runItems")}</SectionTitle>

@@ -30,14 +30,16 @@ import type { Lang } from "../../_shims/contracts";
 import { fontFamily } from "../../_shims/fonts";
 import { translate } from "../../_shims/i18n";
 import { radius, space, target } from "../../_shims/tokens.native";
+import { MARK_KIND } from "../../lib/honesty";
 import { type AudioPlan, audioPlan, glossPairs, MONEY_SLOTS } from "../../lib/statement";
 import type { VoiceChoice } from "../../platform/speech";
 import { stage } from "../../services/frame-bridge";
 import { useApp } from "../../state/app";
 import { useFs } from "../../theme/theme";
 import { Glyph } from "../../ui/glyph";
+import { MarkShape, useMarkColor } from "../../ui/honesty";
 import { spring, TIMELINE } from "../../ui/motion";
-import { Button, Hatch, HonestyPill, SurfaceLabels } from "../../ui/primitives";
+import { Button, Hatch, SurfaceLabels } from "../../ui/primitives";
 import { Txt } from "../../ui/text";
 import { lineView } from "./line-view";
 import { canPlay, paminawaScreenState, SLOW_RATE } from "./paminawa-machine";
@@ -134,6 +136,7 @@ export function PaminawaPanel({ onClose, auto = false }: { onClose(): void; auto
   });
   const { state } = player;
   const label = useVoiceLabel(plan, voice, lang);
+  const voiceMark = useMarkColor(MARK_KIND.syntheticVoice);
   const playable = canPlay(plan);
   const screenState = paminawaScreenState({
     loaded: !!dto && (voice !== undefined || plan.mode !== "text-only"),
@@ -212,14 +215,15 @@ export function PaminawaPanel({ onClose, auto = false }: { onClose(): void; auto
             <SurfaceLabels screen="M-MB-03" />
             <LangBar testID="M-MB-03" />
             {label ? (
-              // Round 2: the voice is labelled with the honesty tag family's "Synthetic voice" tag, not a sentence.
-              <HonestyPill
-                testID="M-MB-03.voice"
-                dataSet={{ state: plan.mode }}
-                glyph={plan.mode === "text-only" ? "info" : "listen"}
-              >
-                {label}
-              </HonestyPill>
+              // Round 3: the voice's words as one mono line beside the synthetic legend glyph, not a pill.
+              <View style={styles.voice} testID="M-MB-03.voice" dataSet={{ state: plan.mode }}>
+                <View importantForAccessibility="no-hide-descendants" aria-hidden>
+                  <MarkShape kind={MARK_KIND.syntheticVoice} color={voiceMark} />
+                </View>
+                <Txt kind="micro" color="ink2" style={styles.voiceWords}>
+                  {label}
+                </Txt>
+              </View>
             ) : null}
             {!online ? (
               <Txt kind="caption" color="ink2" testID="M-MB-03.offline">
@@ -374,6 +378,7 @@ const styles = StyleSheet.create({
   close: { width: target.min, height: target.min, alignItems: "center", justifyContent: "center" },
   top: { paddingHorizontal: space.s8, gap: space.s12, paddingBottom: space.s8 },
   voice: { flexDirection: "row", alignItems: "center", gap: space.s8 },
+  voiceWords: { flexShrink: 1 },
   rule: { height: 1, marginHorizontal: space.s8, marginBottom: space.s8 },
   transcript: { paddingHorizontal: space.s8, paddingTop: space.s8, paddingBottom: space.s24 },
   content: { gap: space.s4 },

@@ -33,7 +33,15 @@ import {
   senderBatchId,
   statementTemplates,
 } from "../_shims/seed";
+import { dayGap, followingDay } from "../lib/display";
 import { withDemoStatementExport } from "./demo-statement-export";
+
+/**
+ * Round 3: the expected pay date follows the clock as the demo's history does (the seed's gap from the last hold to
+ * the bodega's day, one day after today in Calinan), so a judge never reads a date before the run they start. The
+ * bodega's own day (`cashDay`) stays the seed's, as the clerk's demo shows it.
+ */
+const EXPECTED_GAP_DAYS = dayGap(resolvedHolds.at(-1)?.resolvedAt ?? cashDayIso, cashDayIso);
 
 /**
  * The hero line's demo path: still checking → sent → PayPal confirms; or PayPal parks it (unclaimed), the treasurer
@@ -143,7 +151,7 @@ export function buildDemoStatement(opts: { stage: DemoStage; now: string; sentAt
     rateCard: { id: rateCard.id, sha256: rateCardSha256, ratifiedAt: rateCard.ratifiedAt },
     batchSha256: stage === "checking" ? null : batchSha256,
     cashDay: cashDayIso,
-    expectedDate: stage === "checking" ? cashDayIso : null,
+    expectedDate: stage === "checking" ? followingDay(now, EXPECTED_GAP_DAYS) : null,
     sentences: statementTemplates,
     audio: {},
   });

@@ -1,7 +1,11 @@
 /**
  * The batch seal (design §5, S2.7): five hypotrochoid rings grown from the batch hash. Key 1 (the treasurer) owns
- * the inner three rings, key 2 (the Chair) the outer two. Unsigned bands are 1 px rule circles; a ring engraves
- * (600 ms linear, staggered 120 ms) when its key signs; low-tier phones and reduced motion fade the rings in.
+ * the inner three rings, key 2 (the Chair) the outer two. A ring engraves (600 ms linear, staggered 120 ms) when its
+ * key signs; low-tier phones and reduced motion fade the rings in.
+ *
+ * UI gate round 3, the same signed state and colours as the console's seal: every unsigned ring is drawn whole in
+ * neutral 400 (steel line) at 1 px, so the batch's pattern reads before anyone signs, and each key fills its rings in
+ * indigo (a person's hand) at the seal's stroke. Nothing else colours the seal.
  */
 import { memo, useEffect, useMemo } from "react";
 import { View } from "react-native";
@@ -14,7 +18,7 @@ import Animated, {
   withSpring,
   withTiming,
 } from "react-native-reanimated";
-import Svg, { Circle, Path } from "react-native-svg";
+import Svg, { Path } from "react-native-svg";
 import { ENGRAVE_STAGGER_MS, TIMELINE } from "../_shims/motion";
 import type { SealRing } from "../_shims/seal";
 import { useFs } from "../theme/theme";
@@ -112,19 +116,17 @@ export const SealView = memo(function SealView({
     >
       <Animated.View style={landStyle}>
         <Svg width={geometry.size} height={geometry.size}>
-          {rings.map((r) =>
-            r.owner > keys ? (
-              <Circle
-                key={`band-${r.bandRadius}`}
-                cx={geometry.size / 2}
-                cy={geometry.size / 2}
-                r={r.bandRadius}
-                fill="none"
-                stroke={t.color.rule}
-                strokeWidth={1}
-              />
-            ) : null,
-          )}
+          {/* Every ring's unsigned line under it, so a ring engraving in indigo draws over its own pattern. */}
+          {rings.map((r) => (
+            <Path
+              key={`unsigned-${r.bandRadius}`}
+              d={r.d}
+              fill="none"
+              stroke={t.color.steelLine}
+              strokeWidth={1}
+              strokeLinejoin="round"
+            />
+          ))}
           {rings.map((r, i) =>
             r.owner <= keys ? (
               <Ring
@@ -133,7 +135,7 @@ export const SealView = memo(function SealView({
                 index={i}
                 signed
                 animate={animate}
-                color={t.color.ink}
+                color={t.color.pod}
                 stroke={stroke}
               />
             ) : null,

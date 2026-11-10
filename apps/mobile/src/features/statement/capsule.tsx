@@ -253,8 +253,9 @@ export function StatusCapsule({ view, mm1, testID }: { view: LineView; mm1: Mm1;
   };
   const reduced = motion.reduced;
 
-  // PayPal's press: the pill settles down by its inset as the dashed outline floods jade (ADR-0016). Reduced
-  // motion: no travel; the jade comes in as a colour change.
+  // PayPal's press: the pill settles down by its inset as its outline floods jade (ADR-0016). Reduced motion: no
+  // travel; the jade comes in as a colour change. Round 3: the outline in flight is a solid neutral ring (dashed
+  // means simulated only); the pending ring and the word say the money is on its way.
   const travel = useAnimatedStyle(() => {
     const d = reduced ? 0 : EDGE * mm1.press.get();
     return { transform: [{ translateY: d }] };
@@ -312,9 +313,8 @@ export function StatusCapsule({ view, mm1, testID }: { view: LineView; mm1: Mm1;
             {
               minHeight: carrying ? FACE_MIN : Math.max(FACE_MIN, held),
               backgroundColor: t.color.plate,
-              borderColor: t.color.jadeFlushBorder,
+              borderColor: view.capsule === "paid" ? t.color.jadeFlushBorder : t.color.ruleStrong,
             },
-            view.capsule === "paid" ? null : styles.dashed,
             travel,
           ]}
         >
@@ -429,8 +429,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     overflow: "hidden",
   },
-  /** In flight: the 1.5 px dashed jade outline (not yet money anyone holds). */
-  dashed: { borderStyle: "dashed", borderWidth: 1.5 },
   flood: {
     ...StyleSheet.absoluteFill,
     transformOrigin: "right bottom",

@@ -32,6 +32,12 @@ export const messages = defineMessages({
     fil: "Inaasahang petsa ng bayad: {date}",
     en: "Expected pay date: {date}",
   },
+  /** Round 3: the same words as the label of a one-line fact; the date sits beside them as a figure. */
+  "M-MB-01.expectedLabel": {
+    ceb: "Gilauman nga petsa sa bayad",
+    fil: "Inaasahang petsa ng bayad",
+    en: "Expected pay date",
+  },
   "M-MB-01.checking": {
     ceb: "Gisusi pa ang inyong linya. Walay kantidad hangtod mahuman ang pagsusi.",
     fil: "Sinusuri pa po ang inyong linya. Wala pang halaga hanggang matapos ang pagsusuri.",

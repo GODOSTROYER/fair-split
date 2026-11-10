@@ -19,12 +19,15 @@ import { format } from "../../_shims/domain";
 import type { MessageArgs } from "../../_shims/i18n";
 import { people } from "../../_shims/seed";
 import { radius, space, target } from "../../_shims/tokens.native";
+import { seasonLabel } from "../../lib/display";
+import { MARK_KIND } from "../../lib/honesty";
 import { openPushSettings } from "../../platform/push";
 import { useApp } from "../../state/app";
 import { usePushStatus } from "../../state/use-push";
 import { useFs } from "../../theme/theme";
 import { AmountDisplay } from "../../ui/amount";
 import { Glyph } from "../../ui/glyph";
+import { LegendGlyph } from "../../ui/honesty";
 import { ms, reducedFade, spring, tween } from "../../ui/motion";
 import { Button, InkStamp, Rule } from "../../ui/primitives";
 import { SealView } from "../../ui/seal-view";
@@ -318,7 +321,7 @@ export function SimulatedPush({ dto }: { dto: CosignRequestDTO }) {
   }, [motion.reduced, y, fade]);
   const style = useAnimatedStyle(() => ({ opacity: fade.get(), transform: [{ translateY: y.get() }] }));
   const title = tr("M-BD-01.push.title", {
-    season: dto.seasonCode,
+    season: seasonLabel(dto.seasonCode),
     n: dto.itemCount,
     amount: format.usd(dto.totalCents),
   });
@@ -341,13 +344,8 @@ export function SimulatedPush({ dto }: { dto: CosignRequestDTO }) {
         <Txt kind="caption" color="ink3" style={styles.flex}>
           {tr("M-BD-01.push.now")}
         </Txt>
-        {/* "Simulated push": the dashed steel honesty pill, the same mark as every simulated label (I8). */}
-        <View style={[styles.pushLabel, { borderColor: t.color.steelLine }]}>
-          <Glyph name="info" size={12} color={t.color.ink3} />
-          <Txt kind="caption" color="ink2">
-            {tr("M-BD-01.push.label")}
-          </Txt>
-        </View>
+        {/* "Simulated push" (I8), round 3: the simulated legend glyph, its words its accessible name. */}
+        <LegendGlyph kind={MARK_KIND.simulatedPush} label={tr("M-BD-01.push.label")} />
       </View>
       <Txt kind="bodyStrong">{title}</Txt>
     </Animated.View>
@@ -449,24 +447,12 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   pushHead: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: space.s8 },
-  pushLabel: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: space.s4,
-    paddingHorizontal: space.s8,
-    paddingVertical: 2,
-    borderWidth: 1,
-    borderStyle: "dashed",
-    borderRadius: radius.pill,
-    backgroundColor: "transparent",
-  },
   note: {
     flexDirection: "row",
     alignItems: "flex-start",
     gap: space.s12,
     padding: space.s12,
     borderWidth: 1,
-    borderStyle: "dashed",
     borderRadius: radius.plate,
   },
   noteText: { flex: 1, gap: space.s4 },

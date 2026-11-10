@@ -110,8 +110,8 @@ const styles = StyleSheet.create({
   plate: {
     gap: space.s16,
     padding: space.s16,
+    // Round 3: a solid hairline. Dashed means simulated only; the samples are synthetic (their glyph says so).
     borderWidth: 1,
-    borderStyle: "dashed",
     borderRadius: radius.plate,
   },
   tiles: { flexDirection: "row", flexWrap: "wrap", gap: space.s16 },

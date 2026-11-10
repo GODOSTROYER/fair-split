@@ -6,7 +6,7 @@
  * | pencil   | solid ink (round 2: one hero numeral)          | pencil                                            |
  * | you      | –                                              | pencil-faint in a 1.5 px canary cell, "You" tag  |
  * | ink      | solid ink (a person entered or approved it)    | ink                                               |
- * | hollow   | solid ink (round 2: no outline; the capsule)   | ink-2 with a 1.5 px dashed underline              |
+ * | hollow   | solid ink (round 2: no outline; the capsule)   | statement ink 2 beside a hollow dot (round 3)     |
  * | landed   | solid ink; its capsule is jade flush           | ink                                               |
  * | attested | solid ink, beside the clerk's stamp            | ink                                               |
  *
@@ -20,7 +20,7 @@
 import { useState } from "react";
 import { StyleSheet, useWindowDimensions, View } from "react-native";
 import Animated, { type SharedValue, useAnimatedStyle } from "react-native-reanimated";
-import Svg, { Line, Text as SvgText, TSpan } from "react-native-svg";
+import Svg, { Text as SvgText, TSpan } from "react-native-svg";
 import type { AmountState } from "../_shims/contracts";
 import { radius, space } from "../_shims/tokens.native";
 import { typeScale, useFs } from "../theme/theme";
@@ -232,7 +232,7 @@ function InlineAmount({
       : state === "you"
         ? t.color.pencilFaint
         : state === "hollow"
-          ? t.color.ink2
+          ? t.color.statementInk2
           : t.color.ink;
   return (
     <View
@@ -241,12 +241,11 @@ function InlineAmount({
       style={state === "you" ? [styles.you, { borderColor: t.color.canaryBorder }] : styles.inline}
       {...spoken(srLabel)}
     >
-      <View>
-        <Txt kind={size === "m" ? "amountM" : "figure"} style={{ color: colour }}>
-          {text}
-        </Txt>
-        {state === "hollow" ? <DashRule color={t.color.ink2} /> : null}
-      </View>
+      {/* Round 3: a pending amount is a neutral figure beside a hollow dot; dashed lines mean simulated only. */}
+      {state === "hollow" ? <View style={[styles.pendingDot, { borderColor: colour }]} /> : null}
+      <Txt kind={size === "m" ? "amountM" : "figure"} style={{ color: colour }}>
+        {text}
+      </Txt>
       {state === "you" ? (
         <Txt kind="caption" color="canaryText">
           {tr("amount.you")}
@@ -256,24 +255,13 @@ function InlineAmount({
   );
 }
 
-/** Inline hollow's 1.5 px dashed underline (S2.2.1), drawn: Android cannot dash a text underline. */
-function DashRule({ color }: { color: string }) {
-  return (
-    <View style={styles.dash} pointerEvents="none">
-      <Svg width="100%" height={2}>
-        <Line x1="0" y1="1" x2="100%" y2="1" stroke={color} strokeWidth={1.5} strokeDasharray="4 3" />
-      </Svg>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   large: { maxWidth: "100%", overflow: "hidden" },
   measure: { position: "absolute", left: 0, top: 0, width: 0, height: 0, overflow: "hidden" },
   measureLine: { width: 1024, alignItems: "flex-start" },
   layer: { position: "absolute", left: 0, top: 0 },
-  inline: { flexDirection: "row", alignItems: "center" },
-  dash: { position: "absolute", left: 0, right: 0, bottom: 1, height: 2 },
+  inline: { flexDirection: "row", alignItems: "center", gap: space.s8 },
+  pendingDot: { width: 8, height: 8, borderRadius: 4, borderWidth: 1.5 },
   you: {
     flexDirection: "row",
     alignItems: "center",

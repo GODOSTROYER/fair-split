@@ -18,10 +18,12 @@ import type { MemberStatus } from "../_shims/contracts";
 import { fontFamily } from "../_shims/fonts";
 import { pendingReview } from "../_shims/i18n";
 import { radius, space, target } from "../_shims/tokens.native";
+import { MARK_KIND } from "../lib/honesty";
 import { STATUS_GLYPH, STATUS_TONE, type StatusTone } from "../lib/item-status";
 import { useApp } from "../state/app";
 import { useFs } from "../theme/theme";
 import { Glyph, type GlyphName } from "./glyph";
+import { LegendGlyph, type LegendGlyphProps, MarkRow } from "./honesty";
 import { Txt, useT } from "./text";
 
 /* ------------------------------------------------------------------ Button */
@@ -253,61 +255,48 @@ export function HonestyPill({
   );
 }
 
-/** I8: anything not live says so. Shown on every screen while the app runs on local demo data. */
+/**
+ * I8: anything not live says so. Shown on every screen while the app runs on local demo data. UI gate round 3: the
+ * synthetic legend glyph (a hatched square), its words its accessible name; no pill.
+ */
 export function DemoLabel() {
   const { demo } = useApp();
   const t = useT();
-  const fs = useFs();
   if (!demo) return null;
-  return (
-    <View testID="demo-label" style={[styles.tag, { borderColor: fs.t.color.steelLine }]}>
-      <DashedRing />
-      <Txt kind="micro" color="ink2" style={styles.tagWords}>
-        {t("common.demoData")}
-      </Txt>
-    </View>
-  );
+  return <LegendGlyph testID="demo-label" kind={MARK_KIND.demoData} label={t("common.demoData")} />;
 }
 
 /**
  * OD-2 (S1.6): "Machine-translated, pending native review" while the language is Cebuano or Filipino
- * (`pendingReview`). Round 2: the one honesty tag with the family's translate glyph, beside the demo label.
+ * (`pendingReview`). UI gate round 3: the simulated legend glyph (a dashed circle), its words its accessible name.
  */
 export function MachineTranslatedNote({ testID }: { testID?: string }) {
   const { lang } = useApp();
   const t = useT();
-  const fs = useFs();
   if (!pendingReview(lang)) return null;
   return (
-    <View
-      testID={testID}
-      accessible
-      accessibilityRole="text"
-      accessibilityLabel={t("common.machineTranslated")}
-      style={[styles.tag, styles.machine, { borderColor: fs.t.color.steelLine }]}
-    >
-      <Glyph name="translate" size={12} color={fs.t.color.ink3} />
-      <Txt kind="micro" color="ink2" style={styles.tagWords}>
-        {t("common.machineTranslated")}
-      </Txt>
-    </View>
+    <LegendGlyph testID={testID} kind={MARK_KIND.machineTranslated} label={t("common.machineTranslated")} />
   );
 }
 
 /**
- * The labels that open every surface, on one row that wraps on a narrow phone: demo data (I8) and the review chip
- * (OD-2). The chrome draws them on every `<Screen>`; the one surface that is not a screen, the Paminawa sheet, draws
- * them itself. `screen` is the register ID: the chip's test hook is `{screen}.machine`.
+ * The marks that open every surface: demo data (I8) and the review mark (OD-2), as bare glyphs on one row; a tap
+ * shows their words. The chrome draws them on every `<Screen>`; the one surface that is not a screen, the Paminawa
+ * sheet, draws them itself. `screen` is the register ID: the review mark's test hook is `{screen}.machine`.
  */
 export function SurfaceLabels({ screen }: { screen: string }) {
   const { demo, lang } = useApp();
-  if (!demo && !pendingReview(lang)) return null;
-  return (
-    <View style={styles.labels}>
-      <DemoLabel />
-      <MachineTranslatedNote testID={`${screen}.machine`} />
-    </View>
-  );
+  const t = useT();
+  const marks: LegendGlyphProps[] = [];
+  if (demo) marks.push({ testID: "demo-label", kind: MARK_KIND.demoData, label: t("common.demoData") });
+  if (pendingReview(lang)) {
+    marks.push({
+      testID: `${screen}.machine`,
+      kind: MARK_KIND.machineTranslated,
+      label: t("common.machineTranslated"),
+    });
+  }
+  return <MarkRow marks={marks} />;
 }
 
 export function SectionTitle({ children }: { children: ReactNode }) {
@@ -340,10 +329,11 @@ export function StatusChip({
 }) {
   const { t } = useFs();
   // UI gate round 2 (the console's pill): white with a 1 px rule, and the colour lives only in the dot. Confirmed
-  // money is the one filled pill (jade, ✓); money in flight is a dashed jade outline.
+  // money is the one filled pill (jade, ✓). Round 3: dashed means simulated only, so money in flight is a solid
+  // neutral ring with the hollow jade dot and its word in jade text.
   const look = {
     landed: { bg: t.color.jade, fg: t.color.onJade, border: t.color.jadeFlushBorder },
-    pending: { bg: "transparent", fg: t.color.jadeText, border: t.color.jadeFlushBorder },
+    pending: { bg: "transparent", fg: t.color.jadeText, border: t.color.ruleStrong },
     decide: { bg: t.color.plate, fg: t.color.ink, border: t.color.ruleStrong },
     failure: { bg: t.color.plate, fg: t.color.red, border: t.color.ruleStrong },
     cash: { bg: t.color.plate, fg: t.color.ink, border: t.color.ruleStrong },
@@ -356,11 +346,7 @@ export function StatusChip({
       accessible
       accessibilityRole="text"
       accessibilityLabel={label}
-      style={[
-        styles.status,
-        { backgroundColor: look.bg, borderColor: look.border },
-        tone === "pending" ? styles.inFlight : null,
-      ]}
+      style={[styles.status, { backgroundColor: look.bg, borderColor: look.border }]}
     >
       {tone === "landed" ? <Glyph name="check" size={14} color={look.fg} /> : <StatusDot tone={tone} />}
       {/* The words wrap inside the chip (long Cebuano status words, 200% text); they are never cut off. */}
@@ -537,8 +523,6 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   dot: { borderWidth: 1, overflow: "hidden" },
-  /** Money on its way: a 1.5 px dashed jade outline on a transparent face (not yet money anyone holds). */
-  inFlight: { borderStyle: "dashed", borderWidth: 1.5 },
   statusWords: { flexShrink: 1 },
   rule: {
     flexDirection: "row",
@@ -549,17 +533,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: radius.cell,
   },
-  demoLabel: {
-    flexDirection: "row",
-    alignItems: "center",
-    alignSelf: "flex-start",
-    gap: space.s4,
-    paddingHorizontal: space.s8,
-    paddingVertical: 2,
-    borderWidth: 1,
-    borderRadius: radius.pill,
-  },
-  machine: { flexShrink: 1, maxWidth: "100%" },
   /** Not real, or not yet: the one honesty tag, a dashed steel outline on a transparent face (round 2). */
   tag: {
     flexDirection: "row",
@@ -580,5 +553,4 @@ const styles = StyleSheet.create({
   ring: { width: 10, height: 10, borderRadius: 5, borderWidth: 1, borderStyle: "dashed" },
   textButton: { alignSelf: "flex-start" },
   link: { textDecorationLine: "underline" },
-  labels: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: space.s8 },
 });

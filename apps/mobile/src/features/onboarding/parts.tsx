@@ -24,7 +24,7 @@ import { useFs } from "../../theme/theme";
 import { Glyph } from "../../ui/glyph";
 import { reducedFade, spring, tween } from "../../ui/motion";
 import { Txt } from "../../ui/text";
-import { qrFacsimileCells, stencilGlyphs } from "./flow";
+import { qrFacsimileCells } from "./flow";
 
 /** The desk is always tablea lacquer: paper glows on it in either theme (design §1, signature 1). */
 const DESK = themes.tablea;
@@ -109,28 +109,29 @@ export function Paper({
   );
 }
 
-/* ------------------------------------------------------------------ stencilled marks, as on the jute sacks */
+/* ------------------------------------------------------------------ the season and lot marks */
 
 /**
- * "2026-A", "LB-PH-2026-03" stencilled the way the sacks are: heavy figures, each counter held by a bridge cut
- * through it in the colour of what is underneath (`ground`). Read as one label by a screen reader.
+ * "2026-A", "LB-PH-2026-03": the season and the lot as ids. UI gate round 3 retires the stencilled display face (the
+ * condensed figures with bridged counters): a mark is the id role now, the figure cut's tabular set in mono, 13 px for
+ * the lot and a step up for the season beside the product name. Read as one label by a screen reader. `ground` is
+ * kept for callers (the stencil's bridges used it).
  */
 export function StencilMark({
   text,
   label,
   size = 20,
   color,
-  ground,
   testID,
 }: {
   text: string;
   label: string;
   size?: number;
   color: string;
-  ground: string;
+  ground?: string;
   testID?: string;
 }) {
-  const bridge = Math.max(1.5, Math.round(size * 0.18) / 2);
+  const fontSize = size >= 24 ? 17 : 13;
   return (
     <View
       accessible
@@ -140,27 +141,15 @@ export function StencilMark({
       dataSet={{ mark: text }}
       style={styles.stencil}
     >
-      {stencilGlyphs(text).map((g) => (
-        <View key={g.id} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
-          <Txt
-            maxFontSizeMultiplier={1.5}
-            style={{
-              color,
-              fontFamily: fontFamily.amount,
-              fontSize: size,
-              lineHeight: Math.round(size * 1.08),
-              fontVariant: ["tabular-nums"],
-            }}
-          >
-            {g.char}
-          </Txt>
-          {g.bridged ? (
-            <View
-              style={[styles.bridge, { width: bridge, marginLeft: -bridge / 2, backgroundColor: ground }]}
-            />
-          ) : null}
-        </View>
-      ))}
+      <Txt
+        kind="hash"
+        importantForAccessibility="no"
+        aria-hidden
+        maxFontSizeMultiplier={1.5}
+        style={{ color, fontSize, lineHeight: Math.round(fontSize * 1.35) }}
+      >
+        {text}
+      </Txt>
     </View>
   );
 }
@@ -460,7 +449,6 @@ const styles = StyleSheet.create({
   },
   paper: { borderRadius: radius.none },
   stencil: { flexDirection: "row", alignItems: "flex-end", alignSelf: "flex-start" },
-  bridge: { position: "absolute", top: 0, bottom: 0, left: "50%" },
   plate: {
     flexDirection: "row",
     alignItems: "stretch",

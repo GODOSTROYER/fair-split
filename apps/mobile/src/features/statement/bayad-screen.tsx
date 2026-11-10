@@ -17,6 +17,10 @@
  * factual header (her name and one mono line; the greeting is spoken in Paminawa), the amount, a status pill with
  * one mono line and the one honesty tag, one line of prose only when a person acts next, and Paminawa as one large
  * play button. The rail's sentence moves to the fine print at the foot.
+ *
+ * UI gate round 3: her name, the amount, her kilos and the payment state sit together, with Paminawa right below. The
+ * rail is one micro-tag ("Sandbox") beside the PayPal status; her kilos and the expected pay date are one line each,
+ * a 13 px label and a 15 px figure; the season reads "2026-A".
  */
 import { type Href, router, useIsFocused } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -25,6 +29,7 @@ import type { StatementDTO } from "../../_shims/api-client";
 import type { Lang } from "../../_shims/contracts";
 import { format } from "../../_shims/domain";
 import { space } from "../../_shims/tokens.native";
+import { seasonLabel } from "../../lib/display";
 import { shareFigures, type TraceId } from "../../lib/figures";
 import { statementRail } from "../../lib/payout-status";
 import { type AudioPlan, audioPlan, glossPairs, MONEY_SLOTS, sentenceFor } from "../../lib/statement";
@@ -35,10 +40,11 @@ import { focusFirst } from "../../ui/a11y";
 import { AmountDisplay } from "../../ui/amount";
 import { Screen } from "../../ui/chrome";
 import { Glyph } from "../../ui/glyph";
+import { MicroTag } from "../../ui/honesty";
 import { MomentMarker, useMoment } from "../../ui/moment";
 import { TIMELINE } from "../../ui/motion";
 import { Sheet } from "../../ui/overlay";
-import { Banner, Button, HonestyPill, Rule, SectionTitle } from "../../ui/primitives";
+import { Banner, Button, Rule, SectionTitle } from "../../ui/primitives";
 import { SealView } from "../../ui/seal-view";
 import { figures, Sentence } from "../../ui/sentence";
 import { EmptyState, OfflineBar, Skeleton } from "../../ui/states";
@@ -79,6 +85,23 @@ export function ownerOf(dto: StatementDTO): SlipOwner {
     allGrade1: shareFigures(dto).allGrade1,
     coop: dto.coop.name,
   };
+}
+
+/**
+ * One fact on one line (round 3): a 13 px label and a 15 px figure, the figure never split from itself. "Inyong gidala
+ * 148.0 kg"; "Gilauman nga petsa sa bayad 6 Nob 2026".
+ */
+function Fact({ label, value, testID }: { label: string; value: string; testID?: string }) {
+  return (
+    <View style={styles.fact} testID={testID}>
+      <Txt kind="micro" color="statementInk2" style={styles.factLabel}>
+        {label}
+      </Txt>
+      <Txt kind="figure" color="statementInk" style={styles.factValue}>
+        {value}
+      </Txt>
+    </View>
+  );
 }
 
 function StatementSkeleton() {
@@ -239,16 +262,18 @@ function Statement({
   const when = view.capsule === "paid" && !view.replayed && view.paidAt ? format.time(view.paidAt) : null;
   const length = readingLength(plan);
   const paypalLine = view.payKind === "paypal";
-  // The rail's honesty tag: the dashed steel outline means "not real, or not yet" (ADR-0016). One per statement.
-  const railTag = (
-    <HonestyPill
-      testID="M-MB-01.rail"
-      dataSet={{ rail: railLabel.kind }}
-      glyph={railLabel.kind === "replay" || railLabel.kind === "replay-planned" ? "refresh" : undefined}
-    >
-      {railLabel.chip}
-    </HonestyPill>
-  );
+  // The rail's honesty mark (round 3): one micro-tag, "Sandbox" beside the dashed circle, whose label is the rail's
+  // whole words ("Simulated PayPal sandbox", or replayed). A rail of unknown origin is not simulated: it says so in
+  // words, with no tag. One per statement.
+  const railTag =
+    railLabel.kind === "unknown" ? (
+      <Txt kind="micro" color="statementInk2" testID="M-MB-01.rail" dataSet={{ rail: railLabel.kind }}>
+        {railLabel.chip}
+      </Txt>
+    ) : (
+      <MicroTag testID="M-MB-01.rail" dataSet={{ rail: railLabel.kind }} label={railLabel.chip} />
+    );
+  const kilos = format.kg(dto.kilos.netGrams);
   // Without a signal, what is on screen is the last copy, whether it came from this session or from the phone.
   const offline = !online;
   const state = offline ? "offline" : view.capsule;
@@ -257,10 +282,10 @@ function Statement({
 
   const amountLabel =
     view.showAmount && view.hero
-      ? [view.hero.spoken, view.word, detail].filter(Boolean).join(". ")
-      : [tr("M-MB-01.kilosLabel"), format.kg(dto.kilos.netGrams), view.word, detail]
+      ? [view.hero.spoken, `${tr("M-MB-01.kilosLabel")} ${kilos}`, view.word, detail]
           .filter(Boolean)
-          .join(". ");
+          .join(". ")
+      : [tr("M-MB-01.kilosLabel"), kilos, view.word, detail].filter(Boolean).join(". ");
 
   return (
     <View style={styles.fill}>
@@ -293,7 +318,7 @@ function Statement({
             <Txt kind="micro" color="statementInk2" testID="M-MB-01.season">
               {tr("M-MB-01.headMeta", {
                 no: dto.member.memberNo,
-                season: dto.season.code,
+                season: seasonLabel(dto.season.code),
                 coop: dto.coop.name,
               })}
             </Txt>
@@ -336,6 +361,8 @@ function Statement({
                       testID="M-MB-01.under"
                     />
                   ) : null}
+                  {/* Round 3: her kilos beside her pay, not at the foot of the receipt. */}
+                  <Fact label={tr("M-MB-01.kilosLabel")} value={kilos} testID="M-MB-01.kilosFact" />
                 </View>
               ) : (
                 <View style={styles.amount} testID="M-MB-01.kilos">
@@ -344,16 +371,13 @@ function Statement({
                   </Txt>
                   {/* Round 2: her own kilos are never faded to say "held"; the pill below says it. */}
                   <Txt kind="amountL" color="statementInk">
-                    {format.kg(dto.kilos.netGrams)}
+                    {kilos}
                   </Txt>
                   {dto.expectedDate ? (
-                    <Sentence
-                      kind="statementBody"
-                      color="statementInk2"
-                      lang={lang}
-                      segments={figures(
-                        tr("M-MB-01.expected", { date: format.date(dto.expectedDate, lang) }),
-                      )}
+                    <Fact
+                      label={tr("M-MB-01.expectedLabel")}
+                      value={format.date(dto.expectedDate, lang)}
+                      testID="M-MB-01.expected"
                     />
                   ) : null}
                 </View>
@@ -426,14 +450,7 @@ function Statement({
           {/* 5. Her slips, then the history. */}
           {dto.slips.length ? (
             <View style={styles.section}>
-              <View style={styles.sectionHead}>
-                <SectionTitle>{tr("M-MB-01.slips")}</SectionTitle>
-                <Txt kind="micro" color="statementInk2">
-                  {tr("M-MB-01.slipsTotal", {
-                    kg: format.kg(dto.slips.reduce((s, x) => s + x.netGrams, 0)),
-                  })}
-                </Txt>
-              </View>
+              <SectionTitle>{tr("M-MB-01.slips")}</SectionTitle>
               <SlipTiles slips={dto.slips} owner={owner} onOpen={openSlip} testPrefix="M-MB-01.chip" />
             </View>
           ) : null}
@@ -587,12 +604,10 @@ const styles = StyleSheet.create({
   meta: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: space.s8 },
   listen: { gap: space.s12 },
   section: { gap: space.s12 },
-  sectionHead: {
-    flexDirection: "row",
-    alignItems: "baseline",
-    justifyContent: "space-between",
-    gap: space.s8,
-  },
+  /** One fact on one line: the label shrinks first, the figure never splits. */
+  fact: { flexDirection: "row", flexWrap: "wrap", alignItems: "baseline", columnGap: space.s8 },
+  factLabel: { flexShrink: 1 },
+  factValue: { fontSize: 15, lineHeight: 20, flexShrink: 0 },
   history: { gap: space.s8 },
   historyRow: { flexDirection: "row", alignItems: "center", gap: space.s12, minHeight: 32 },
   footer: { flexDirection: "row", alignItems: "center", gap: space.s12 },

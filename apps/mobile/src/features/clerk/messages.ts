@@ -242,9 +242,10 @@ export const messages = defineMessages({
 
   "M-CL-01.samples": { ceb: "Sample nga resibo", fil: "Sample na resibo", en: "Sample slips" },
   "M-CL-01.samplesHint": {
-    ceb: "Gidrowing nga resibo para sa sunod nga pay run, nga adunay marka nga Synthetic sample.",
-    fil: "Iginuhit na resibo para sa susunod na pay run, may markang Synthetic sample.",
-    en: "Drawn slips for the next pay run, marked Synthetic sample.",
+    // Round 3: shortened by deleting the clause the synthetic glyph on each paper now says.
+    ceb: "Gidrowing nga resibo para sa sunod nga pay run.",
+    fil: "Iginuhit na resibo para sa susunod na pay run.",
+    en: "Drawn slips for the next pay run.",
   },
   "M-CL-01.samplesOnly": {
     ceb: "Sa Judge Mode, sample nga resibo lang ang madawat sa co-op.",

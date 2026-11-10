@@ -147,8 +147,9 @@ describe("the statement for each demo stage (S1.9 states)", () => {
     const v = view(previewLine(at("checking"), "HELD"), "en");
     expect(v.capsule).toBe("held-line");
     expect(v.showAmount).toBe(false);
+    // Round 3: the demo's expected date follows the clock (the day after NOW in Calinan), never a past seed date.
     expect(t("en", v.detail?.key ?? "M-MB-01.held", v.detail?.args)).toBe(
-      "One line is still being checked. Treasurer Analyn decides by 30 Oct 2026.",
+      "One line is still being checked. Treasurer Analyn decides by 31 Oct 2026.",
     );
   });
 

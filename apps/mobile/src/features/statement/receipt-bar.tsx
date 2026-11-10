@@ -11,6 +11,11 @@
  *
  * UI gate round 2: no raw rate-card id on her phone ("CBU · R1 · Schedule A"); the fees row folds to its two
  * published rates and opens to the sentence; captions in statement ink 2 (7:1 or better).
+ *
+ * UI gate round 3: the bar is her pay split, labelled. Each row's swatch is its segment's colour (premium ink, bonus
+ * pencil, a ruled deduction hatched, a credit ink 2), so the bar reads as premium, bonus and deduction with their
+ * amounts beside them, never as her share of the co-op's kilos (that sentence leaves: her kilos sit beside her pay).
+ * The fees row is solid: dashed and dotted lines mean simulated only.
  */
 import type { ReactNode } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
@@ -24,7 +29,6 @@ import {
   feeFigures,
   receiptBarWeights,
   receiptRows,
-  shareFigures,
   type Trace,
   type TraceId,
   traceFor,
@@ -47,6 +51,23 @@ const glide = LinearTransition.springify()
 
 export type ExpandState = "framed" | "expanded";
 
+/** A row's segment of the pay-split bar. */
+type Segment = "premium" | "bonus" | "deducted" | "credited";
+
+/** The row's swatch: the same colour (or hatch) as its segment of the bar above the rows. */
+function Swatch({ segment }: { segment: Segment }) {
+  const { t } = useFs();
+  if (segment === "deducted") {
+    return (
+      <View style={[styles.swatch, { borderColor: t.color.hatch, backgroundColor: t.color.plate2 }]}>
+        <Hatch />
+      </View>
+    );
+  }
+  const fill = segment === "premium" ? t.color.ink : segment === "bonus" ? t.color.pencil : t.color.ink2;
+  return <View style={[styles.swatch, { borderColor: fill, backgroundColor: fill }]} />;
+}
+
 function Row({
   id,
   label,
@@ -54,6 +75,7 @@ function Row({
   note,
   strong,
   dotted,
+  segment,
   open,
   onPress,
   srLabel,
@@ -61,6 +83,8 @@ function Row({
 }: {
   id: TraceId;
   label: ReactNode;
+  /** Its segment of the pay-split bar: the row leads with that swatch. */
+  segment?: Segment;
   /** The row's figure and its amount state; the row's own label speaks it. */
   amount?: { text: string; state: AmountState };
   note?: string;
@@ -79,10 +103,11 @@ function Row({
       layout={motion.reduced ? undefined : glide}
       style={[
         styles.rowWrap,
-        dotted && { borderStyle: "dotted", borderColor: t.color.ink3, marginTop: space.s8 },
+        // The fees row is set apart by a solid hairline (round 3: dashed and dotted mean simulated only).
+        dotted && { borderColor: t.color.rule, marginTop: space.s8 },
         !dotted && { borderColor: open ? t.color.pod : "transparent" },
         // Open is a selection: a rounded card ringed in ballpoint indigo, on e1 (ADR-0016), never an ink box.
-        dotted && open ? { borderStyle: "solid", borderColor: t.color.pod } : null,
+        dotted && open ? { borderColor: t.color.pod } : null,
         open ? { backgroundColor: t.color.plate, boxShadow: t.shadow.e1 } : null,
       ]}
     >
@@ -96,6 +121,11 @@ function Row({
         onPress={() => onPress(id)}
         style={({ pressed }) => [styles.row, pressed && { backgroundColor: t.color.pencilWash }]}
       >
+        {segment ? (
+          <View style={styles.swatchSlot} importantForAccessibility="no-hide-descendants" aria-hidden>
+            <Swatch segment={segment} />
+          </View>
+        ) : null}
         <View style={styles.rowText}>
           {typeof label === "string" ? <Txt kind={strong ? "bodyStrong" : "body"}>{label}</Txt> : label}
           {note ? (
@@ -322,7 +352,6 @@ export function ReceiptBar({
   const rows = receiptRows(dto);
   const part = (text: string) => ({ text, state: states.parts });
   const w = receiptBarWeights(dto);
-  const share = shareFigures(dto);
   const fees = feeFigures();
   const stateOf = (id: TraceId) => (open?.id === id ? open.state : null);
   const body = (id: TraceId) => {
@@ -351,11 +380,6 @@ export function ReceiptBar({
         ) : null}
         {w.credited > 0 ? <View style={{ flex: w.credited, backgroundColor: t.color.ink2 }} /> : null}
       </View>
-      <Sentence
-        kind="figureS"
-        color="statementInk2"
-        segments={figures(tr("M-MB-01.share", { kg: share.kg, coopKg: share.coopKg }))}
-      />
 
       <View style={[styles.list, { borderTopColor: t.color.rule }]}>
         {rows.map((r) => {
@@ -372,6 +396,7 @@ export function ReceiptBar({
                     <Txt kind="body">{tr("M-MB-01.premium")}</Txt>
                   </View>
                 }
+                segment="premium"
                 note={tr("M-MB-01.noDeductions")}
                 amount={part(r.amount)}
                 srLabel={`${tr("M-MB-01.premium")}, ${r.spoken}, ${tr("M-MB-01.noDeductions")}`}
@@ -387,6 +412,7 @@ export function ReceiptBar({
                 id={r.id}
                 open={stateOf(r.id)}
                 onPress={onSegment}
+                segment="bonus"
                 label={tr("M-MB-01.bonus")}
                 amount={part(r.amount)}
                 srLabel={`${tr("M-MB-01.bonus")}, ${r.spoken}`}
@@ -408,6 +434,7 @@ export function ReceiptBar({
                     <RuleChip ruleId={r.ruleId ?? ""} />
                   </View>
                 }
+                segment="deducted"
                 note={tr("M-MB-01.ruleRef")}
                 amount={part(r.amount)}
                 srLabel={`${r.label ?? ""}, ${r.spoken}, ${r.ruleId ?? ""}, ${tr("M-MB-01.ruleRef")}`}
@@ -423,6 +450,7 @@ export function ReceiptBar({
                 id={r.id}
                 open={stateOf(r.id)}
                 onPress={onSegment}
+                segment="credited"
                 label={tr("M-MB-01.credit")}
                 note={tr("M-MB-01.creditSlip", { slip: r.slip ?? "" })}
                 amount={part(r.amount)}
@@ -481,6 +509,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     alignItems: "center",
+    // A wrapping row's lines sit in its middle: a short row (the fees) is never pinned to its top.
+    alignContent: "center",
     columnGap: space.s12,
     rowGap: space.s4,
     minHeight: target.min + 8,
@@ -491,6 +521,8 @@ const styles = StyleSheet.create({
   rowText: { flexGrow: 1, flexShrink: 1, flexBasis: 128, gap: space.s2 },
   amount: { flexShrink: 0, marginLeft: "auto" },
   chevron: { width: 16, alignItems: "center" },
+  swatchSlot: { alignSelf: "flex-start", paddingTop: 5 },
+  swatch: { width: 10, height: 10, borderRadius: 2, borderWidth: 1, overflow: "hidden" },
   chevronOpen: { transform: [{ rotate: "180deg" }] },
   labelRow: { flexDirection: "row", alignItems: "center", gap: space.s8, flexWrap: "wrap" },
   trace: { gap: space.s12, paddingHorizontal: space.s8, paddingBottom: space.s16 },
