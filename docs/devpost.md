@@ -145,6 +145,6 @@ No login: open Judge Mode. Local: pnpm i && pnpm verify.
 
 ## Synthetic content and disclosures
 
-The video's disclosure, from `video/script.ts`: "Narration and member audio: Gemini TTS. Synthetic people and data. Slip images are synthetic: Codex-made hero flats (OpenAI's image model) and code-drawn slips, composed in code into photos A–L. Simulated PayPal sandbox; untested against PayPal's own sandbox. Demo runs use a seed stand-in for the slip reading; Claude's only real readings are the hero-slip exhibit of 1 Nov 2026. The invoice is a seed-written placeholder, statements are hand-written templates, and the audit agent is paused."
+The video's disclosure, from `video/script.ts`: "Synthetic voices · Gemini TTS: the narration (voice Charon) and the member's statement. Cebuano: machine-translated, pending native review. Synthetic people and data. Slip images are synthetic: Codex-made hero flats (OpenAI's image model) and code-drawn slips, composed in code into photos A–L. Simulated PayPal sandbox; untested against PayPal's own sandbox. Demo runs use a seed stand-in for the slip reading; Claude's only real readings are the hero-slip exhibit of 1 Nov 2026. The invoice is a seed-written placeholder, statements are hand-written templates, and the audit agent is paused."
 
 All people, the co-op, the buyer, the slips and the documents are synthetic. Images carry a synthetic specimen label, and voices are labelled as Gemini TTS. No real farmer was paid.

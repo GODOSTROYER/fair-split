@@ -15,6 +15,8 @@ interface Beat {
   start: number;
   end: number;
   speech?: readonly [number, number];
+  /** The recorded voice's word times (F4, ADR-0018), one per spoken word of `say`. */
+  words?: readonly { w: string; start: number; end: number }[];
   say: string;
   show: readonly string[];
   cues: readonly { at: number; picture: string }[];
@@ -78,7 +80,7 @@ const beat = (id: string, beats: readonly Beat[] = film.beats): Beat => {
   if (!found) throw new Error(`no beat ${id}`);
   return found;
 };
-/** When `phrase` is said in `b`, word-proportionally across its speech window (as captions are timed). */
+/** When `phrase` is said in `b`: the recorded word's start (F4), else word-proportionally across its speech window. */
 function said(b: Beat, phrase: string): number {
   const list = spoken(b.say);
   const want = phrase.toLowerCase().split(/\s+/u);
@@ -86,6 +88,8 @@ function said(b: Beat, phrase: string): number {
     want.every((w, k) => (list[i + k] ?? "").toLowerCase().replace(/^\W+/u, "").startsWith(w)),
   );
   if (index < 0) throw new Error(`${b.id}: "${phrase}" is not spoken`);
+  const word = b.words?.[index];
+  if (word) return word.start;
   const [from, to] = b.speech ?? [b.start, b.end];
   return from + ((to - from) * index) / list.length;
 }
@@ -118,8 +122,8 @@ describe("film script v4: a product video, overview first (ADR-0017)", () => {
       ["deep-dive", "member", 129, 134],
       ["deep-dive", "listening", 134, 143],
       ["deep-dive", "impressive", 143, 154],
-      ["close", "limits", 154, 167],
-      ["close", "end", 167, 175],
+      ["close", "limits", 154, 164],
+      ["close", "end", 164, 175],
     ]);
     expect(film.PARTS.map((part) => [part.id, part.start, part.end])).toEqual([
       ["overview", 0, 57],
