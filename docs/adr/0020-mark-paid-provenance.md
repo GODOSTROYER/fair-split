@@ -1,4 +1,4 @@
-# ADR 0018: Mark paid returns the invoice provenance
+# ADR 0020: Mark paid returns the invoice provenance
 
 Status: Accepted, 11 November 2026.
 
