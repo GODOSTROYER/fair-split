@@ -7,6 +7,7 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { runInNewContext } from "node:vm";
 import { describe, expect, it } from "vitest";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
@@ -51,6 +52,34 @@ describe("the Postman collection", () => {
     expect(collection.info.schema).toBe(
       "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     );
+  });
+
+  it("inv.i8.mark-paid: the collection accepts labelled replay and refuses a mismatched invoice id", () => {
+    const markPaid = requests(collection.item).find((request) => request.name === "1.04 Fund: Mark paid");
+    const source = markPaid.event.find((event) => event.listen === "test").script.exec.join("\n");
+    const check = (invoiceId, provenance) => {
+      const values = new Map([
+        ["invoiceId", invoiceId],
+        ["paypalProvenance", provenance],
+      ]);
+      const body = { invoiceId, provenance, invoiceStatus: "MARKED_AS_PAID" };
+      runInNewContext(source, {
+        pm: {
+          response: {
+            code: 200,
+            json: () => body,
+            to: { have: { status: (code) => expect(code).toBe(200) } },
+          },
+          collectionVariables: { get: (key) => values.get(key), set: (key, value) => values.set(key, value) },
+          test: (_name, assertion) => assertion(),
+          expect,
+        },
+      });
+    };
+    expect(() => check("INV2-RPLY-TEST", "replay")).not.toThrow();
+    expect(() => check("INV2-SIM-TEST", "simulated_rail")).not.toThrow();
+    expect(() => check("INV2-SIM-TEST", "replay")).toThrow();
+    expect(() => check("INV2-RPLY-TEST", "simulated_rail")).toThrow();
   });
 
   it("targets only {{baseUrl}} or {{simBaseUrl}}, never a literal host", () => {
