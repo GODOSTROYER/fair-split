@@ -358,8 +358,8 @@ function wordStart({ beat: id, phrase }) {
  */
 export const CHIPS = {
   // 38 px (verify v5-r1: at least 36 px on screen), two lines, beside the phone's lower half so it does not crowd
-  // the transcript
-  "listening-phone": { text: FILM.translationDisclosure, box: [-700, 540, 660], from: 0.3 },
+  // the transcript; 22 px off the phone, so the camera's push (to 1.07x by 141.9 s) keeps it 64 px inside the frame
+  "listening-phone": { text: FILM.translationDisclosure, box: [-662, 540, 640], from: 0.3 },
 };
 /** The ordered capture-slot windows of the run, with their camera, glides, keyword times and accent. */
 function choreograph() {
