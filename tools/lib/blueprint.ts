@@ -643,6 +643,8 @@ export function checkDatabaseRoles(bp: Blueprint): string[] {
 
 /** `node apps/tasks/dist/cron.js` -> `apps/tasks/src/cron.ts`, for checking start commands resolve. */
 export function startCommandSource(startCommand: string): string | undefined {
-  const m = /^node\s+(\S+)\/dist\/(\S+)\.js$/.exec(startCommand.trim());
+  const m = /^node(?:\s+--(?:max-old-space-size|max-semi-space-size)=\d+)*\s+(\S+)\/dist\/(\S+)\.js$/.exec(
+    startCommand.trim(),
+  );
   return m ? `${m[1]}/src/${m[2]}.ts` : undefined;
 }
