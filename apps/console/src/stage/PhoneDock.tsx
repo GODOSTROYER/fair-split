@@ -274,6 +274,9 @@ export function PhoneDock({
                       className="fsc-dock__tab fs-t-label"
                       title={name}
                       data-testid={`W-JG-01.tab.${p}`}
+                      // The shown frame's avatar opens the phone too: a change of frame raises it through
+                      // onValueChange, and the tab already selected fires none (the folded rail's dead click).
+                      onClick={p === shown ? onRaise : undefined}
                     >
                       <span className="fsc-dock__avatar" aria-hidden>
                         {personaInitials(name)}

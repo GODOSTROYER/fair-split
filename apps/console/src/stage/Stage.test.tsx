@@ -443,6 +443,19 @@ describe("Judge stage", () => {
     expect(tab.getAttribute("aria-expanded")).toBe("false");
   });
 
+  it("the shown frame's avatar on the folded rail opens the phone too (round 3: it opens on click)", async () => {
+    await renderConsole({ path: "/judge", viewport: { width: 1366 } });
+    const tab = screen.getByTestId("W-JG-01.phoneTab");
+    const member = screen.getByTestId("W-JG-01.tab.member");
+    expect(member.getAttribute("aria-selected")).toBe("true");
+    expect(tab.getAttribute("aria-expanded")).toBe("false");
+    await act(async () => {
+      fireEvent.click(member);
+    });
+    expect(tab.getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getByTestId("W-JG-01.tab.member").getAttribute("aria-selected")).toBe("true");
+  });
+
   it("under the viewer's scrim the console is inert and focus is in the phone; lowering hands focus back", async () => {
     await renderConsole({ path: "/judge", viewport: { width: 1366 } });
     const tab = screen.getByTestId("W-JG-01.phoneTab");
