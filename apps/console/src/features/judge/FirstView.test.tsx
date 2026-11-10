@@ -31,7 +31,7 @@ async function press(testId: string) {
 }
 
 describe("W-JG-01 first view", { timeout: 60_000 }, () => {
-  it("keeps the short invoice action whole, says where the run is, and names the season above it", async () => {
+  it("keeps the short invoice action whole, says where the run is, and names the season under it", async () => {
     await renderConsole({ path: "/judge" });
     const button = screen.getByRole("button", { name: /Mark Lantern Bay.s invoice paid/ });
     // The face's words; its Enter keycap is decoration, hidden from assistive tech.
@@ -48,7 +48,20 @@ describe("W-JG-01 first view", { timeout: 60_000 }, () => {
     const heading = screen.getByRole("heading", { level: 1, name: "Invoice sent. Awaiting payment." });
     expect(heading.querySelector(".fsc-first__title-done")?.textContent).toBe("Invoice sent.");
     expect(heading.querySelector(".fsc-first__title-now")?.textContent).toBe("Awaiting payment.");
+    // Nothing above the heading (no eyebrow): the season and the co-op are the meta line under it, with the facts.
+    expect(heading.previousElementSibling).toBeNull();
+    expect(heading.classList.contains("fs-t-title")).toBe(true);
+    const meta = heading.nextElementSibling;
+    expect(meta?.contains(screen.getByTestId("W-JG-01.mark"))).toBe(true);
+    expect(meta?.contains(screen.getByTestId("W-JG-01.facts"))).toBe(true);
     expect(screen.getByTestId("W-JG-01.mark").textContent).toContain("Season 2026-A");
+    // Ids and hashes in the one mono, words beside them in FS Sans.
+    expect(screen.getByTestId("W-JG-01.rules.sealed").querySelector(".fs-t-id")?.textContent).toMatch(
+      /^[0-9a-f]{4} [0-9a-f]{4}$/,
+    );
+    expect(screen.getByTestId("W-JG-01.invoice.id").querySelector(".fs-t-id")?.textContent).toBe(
+      getSnapshot().run.invoice.invoiceNumber,
+    );
   });
 
   it("keeps the recording pill until the payment command answers", async () => {

@@ -287,8 +287,8 @@
   align-items: center;
   gap: 4px;
   color: var(--fs-ink-2);
-  font-size: 0.75rem;
-  line-height: 1rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
 }
 
 .fsc-fund__part .fs-glyph {
@@ -306,8 +306,9 @@
 }
 
 /* The pool as one line (round 3): "Invoice US$4,333.50 − costs US$60.00 =" in the figure role, then the pool in
-   the money role. Pending (before the simulated PayPal funds it) the pool is grey with a hollow dot; funded it is
-   ink with the one micro-tag. The terms wrap under the result only when the column is narrow. */
+   the money role (title step, its US$ raised but never under the 12 px floor). Pending (before the simulated
+   PayPal funds it) the pool is grey with a hollow dot; funded it is ink with the one micro-tag. The terms wrap
+   under the result only when the column is narrow. */
 .fsc-fund__eq {
   display: flex;
   flex-wrap: wrap;
@@ -332,8 +333,12 @@
 
 .fsc-fund__eq-word {
   color: var(--fs-ink-2);
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   line-height: 1.25rem;
+}
+
+.fsc-fund__eq .fs-cur {
+  font-size: max(0.5em, 0.75rem);
 }
 
 .fsc-fund__eq-op {
@@ -422,7 +427,7 @@
   align-content: start;
   gap: 20px;
   min-width: 0;
-  padding: 22px 26px 24px;
+  padding: 24px;
   border-radius: var(--fs-radius-card);
   background: var(--fs-plate);
   box-shadow: var(--fs-shadow-e1);
@@ -493,8 +498,8 @@
   color: var(--fs-ink);
 }
 
-/* The hollow cut's two layers move as one; once the amount has landed and filled, they give way to the ink layer:
-   FS Sans with proportional lining figures, so a landed amount reads as money, never as code (decision §7). */
+/* The hollow cut's two layers move as one; once the amount has landed and filled, they give way to the ink layer.
+   Every layer is FS Sans in tabular lining figures (round 3: one money style), so the cross-fade moves no digit. */
 .fsc-figure__cut {
   position: relative;
   display: inline-block;
@@ -506,7 +511,7 @@
   inset: 0;
   color: var(--fs-ink);
   font-family: var(--fs-font-ui);
-  font-variant-numeric: lining-nums proportional-nums;
+  font-variant-numeric: tabular-nums lining-nums;
   transition: opacity var(--fs-dur-crossfade) var(--fs-ease-out);
   pointer-events: none;
 }
@@ -547,11 +552,6 @@ summary.fsc-fund__draft-head {
 
 summary.fsc-fund__draft-head::-webkit-details-marker {
   display: none;
-}
-
-summary.fsc-fund__draft-head:focus-visible {
-  outline: var(--fs-focus-width) solid var(--fs-pod);
-  outline-offset: var(--fs-focus-offset);
 }
 
 summary.fsc-fund__draft-head > .fs-glyph:last-child {
@@ -822,6 +822,10 @@ details[open] > summary.fsc-fund__draft-head > .fs-glyph:last-child {
   transform: rotate(var(--fsc-turn, 0deg));
 }
 
+.fsc-contact__id {
+  font-weight: 520;
+}
+
 .fsc-contact__link:hover .fsc-contact__id {
   color: var(--fs-ink);
   text-decoration: underline;
@@ -833,19 +837,16 @@ details[open] > summary.fsc-fund__draft-head > .fs-glyph:last-child {
   outline: none;
 }
 
+/* The one ring, drawn on the print rather than around its caption. */
 .fsc-contact__link:focus-visible .fsc-contact__paper {
   outline: var(--fs-focus-width) solid var(--fs-pod);
-  outline-offset: 4px;
+  outline-offset: var(--fs-focus-offset);
 }
 
 .fsc-contact__caption {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-}
-
-.fsc-contact__id {
-  font-weight: 520;
 }
 
 .fsc-contact__item[data-read] .fsc-contact__caption {
@@ -1071,7 +1072,4 @@ details[open] > summary.fsc-fund__draft-head > .fs-glyph:last-child {
 }
 .fsc-fund__invoice .fs-slab__label {
   white-space: normal;
-}
-.fsc-fund__invoice .fs-t-amount-hero {
-  font-size: clamp(2rem, 3.7vw, 4.5rem);
 }

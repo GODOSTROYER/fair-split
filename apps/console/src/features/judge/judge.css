@@ -29,29 +29,12 @@
 
 .fsc-first__titles {
   display: grid;
-  gap: 8px;
+  gap: 4px;
   min-width: 0;
 }
 
-/* One line above the heading: the season, then the co-op (round 3: no stencil eyebrow). */
-.fsc-first__eyebrow {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0 8px;
-  margin: 0;
-  color: var(--fs-ink-2);
-}
-
-.fsc-first__season {
-  color: var(--fs-ink);
-}
-
-.fsc-first__sep {
-  color: var(--fs-ink-3);
-}
-
-/* The heading in two parts (round 3): what already happened in grey, then where the run is now, in ink. */
+/* The heading in two parts (round 3): what already happened in grey, then where the run is now, in ink. Nothing
+   sits above it. */
 .fsc-first__title {
   margin: 0;
   color: var(--fs-ink);
@@ -62,10 +45,19 @@
   color: var(--fs-ink-3);
 }
 
-/* The hero's one line of facts: "64 members · 1 invoice". */
-.fsc-first__facts {
+/* One meta line under the heading: "Season 2026-A · the co-op · 64 members · 1 invoice". */
+.fsc-first__meta {
   margin: 0;
   color: var(--fs-ink-2);
+}
+
+.fsc-first__sep {
+  color: var(--fs-ink-3);
+}
+
+/* The facts wrap as one piece, never "64 members ·" over "1 invoice". */
+.fsc-first__facts {
+  white-space: nowrap;
 }
 
 /* The rate card as one quiet chip: a lock, its name, its hash and seal date in micro, then "Open". */
@@ -87,6 +79,7 @@
   color: var(--fs-ink-2);
 }
 
+/* The hash (mono) and its seal date (FS Sans) share one inline line and its baseline. */
 .fsc-first__card-hash {
   color: var(--fs-ink-3);
 }
@@ -228,11 +221,14 @@
   white-space: nowrap;
 }
 
+/* Each step's count on the title step (24/30, round 3), in the numerals' 500 at 87.5 %: the invoice above stays
+   the screen's one hero. */
 .fsc-tile__no {
   color: var(--fs-ink);
   font-weight: 500;
-  font-size: 1.75rem;
-  letter-spacing: -0.01em;
+  font-size: 1.5rem;
+  line-height: 1.875rem;
+  letter-spacing: -0.015em;
 }
 
 .fsc-tile__sep {
@@ -255,14 +251,10 @@
     padding: 12px 16px;
   }
 
-  .fsc-tile__no {
-    font-size: 1.5rem;
-  }
-
   /* Half the desk is narrow: still two rows of six, smaller, so the panel ends on whole rows above the steps. */
   .fsc-first__sheet > .fsc-contact {
     grid-template-columns: repeat(6, minmax(0, 76px));
-    gap: 10px;
+    gap: 8px;
   }
 
   /* Below 1600 px the keycap gives the press's words the room. */
@@ -271,7 +263,7 @@
   }
 }
 
-/* A short window (1280 x 800): the first view's rhythm tightens so the steps and the honesty row stay in view. */
+/* A short window (1280 x 800): the first view's rhythm tightens so the five steps stay in view. */
 @media (max-height: 899px) {
   .fsc-first {
     gap: 16px;
@@ -295,7 +287,7 @@
 
   .fsc-tile {
     gap: 4px;
-    padding: 10px 16px;
+    padding: 12px 16px;
   }
 }
 
@@ -311,7 +303,7 @@
 
 .fsc-first__action {
   display: grid;
-  gap: 14px;
+  gap: 12px;
   justify-items: start;
 }
 
@@ -370,7 +362,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px 10px;
+  gap: 8px 12px;
   margin: 0;
   color: var(--fs-ink);
 }
@@ -399,17 +391,17 @@
   appearance: none;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   min-height: 28px;
-  padding: 0 10px;
+  padding: 0 12px;
   border: 0;
   border-radius: var(--fs-radius-pill);
   background: transparent;
   color: var(--fs-ink-2);
   font-family: var(--fs-font-ui);
   font-weight: 520;
-  font-size: 0.8125rem;
-  line-height: 1rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
   white-space: nowrap;
 }
 
@@ -473,16 +465,16 @@
   left: 14px;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   max-width: 280px;
-  padding: 6px 12px;
+  padding: 4px 12px;
   border-radius: var(--fs-radius-pill);
   background: var(--fs-ink);
   color: var(--fs-ground);
   font-family: var(--fs-font-ui);
-  font-weight: 560;
-  font-size: 0.8125rem;
-  line-height: 1rem;
+  font-weight: 520;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
   white-space: nowrap;
 }
 
@@ -515,8 +507,10 @@
 
 /* ---------------------------------------------------------------- "Try to break it" (What's real) */
 
-/* Four left-aligned rows, a rule between them: the attack's name, then "Try" at the row's end (round 3). The row
-   tried last opens in place to its result: a marigold dot, "Refused · <rule id>", and the one number blocked. */
+/* Four left-aligned rows, a rule between them: the attack's name, then "Try" (the one secondary button, .fs-flat)
+   at the row's end (round 3). The row tried last opens in place to its result, a title: an ink dot (a checked
+   fact; no person decides a refusal, so never amber), "Refused · <rule id>" with the id in the mono, and the one
+   number it blocked at the row's end; the policy's words wait behind "Why". */
 .fsc-tampers {
   display: grid;
   margin: 8px 0 0;
@@ -552,26 +546,15 @@
   color: var(--fs-ink-3);
 }
 
-/* "Try": a quiet outlined button, sized to its word. */
+/* "Try" is the shared .fs-flat; disabled (no run yet, or the payout change already armed) it reads in ink-3 and
+   keeps its place. */
 .fsc-tamper__try {
-  appearance: none;
   flex: none;
-  min-width: 56px;
-  min-height: 32px;
-  padding: 0 12px;
-  border: 1px solid var(--fs-rule-strong);
-  border-radius: var(--fs-radius-control);
-  background: var(--fs-plate);
-  color: var(--fs-ink);
-  cursor: pointer;
-}
-
-.fsc-tamper__try:hover:not(:disabled) {
-  border-color: var(--fs-steel-line);
-  background: var(--fs-plate-2);
 }
 
 .fsc-tamper__try:disabled {
+  border-color: var(--fs-rule);
+  background: var(--fs-plate);
   color: var(--fs-ink-3);
   cursor: default;
 }
@@ -580,11 +563,11 @@
   color: var(--fs-ink-3);
 }
 
-/* The result, in place under the row's name. */
+/* The result, in place under the row's name: the title line, then "Why". */
 .fsc-tamper__result {
   display: grid;
   gap: 4px;
-  padding: 0 0 14px;
+  padding: 0 0 12px;
 }
 
 .fsc-tamper__verdict {
@@ -594,6 +577,13 @@
   gap: 4px 8px;
   margin: 0;
   color: var(--fs-ink);
+}
+
+.fsc-tamper__title {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 8px;
 }
 
 .fsc-tamper__sep {

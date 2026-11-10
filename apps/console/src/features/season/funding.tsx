@@ -134,8 +134,8 @@ export function HollowFigure({
 }) {
   const display = format.money(cents);
   const mirror = useMirror(solid);
-  // Landed and filled, the amount reads as money: a third layer in FS Sans's proportional figures (a plain zero)
-  // cross-fades in over the hollow cut, whose figures are tabular with the slashed zero (ADR-0016, decision §7).
+  // Landed and filled, a third ink layer cross-fades in over the hollow cut; every layer is FS Sans in tabular
+  // figures (round 3: one money style), so nothing a viewer reads moves.
   const hasLanded = useMirror(landed ? 1 : 0);
   const ink = useTransform([mirror, hasLanded], ([v, l]) =>
     (l as number) >= 1 && (v as number) >= 1 ? 1 : 0,
@@ -395,9 +395,18 @@ export function FundingBlock({
             {compact ? (
               <>
                 {FIRST_VIEW_COPY.invoice}
-                <span className="fsc-fund__number fs-t-micro" data-testid={`${screen}.invoice.id`}>
-                  {inSession ? (view?.invoice.number ?? "draft") : (shownId?.number ?? invoice.invoiceNumber)}
-                  {shownId?.note ? <span className="fsc-fund__id-note">{` · ${shownId.note}`}</span> : null}
+                {/* The id in the mono; the showcase's says it is the showcase's, in words. */}
+                <span className="fsc-fund__number" data-testid={`${screen}.invoice.id`}>
+                  {inSession && !view?.invoice.number ? (
+                    <span className="fs-t-caption">draft</span>
+                  ) : (
+                    <span className="fs-t-id">
+                      {inSession ? view?.invoice.number : (shownId?.number ?? invoice.invoiceNumber)}
+                    </span>
+                  )}
+                  {shownId?.note ? (
+                    <span className="fsc-fund__id-note fs-t-caption">{` · ${shownId.note}`}</span>
+                  ) : null}
                 </span>
               </>
             ) : (
@@ -429,7 +438,7 @@ export function FundingBlock({
             {compact && <RailMicroTag rail={rail} testId={`${screen}.invoice.tag`} />}
           </span>
           {compact ? (
-            <span className="fsc-fund__estimate fs-t-micro" title={invoice.pesoEstimate}>
+            <span className="fsc-fund__estimate fs-t-caption" title={invoice.pesoEstimate}>
               {invoice.pesoEstimate.replace(/^about /, "≈ ").replace(/ \(estimate\)$/, "")}
             </span>
           ) : (
@@ -456,7 +465,7 @@ export function FundingBlock({
               <Glyph name="ms:expand-more" size={18} />
             </summary>
             {draftBody}
-            <p className="fsc-fund__memo fs-t-micro">
+            <p className="fsc-fund__memo fs-t-caption">
               {`${memo} · ${t("W-TR-01.invoice.autoCancel", { date: format.date(invoice.autoCancelOn) })}`}
             </p>
           </details>
@@ -557,7 +566,7 @@ export function FundingBlock({
             {layout === "desk" ? FIRST_VIEW_COPY.pool : SEASON_COPY.pool}
             {layout === "desk" && (
               <span
-                className="fsc-fund__share fs-t-micro"
+                className="fsc-fund__share fs-t-caption"
                 title={SEASON_COPY.poolShare(snapshot.figures.members)}
               >
                 {FIRST_VIEW_COPY.members(snapshot.figures.members)}
@@ -569,13 +578,17 @@ export function FundingBlock({
               {funded && compact && (
                 // When the simulated PayPal's status check read the invoice paid: its time, the words in its title.
                 <span
-                  className="fsc-fund__checked fs-t-micro"
+                  className="fsc-fund__checked fs-t-caption"
                   title={fundedSourceTitle}
                   data-testid={`${screen}.funded.source`}
                 >
-                  {[FIRST_VIEW_COPY.statusCheck, paidAt ? format.time(paidAt) : null]
-                    .filter(Boolean)
-                    .join(" · ")}
+                  {FIRST_VIEW_COPY.statusCheck}
+                  {paidAt ? (
+                    <>
+                      {" · "}
+                      <span className="fs-t-id">{format.time(paidAt)}</span>
+                    </>
+                  ) : null}
                 </span>
               )}
               <FundedMark inset={values.inset} flood={values.flood} testId={`${screen}.funded`} />

@@ -43,6 +43,8 @@ it("offers all four simulator tampers as rows, and the tried row opens in place 
   expect(screen.getByRole("button", { name: "Try: Arm a payout change before key 2" })).toBe(
     screen.getByTestId("W-JG-01.tamper.change_payout"),
   );
+  // "Try" is the one secondary button, never a third style.
+  expect(screen.getByTestId("W-JG-01.tamper.amount").classList.contains("fs-flat")).toBe(true);
   // No tag in the sheet's attempts: the lede and the PayPal row say what is simulated.
   expect(screen.getByTestId("W-JG-01.tryToBreak").querySelector("[data-fs-tag]")).toBeNull();
   expect(screen.getByTestId("W-JG-01.whatsReal").textContent).not.toContain("with its date");
@@ -68,6 +70,11 @@ it("offers all four simulator tampers as rows, and the tried row opens in place 
   expect(result.closest(".fsc-tamper")?.getAttribute("data-kind")).toBe("amount");
   expect(result.textContent).toContain("Refused");
   expect(result.textContent).toContain("invoiceEqualsQuote");
+  // The refusal is a title with its rule id in the mono, beside an ink dot: no person decides it, so never amber.
+  expect(result.querySelector(".fsc-tamper__title")?.classList.contains("fs-t-heading")).toBe(true);
+  expect(result.querySelector(".fsc-tamper__rule.fs-t-id")?.textContent).toBe("invoiceEqualsQuote");
+  expect(result.querySelector('.fs-state-dot[data-kind="done"]')).toBeTruthy();
+  expect(result.querySelector('.fs-state-dot[data-kind="held"]')).toBeNull();
   expect(result.textContent).toContain("+US$1,000.00 blocked");
   expect(result.querySelector("details summary")?.textContent).toBe("Why");
   // The row tried earlier keeps one word.

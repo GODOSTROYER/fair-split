@@ -1,7 +1,7 @@
 // What's real's "Try to break it" (UI gate round 3): a list of four left-aligned rows, each the attack's name and a
-// "Try" button. The row tried last expands in place to its result: "Refused · <rule id>" beside a marigold dot (a
-// refusal a person reads), and the one number the attack would have changed ("+US$1,000.00 blocked"), with the
-// policy's own words behind "Why". A row tried earlier keeps one word, "Refused". The 1-cent payout change is armed
+// "Try" button (the shared .fs-flat). The row tried last expands in place to its result, a title: "Refused · <rule
+// id>" (the id in the mono) beside an ink dot (a checked fact; amber is only for a person's decision), and the one
+// number the attack would have changed ("+US$1,000.00 blocked"), with the policy's own words behind "Why". A row tried earlier keeps one word, "Refused". The 1-cent payout change is armed
 // before key 2 and refused by both keys: its row says so, then that both approvals were voided. No model or
 // PayPal call is made by these controls; the sheet's lede says so, and its PayPal row is the simulated sandbox's.
 
@@ -98,15 +98,12 @@ export function TamperControls() {
           return (
             <li key={kind} className="fsc-tamper" data-kind={kind} data-state={state}>
               <div className="fsc-tamper__row">
-                <span className="fsc-tamper__name fs-t-label" id={`fsc-tamper-${kind}`}>
-                  {label}
-                </span>
+                <span className="fsc-tamper__name fs-t-label">{label}</span>
                 {word && <span className="fsc-tamper__was fs-t-caption">{word}</span>}
                 <button
                   type="button"
-                  className="fsc-tamper__try fs-t-label"
+                  className="fs-flat fsc-tamper__try"
                   data-testid={`W-JG-01.tamper.${kind}`}
-                  aria-describedby={`fsc-tamper-${kind}`}
                   disabled={
                     !session ||
                     pending !== null ||
@@ -135,18 +132,17 @@ export function TamperControls() {
                   ) : (
                     <>
                       <p className="fsc-tamper__verdict">
-                        <StateDot kind={open.verdict === "DENY" ? "held" : "pending"} />
-                        <span className="fs-t-label">
+                        {/* A refusal is a checked fact, the ink dot: no person decides it (never amber). */}
+                        <StateDot kind={open.verdict === "DENY" ? "done" : "pending"} />
+                        <span className="fsc-tamper__title fs-t-heading">
                           {VERDICT_WORD[open.verdict ?? ""] ?? open.verdict}
                           {open.decidedBy.length > 0 && (
                             <>
                               <span className="fsc-tamper__sep" aria-hidden>
-                                {" · "}
+                                ·
                               </span>
                               <span className="fs-sr">, by </span>
-                              <span className="fsc-tamper__rule fs-t-micro">
-                                {open.decidedBy.join(" · ")}
-                              </span>
+                              <span className="fsc-tamper__rule fs-t-id">{open.decidedBy.join(" · ")}</span>
                             </>
                           )}
                         </span>

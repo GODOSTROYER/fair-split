@@ -92,8 +92,8 @@ export interface FirstViewTitle {
 
 /** The first view's single action (W-JG-01), and what happens while it runs (UI gate round 2: one line each). */
 export const FIRST_VIEW_COPY = {
-  /** The line above the heading: the season and the co-op (the season mark's stencil is retired, round 3). */
-  eyebrow: (season: string) => `Season ${season}`,
+  /** The season in the meta line under the heading, before the co-op (round 3: nothing above the heading). */
+  season: (season: string) => `Season ${season}`,
   /** The hero's one line of facts under the title; the slips' counts sit on the desk, with their scope. */
   facts: (members: number) => `${members} members · 1 invoice`,
   lede: (members: number, buyer: string) =>
@@ -133,7 +133,8 @@ export const FIRST_VIEW_COPY = {
   openCard: "Open the rate card",
   /** The rate card's chip: its name, then its hash and seal date in micro, then "Open". */
   card: "Rate card",
-  cardSealed: (hash: string, date: string) => `${hash} · sealed ${date}`,
+  /** The chip's seal date, after its hash (the hash is an id, in the mono). */
+  cardSealedOn: (date: string) => ` · sealed ${date}`,
   open: "Open",
   /** The pool's strip and the desk's head (W-JG-01). */
   pool: "Pool",

@@ -1,7 +1,7 @@
 // W-JG-01's first view (S1.6, design §6 J1, plan "Judge Mode" step 0). UI gate round 3: the heading says where the
 // run is, factually ("Invoice sent. Awaiting payment.", then "Invoice marked paid. Pool funded.", then the payouts
-// and the cash still due), the past in grey and the present in ink, under one line naming the season and the
-// co-op. Then the rate card's chip; the invoice with its one amount (the one micro-tag beside it), its one press
+// and the cash still due), the past in grey and the present in ink, with one meta line under it (the season, the
+// co-op, the run's facts; nothing above the heading). Then the rate card's chip (its hash in the mono); the invoice with its one amount (the one micro-tag beside it), its one press
 // and its seeded lines folded at the foot; the pool as one line, "Invoice − costs = Pool"; the twelve slip photos
 // with their counts' scope ("48 this run · 264 season"); and the five steps as numbers, the pay split planned in
 // grey until the run settles. No legend row: the marks' words are their tooltips, and What's real holds the
@@ -25,7 +25,7 @@ import { seasonLabel, slipCounts } from "../../lib/display.js";
 import { env } from "../../lib/env.js";
 import { useFocusAfterRemoval } from "../../lib/focus.js";
 import { format } from "../../lib/format.js";
-import { useNextStep, usePrefocus } from "../../stage/context.js";
+import { prefocusQuietly, useNextStep, usePrefocus } from "../../stage/context.js";
 import { sealedText } from "../ratecard/model.js";
 import { ExhibitLink } from "../reading/ExhibitLink.js";
 import { photoIsRead, replayPhotos } from "../reading/model.js";
@@ -55,6 +55,16 @@ function reachedFunding(state: PayRunState): boolean {
 }
 
 type PressPhase = "idle" | "starting" | "recording" | "funded" | "failed";
+
+/** Whether the focused control wears the keyboard's ring (and not the quiet pre-focus's absence of one). */
+function wasKeyed(el: HTMLElement): boolean {
+  if (el.dataset.prefocused !== undefined) return false;
+  try {
+    return el.matches(":focus-visible");
+  } catch {
+    return true;
+  }
+}
 
 function Desk() {
   const t = useT();
@@ -112,9 +122,12 @@ function Desk() {
     if (!movedOn) return;
     const active = document.activeElement;
     if (active instanceof HTMLElement && active.closest('[data-testid="W-JG-01.markPaid"]')) {
-      actionEl
-        ?.querySelector<HTMLElement>('[data-testid="W-JG-01.continue"]')
-        ?.focus({ preventScroll: true });
+      const continueLink = actionEl?.querySelector<HTMLElement>('[data-testid="W-JG-01.continue"]');
+      if (!continueLink) return;
+      // One ring, on keyboard focus only (round 3): a press made with a key hands its ring on; a click, or the
+      // quiet pre-focus, hands the focus on without one until a key is pressed.
+      if (wasKeyed(active)) continueLink.focus({ preventScroll: true });
+      else prefocusQuietly(continueLink);
     }
   }, [movedOn, actionEl]);
 
@@ -320,29 +333,38 @@ function Desk() {
     >
       <header className="fsc-first__head">
         <div className="fsc-first__titles">
-          <p className="fsc-first__eyebrow fs-t-label" data-testid="W-JG-01.mark">
-            <span className="fsc-first__season">{FIRST_VIEW_COPY.eyebrow(seasonLabel(season))}</span>
-            <span className="fsc-first__sep" aria-hidden>
-              ·
-            </span>
-            <span className="fs-sr">, </span>
-            <span className="fsc-first__coop">{t("W-TR-01.coop")}</span>
-          </p>
           <h1
             id="fsc-first-title"
-            className="fs-t-display fsc-first__title"
+            className="fs-t-title fsc-first__title"
             data-testid="W-JG-01.title"
             data-state={settled ? "settled" : funded ? "funded" : "ready"}
           >
             <span className="fsc-first__title-done">{title.done}</span>{" "}
             <span className="fsc-first__title-now">{title.now}</span>
           </h1>
-          <p
-            className="fsc-first__facts fs-t-label"
-            title={FIRST_VIEW_COPY.lede(snapshot.figures.members, snapshot.lot.buyer)}
-            data-testid="W-JG-01.facts"
-          >
-            {FIRST_VIEW_COPY.facts(snapshot.figures.members)}
+          {/* One meta line under the heading (round 3: no eyebrow above it): the season and the co-op, then the
+              run's facts. */}
+          <p className="fsc-first__meta fs-t-caption">
+            <span className="fsc-first__season" data-testid="W-JG-01.mark">
+              {FIRST_VIEW_COPY.season(seasonLabel(season))}
+              <span className="fsc-first__sep" aria-hidden>
+                {" · "}
+              </span>
+              <span className="fs-sr">, </span>
+              {t("W-TR-01.coop")}
+            </span>
+            {/* The dot holds to the co-op's name, so a wrapped line starts with the facts, never with a dot. */}
+            <span className="fsc-first__sep" aria-hidden>
+              {" · "}
+            </span>
+            <span className="fs-sr">, </span>
+            <span
+              className="fsc-first__facts"
+              title={FIRST_VIEW_COPY.lede(snapshot.figures.members, snapshot.lot.buyer)}
+              data-testid="W-JG-01.facts"
+            >
+              {FIRST_VIEW_COPY.facts(snapshot.figures.members)}
+            </span>
           </p>
         </div>
         <AppLink
@@ -353,11 +375,12 @@ function Desk() {
         >
           <Glyph name="ms:lock" size={16} />
           <span className="fs-t-label">{FIRST_VIEW_COPY.card}</span>
-          <span className="fsc-first__card-hash fs-t-micro" data-testid="W-JG-01.rules.sealed">
-            {FIRST_VIEW_COPY.cardSealed(
-              format.hashGroups(snapshot.rateCard.sha256),
-              format.dateShort(snapshot.rateCard.canonical.ratifiedOn),
-            )}
+          {/* The hash in the mono (an id), its seal date in words. */}
+          <span className="fsc-first__card-hash" data-testid="W-JG-01.rules.sealed">
+            <span className="fs-t-id">{format.hashGroups(snapshot.rateCard.sha256)}</span>
+            <span className="fs-t-caption">
+              {FIRST_VIEW_COPY.cardSealedOn(format.dateShort(snapshot.rateCard.canonical.ratifiedOn))}
+            </span>
           </span>
           <span className="fsc-first__card-open fs-t-label" aria-hidden>
             {FIRST_VIEW_COPY.open}
@@ -381,7 +404,7 @@ function Desk() {
               <h2 id="fsc-first-desk" className="fsc-first__desk-title fs-t-label">
                 {FIRST_VIEW_COPY.desk}
               </h2>
-              <span className="fsc-first__desk-note fs-t-micro" data-testid="W-JG-01.slips">
+              <span className="fsc-first__desk-note fs-t-caption" data-testid="W-JG-01.slips">
                 {FIRST_VIEW_COPY.slipsMicro(photos.length, slips.text)}
               </span>
               <span className="fsc-first__synthetic" data-testid="W-JG-01.synthetic">

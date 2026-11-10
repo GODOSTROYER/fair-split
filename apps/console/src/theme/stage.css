@@ -1403,9 +1403,9 @@
 
 /* ---------------------------------------------------------------- phone visit (under 1024 px) */
 
-/* On a phone the product is the member's statement (UI gate round 2): a short bar (the lockup and line icons,
-   then Proof and the honesty tag), one line that hands the stage to a laptop, then the statement itself,
-   full width with no device drawn around it. */
+/* On a phone the product is the member's statement (UI gate rounds 2 and 3): a short bar (the lockup and the line
+   icons with the overflow on one row, the quiet honesty indicator and a mock chip, if any, on the next), then the
+   statement itself, full width with no device drawn around it. */
 .fsc-stage[data-layout="phone-visit"] {
   --fsc-gutter: 8px;
   height: auto;
@@ -1425,10 +1425,14 @@
 
 .fsc-stage[data-layout="phone-visit"] .fsc-bar {
   position: relative;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 8px;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 4px 12px;
   min-height: 0;
-  padding: 10px 12px 10px 16px;
+  padding: 8px 12px 12px 16px;
+}
+
+.fsc-stage[data-layout="phone-visit"] .fsc-bar > .fsc-wordmark {
+  grid-column: 1 / -1;
 }
 
 .fsc-stage[data-layout="phone-visit"] .fsc-bar > .fsc-bar__actions {
@@ -1448,8 +1452,8 @@
 }
 
 .fsc-stage[data-layout="phone-visit"] .fsc-bar > .fsc-bar__honest {
-  grid-row: 3;
-  grid-column: 1;
+  grid-row: 2;
+  grid-column: 2;
   flex-wrap: wrap;
 }
 

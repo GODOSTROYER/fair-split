@@ -71,7 +71,7 @@ export function VisitMenu({ proofHref }: { readonly proofHref: string | null }) 
                 {/* The laptop line names the group: the full stage is a laptop's; the link takes it there. */}
                 <Menu.GroupLabel className="fsc-visit__laptop" title={STAGE.phoneVisitBody}>
                   <span className="fs-t-label">{STAGE.phoneVisitLine}</span>
-                  <span className="fsc-visit__px fs-t-micro">{STAGE.phoneVisitPx}</span>
+                  <span className="fsc-visit__px fs-t-caption">{STAGE.phoneVisitPx}</span>
                 </Menu.GroupLabel>
                 <Menu.Item
                   className="fsc-menu__item"
