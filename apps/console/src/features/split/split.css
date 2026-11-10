@@ -164,34 +164,16 @@
   opacity: 0.72;
 }
 
-/* The limit reads from the dial itself (UI gate round 3): the 2 px limit tick in ink stands over lighter ticks; the
-   needle (and its hub) is marigold while shrink is over the limit and ink inside it, so 2.05% against 2.0% reads
-   even where the two sit 3° apart. The bench's dot-matrix reading takes the same tone. */
-.fsr-dial .fs-dial__tick {
+/* The limit reads from the dial itself (UI gate round 3): ui-web draws the 2 px limit tick in ink and the needle
+   amber over the limit, ink inside it; here the other ticks step back to hairlines so the limit tick stands out,
+   and 2.05% against 2.0% reads even where the two sit 3° apart. The reading beside it stays ink (FS Sans). */
+.fsr-dial .fs-dial__tick:not(.fs-dial__tick--limit) {
   stroke: var(--fs-rule-strong);
   stroke-width: 1;
 }
 
 .fsr-dial .fs-dial__tick--limit {
-  stroke: var(--fs-ink);
-  stroke-width: 2;
   stroke-linecap: butt;
-}
-
-.fsr-dial .fs-dial__needle {
-  stroke: var(--fs-ink);
-}
-
-.fsr-dial .fs-dial__hub {
-  fill: var(--fs-ink);
-}
-
-.fsr-dial .fs-dial[data-over] .fs-dial__needle {
-  stroke: var(--fs-canary-border);
-}
-
-.fsr-dial .fs-dial[data-over] .fs-dial__hub {
-  fill: var(--fs-canary-border);
 }
 
 /* MM-3 reduced: the needle cuts to its new value under a 200 ms crossfade, its reading with it. */
@@ -440,14 +422,8 @@
   align-items: center;
 }
 
-/* Held and reserved rows: a 3 px marigold bar on the left (a person decides); the row itself stays white. */
-.fsr-grid .ag-row.fsr-row--held {
-  background: var(--fs-canary-wash);
-}
-
-.fsr-grid .fsr-row--held .ag-cell[col-id="member"] {
-  box-shadow: inset 3px 0 0 var(--fs-canary);
-}
+/* Held and reserved rows read from their status cell (UI gate round 3): the amber dot and the H-tag. The row stays
+   white, with no side bar and no wash. */
 
 /* The line a person has open: their selection, the pod wash. */
 .fsr-grid .ag-row.fsr-row--open,
@@ -461,10 +437,9 @@
   font-weight: 560;
 }
 
-/* The inline hold note under H1: the held row's bar continues, one line, a quiet way into the drawer. */
+/* The inline hold note under H1: one line on plate-2 tucked under its held row, a quiet way into the drawer. */
 .fsr-grid .ag-row.fsr-row--note {
-  background: var(--fs-canary-wash);
-  box-shadow: inset 3px 0 0 var(--fs-canary);
+  background: var(--fs-plate-2);
   cursor: default;
 }
 
@@ -547,13 +522,8 @@
   border-bottom: 1px solid var(--fs-rule-strong);
 }
 
-/* The pinned total sits over the scrolling lines as a footer (round 3): a soft neutral edge above it says the lines
-   run on beneath, so a line cut at the viewport reads as scrolling, never as hidden by the total. */
-.fsr-grid .ag-floating-bottom {
-  position: relative;
-  z-index: 1;
-  box-shadow: 0 -8px 12px -10px color-mix(in srgb, var(--fs-ink) 45%, transparent);
-}
+/* The pinned total is the grid's footer, outside the scrolling lines (AG Grid's floating bottom), so no line hides
+   under it: its strong top rule sets it off (one edge, no shadow). */
 
 /* A renderer fills its cell so a wash covers it edge to edge. */
 .fsr-cell {
@@ -668,15 +638,6 @@
 
 .fsr-grid .ag-cell.fsr-ag-expand {
   padding-inline: var(--fs-space-8);
-}
-
-/* In a narrow grid the held line's bar moves to the row's first cell, the opener. */
-.fsr-grid .fsr-row--held .ag-cell[col-id="expand"] {
-  box-shadow: inset 3px 0 0 var(--fs-canary);
-}
-
-.fsr-grid:is([data-columns="narrow"], [data-columns="slim"]) .fsr-row--held .ag-cell[col-id="member"] {
-  box-shadow: none;
 }
 
 /* The opened parts: one line of label and figure pairs under the line, aligned past the opener. */
@@ -810,10 +771,21 @@
   color: var(--fs-ink);
 }
 
+/* In flight with PayPal: the figure in ink-2 behind a hollow pending dot (round 3: dashed lines mean simulated only,
+   and a pending amount is a state, not a tag). */
 .fsr-amount[data-amount-state="hollow"] {
   color: var(--fs-ink-2);
-  text-decoration: underline dashed 1.5px;
-  text-underline-offset: 4px;
+}
+
+.fsr-amount[data-amount-state="hollow"]::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 6px;
+  border: 1px solid var(--fs-ink-3);
+  border-radius: 50%;
+  vertical-align: 1px;
 }
 
 /* Net is the line's answer, the one scanned column: figure-net, 87.5/600 (pencil until the keys, as every engine
@@ -1018,7 +990,8 @@
   }
 }
 
-/* Beside an open drawer: the dial and the pool on one row, the decisions and the filters beneath. */
+/* Beside an open drawer: the dial and the pool on one row, the decisions and the filters beneath; the
+   reconciliation takes its own line under the filters, the columns toggle stays on theirs. */
 @container (max-width: 820px) {
   .fsr-bench {
     grid-template-columns: auto minmax(0, 1fr);
@@ -1027,6 +1000,12 @@
 
   .fsr-bench__tools {
     grid-row: 3;
+  }
+
+  .fsr-recon {
+    order: 3;
+    flex-basis: 100%;
+    margin-left: 0;
   }
 
   .fsr-bench__summary {
@@ -1079,13 +1058,9 @@
   cursor: pointer;
 }
 
+/* The one ring, drawn inside the row so the table's scroller never clips it. */
 .fsr-static tbody tr:focus-visible {
-  outline: var(--fs-focus-width) solid var(--fs-pod);
   outline-offset: calc(-1 * var(--fs-focus-width));
-}
-
-.fsr-static .fsr-row--held > :first-child {
-  box-shadow: inset 3px 0 0 var(--fs-canary);
 }
 
 .fsr-static tfoot th,
@@ -1109,16 +1084,11 @@
   padding: var(--fs-space-12);
 }
 
-/* The static table's held rows and the hold note: the marigold wash (after the base rules it overrides). */
-.fsr-static .fsr-row--held > * {
-  background: var(--fs-canary-wash);
-}
-
+/* The static table's hold note: plate-2 under its held row, as in the grid (after the base rules it overrides). */
 .fsr-static .fsr-row--note > td {
   height: 40px;
   padding: 0;
-  background: var(--fs-canary-wash);
-  box-shadow: inset 3px 0 0 var(--fs-canary);
+  background: var(--fs-plate-2);
 }
 
 .fsr-static .fsr-row--open > * {

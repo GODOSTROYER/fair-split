@@ -16,10 +16,11 @@
   gap: var(--fs-space-16);
 }
 
-/* The card is the drawer's content, not a card inside a card. */
+/* The card is the drawer's content, not a card inside a card: no padding, no face, no shadow. */
 .fsr-hold.fs-hold {
   padding: 0;
   background: transparent;
+  box-shadow: none;
 }
 
 .fsr-hold.fs-hold:is([data-state="resolved"], [data-state="excluded"]) {
@@ -102,16 +103,12 @@
   display: none;
 }
 
-/* The seed's sentence carries its provenance as the stand-in tag (dashed steel, pencil, micro), not a heading. */
+/* The seed's sentence names its provenance as a quiet caption above it, never a pill (round 3: dashed lines mean
+   simulated only, and a stand-in is synthetic). */
 .fsr-hold .fs-hold__voice[data-voice="seeded"] dt {
   flex: none;
   justify-self: start;
-  height: 20px;
-  padding: 0 8px 0 6px;
-  border: 1px dashed var(--fs-steel-line);
-  border-radius: var(--fs-radius-pill);
   color: var(--fs-ink-3);
-  font-stretch: 87.5%;
   white-space: nowrap;
 }
 
@@ -120,20 +117,17 @@
 }
 
 /* H1 leads with its decision (UI gate round 3): the number line in pencil (the engine's), then the effect as the
-   card's one figure, "+US$17.94 to 63 members · 2.05% → 1.62%", in the money face directly above "Count it once";
-   the paired receipts and their four fields follow (drawn last; in the markup they stay inside the card, and hold
-   no control, so the keyboard meets the decision first either way). */
-.fsr-mm3 .fs-hold__voice[data-voice="engine"] dd {
-  font-variant-numeric: lining-nums proportional-nums;
-}
-
+   card's one figure, "+US$17.94 to 63 members · 2.05% → 1.62%", on the title step in tabular figures directly above
+   "Count it once"; the paired receipts and their four fields follow (drawn last; in the markup they stay inside the
+   card, and hold no control, so the keyboard meets the decision first either way). */
 .fsr-mm3 .fs-hold__effect .fs-t-body {
   color: var(--fs-ink);
   font-stretch: 87.5%;
   font-weight: 500;
-  font-size: 1.25rem;
-  line-height: 1.75rem;
-  font-variant-numeric: lining-nums proportional-nums;
+  font-size: 1.5rem;
+  line-height: 1.875rem;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
 }
 
 .fsr-mm3 .fsr-hold .fs-hold__evidence {
@@ -160,14 +154,13 @@
   margin-left: var(--fs-space-4);
 }
 
-/* The dial, small, with its state pill beside it. */
+/* The dial, small, with its state pill beside it: a section under a hairline, not a card in the drawer. */
 .fsr-hold__dial {
   display: flex;
   align-items: center;
   gap: var(--fs-space-16);
-  padding: var(--fs-space-12) var(--fs-space-16);
-  border-radius: var(--fs-radius-card);
-  box-shadow: inset 0 0 0 1px var(--fs-rule);
+  padding-top: var(--fs-space-16);
+  border-top: 1px solid var(--fs-rule);
 }
 
 .fsr-hold__dial p {
@@ -636,7 +629,7 @@
   gap: var(--fs-space-16);
 }
 
-/* The stand-in tag's pencil, in steel like the tag's dash (last: it outranks the other glyph rules). */
+/* The stand-in caption's pencil, in ink-3 like its words (last: it outranks the other glyph rules). */
 .fsr-hold .fs-hold__voice[data-voice="seeded"] dt .fs-glyph {
-  color: var(--fs-steel-line);
+  color: var(--fs-ink-3);
 }

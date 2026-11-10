@@ -246,7 +246,7 @@ describe("W-TR-03 reading room", { timeout: 60_000 }, () => {
     r.unmount();
   });
 
-  it("sends slip 0462 to a person: a marigold row, a You cell, its step inline; Enter on its row opens W-TR-04", async () => {
+  it("sends slip 0462 to a person: an amber dot, a You cell, its step inline; Enter on its row opens W-TR-04", async () => {
     const r = await readingRun("reduced", `${READING}?photo=J`);
     act(() => r.stream.inject(rowsFor(["J"])));
     const you = await screen.findByTestId("W-TR-03.beds.you.0462");
@@ -259,7 +259,9 @@ describe("W-TR-03 reading room", { timeout: 60_000 }, () => {
     const row = screen.getByTestId("W-TR-03.beds.row.0462");
     expect(row.dataset.needs).toBe("person");
     expect(row.querySelector('[data-amount-state="you"]')?.textContent).toMatch(/6\?\.50/);
-    // Only the row a person must decide carries the bar.
+    // The hold reads from its amber dot beside the step (round 3: no side bar); only that row carries it.
+    expect(row.querySelector('.fs-state-dot[data-kind="held"]')).not.toBeNull();
+    expect(screen.getByTestId("W-TR-03.beds.row.0453").querySelector(".fs-state-dot")).toBeNull();
     expect(screen.getByTestId("W-TR-03.beds.row.0453").dataset.needs).toBeUndefined();
     await act(async () => {
       row.focus();
@@ -385,7 +387,7 @@ describe("W-TR-03 reading room", { timeout: 60_000 }, () => {
     await screen.findByTestId("W-TR-03");
     const replay = screen.getByTestId("W-TR-03.replay");
     expect(replay.dataset.state).toBe("idle");
-    expect(replay.textContent).toMatch(/Mock data: the mock API sends no rows/);
+    expect(replay.textContent).toMatch(/^Mock data: a replay of the seed stand-in, not a Claude recording\./);
     // A stand-in built from the seed, never "the recording": no model read it, so it shows no scores.
     expect(replay.textContent).toMatch(/seed stand-in, not a Claude recording/);
     // The button names what plays (I8): the seed's stand-in, never "the recorded reading".

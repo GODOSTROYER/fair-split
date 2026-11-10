@@ -16,8 +16,6 @@ export const READING_COPY = {
   benchKeys: "Plus and minus zoom; arrow keys move around the photo.",
   zoomIn: "Zoom in",
   zoomOut: "Zoom out",
-  zoomInMark: "+",
-  zoomOutMark: "−",
   zoomFit: "Fit",
   zoomLevel: (scale: string) => `${scale}×`,
   beds: (id: string) => `Rows read from photo ${id}`,
@@ -45,9 +43,9 @@ export const READING_COPY = {
   byHandShort: "Enter by hand",
   byHandName: (serial: string) => `Enter by hand, slip ${serial}`,
   needsPerson: "Needs a person",
-  /** The instrument: "48/48" in dots, "slips read" beside it. */
+  /** The hero count: "48/48" in FS Sans, its scope beside it (one truth for slip counts: 48 this run, 264 season). */
   progressDots: (read: number, total: number) => `${read}/${total}`,
-  progressUnit: "slips read",
+  progressUnit: "slips read this run",
   stateOffline: "You're offline. Rows already read stay; new ones arrive when the connection returns.",
   stateLivePaused: "Live reading is paused for today (budget cap). The labelled seed stand-in still plays.",
   illegible: "Too blurred to read",
@@ -93,7 +91,7 @@ export const READING_COPY = {
   replayStop: "Stop the stand-in",
   // The mock's stand-in is built from the seed's own text: not the recording, and it shows no scores.
   replayNote: (_date: string) =>
-    "Mock data: the mock API sends no rows, so this page plays the seed stand-in, not a Claude recording. It shows no agreement scores: none were read.",
+    "Mock data: a replay of the seed stand-in, not a Claude recording. No scores were read.",
   replayRunning: (done: number, total: number, _date: string) =>
     `Playing the seed's stand-in here: ${done} of ${total} rows. Mock data.`,
   replayDone: (total: number, _date: string) => `Played all ${total} rows of the seed's stand-in. Mock data.`,

@@ -261,7 +261,7 @@
   font-weight: 450;
 }
 
-/* One status sentence, never a chain of thought. */
+/* One status sentence, never a chain of thought: the panel's one line, on the body step. */
 .fsc-read__status {
   --fsc-status-glyph: var(--fs-ink-2);
   display: flex;
@@ -270,8 +270,8 @@
   max-width: 72ch;
   margin: 0;
   color: var(--fs-ink);
-  font-size: 0.875rem;
-  line-height: 1.25rem;
+  font-size: 1rem;
+  line-height: 1.5rem;
 }
 
 /* While Claude reads, the sentence's mark is the pencil's. */
@@ -281,7 +281,7 @@
 
 .fsc-read__status .fs-glyph {
   flex: none;
-  margin-top: 2px;
+  margin-top: 4px;
   color: var(--fsc-status-glyph);
 }
 
@@ -299,7 +299,17 @@
   container-type: inline-size;
   container-name: reading-room;
 }
+/* Two columns hold down to the 1,280 px laptop (the phone is a 56 px rail there since round 3): under 1,100 px
+   the photo, fitted by height, needs no more than half, so the beds take the other half and their one step is never
+   cut at the panel's edge. Only a narrower room stacks the beds under the photo. */
 @container reading-room (max-width: 1100px) {
+  .fsc-read__body {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    column-gap: 32px;
+  }
+}
+
+@container reading-room (max-width: 860px) {
   .fsc-read__body {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -467,15 +477,6 @@
   border-radius: var(--fs-radius-cell);
 }
 
-.fsc-film__link:focus-visible {
-  outline: none;
-}
-
-.fsc-film__link:focus-visible .fsc-film__thumb {
-  outline: var(--fs-focus-width) solid var(--fs-pod);
-  outline-offset: 3px;
-}
-
 .fsc-film__label {
   display: inline-flex;
   align-items: center;
@@ -524,9 +525,8 @@
   background: var(--fs-plate);
   color: var(--fs-ink);
   font-weight: 600;
-  font-size: 0.75rem;
+  font-size: 0.8125rem;
   line-height: 1rem;
-  font-variant-numeric: tabular-nums lining-nums;
 }
 
 .fsc-film__archive:hover .fsc-film__archive-tile,
@@ -536,15 +536,6 @@
 
 .fsc-film__archive[aria-expanded="true"] {
   color: var(--fs-ink);
-}
-
-.fsc-film__archive:focus-visible {
-  outline: none;
-}
-
-.fsc-film__archive:focus-visible .fsc-film__archive-tile {
-  outline: var(--fs-focus-width) solid var(--fs-pod);
-  outline-offset: 3px;
 }
 
 .fsc-film__earlier {
@@ -629,8 +620,8 @@
   color: var(--fs-ink);
   font-family: var(--fs-font-ui);
   font-weight: 520;
-  font-size: 0.75rem;
-  line-height: 1rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
 }
 
 .fsc-zoom-button[data-icon] {
@@ -734,8 +725,8 @@
 .fsc-beds__table thead th {
   height: var(--fs-console-header);
   border-bottom: 1px solid var(--fs-rule);
-  color: var(--fs-ink-3);
-  font-weight: 450;
+  color: var(--fs-ink-2);
+  font-weight: 520;
   white-space: nowrap;
 }
 
@@ -765,17 +756,14 @@
   text-align: right;
 }
 
-/* A row a person must decide (slip 0462): the split grid's 3 px marigold bar and its wash (UI gate round 3). */
-.fsc-beds__row[data-needs="person"] > th,
-.fsc-beds__row[data-needs="person"] > td {
-  background: var(--fs-canary-wash);
+/* A row a person must decide (slip 0462): the amber hold dot and its one step, inline at the row's end, as the
+   secondary button at row height (UI gate round 3: no side bar, no wash). */
+.fsc-beds__step {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 
-.fsc-beds__row[data-needs="person"] > th {
-  box-shadow: inset 3px 0 0 var(--fs-canary);
-}
-
-/* Its one step, inline at the row's end: the secondary button at row height. */
 .fsc-beds__act {
   min-height: 32px;
   padding: 0 12px;
@@ -787,9 +775,9 @@
   border-bottom: 1px solid var(--fs-rule);
 }
 
+/* The one ring, drawn inside the row so the table's edge never clips it. */
 .fsc-beds__row:focus-visible {
-  outline: var(--fs-focus-width) solid var(--fs-pod);
-  outline-offset: -2px;
+  outline-offset: calc(-1 * var(--fs-focus-width));
 }
 
 .fsc-beds__row[data-active] {
@@ -820,10 +808,12 @@
   padding-right: 0;
 }
 
+/* A bed waiting for its row: a solid hairline at the row's final size (dashed means simulated only). */
 .fsc-beds__dash {
   display: block;
   height: 22px;
-  border: 1px dashed var(--fs-rule);
+  border: 1px solid var(--fs-rule);
+  border-radius: 2px;
 }
 
 /* A narrow side column (the 42% of a 1280 px stage) keeps the member's name whole: tighter figure columns,
@@ -839,6 +829,31 @@
 
   .fsc-beds__member > :first-child {
     white-space: normal;
+  }
+}
+
+/* The beds beside the photo on a 1,280 px laptop: the figure columns and cell padding tighten so a row's step
+   ("Enter by hand") stays whole beside the name. */
+@container (max-width: 460px) {
+  .fsc-beds__table th,
+  .fsc-beds__table td {
+    padding: 0 6px;
+  }
+
+  .fsc-beds__table thead th:nth-child(1) {
+    width: 52px;
+  }
+
+  .fsc-beds__table thead th:nth-child(3) {
+    width: 76px;
+  }
+
+  .fsc-beds__table .fsc-beds__member {
+    min-width: 112px;
+  }
+
+  .fsc-beds__table .fsc-beds__act {
+    padding: 0 10px;
   }
 }
 
@@ -892,11 +907,6 @@
   display: inline-flex;
   color: inherit;
   text-decoration: none;
-}
-
-.fsc-beds__you:focus-visible {
-  outline: var(--fs-focus-width) solid var(--fs-pod);
-  outline-offset: 2px;
 }
 
 .fsc-beds__you .fs-you {

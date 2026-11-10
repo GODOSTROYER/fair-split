@@ -102,11 +102,25 @@ export interface SplitGridProps {
 }
 
 /** The set a container of `width` px shows when nothing forces one (0: not measured yet). */
-export function columnSetFor(width: number, showAll: boolean): ColumnSet {
+/**
+ * The set a container gets. `defaultFits` is the width the default set needs once its all-zero columns hide (round
+ * 3): a container that holds it keeps every part in its columns (the 1,470 px laptop), and only a narrower one opens
+ * a line's parts under it (the 1,280 px laptop).
+ */
+export function columnSetFor(width: number, showAll: boolean, defaultFits?: number): ColumnSet {
   if (showAll) return "all";
   if (width > 0 && width < SLIM_BELOW_PX) return "slim";
-  if (width > 0 && width < NARROW_GRID_PX) return "narrow";
+  if (width > 0 && width < NARROW_GRID_PX && !(defaultFits !== undefined && width >= defaultFits))
+    return "narrow";
   return "default";
+}
+
+/** The grid's own chrome beside its columns: the vertical scrollbar and the wrapper's two borders. */
+const GRID_CHROME_PX = 24;
+
+/** The width a set of columns needs at their minimum (fixed widths, or a flex column's floor). */
+export function minWidthOf(defs: readonly ColDef<GridRow>[]): number {
+  return defs.reduce((sum, d) => sum + (d.width ?? d.minWidth ?? 0), GRID_CHROME_PX);
 }
 
 const lineOf = (row: GridRow | undefined): SplitRow | null => (row && row.kind === "line" ? row : null);
@@ -287,11 +301,15 @@ export function SplitGrid({
   // AG Grid places rows by measuring its viewport: it mounts once the container has a size (a frame in a
   // browser). Until then, and wherever nothing is laid out, the same lines print as a plain table.
   const measured = width > 0;
-  const set: ColumnSet = columns ?? columnSetFor(width, showAll);
-  const parts = opensParts(set);
   const defs = useMemo(() => columnDefs(context.premiumRate), [context.premiumRate]);
   // Columns whose every value is zero are hidden (Credit, until a credit applies or waits).
   const hidden = useMemo(() => zeroColumns([...decisions, ...rows], totals), [decisions, rows, totals]);
+  const defaultFits = useMemo(
+    () => minWidthOf(DEFAULT.filter((c) => !hidden.has(c)).map((c) => defs[c])),
+    [defs, hidden],
+  );
+  const set: ColumnSet = columns ?? columnSetFor(width, showAll, defaultFits);
+  const parts = opensParts(set);
   const colDefs = useMemo(
     () =>
       [...(parts ? (["expand"] as const) : []), ...SETS[set]]

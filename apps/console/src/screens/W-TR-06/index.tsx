@@ -226,7 +226,9 @@ export function Screen({ runSlug, holdId }: HoldDrawerProps) {
       title: v.title,
       engineLine: v.engineLine,
       ...(v.claudeLine ? { claudeLine: v.claudeLine } : {}),
-      ...(holdOpen && v.effect ? { effect: v.effect } : {}),
+      ...(holdOpen && v.effect
+        ? { effect: hold.kind === "DUPLICATE_SLIP" ? keepFacts(v.effect) : v.effect }
+        : {}),
       state,
     };
     const stamp = stampFor(snapshot, hold.resolvedBy, hold.resolvedAt);
@@ -428,6 +430,17 @@ export function Screen({ runSlug, holdId }: HoldDrawerProps) {
       {body}
     </StageDrawer>
   );
+}
+
+/**
+ * H1's effect is two facts, "+US$17.94 to 63 members" and "2.05% → 1.62%", on the title step: each holds together
+ * and a narrow drawer breaks the line only after its " · " (round 3).
+ */
+function keepFacts(line: string): string {
+  return line
+    .split(" · ")
+    .map((part) => part.replaceAll(" ", "\u00a0"))
+    .join("\u00a0· ");
 }
 
 function NextLink({

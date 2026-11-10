@@ -128,7 +128,7 @@ export function MemberCell({ data }: Props) {
     <Cell className="fsr-cell--member" testId={`W-TR-05.row.${data.memberNo}`}>
       <span className="fsr-member">
         <span className="fsr-member__name fs-t-body">{data.name}</span>
-        <span className="fsr-member__meta fs-t-micro">{data.memberNo}</span>
+        <span className="fsr-member__meta fs-t-id">{data.memberNo}</span>
       </span>
     </Cell>
   );
@@ -467,7 +467,7 @@ export function DetailView({ detail }: { readonly detail: DetailRow }) {
       {r.deductions.map((d) => (
         <div key={`${d.ruleId}-${d.category}`} className="fsr-detail__part">
           <dt>
-            {CATEGORY_WORD[d.category]} <span className="fs-t-micro fsr-detail__rule">{d.ruleId}</span>
+            {CATEGORY_WORD[d.category]} <span className="fs-t-id fsr-detail__rule">{d.ruleId}</span>
           </dt>
           <dd className="fs-t-figure" data-amount-state={r.partsState}>
             {format.amount(-d.amountCents)}
@@ -586,13 +586,16 @@ export function StatusCell({ data, context }: Props) {
   if (data.kind === "totals") {
     return (
       <Cell className="fsr-cell--status">
+        {/* The balance check prints once, in words, on the reconciliation line above the grid; the footer keeps
+            its glyph, the word for screen readers (round 3: say each fact once). */}
         <span
           className="fsr-status"
           data-tone={data.balanced ? "ink" : "red"}
           data-testid="W-TR-05.totals.balanced"
+          title={data.balanced ? SPLIT.balanced : SPLIT.unbalanced}
         >
           <Glyph name={data.balanced ? "ms:check" : "ms:help"} size={16} />
-          <span className="fs-t-label">{data.balanced ? SPLIT.balanced : SPLIT.unbalanced}</span>
+          <span className="fs-sr">{data.balanced ? SPLIT.balanced : SPLIT.unbalanced}</span>
         </span>
       </Cell>
     );

@@ -81,7 +81,7 @@ describe("W-TR-06 hold drawer", () => {
       // The decision leads (UI gate round 3): counting both as a number line, then the money back and the dial's
       // move directly above "Count it once" (holds.css draws the paired receipts after them).
       expect(card.textContent).toMatch(/63 members −US\$17\.94 → Nong Dioning \+US\$17\.94/);
-      expect(card.textContent).toMatch(/\+US\$17\.94 to 63 members · 2\.05% → 1\.62%/);
+      expect(card.textContent).toMatch(/\+US\$17\.94\sto\s63\smembers\s·\s2\.05%\s→\s1\.62%/);
       expect(card.textContent).not.toMatch(/Counting both moves/);
       expect(card.textContent).not.toMatch(/pink copy of the same receipt/);
       expect(card.querySelector(".fs-hold__effect")?.nextElementSibling).toBe(

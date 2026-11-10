@@ -6,19 +6,19 @@
 // Rules before facts (I2): not even the treasurer can change the card mid-season.
 
 import type { SeasonSnapshot } from "@fairsplit/contracts";
-import { Chip, Glyph, HONESTY, LegendGlyph, Print, Slab, useMotionMode, useT } from "@fairsplit/ui-web";
+import { Chip, Glyph, LegendGlyph, Print, Slab, useMotionMode, useT } from "@fairsplit/ui-web";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { CommandNotice } from "../../chrome/CommandNotice.js";
 import { ScreenRoot } from "../../chrome/ScreenRoot.js";
 import { asRateCardRatified, isApiClientError } from "../../data/errors.js";
 import { useAdapter, useCommand, useJudgeSession } from "../../data/hooks.js";
 import { useAnnounce } from "../../lib/announce.js";
+import { seasonLabel } from "../../lib/display.js";
 import { focusAndReveal } from "../../lib/focus.js";
 import { format } from "../../lib/format.js";
 import { useMoment } from "../../lib/moment.js";
 import { CLAUDE_MODEL } from "../../lib/provenance.js";
 import { isRatified } from "../season/model.js";
-import { SeasonMark } from "../season/parts.js";
 import { RATECARD_COPY } from "./copy.js";
 import {
   type ClauseRef,
@@ -153,15 +153,16 @@ export function RateCard({ snapshot }: { readonly snapshot: SeasonSnapshot }) {
   return (
     <ScreenRoot id="W-TR-02" state={state} labelledBy="fsc-rc-title" className="fsc-rc">
       <header className="fsc-rc__head">
-        <SeasonMark snapshot={snapshot} testId="W-TR-02.mark" />
+        {/* A factual name with the season beside it in grey, as on every screen (round 3: no mark above the
+            heading). The stand-in's glyph sits once, under the rules it covers. */}
         <h1 id="fsc-rc-title" className="fs-t-title-1">
           {RATECARD_COPY.title}
+          <span className="fsc-rc__context" data-testid="W-TR-02.mark">
+            {" "}
+            {seasonLabel(snapshot.season.label)}
+          </span>
         </h1>
-        <p className="fsc-rc__lede">
-          {RATECARD_COPY.lede(card.canonical.resolutionNo, ratifiedOn)}
-          {/* The printed rules are the seed's (round 3): a bare legend glyph, its words its title and name. */}
-          <LegendGlyph {...HONESTY.seedStandIn} className="fsc-rc__glyph" />
-        </p>
+        <p className="fsc-rc__lede">{RATECARD_COPY.lede(card.canonical.resolutionNo, ratifiedOn)}</p>
       </header>
 
       <div className="fsc-rc__body">
@@ -191,7 +192,7 @@ export function RateCard({ snapshot }: { readonly snapshot: SeasonSnapshot }) {
                     onBlur={() => setHovered(null)}
                     onClick={() => setPinned((p) => (p === rule.id ? null : rule.id))}
                   >
-                    <span className="fsc-rc__rule-id fs-t-hash">
+                    <span className="fsc-rc__rule-id fs-t-id">
                       {rule.ruleId === "CLOSED" ? <Glyph name="bolt" size={14} /> : rule.ruleId}
                     </span>
                     <Print value={rule.text} provenance="claude" state="ink" typeRole="body" />
@@ -307,7 +308,10 @@ export function RateCard({ snapshot }: { readonly snapshot: SeasonSnapshot }) {
                   {plate.title}
                 </h2>
                 <details className="fsc-rc__why" data-testid="W-TR-02.why">
-                  <summary className="fs-link fs-t-label">{RATECARD_COPY.why}</summary>
+                  <summary className="fs-link fs-t-label">
+                    {RATECARD_COPY.why}
+                    <Glyph name="ms:expand-more" size={16} className="fsc-rc__why-mark" />
+                  </summary>
                   <p className="fsc-rc__refusal-text">
                     {plate.body} <span className="fs-t-caption">{plate.hash}</span>
                   </p>

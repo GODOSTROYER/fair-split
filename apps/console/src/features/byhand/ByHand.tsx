@@ -355,8 +355,11 @@ function ByHandField({
           {BY_HAND_COPY.title(serial)}
           <span className="fsc-hand__context"> {BY_HAND_COPY.titleContext}</span>
         </h1>
+        {/* The owner's name, and her member number in the id role (the one mono). */}
         <p className="fsc-hand__who fs-t-micro">
-          {BY_HAND_COPY.who(member?.displayName ?? field.slip.memberNo, field.slip.memberNo)}
+          {member?.displayName ?? field.slip.memberNo}
+          {BY_HAND_COPY.whoJoin}
+          <span className="fs-t-id">{field.slip.memberNo}</span>
         </p>
       </header>
 

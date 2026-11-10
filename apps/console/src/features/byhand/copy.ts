@@ -5,8 +5,8 @@ export const BY_HAND_COPY = {
   title: (serial: string) => `Slip ${serial}`,
   /** The header's grey context: what this screen does. */
   titleContext: "by hand",
-  /** The header's micro line: who the slip belongs to. */
-  who: (name: string, memberNo: string) => `${name} · ${memberNo}`,
+  /** The header's micro line: who the slip belongs to, "name · M-060" (the number set in the id role). */
+  whoJoin: " · ",
   /** The one line (spec §3.5), the reading as a figure, then the stand-in's glyph ("placeholder score" is cut). */
   promptLine: "A stain hides one digit.",
   promptLinePlain: "The gross weight is unclear.",

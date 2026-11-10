@@ -159,13 +159,15 @@ export function Screen({ runSlug, hold, member }: SplitScreenProps) {
         <p
           className="fsr-split__provenance fs-t-micro"
           data-testid="W-TR-05.provenance"
-          title={SPLIT.basis[splitBasis(view)]}
+          title={SPLIT.provenanceTitle(rows.length, SPLIT.basis[splitBasis(view)])}
         >
-          {SPLIT.provenanceLine(
-            runLabel(runSlug).run,
-            rows.length,
-            format.hashGroups(snapshot.rateCard.sha256),
-          )}
+          <span>
+            {SPLIT.runWord(view.origin === "showcase")}{" "}
+            <span className="fs-t-id">{runLabel(runSlug).run}</span>
+            {" · "}
+            {SPLIT.rateCardWord}{" "}
+            <span className="fs-t-id">{format.hashGroups(snapshot.rateCard.sha256)}</span>
+          </span>
           {view.origin === "showcase" && (
             <LegendGlyph {...HONESTY.seedStandIn} className="fsr-split__glyph" />
           )}

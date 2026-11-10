@@ -4,14 +4,13 @@
 
 /* ---------------------------------------------------------------- bolted plates (also on the first view) */
 
-/* v2 (ADR-0016): a card (radius 14, a strong rule, e1) with two steel bolt heads in its top corners. The v1
-   steel-hatched edges are gone: hatch now means cash or unavailable, and a sealed card is neither. */
+/* A card on e1 (its ring is in the shadow: elevation is declared once, round 3). The v1 steel-hatched edges are
+   gone: hatch now means cash or unavailable, and a sealed card is neither. */
 .fsc-bolted-plate {
   position: relative;
   display: grid;
   gap: 8px;
-  padding: 18px 22px 16px;
-  border: 1px solid var(--fs-rule-strong);
+  padding: 20px 24px 16px;
   border-radius: var(--fs-radius-card);
   background: var(--fs-plate-2);
   box-shadow: var(--fs-shadow-e1);
@@ -84,8 +83,8 @@
 }
 
 .fsc-bolted-plate--compact {
-  padding: 14px 18px 12px;
-  gap: 6px;
+  padding: 16px 20px 12px;
+  gap: 4px;
 }
 
 /* ---------------------------------------------------------------- the screen */
@@ -108,7 +107,14 @@
 }
 
 .fsc-rc__lede {
+  margin: 0;
   color: var(--fs-ink-2);
+}
+
+/* The season beside the name, in grey, as on every screen ("Split review 2026-A"): no mark above the heading. */
+.fsc-rc__context {
+  color: var(--fs-ink-3);
+  font-weight: 450;
 }
 
 .fsc-rc__muted {
@@ -197,10 +203,11 @@
   max-width: 300px;
 }
 
-/* The reading band: a rule's clause, in pencil, the way Claude found it. */
+/* The reading band: a rule's clause, in pencil, the way Claude found it; a 1 px chalk line under the wash, as the
+   reading band marks a slip (never a side bar). */
 .fsc-rc-page__line[data-band] {
   background: color-mix(in srgb, var(--fs-pencil) 34%, transparent);
-  box-shadow: inset 2px 0 0 var(--fs-paper-ink);
+  box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--fs-paper-ink) 70%, transparent);
 }
 
 .fsc-rc-page__folio {
@@ -258,8 +265,9 @@
   background: var(--fs-plate);
 }
 
+/* A pinned rule is a selection: the pod wash (never a side bar). */
 .fsc-rc__rule[aria-pressed="true"] {
-  box-shadow: inset 2px 0 0 var(--fs-ink);
+  background: var(--fs-pod-wash);
 }
 
 .fsc-rc__rule-id {
@@ -280,11 +288,6 @@
   min-height: 16px;
   margin: 0;
   color: var(--fs-ink-3);
-}
-
-.fsc-rc__glyph {
-  margin-left: 8px;
-  vertical-align: -1px;
 }
 
 /* ---------------------------------------------------------------- MM-4: add a deduction */
@@ -335,11 +338,6 @@
   border-color: var(--fs-ink-3);
 }
 
-.fsc-input:focus-visible {
-  outline: var(--fs-focus-width) solid var(--fs-pod);
-  outline-offset: var(--fs-focus-offset);
-}
-
 .fsc-input--figure {
   font-stretch: 87.5%;
   font-variant-numeric: tabular-nums lining-nums;
@@ -351,13 +349,12 @@
   gap: 6px;
 }
 
-/* The refusal plate: bolted like the card it quotes, printed by the 409. */
+/* The refusal plate: a card on e1 like the card it quotes (no border: elevation once), printed by the 409. */
 .fsc-rc__refusal {
   position: relative;
   display: grid;
-  gap: 14px;
-  padding: 20px 22px 18px;
-  border: 1px solid var(--fs-rule-strong);
+  gap: 12px;
+  padding: 20px 24px;
   border-radius: var(--fs-radius-card);
   background: var(--fs-plate-2);
   box-shadow: var(--fs-shadow-e1);
@@ -409,17 +406,34 @@
 }
 
 .fsc-rc__why > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   justify-self: start;
   color: var(--fs-ink-2);
+  list-style: none;
   cursor: pointer;
+}
+
+/* The disclosure's mark is the glyph set's chevron, never the browser's triangle. */
+.fsc-rc__why > summary::-webkit-details-marker {
+  display: none;
+}
+
+.fsc-rc__why-mark {
+  transition: transform var(--fs-dur-tooltip) var(--fs-ease-out);
+}
+
+.fsc-rc__why[open] .fsc-rc__why-mark {
+  transform: rotate(180deg);
 }
 
 .fsc-rc__refusal-text {
   margin: 0;
   max-width: 60ch;
   color: var(--fs-ink-2);
-  font-size: 0.875rem;
-  line-height: 1.25rem;
+  font-size: 1rem;
+  line-height: 1.5rem;
 }
 
 .fsc-rc__refusal-action {
@@ -431,7 +445,7 @@
 .fsc-rc__proposal {
   display: grid;
   gap: 12px;
-  padding: 18px 20px;
+  padding: 20px;
   border: 1px solid var(--fs-rule);
   border-radius: var(--fs-radius-card);
 }

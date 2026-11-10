@@ -44,8 +44,8 @@
   max-width: 62ch;
   margin: 0;
   color: var(--fs-ink);
-  font-size: 0.9375rem;
-  line-height: 1.375rem;
+  font-size: 1rem;
+  line-height: 1.5rem;
 }
 
 .fsc-hand__prompt .fs-legend-glyph {
@@ -149,7 +149,7 @@
   align-content: start;
   justify-items: start;
   gap: 12px;
-  max-width: 640px;
+  max-width: 760px;
 }
 
 .fsc-hand__entry > .fsc-hand__prompt {
@@ -164,24 +164,24 @@
   justify-self: start;
 }
 
-/* The one field, in the money face at 48 px (round 3: no heavy condensed face); the hidden digit's cell is canary,
-   because a person must decide. */
+/* The one field, on the hero step in tabular figures (round 3: no heavy condensed face, one number style); its amber
+   ring and the hidden digit's amber cell say a person must decide. */
 .fsc-hand__input {
   width: 7.5ch;
-  min-height: 72px;
+  min-height: 80px;
   padding: 0 16px;
   border: 1.5px solid var(--fs-canary-border);
   border-radius: var(--fs-radius-control);
-  background: var(--fs-canary-wash);
+  background: var(--fs-plate);
   color: var(--fs-ink);
   caret-color: var(--fs-pod);
   font-family: var(--fs-font-ui);
   font-stretch: 87.5%;
   font-weight: 500;
-  font-size: 3rem;
+  font-size: 3.5rem;
   line-height: 1;
-  font-variant-numeric: lining-nums proportional-nums;
-  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums lining-nums;
+  letter-spacing: -0.02em;
 }
 
 .fsc-hand__input::selection {
@@ -189,8 +189,8 @@
   color: var(--fs-on-canary);
 }
 
+/* Waiting for the run: a solid hairline (dashed means simulated only). */
 .fsc-hand__input:disabled {
-  border-style: dashed;
   border-color: var(--fs-rule);
   background: var(--fs-plate);
   color: var(--fs-ink-3);
@@ -270,15 +270,15 @@
   color: var(--fs-ink);
 }
 
-/* The result, "64.80 − 0.30 = 64.50 kg", as one line in the money face: her entry and the net in ink, the slip's
-   tare and the operators quieter. */
+/* The result, "64.80 − 0.30 = 64.50 kg", as one line on the hero step in tabular figures (the screen's one hero):
+   her entry and the net in ink, the slip's tare and the operators quieter. */
 .fsc-hand__sum.fs-money {
   font-family: var(--fs-font-ui);
   font-stretch: 87.5%;
   font-weight: 500;
-  font-size: 2.25rem;
-  line-height: 2.5rem;
-  letter-spacing: -0.01em;
+  font-size: 3.5rem;
+  line-height: 3.75rem;
+  letter-spacing: -0.02em;
 }
 
 .fsc-hand__ink-value {
@@ -328,8 +328,8 @@
   display: grid;
   justify-items: start;
   gap: 8px;
-  padding: 16px 18px;
-  border: 1px dashed var(--fs-ink-3);
+  padding: 16px 20px;
+  border: 1px solid var(--fs-rule-strong);
   border-radius: var(--fs-radius-card);
 }
 

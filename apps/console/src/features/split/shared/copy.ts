@@ -38,11 +38,12 @@ export const SPLIT = {
   columns: "Columns",
   title: "Split review",
   /**
-   * The header's one provenance line, trimmed (round 3): the run, its lines, the engine and the rate card. What the
-   * lines include ("after slip 0462 by hand") is the line's title.
+   * The header's one provenance line, trimmed (round 3): the labelled run and the rate card, their ids in the id
+   * role ("run r37 · rate card f2d7 026d"). The lines, the engine and what the lines include are its title.
    */
-  provenanceLine: (run: string, lines: number, sha: string) =>
-    `${run} · ${lines} lines · engine v1 · rate card ${sha}`,
+  runWord: (showcase: boolean) => (showcase ? "showcase run" : "run"),
+  rateCardWord: "rate card",
+  provenanceTitle: (lines: number, basis: string) => `${lines} lines · engine v1 · ${basis}`,
   /** The grid's column words in the console's English (round 3): the money column says its currency. */
   netColumn: "Net US$",
   deductionsColumn: "Deductions",

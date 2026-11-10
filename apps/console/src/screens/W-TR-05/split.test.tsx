@@ -67,10 +67,12 @@ describe("W-TR-05 split review", () => {
       expect(screen.getByTestId("W-TR-05.status.M-014").dataset.tone).toBe("jade");
       expect(screen.getByTestId("W-TR-05.status.M-053").dataset.tone).toBe("hatch");
       expect(screen.getByTestId("W-TR-05.dial.status").dataset.status).toBe("INSIDE");
-      // Provenance once, in the header's micro line; the grid holds simulated PayPal statuses, so the tag shows.
-      expect(screen.getByTestId("W-TR-05.provenance").textContent).toMatch(
-        /64 lines · engine v1 · rate card f2d7 026d/,
-      );
+      // Provenance once, in the header's micro line: the labelled run and the rate card, ids in the id role, the
+      // lines and the engine in its title; the grid holds simulated PayPal statuses, so the glyph shows.
+      const provenance = screen.getByTestId("W-TR-05.provenance");
+      expect(provenance.textContent).toMatch(/^(showcase )?run r\d+ · rate card f2d7 026d/);
+      expect(provenance.getAttribute("title")).toMatch(/^64 lines · engine v1 · /);
+      expect(provenance.querySelectorAll(".fs-t-id")).toHaveLength(2);
       expect(screen.getByTestId("W-TR-05.simulated").textContent).toBe("Simulated PayPal sandbox");
       expect(screen.getByTestId("W-TR-05.filter.paypal").textContent).not.toMatch(/planned/);
       // axe on a filtered grid: the same structure (row and column headers, labels), fewer rows to walk.

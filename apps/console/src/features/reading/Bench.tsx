@@ -74,6 +74,15 @@ export interface BenchProps {
   readonly aside?: ReactNode;
 }
 
+/** The zoom buttons' plus and minus, drawn in the glyphs' 1.5 px square-ended stroke (never a typed character). */
+function ZoomMark({ plus }: { readonly plus: boolean }) {
+  return (
+    <svg className="fs-glyph" width={14} height={14} viewBox="0 0 14 14" aria-hidden focusable="false">
+      <path d={plus ? "M2 7h10M7 2v10" : "M2 7h10"} fill="none" stroke="currentColor" strokeWidth={1.5} />
+    </svg>
+  );
+}
+
 export function Bench({ photo, slips, band, outline, zoom, onZoom, mode, testId, aside }: BenchProps) {
   const composition = photoExhibit(photo.photoId);
   const [tracking, setTracking] = useState(false);
@@ -160,7 +169,7 @@ export function Bench({ photo, slips, band, outline, zoom, onZoom, mode, testId,
             title={READING_COPY.zoomOut}
             data-testid={`${testId}.zoomOut`}
           >
-            <span aria-hidden>{READING_COPY.zoomOutMark}</span>
+            <ZoomMark plus={false} />
           </button>
           <span className="fsc-bench__scale fs-t-micro" aria-live="polite" data-testid={`${testId}.scale`}>
             {READING_COPY.zoomLevel(s.toFixed(1))}
@@ -175,7 +184,7 @@ export function Bench({ photo, slips, band, outline, zoom, onZoom, mode, testId,
             title={READING_COPY.zoomIn}
             data-testid={`${testId}.zoomIn`}
           >
-            <span aria-hidden>{READING_COPY.zoomInMark}</span>
+            <ZoomMark plus />
           </button>
           <button
             type="button"
