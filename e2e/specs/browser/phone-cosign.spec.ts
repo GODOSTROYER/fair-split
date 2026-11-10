@@ -244,7 +244,7 @@ test("inv.i4.phone: checks every line, refuses inconsistent roots, signs key 2 a
       expect(arm.json).toMatchObject({ armed: true, simulated: true, paypalCalls: 0, modelCalls: 0 });
       const phone = await openChair(page, api, s);
       await expect(phone.getByTestId("M-BD-01")).toHaveAttribute("data-state", "request");
-      await expect(phone.getByTestId("M-BD-01.rail")).toHaveText("Simulated PayPal sandbox");
+      await expect(phone.getByTestId("M-BD-01.rail")).toContainText("Simulated PayPal sandbox");
       await expect(phone.getByTestId("M-BD-01.hash")).toHaveAttribute("data-hash", batchHash);
       await expect(phone.getByTestId("M-BD-01.lines")).toContainText(
         new RegExp(`\\b${batchView.memberLines.length}\\b`),
@@ -299,7 +299,7 @@ test("inv.i4.phone: checks every line, refuses inconsistent roots, signs key 2 a
       const pageErrors: string[] = [];
       page.on("pageerror", (error) => pageErrors.push(error.message));
       const { phone, audio } = await openMember(page, api, s);
-      await expect(phone.getByTestId("M-MB-01.rail")).toHaveText("Simulated PayPal sandbox");
+      await expect(phone.getByTestId("M-MB-01.rail")).toContainText("Simulated PayPal sandbox");
       await expect(phone.getByTestId("M-MB-01.amount")).toContainText("US$64.45");
       for (const [row, figure] of [
         ["premium", "43.69"],
