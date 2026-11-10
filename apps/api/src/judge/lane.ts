@@ -198,6 +198,14 @@ export class LiveLane {
     return this.#eta(position);
   }
 
+  /** Original queue age, preserved across retries and promotion to the head. */
+  waitedMs(e: Pick<LaneEntryInput, "workspaceId" | "step">): number {
+    const now = this.#clock.nowMs();
+    this.#sweep(now);
+    const entry = this.#entries.find((x) => x.key === laneKey(e));
+    return entry ? Math.max(0, now - entry.joinedAt) : 0;
+  }
+
   view(): LaneView {
     this.#sweep(this.#clock.nowMs());
     const head = this.#entries[0];

@@ -75,6 +75,8 @@ export const LANE_LOCK = "fs:judge-live-lane";
 const LANE_LOCK_GRACE_MS = 30_000;
 /** When another process holds the lane, ask again after this long. */
 export const ELSEWHERE_RETRY_MS = 3_000;
+/** A fresh judge step waits visibly for at most 20 s before labelled replay. Written live posts never replay. */
+export const LIVE_LANE_WAIT_MS = 20_000;
 /** A resumed post over a quota (daily, per cookie, public, the balance) asks again after this long. */
 export const RESUME_QUOTA_WAIT_MS = 15 * 60_000;
 
@@ -254,6 +256,10 @@ export async function beginLiveStep(deps: AppDeps, o: LiveStepInput): Promise<Li
   // 2. the lane: this process's queue, then every process's lock
   const lane = judgeRuntime(deps).lane;
   const entry = { workspaceId: o.workspaceId, step: o.step, sessionId };
+  if (!o.resume && lane.waitedMs(entry) >= LIVE_LANE_WAIT_MS) {
+    lane.release(entry);
+    return { kind: "replay", decision: replayDecision("lane_full", rail, peek.quota) };
+  }
   const grant = lane.acquire(entry);
   if (!grant.granted) {
     if (grant.position === null) {
@@ -264,7 +270,11 @@ export async function beginLiveStep(deps: AppDeps, o: LiveStepInput): Promise<Li
       kind: "queued",
       position: grant.position,
       etaMs: grant.etaMs,
-      retryAfterMs: Math.min(grant.etaMs, lane.options.reserveMs / 2),
+      retryAfterMs: Math.min(
+        grant.etaMs,
+        lane.options.reserveMs / 2,
+        o.resume ? Number.POSITIVE_INFINITY : LIVE_LANE_WAIT_MS - lane.waitedMs(entry),
+      ),
     };
   }
   const lock = await tryLaneLock(deps, lane.options.leaseMs);
@@ -274,7 +284,9 @@ export async function beginLiveStep(deps: AppDeps, o: LiveStepInput): Promise<Li
       kind: "queued",
       position: null,
       etaMs: lane.options.burstMs,
-      retryAfterMs: ELSEWHERE_RETRY_MS,
+      retryAfterMs: o.resume
+        ? ELSEWHERE_RETRY_MS
+        : Math.min(ELSEWHERE_RETRY_MS, LIVE_LANE_WAIT_MS - lane.waitedMs(entry)),
     };
   }
   const free = async () => {

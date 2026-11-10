@@ -7,6 +7,20 @@ const ws = (n: number) => `0192f8a0-0000-7000-8000-${String(n).padStart(12, "0")
 const burst = (n: number, step = "invoice") => ({ workspaceId: ws(n), step, sessionId: null });
 
 describe("the single-flight live lane", () => {
+  it("HD6 r5: tracks a queued burst's original wait across retries and promotion", () => {
+    const clock = createFakeClock();
+    const lane = new LiveLane(clock);
+    lane.acquire(burst(1));
+    lane.acquire(burst(2));
+    clock.advance(19_999);
+    lane.acquire(burst(2));
+    expect(lane.waitedMs(burst(2))).toBe(19_999);
+    lane.release(burst(1));
+    clock.advance(1);
+    expect(lane.waitedMs(burst(2))).toBe(20_000);
+    lane.release(burst(2));
+    expect(lane.waitedMs(burst(2))).toBe(0);
+  });
   it("HD6-6: later steps retain the workspace network and cannot bypass its lane cap", () => {
     const lane = new LiveLane(createFakeClock());
     for (let i = 1; i <= 3; i++) {
