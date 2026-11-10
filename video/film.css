@@ -451,7 +451,8 @@ body > #root {
   height: 0;
   overflow: hidden;
 }
-/* a label on a window (review v5 item 3): the honesty tag's dashed steel pill, wrapped to the window */
+/* a label on a window (review v5 item 3): the honesty tag's dashed steel pill, 38 px so it reads at least 36 px on
+   screen (verify v5-r1) */
 .pf-chip {
   position: absolute;
   box-sizing: border-box;
@@ -462,8 +463,8 @@ body > #root {
   color: #0b1220;
   font-stretch: 100%;
   font-weight: 600;
-  font-size: 30px;
-  line-height: 38px;
+  font-size: 38px;
+  line-height: 46px;
   text-align: center;
   opacity: 0;
   box-shadow: 0 18px 40px -22px rgb(11 18 32 / 0.45);

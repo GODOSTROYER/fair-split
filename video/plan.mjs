@@ -331,6 +331,19 @@ function nightTimes(accent, slot, kwOut) {
   if (fade[1] - slot.start > 3) throw new Error(`${slot.id}: a night insert runs over 3 s`);
   return { ...accent, at: r3(slot.start), pull, fade, peak: r3(kwOut + 0.27) };
 }
+/**
+ * Keywords that hold until the voice finishes a phrase (verify v5-r1 R1): "sent." stays through "sent, not yet paid."
+ * as in v5, rather than leaving as "sent" is said.
+ */
+export const KEYWORD_HOLD = { "payouts-console": { beat: "payouts", phrase: "paid" } };
+/** When the voice finishes the first word starting with `phrase` in `beat`. */
+function wordEnd({ beat: id, phrase }) {
+  const word = beats
+    .find((beat) => beat.id === id)
+    ?.words?.find((w) => w.w.toLowerCase().replace(/^\W+/, "").startsWith(phrase));
+  if (!word) throw new Error(`keyword hold: "${phrase}" is not said in ${id}`);
+  return word.end;
+}
 /** When the voice says `phrase` in `beat` (an accent keyed to a word). */
 function wordStart({ beat: id, phrase }) {
   const word = beats
@@ -344,7 +357,9 @@ function wordStart({ beat: id, phrase }) {
  * the window so it floats with it, in the honesty tag's style. `box` is [x, y, w] in the window's own pixels.
  */
 export const CHIPS = {
-  "listening-phone": { text: FILM.translationDisclosure, box: [-105, 548, 540], from: 0.3 },
+  // 38 px (verify v5-r1: at least 36 px on screen), two lines, beside the phone's lower half so it does not crowd
+  // the transcript
+  "listening-phone": { text: FILM.translationDisclosure, box: [-700, 540, 660], from: 0.3 },
 };
 /** The ordered capture-slot windows of the run, with their camera, glides, keyword times and accent. */
 function choreograph() {
@@ -415,7 +430,9 @@ function choreograph() {
     // out that would reach the cut is shortened in film-slots.js so it finishes two frames before it)
     let kwIn = Math.max(s.start + 0.05, arrive - 0.45, lastOut + 0.3);
     if (after) kwIn = Math.max(kwIn, s.start + BUMPER_SECONDS + 0.1);
-    const push = depart - arrive >= CAMERA.pushAfter;
+    // a keyword held until the voice has finished its phrase (KEYWORD_HOLD); a push that would not fit after it is dropped
+    const holdTo = KEYWORD_HOLD[s.id] ? wordEnd(KEYWORD_HOLD[s.id]) + 0.15 : -Infinity;
+    const push = depart - arrive >= CAMERA.pushAfter && holdTo + 1.95 <= depart;
     const cap = beats.find((beat) => beat.id === s.beat).end - 0.33;
     // a phone is tall: its keyword is gone before the glide carries it into the keyword box, or (on a swing back)
     // before the next word comes in with the swing (review v3 item 4)
@@ -423,7 +440,11 @@ function choreograph() {
     let kwOut = Math.min(
       cap,
       leaveBy,
-      push ? kwIn + 2.3 : Math.max(kwIn + held, Math.min(depart + 0.15, s.end - 0.05)),
+      KEYWORD_HOLD[s.id]
+        ? Math.max(holdTo, kwIn + held)
+        : push
+          ? kwIn + 2.3
+          : Math.max(kwIn + held, Math.min(depart + 0.15, s.end - 0.05)),
     );
     kwIn = Math.max(Math.min(kwIn, kwOut - held), s.start - 0.1, lastOut + 0.3);
     // a swing back's window rises in clear of the keyword box, so its word can come in with the swing and hold longer
@@ -650,11 +671,7 @@ ${rename(script)}</script>
 /** STYLE §8: a closed-caption track, word for word, at most two lines of 42 characters, each cue 1 to 6 seconds. */
 export const CAPTION = { line: 42, lines: 2, min: 1, max: 6 };
 /** Bracketed lines only where the sound carries meaning. */
-export const BRACKETS = {
-  listening: ["[Her statement plays in Cebuano:", `${FILM.translationDisclosure.replace(/^Cebuano: /, "")}]`],
-};
-/** How long a bracket cue holds before the words' cues start. */
-export const BRACKET_SECONDS = 1.4;
+export const BRACKETS = { listening: `[${FILM.translationDisclosure}]` };
 const breakCost = (word, last) => (last || /[.;:!?]$/.test(word) ? 0 : /,$/.test(word) ? 150 : 600);
 /** A phrase as one line, or two balanced lines that break after punctuation where they can; null if it cannot fit. */
 export function wrap(text, lines = CAPTION.lines) {
@@ -689,40 +706,38 @@ export function captionCues(beat) {
   // here are all of them (no say has a bare punctuation token)
   if (beat.words && beat.words.length !== words.length)
     throw new Error(`${beat.id}: word times do not fit its line`);
-  // a two-line bracket is its own first cue (BRACKET_SECONDS); the words' cues follow it
-  const own = Array.isArray(BRACKETS[beat.id]) ? BRACKETS[beat.id] : null;
-  const after = own ? from + BRACKET_SECONDS : from;
-  const t = (k) =>
-    k >= words.length ? to : k === 0 ? after : Math.max(after, beat.words?.[k].start ?? from + k * per);
-  const bracket = own ? null : (BRACKETS[beat.id] ?? null);
+  const t = (k) => (k >= words.length ? to : k === 0 ? from : (beat.words?.[k].start ?? from + k * per));
+  // a bracket opens the first cue, wrapped with the first words into its two lines (verify v5-r1 R2: the words are
+  // captioned as they are said, not after the bracket)
+  const bracket = BRACKETS[beat.id] ?? null;
   const best = Array(words.length + 1).fill(null);
   best[0] = { cost: 0, from: -1, lines: null };
   for (let i = 1; i <= words.length; i++)
     for (let j = 0; j < i; j++) {
       if (!best[j]) continue;
       const text = words.slice(j, i).join(" ");
-      const lines = wrap(text, j === 0 && bracket ? 1 : CAPTION.lines);
+      const lines = wrap(j === 0 && bracket ? `${bracket} ${text}` : text, CAPTION.lines);
       const seconds = t(i) - t(j);
       if (!lines || seconds < CAPTION.min - 1e-9 || seconds > CAPTION.max + 1e-9) continue;
       const cost =
-        best[j].cost + 100 + breakCost(words[i - 1], i === words.length) + Math.max(0, 28 - text.length) ** 2;
+        best[j].cost +
+        100 +
+        breakCost(words[i - 1], i === words.length) +
+        Math.max(0, 28 - (j === 0 && bracket ? bracket.length + 1 + text.length : text.length)) ** 2;
       if (!best[i] || cost < best[i].cost) best[i] = { cost, from: j, lines };
     }
   if (!best[words.length])
     throw new Error(`${beat.id}: no caption split fits ${CAPTION.max} s and two lines`);
   const cues = [];
-  if (own && own.some((line) => line.length > CAPTION.line))
-    throw new Error(`${beat.id}: bracket over 42 characters`);
   for (let i = words.length; i > 0; i = best[i].from) {
     const j = best[i].from;
     cues.unshift({
       beat: beat.id,
       start: ms(t(j)),
       end: ms(t(i)),
-      lines: j === 0 && bracket ? [bracket, ...best[i].lines] : best[i].lines,
+      lines: best[i].lines,
     });
   }
-  if (own) cues.unshift({ beat: beat.id, start: ms(from), end: ms(after), lines: own });
   return cues;
 }
 export const captions = beats.flatMap((beat) => (beat.say ? captionCues(beat) : []));

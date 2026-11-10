@@ -10,7 +10,7 @@
     "truePeak": -1.5,
     "rate": 48000
   },
-  "requests": 31,
+  "requests": 33,
   "beats": [
     {
       "beat": "problem",
@@ -354,146 +354,146 @@
     {
       "beat": "architecture",
       "file": "architecture.m4a",
-      "duration": 10.74,
-      "speech": [0.1, 10.49],
+      "duration": 11.17,
+      "speech": [0.1, 10.92],
       "words": 24,
-      "wpm": 138.6,
-      "sha256": "8954c69d5b9f13b024e9bf709f302ad8520923e00d64ca1fc2d608a142211192",
+      "wpm": 133.1,
+      "sha256": "18493b3c99ef0440d2fb6a1f63a1d0a11b410968dbb0d4c66faed5a90bf854a8",
       "voice": "Charon",
       "model": "gemini-3.8-flash-tts",
-      "take": 1,
-      "requests": 2,
-      "pace": "even and brisk, about 135 words a minute; short pauses at full stops",
-      "pauses": [[3.515, 0.16], [6.24, 0.17]],
+      "take": 3,
+      "requests": 4,
+      "pace": "steady, about 130 words a minute; a short pause at each semicolon and at the full stop",
+      "pauses": [[1.65, -0.22], [3.72, -0.3], [5.705, -0.2], [7.995, -0.4], [11.235, -0.14]],
       "loudness": {
-        "lufs": -16.2,
-        "truePeak": -2.3
+        "lufs": -16.1,
+        "truePeak": -2.4
       },
-      "text": "Slips go to Claude, then a deterministic engine. Two keys sign one batch hash. An outbox makes each simulated PayPal call safe to retry.",
+      "text": "Slips go to Claude, then a deterministic engine; two keys sign. A PayPal invoice funds it; simulated PayPal Payouts pay members, safe to retry.",
       "alignment": {
         "source": "local transcript (openai-whisper small, word timestamps), offline",
         "characterErrorRate": 0,
-        "heard": "Slips go to Claude, then a deterministic engine. Two keys sign one batch hash. An outbox makes each simulated PayPal call safe to retry.",
+        "heard": "Slips go to Claude, then a deterministic engine, two keys, sign, a PayPal invoice funds it, simulated PayPal payouts, pay members, safe to retry.",
         "words": [
           {
             "w": "Slips",
             "start": 0.1,
-            "end": 0.48
+            "end": 0.42
           },
           {
             "w": "go",
-            "start": 0.48,
-            "end": 0.7
+            "start": 0.42,
+            "end": 0.62
           },
           {
             "w": "to",
-            "start": 0.7,
-            "end": 0.82
+            "start": 0.62,
+            "end": 0.72
           },
           {
             "w": "Claude,",
-            "start": 0.82,
-            "end": 1.28
+            "start": 0.72,
+            "end": 1.22
           },
           {
             "w": "then",
-            "start": 1.564,
-            "end": 1.74
+            "start": 1.5,
+            "end": 1.7
           },
           {
             "w": "a",
-            "start": 1.74,
-            "end": 1.96
+            "start": 1.7,
+            "end": 1.9
           },
           {
             "w": "deterministic",
-            "start": 1.96,
-            "end": 2.56
+            "start": 1.9,
+            "end": 2.58
           },
           {
-            "w": "engine.",
-            "start": 2.56,
-            "end": 2.88
+            "w": "engine;",
+            "start": 2.58,
+            "end": 2.9
           },
           {
-            "w": "Two",
-            "start": 3.762,
-            "end": 3.88
+            "w": "two",
+            "start": 3.3,
+            "end": 3.44
           },
           {
             "w": "keys",
-            "start": 3.88,
-            "end": 4.18
+            "start": 3.44,
+            "end": 3.84
           },
           {
-            "w": "sign",
-            "start": 4.18,
-            "end": 4.7
+            "w": "sign.",
+            "start": 4.14,
+            "end": 4.42
           },
           {
-            "w": "one",
-            "start": 4.7,
-            "end": 5.02
-          },
-          {
-            "w": "batch",
-            "start": 5.02,
-            "end": 5.38
-          },
-          {
-            "w": "hash.",
-            "start": 5.38,
-            "end": 5.8
-          },
-          {
-            "w": "An",
-            "start": 6.664,
-            "end": 6.78
-          },
-          {
-            "w": "outbox",
-            "start": 6.78,
-            "end": 7.22
-          },
-          {
-            "w": "makes",
-            "start": 7.22,
-            "end": 7.58
-          },
-          {
-            "w": "each",
-            "start": 7.58,
-            "end": 7.88
-          },
-          {
-            "w": "simulated",
-            "start": 7.88,
-            "end": 8.42
+            "w": "A",
+            "start": 5.03,
+            "end": 5.12
           },
           {
             "w": "PayPal",
-            "start": 8.42,
-            "end": 8.86
+            "start": 5.12,
+            "end": 5.44
           },
           {
-            "w": "call",
+            "w": "invoice",
+            "start": 5.44,
+            "end": 5.94
+          },
+          {
+            "w": "funds",
+            "start": 5.94,
+            "end": 6.48
+          },
+          {
+            "w": "it;",
+            "start": 6.48,
+            "end": 6.68
+          },
+          {
+            "w": "simulated",
+            "start": 6.996,
+            "end": 7.46
+          },
+          {
+            "w": "PayPal",
+            "start": 7.46,
+            "end": 8.04
+          },
+          {
+            "w": "Payouts",
+            "start": 8.04,
+            "end": 8.66
+          },
+          {
+            "w": "pay",
             "start": 8.86,
-            "end": 9.3
+            "end": 9.02
+          },
+          {
+            "w": "members,",
+            "start": 9.02,
+            "end": 9.34
           },
           {
             "w": "safe",
-            "start": 9.3,
-            "end": 9.72
+            "start": 9.95,
+            "end": 10.2
           },
           {
             "w": "to",
-            "start": 9.72,
-            "end": 10
+            "start": 10.2,
+            "end": 10.46
           },
           {
             "w": "retry.",
-            "start": 10,
-            "end": 10.49
+            "start": 10.46,
+            "end": 10.92
           }
         ]
       }

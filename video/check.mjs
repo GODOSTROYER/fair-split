@@ -473,7 +473,6 @@ function parseVtt(text) {
     });
 }
 const cues = parseVtt(read("captions.vtt"));
-const isBracket = (line) => /^\[[^\]]+\]$/.test(line);
 let captionEnd = 0;
 for (const cue of cues) {
   const where = `caption ${cue.start}s`;
@@ -494,13 +493,13 @@ for (const beat of beats.filter((item) => item.say)) {
   const own = cues.filter((cue) => cue.start >= from - 1e-3 && cue.end <= to + 1e-3);
   assert(own.length, `${beat.id}: no captions`);
   for (const cue of own) used.add(cue);
-  // a bracket is a line of its own, or a whole cue whose lines read as one bracket (review v5: her language)
-  const whole = (cue) => isBracket(cue.lines.join(" "));
+  // a bracket opens a cue and may run across its two lines, with the first words after it (verify v5-r1 R2)
+  const BRACKET = /\[[^\]]*\]/g;
+  const text = (cue) => cue.lines.join(" ");
   assert.equal(
     own
-      .filter((cue) => !whole(cue))
-      .flatMap((cue) => cue.lines)
-      .filter((line) => !isBracket(line))
+      .map((cue) => text(cue).replace(BRACKET, "").trim())
+      .filter(Boolean)
       .join(" "),
     beat.say,
     `${beat.id}: captions.vtt differs from script.ts`,
@@ -509,13 +508,19 @@ for (const beat of beats.filter((item) => item.say)) {
     near(own[0].start, from, 1e-3) && near(own.at(-1).end, to, 1e-3),
     `${beat.id}: captions off its window`,
   );
-  const brackets = own.flatMap((cue) => (whole(cue) ? [cue.lines] : cue.lines.filter(isBracket)));
+  const brackets = own.flatMap((cue) => text(cue).match(BRACKET) ?? []);
   assert.deepEqual(brackets, BRACKETS[beat.id] ? [BRACKETS[beat.id]] : [], `${beat.id}: bracketed cues`);
-  if (beat.id === "listening")
+  if (beat.id === "listening") {
     assert(
-      own[0].lines.join(" ").includes(FILM.translationDisclosure.replace(/^Cebuano: /, "")),
+      text(own[0]).includes(`[${FILM.translationDisclosure}]`),
       "listening: no machine-translation bracket",
     );
+    // her first words share the bracket's cue: captioned as they are said
+    assert(
+      text(own[0]).replace(BRACKET, "").trim().length > 0,
+      "listening: her first words wait behind the bracket",
+    );
+  }
 }
 assert.equal(used.size, cues.length, "A caption sits outside every beat's speech");
 // captions.json is the same track, and the close part's close.vtt is its slice from 143 s, shifted.

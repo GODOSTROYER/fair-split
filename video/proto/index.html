@@ -421,9 +421,12 @@ body { font-family: var(--ui); -webkit-font-smoothing: antialiased; font-kerning
       ctx.strokeStyle = `rgba(247,182,202,${(shim * unseen).toFixed(3)})`; ctx.lineWidth = 2.8;
       strokePart(ctx, dupPts, dg, df); ctx.restore();
     }
-    const gp = E.bo(prog(t, 7.7, 8.0)), gm = prog(t, 11.3, 11.6);
+    // the copy's ghost stays, faint, through the pause after the members fade (verify v5-r1: no empty frame), until the ring
+    // (as the members fade it settles at 0.45, a lone ember, so the pause never reads as a dropout)
+    const gp = E.bo(prog(t, 7.7, 8.0)), gm = prog(t, 12.8, 13.1);
+    const ga = Math.max(unseen, 0.45 * E.sio(prog(t, 11.45, 12.4)));
     if (gp > 0 && gm < 1) {
-      dot(ctx, G.x, G.y, 5.6 * gp, `rgba(247,182,202,${(shim * unseen * (1 - gm)).toFixed(3)})`, "rgba(247,182,202,0.9)", 18);
+      dot(ctx, G.x, G.y, 5.6 * gp, `rgba(247,182,202,${(shim * ga * (1 - gm)).toFixed(3)})`, "rgba(247,182,202,0.9)", 26);
     }
 
     // member dots: pop in, glide with the group, gather into the ring, turn jade, melt into the ring

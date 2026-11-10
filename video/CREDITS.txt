@@ -17,8 +17,8 @@ Impact Sounds by Kenney: https://kenney.nl/assets/impact-sounds
 Sound-pass approach: Vox (@Voxyz_ai). The product's own sounds are Fair Split's.
 
 Voices
-Synthetic voices · Gemini TTS: the narration (voice Charon) and the member's statement (Cebuano, machine-translated,
-pending native review).
+Synthetic voices · Gemini TTS: the narration (voice Charon) and the member's statement.
+Cebuano: machine-translated, pending native review.
 
 Simulated PayPal sandbox; untested against PayPal's own sandbox. Synthetic people and data; no money moves.
 Demo runs use a seed stand-in, not a Claude recording.

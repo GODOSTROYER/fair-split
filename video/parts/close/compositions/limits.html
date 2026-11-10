@@ -309,12 +309,14 @@
           flex: none;
           color: #5a6476;
         }
-        /* a label on an object (review v5 item 3): the honesty tag's dashed steel pill, in the object's own space */
+        /* a label on an object (review v5 item 3): the honesty tag's dashed steel pill, in the object's own space; 40 px so
+           it reads at least 36 px on screen under the close's camera (about 0.96x at the last limit; verify v5-r1), and from
+           the play disc's left edge so the longer pill stays 64 px clear of the frame's right edge */
         .cf-chip {
           position: absolute;
-          left: 150px;
+          left: 24px;
           top: 252px;
-          height: 60px;
+          height: 72px;
           display: flex;
           align-items: center;
           padding: 0 26px;
@@ -324,7 +326,7 @@
           color: #0b1220;
           font-stretch: 100%;
           font-weight: 600;
-          font-size: 30px;
+          font-size: 40px;
           line-height: 1;
           white-space: nowrap;
         }

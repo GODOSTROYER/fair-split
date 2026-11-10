@@ -40,9 +40,10 @@ close-ups make 38.45 and US$64.45 the only readable product text in their frames
   amounts can show (21.8 s until the veil hides them) and with the first limit while the peso card is on screen
   (11.0–15.1 s). The slip keeps its printed SPECIMEN line. Her statement's language is disclosed in one wording,
   "Cebuano: machine-translated, pending native review" (`FILM.translationDisclosure`, review v5 item 3): on the
-  statement's voice in the last limit (a chip from 19.6 s that rides into the end's glide), on the end card, in the
-  captions' bracket over her sentence, on the Paminawa transcript in the listening beat, and in the upload's
-  description. The narration says "Gemini TTS voices"; the end card carries the voices' tag "Synthetic voices ·
+  statement's voice in the last limit (a 40 px chip from 19.6 s that rides into the end's glide, about 39 px on
+  screen under the camera), on the end card (38 px), in the captions' bracket over her sentence (one cue with her
+  first words), on the Paminawa transcript in the listening beat (38 px), in the limits card's data, CREDITS.txt,
+  LICENSES.md and the upload's description. The narration says "Gemini TTS voices"; the end card carries the voices' tag "Synthetic voices ·
   Gemini TTS". The provenance of the slip images (Codex-made hero flats, photos composed in code) and the ten real
   readings of 1 Nov 2026 are in `FILM.descriptionDisclosure` and the limits card's data, not spoken or on screen.
 - Captions are a closed-caption track only: `close.vtt` (the cues of `video/captions.vtt` from 143 s, shifted by

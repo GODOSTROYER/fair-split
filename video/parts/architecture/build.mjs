@@ -1,10 +1,11 @@
 // Fair Split film, script v4: the ARCHITECTURE beat (film 30-44 s) as a standalone HyperFrames part, in DAYLIGHT
-// (video/proto/STYLE.md §1: later acts stay bright). Four steps, one readable word each, the camera pushing node to
-// node: Claude (slips go to Claude), Engine, Signed (two keys, one batch hash), PayPal (an outbox makes each simulated
-// call safe to retry); then the whole line holds as the overview. Ink lines, the indigo trace with its travelling
+// (video/proto/STYLE.md §1: later acts stay bright). One readable word per step, the camera pushing node to node:
+// Claude (slips go to Claude), Engine, Signed (two keys sign one batch hash), Funded (a PayPal invoice funds it),
+// PayPal (simulated PayPal Payouts pay members, each call safe to retry); then the line holds as the overview. Ink
+// lines, the indigo trace with its travelling
 // light, one jade pulse on the PayPal node; the standard "Simulated PayPal sandbox" tag turns on with the PayPal node.
-// Every step lands on the narration word that names it, at the same word-proportional time the provisional captions
-// use (script.ts `timeOf`), so the build moves with F4's alignment.
+// Every step lands on the narration word that names it, at the recorded voice's word time (script.ts `words`), so the
+// build moves with the narration.
 // No GSAP and no third-party code or artwork: every tween is compiled here into CSS keyframes sampled once per frame,
 // which HyperFrames' CSS adapter seeks deterministically. Run: node video/parts/architecture/build.mjs
 import assert from "node:assert/strict";
@@ -35,6 +36,11 @@ function said(phrase) {
   const word = beat.words?.[i];
   return word ? word.start - beat.start : say0 + ((say1 - say0) * i) / spoken.length;
 }
+// Each step on the words that name it. The line says why PayPal (verify v5-r1, review v5 item 11): "Slips go to Claude,
+// then a deterministic engine; two keys sign. A PayPal invoice funds it; simulated PayPal Payouts pay members, safe
+// to retry." The batch-hash glyph follows "sign"; the invoice (a receipt) rises with "A PayPal invoice" and its word
+// "Funded" lands on "funds"; the PayPal node lands on "simulated", its label on "PayPal Payouts"; the first call is
+// lost on "pay members", "Safe to retry" lands on "safe" and the retried call on "retry".
 const W = {
   slips: said("slips"),
   claude: said("claude"),
@@ -44,15 +50,15 @@ const W = {
   two: said("two keys"),
   keys: said("keys"),
   sign: said("sign"),
-  one: said("one batch"),
-  batch: said("batch"),
-  hash: said("hash"),
-  an: said("an outbox"),
-  outbox: said("outbox"),
-  makes: said("makes"),
+  one: said("sign") + 0.25,
+  batch: said("sign") + 0.45,
+  hash: said("sign") + 0.6,
+  an: said("a paypal"),
+  invoice: said("invoice"),
+  funds: said("funds"),
   simulated: said("simulated"),
-  paypal: said("paypal"),
-  call: said("call"),
+  paypal: said("paypal payouts"),
+  call: said("pay members"),
   safe: said("safe"),
   to: said("to retry"),
   retry: said("retry"),
@@ -102,7 +108,7 @@ const En = [800, 600]; // deterministic engine
 const H = [1100, 560]; // one batch hash
 const KT = [1030, 380]; // Treasurer key
 const KC = [1170, 380]; // Chair key
-const O = [1400, 610]; // outbox
+const O = [1400, 610]; // the invoice that funds the batch; the calls to PayPal leave from it
 const P = [1690, 545]; // PayPal (simulated)
 
 // ---------- geometry ----------
@@ -159,11 +165,11 @@ const wavePts = Array.from({ length: 241 }, (_, i) => {
   return [base[0], base[1] + 24 * env * Math.sin(TAU * 3.5 * w)];
 });
 const wave = poly(wavePts);
-// 2-4. The trace: Claude -> engine -> hash -> outbox (centre to centre; the discs cover the ends).
+// 2-4. The trace: Claude -> engine -> hash -> invoice (centre to centre; the discs cover the ends).
 const ce = link(Cn, En);
 const eh = link(En, H);
 const ho = link(H, O);
-// 5. Outbox -> PayPal: the connection (ink), the lost call and the retried one (indigo).
+// 5. Invoice -> PayPal: the connection (ink), the lost call and the retried one (indigo).
 const op = link(O, P);
 const DROP = 0.55; // where the first call is lost
 // 64 member lines fan out of the engine and converge on the ring: the batch hash covers every line.
@@ -187,7 +193,7 @@ const keyThread = (k, ang) => {
 const ktD = keyThread(KT, (-118 * Math.PI) / 180);
 const kcD = keyThread(KC, (-62 * Math.PI) / 180);
 const ringD = `M${r2(H[0] - RR)} ${r2(H[1])} a${RR} ${RR} 0 1 1 ${2 * RR} 0 a${RR} ${RR} 0 1 1 ${-2 * RR} 0`;
-// The retry loop: an arc over the outbox (clear of the threads in and out, and of its label), arrowhead down-right.
+// The retry loop: an arc over the invoice (clear of the threads in and out, and of its label), arrowhead down-right.
 const RET = 80;
 const retA0 = (198 * Math.PI) / 180;
 const retA1 = (342 * Math.PI) / 180;
@@ -231,18 +237,18 @@ const T = {
   signC: [W.sign - 0.1, W.sign + 0.3],
   signedLb: W.sign + 0.02,
   glyph: [W.one - 0.04, W.batch + 0.1],
-  ho: [W.an - 0.15, W.outbox - 0.08],
+  ho: [W.an - 0.15, W.invoice - 0.08],
   signedOut: W.an + 0.1,
-  outbox: W.outbox - 0.16,
-  outboxLb: W.outbox - 0.05,
-  conn: [W.makes + 0.02, W.simulated - 0.1],
+  invoice: W.invoice - 0.16,
+  fundedLb: W.funds - 0.05,
+  conn: [W.funds + 0.02, W.simulated - 0.1],
   paypal: W.simulated - 0.12,
   paypalLb: W.paypal - 0.08,
   call1: [W.call - 0.3, W.call + 0.1],
   callLost: [W.call + 0.03, W.call + 0.21],
   call1Fade: [W.call + 0.1, W.call + 0.43],
   retry: [W.safe - 0.12, W.safe + 0.4],
-  outboxOut: W.safe - 0.14,
+  fundedOut: W.safe - 0.14,
   retryLb: W.safe + 0.04,
   call2In: [W.to - 0.1, W.to - 0.02],
   call2: [W.to - 0.03, W.retry],
@@ -352,7 +358,13 @@ const ICON = {
   engine: ["M34 10 H14 L25 24 L14 38 H34", "M30.5 10 V13.5", "M30.5 38 V34.5"],
   hash: ["M20.5 11 L17 37", "M31 11 L27.5 37", "M12 19.5 H37", "M11 28.5 H36"],
   key: ["M4 24 a8.5 8.5 0 1 0 17 0 a8.5 8.5 0 1 0 -17 0", "M21 24 H45", "M37 24 V31.5", "M43 24 V30"],
-  outbox: ["M8 29 H16.5 L19.5 33.5 H28.5 L31.5 29 H40 V40 H8 Z", "M24 25 V8", "M17.5 14.5 L24 8 L30.5 14.5"],
+  invoice: [
+    "M13 6 H35 V41 L31.33 38 L27.67 41 L24 38 L20.33 41 L16.67 38 L13 41 Z",
+    "M18.5 14.5 H29.5",
+    "M18.5 21.5 H29.5",
+    "M18.5 30 H24",
+    "M27 30 H29.5",
+  ],
   paypal: ["M7 14 H41 V35 H7 Z", "M19 24.5 a5 5 0 1 0 10 0 a5 5 0 1 0 -10 0", "M12 19 V30", "M36 19 V30"],
 };
 const iconSvg = (name, size) =>
@@ -376,7 +388,7 @@ const NODES = [
   { id: "hash", at: H, r: R, icon: "hash", land: T.hashNode, iconAt: T.glyph },
   { id: "treasurer", at: KT, r: KR, icon: "key", land: T.treasurer },
   { id: "chair", at: KC, r: KR, icon: "key", land: T.chair },
-  { id: "outbox", at: O, r: R, icon: "outbox", land: T.outbox },
+  { id: "funded", at: O, r: R, icon: "invoice", land: T.invoice },
   { id: "paypal", at: P, r: R, icon: "paypal", land: T.paypal, sim: true },
 ];
 const node = (id) => NODES.find((n) => n.id === id);
@@ -420,8 +432,8 @@ const LABELS = [
       [backAt(H, 90), null],
     ],
   },
-  { id: "outbox", node: "outbox", text: "Outbox", windows: [[T.outboxLb, T.outboxOut]] },
-  { id: "retry", node: "outbox", text: "Safe to retry", windows: [[T.retryLb, T.retryOut]] },
+  { id: "funded", node: "funded", text: "Funded", windows: [[T.fundedLb, T.fundedOut]] },
+  { id: "retry", node: "funded", text: "Safe to retry", windows: [[T.retryLb, T.retryOut]] },
   { id: "paypal", node: "paypal", text: "PayPal", windows: [[T.paypalLb, null]] },
 ];
 const LB = 40; // label size at the overview (camera scale 1); every push is closer, so never under 36 px
@@ -431,8 +443,8 @@ function nodeHtml(n) {
   const labels = LABELS.filter((l) => l.node === n.id)
     .map(
       (l) =>
-        // the outbox's two words share one place and cross-fade ("Outbox" -> "Safe to retry")
-        `<div class="lb" id="arch-l-${l.id}" style="top:${l.top ?? n.r + 14}px"${n.id === "outbox" ? " data-layout-allow-overlap" : ""}>${esc(l.text)}</div>`,
+        // the invoice's two words share one place and cross-fade ("Funded" -> "Safe to retry")
+        `<div class="lb" id="arch-l-${l.id}" style="top:${l.top ?? n.r + 14}px"${n.id === "funded" ? " data-layout-allow-overlap" : ""}>${esc(l.text)}</div>`,
     )
     .join("");
   return `<div class="node" id="arch-n-${n.id}" style="left:${r2(x)}px;top:${r2(y)}px"><div class="disc${n.sim ? " sim" : ""}" style="left:${-n.r}px;top:${-n.r}px;width:${2 * n.r}px;height:${2 * n.r}px"><div class="ic" style="left:${n.r - ic / 2}px;top:${n.r - ic / 2}px">${iconSvg(n.icon, ic)}</div></div>${labels}</div>`;
@@ -441,7 +453,7 @@ function nodeHtml(n) {
 // ---------- the SVG (lines under the discs) ----------
 const trace = (id) =>
   `<g id="arch-tr-${id}"><path class="tr glow" pathLength="1" d="${id === "c1" || id === "c2" ? op.d : { ce, eh, ho }[id].d}" style="stroke-dashoffset:var(--t-${id})"/><path class="tr main" pathLength="1" d="${id === "c1" || id === "c2" ? op.d : { ce, eh, ho }[id].d}" style="stroke-dashoffset:var(--t-${id})"/><path class="tr core" pathLength="1" d="${id === "c1" || id === "c2" ? op.d : { ce, eh, ho }[id].d}" style="stroke-dashoffset:var(--t-${id})"/></g>`;
-const svg = `<svg id="arch-svg" viewBox="0 0 1920 1080" width="1920" height="1080" role="img" aria-label="Fair Split architecture: handwritten slips go to Claude (the demo replays a labelled seed stand-in), then a deterministic engine computes 64 member lines; the Treasurer and the Chair sign one batch hash; an outbox makes each call to the PayPal simulator safe to retry. Simulated PayPal sandbox.">
+const svg = `<svg id="arch-svg" viewBox="0 0 1920 1080" width="1920" height="1080" role="img" aria-label="Fair Split architecture: handwritten slips go to Claude (the demo replays a labelled seed stand-in), then a deterministic engine computes 64 member lines; the Treasurer and the Chair sign one batch hash; a PayPal invoice funds the batch and simulated PayPal Payouts pay the members, each call to the PayPal simulator safe to retry. Simulated PayPal sandbox.">
 <defs><filter id="arch-glow" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="4.5"/></filter></defs>
 <g class="fan">${fan.map((f, i) => `<path id="arch-f${i}" class="th" pathLength="1" d="${f.d}"/>`).join("")}</g>
 <path id="arch-wave" class="th wave" pathLength="1" d="${dPoly(wavePts)}"/>
@@ -824,7 +836,8 @@ near("Treasurer key", T.treasurer, W.two);
 near("Chair key", T.chair, W.keys);
 near("Signatures", T.signT[1], W.sign);
 near("Batch hash", T.glyph[0], W.one);
-near("Outbox", T.outbox, W.outbox);
+near("Invoice", T.invoice, W.invoice);
+near("Funded", T.fundedLb, W.funds);
 near("PayPal", T.paypal, W.simulated);
 near("Lost call", T.call1[1], W.call);
 near("Safe to retry", T.retryLb, W.safe);
@@ -911,11 +924,12 @@ const outline = [
   [T.treasurer, "The camera pushes to the ring; two keys land above it."],
   [T.signT[0], "Each key signs with an indigo thread; two indigo pulses on the ring: 'Signed'."],
   [T.glyph[0], "A # draws inside the ring: one batch hash."],
-  [T.ho[0], "The trace leaves the hash; the camera pushes on: 'Outbox' lands (tray icon)."],
+  [T.ho[0], "The trace leaves the hash: the invoice rises (receipt icon)."],
+  [T.fundedLb, "'Funded' lands on 'funds'."],
   [T.conn[0], "An ink line draws out to PayPal."],
   [T.paypal, "'PayPal' lands on a dashed (simulated) node; the 'Simulated PayPal sandbox' tag turns on."],
-  [T.call1[0], "The call leaves the outbox and is lost halfway: the light goes out, the trace fades."],
-  [T.retry[0], "A retry loop draws over the outbox: 'Safe to retry'."],
+  [T.call1[0], "The call leaves for PayPal and is lost halfway: the light goes out, the trace fades."],
+  [T.retry[0], "A retry loop draws over the invoice: 'Safe to retry'."],
   [T.call2[0], "The same call goes again and lands once: one jade pulse on the PayPal node."],
   [CAM.at(-3).t, "The camera pulls back to the whole line; 'Claude', 'Engine', 'Signed', 'PayPal' return."],
   [settled.t, "The overview holds with a 1.2% push to the cut."],

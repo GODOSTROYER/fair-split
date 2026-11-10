@@ -43,21 +43,15 @@
   },
   {
     "beat": "architecture",
-    "start": 30.25,
-    "end": 33.912,
-    "lines": ["Slips go to Claude,", "then a deterministic engine."]
+    "start": 30.1,
+    "end": 35.03,
+    "lines": ["Slips go to Claude, then a deterministic", "engine; two keys sign."]
   },
   {
     "beat": "architecture",
-    "start": 33.912,
-    "end": 36.814,
-    "lines": ["Two keys sign one batch hash."]
-  },
-  {
-    "beat": "architecture",
-    "start": 36.814,
-    "end": 40.64,
-    "lines": ["An outbox makes each simulated", "PayPal call safe to retry."]
+    "start": 35.03,
+    "end": 40.92,
+    "lines": ["A PayPal invoice funds it; simulated", "PayPal Payouts pay members, safe to retry."]
   },
   {
     "beat": "highlights",
@@ -182,14 +176,14 @@
   {
     "beat": "listening",
     "start": 134.36,
-    "end": 135.76,
-    "lines": ["[Her statement plays in Cebuano:", "machine-translated, pending native review]"]
+    "end": 135.522,
+    "lines": ["[Cebuano: machine-translated,", "pending native review] Premium gikan sa"]
   },
   {
     "beat": "listening",
-    "start": 135.76,
+    "start": 135.522,
     "end": 138.3,
-    "lines": ["Premium gikan sa Lantern", "Bay Chocolate Co.:"]
+    "lines": ["Lantern Bay Chocolate Co.:"]
   },
   {
     "beat": "listening",

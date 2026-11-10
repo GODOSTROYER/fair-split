@@ -217,7 +217,7 @@ const SAY = {
   solution:
     "Fair Split: Claude reads the paper. Code computes every amount and holds what it can't justify. Two officers sign large batches. A simulated PayPal pays. The buyer re-checks everything.",
   architecture:
-    "Slips go to Claude, then a deterministic engine. Two keys sign one batch hash. An outbox makes each simulated PayPal call safe to retry.",
+    "Slips go to Claude, then a deterministic engine; two keys sign. A PayPal invoice funds it; simulated PayPal Payouts pay members, safe to retry.",
   highlights:
     "Highlights: a split matrix that rebalances; a frozen rate card; two keys, one hash; proof in your browser; pay you can hear; Try to break it.",
   holds:
@@ -241,7 +241,7 @@ export const NARRATION_AT: Readonly<Record<string, number>> = {
   // "unseen." (10.0 s), the members fading, the buyer's invoice (13.1 s)
   problem: 1.4,
   solution: 14.35, // "Fair Split:" on the turn (14.45 s); the line ends before "Every peso, traced." (27.2 s)
-  architecture: 30.15,
+  architecture: 30, // the line ends by 41 s, so the finished diagram holds 3 s
   highlights: 43.9, // "Try to break it" on the reel's night cut (55.1 s)
   paper: 58.4, // once the bumper's words have gone (review v5 item 10)
   funding: 65,
@@ -389,7 +389,7 @@ export const ARCHITECTURE = {
       ],
     },
     {
-      at: at("architecture", "outbox"),
+      at: at("architecture", "a paypal"),
       boxes: ["outbox", "tools"],
       arrows: [
         ["keys", "outbox"],
@@ -809,7 +809,8 @@ export function beatsForReading(variant: ReadingVariant): readonly FilmBeat[] {
           },
           {
             at: at("limits", "gemini"),
-            text: "Cebuano and Filipino machine-translated, pending native review",
+            // one wording (verify v5-r1): the film plays only Cebuano; Filipino is the product's, not the film's
+            text: FILM.translationDisclosure,
           },
           { at: at("limits", "gemini"), text: FILM.voiceDisclosure },
         ],
