@@ -79,7 +79,7 @@
   gap: var(--fs-space-16);
 }
 
-/* The bench's dial is the tick ring alone: its reading is the dot-matrix beside it, and the Mirrored table carries
+/* The bench's dial is the tick ring alone: its reading is the hero numeral beside it, and the Mirrored table carries
    every word for screen readers. */
 .fsr-bench .fs-dial__caption {
   display: none;
@@ -101,7 +101,7 @@
   color: var(--fs-ink-2);
 }
 
-/* The reading: dot-matrix digits, the unit and the limit set beside them in type, never in dots. */
+/* The reading: the hero numeral (FS Sans tabular figures), the unit and the limit beside it on their baseline. */
 .fsr-reading {
   display: grid;
   justify-items: start;
@@ -110,7 +110,7 @@
 
 .fsr-reading__value {
   display: inline-flex;
-  align-items: flex-end;
+  align-items: baseline;
   gap: var(--fs-space-4);
 }
 

@@ -4,6 +4,7 @@
 // "verified" about PayPal, and nothing says "live" about sandbox activity (S1.11's word list). These keys
 // move into @fairsplit/i18n (WS-DS) under W-JG-01.* when it adds them.
 
+import { TIMING } from "@fairsplit/motion/presets";
 import type { PaypalRail } from "../lib/env.js";
 
 export const WORDMARK = { name: "Fair Split", qualifier: "co-op payroll" } as const;
@@ -64,8 +65,8 @@ export const LOG = {
   toast: "Latest event",
 } as const;
 
-/** How long one event's toast stays (round 3: 3 s, then it goes; the Log keeps everything). */
-export const TOAST_MS = 3000;
+/** How long one event's toast stays (round 3: 3 s, then it goes; the Log keeps everything): motion's timing. */
+export const TOAST_MS = TIMING.toast;
 
 /** The phone's 56 px rail (round 3): the phone glyph expands it, the avatars pick a frame. */
 export const PHONE_RAIL = {

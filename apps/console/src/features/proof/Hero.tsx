@@ -1,6 +1,6 @@
 // Proof's hero (S1.8 P1, design §6; UI gate round 2). A factual header first: the stencilled lot mark, then the
 // invoice as one money figure with its context in grey and the honesty tags. Then the verdict leads, beside the
-// seal grown from the batch hash: the six checks' count as the page's one dot-matrix instrument ("0/6", then
+// seal grown from the batch hash: the six checks' count as the page's one hero numeral in FS Sans ("0/6", then
 // "6/6"), "Sample keys, never Verified" paired with it, and "Verify in your browser" as the one primary. Where
 // every dollar went sits beside it (the money slot), and the six checks run under both, so all six are in view on
 // a laptop's first screen. A check that matches is ink, never jade (jade means money); only a mismatch is red, and
@@ -13,6 +13,7 @@ import {
   type GlyphName,
   HonestyTag,
   InkStamp,
+  Numeral,
   Seal,
   Slab,
   type StampView,
@@ -33,7 +34,6 @@ import {
   VERIFY_COPY,
   verdictWord,
 } from "./copy.js";
-import { DotMatrix } from "./DotMatrix.js";
 import type { Verification, VerifyState } from "./useVerification.js";
 import { type CheckState, PLATES } from "./verify.js";
 
@@ -270,7 +270,7 @@ export function VerifyPanel({
         <div className="pf-verify__body">
           <div className="pf-verify__status" role="status" aria-atomic="true" ref={verdictRef}>
             <p className="pf-verify__count" data-state={status}>
-              <DotMatrix value={`${matched}/${PLATES.length}`} tone={done ? "ink" : "dim"} />
+              <Numeral value={`${matched}/${PLATES.length}`} tone={done ? "ink" : "dim"} decorative />
               <span className="pf-verify__countword" aria-hidden>
                 {countWords}
               </span>

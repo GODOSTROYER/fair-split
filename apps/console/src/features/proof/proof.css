@@ -17,11 +17,8 @@
    whole document does while a Proof surface is open (lib/face.ts). */
 .pf {
   --fs-font-ui: "FS Sans Proof", system-ui, sans-serif;
-  --fs-font-statement: "Atkinson Hyperlegible Next", "FS Sans Proof", system-ui, sans-serif;
-  --fs-font-mark: "FS Sans Proof", system-ui, sans-serif;
+  --fs-font-statement: "FS Sans Proof", system-ui, sans-serif;
   --fs-font-hollow: "FS Sans Proof", system-ui, sans-serif;
-  /* The dot-matrix count changes column by column, 24 ms apart (unslop spec §1.6). */
-  --pf-dot-step: 24ms;
   display: block;
   color: var(--fs-ink);
   font-family: var(--fs-font-ui);
@@ -201,11 +198,11 @@
   gap: 8px;
 }
 
-/* The count: the page's one dot-matrix instrument, the words beside it in ink. */
+/* The count: the page's one hero numeral (FS Sans, round 3), the words beside it in ink. */
 .pf-verify__count {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-end;
+  align-items: baseline;
   gap: 8px 12px;
   margin: 0 0 4px;
 }
@@ -221,31 +218,6 @@
   .pf-verify__countword {
   color: var(--fs-ink-2);
   font-weight: 450;
-}
-
-.pf-dots {
-  display: block;
-  flex: none;
-  overflow: visible;
-}
-
-.pf-dots__on {
-  fill: var(--fs-ink);
-}
-
-.pf-dots[data-tone="dim"] .pf-dots__on {
-  fill: var(--fs-ink-3);
-}
-
-.pf-dots__off {
-  fill: var(--fs-ink);
-  fill-opacity: 0.05;
-}
-
-/* A count that changed after the first paint comes in column by column; history never animates. */
-.pf-dots[data-moved] .pf-dots__on {
-  animation: pf-fade var(--fs-dur-digit-out) var(--fs-ease-out) both;
-  animation-delay: calc(var(--pf-c, 0) * var(--pf-dot-step));
 }
 
 .pf-verify__line {
@@ -1942,16 +1914,5 @@ details[open] > summary > .pf-summary__chevron {
 
   .pf-checks {
     grid-column: 1 / -1;
-  }
-}
-
-/* Reduced motion keeps the count and drops the column-by-column entrance. */
-.pf-page[data-motion="reduced"] .pf-dots[data-moved] .pf-dots__on {
-  animation: none;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .pf-dots[data-moved] .pf-dots__on {
-    animation: none;
   }
 }

@@ -1,11 +1,12 @@
-/* Every screen's loading state: dashed print beds at final size, never a shimmer (S1.7 W-TR-03 `loading`). */
+/* Every screen's loading state: print beds at final size in a solid hairline, never a shimmer (S1.7 W-TR-03
+   `loading`; UI gate round 3: dashed lines mean simulated, and nothing else). */
 
 /* ---------------------------------------------------------------- beds */
 
 .fsc-bed {
   position: relative;
   display: block;
-  border: 1px dashed var(--fs-rule);
+  border: 1px solid var(--fs-rule);
   border-radius: 0;
 }
 

@@ -99,7 +99,7 @@ function Row({ row, landed }: { readonly row: LogRow; readonly landed: boolean }
     <>
       <LaneMark lane={row.lane} landed={landed} />
       {row.at && (
-        <time className="fsc-log__time fs-t-micro" dateTime={row.at}>
+        <time className="fsc-log__time fs-t-id" dateTime={row.at}>
           {`${format.time(row.at)} ${RIBBON.zone}`}
         </time>
       )}

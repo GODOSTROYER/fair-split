@@ -11,10 +11,6 @@
   .fs-slab__face {
     scroll-margin-top: 24px;
   }
-  :root {
-    caret-color: var(--fs-ink);
-    accent-color: var(--fs-ink);
-  }
 
   /* Programmatic focus targets (the screen, a drawer, a sheet) don't ring on click; keyboard focus still does. */
   :where([tabindex="-1"]):focus:not(:focus-visible) {
@@ -33,12 +29,9 @@
     outline: none;
   }
 
-  /* One focus ring (UI gate round 3): ui-web's rule, 2 px indigo with a 2 px offset following the radius, on
-     :focus-visible only. A screen's first pre-focus wears none until the viewer presses a key (stage.css). */
-  :where(a, button, [role="tab"], [role="menuitem"], [role="switch"]):focus-visible {
-    outline: var(--fs-focus-width) solid var(--fs-pod);
-    outline-offset: var(--fs-focus-offset);
-  }
+  /* One focus ring (UI gate round 3) is ui-web's rule, declared once: 2 px indigo with a 2 px offset following the
+     radius, on :focus-visible only. A screen's first pre-focus wears none until the viewer presses a key
+     (stage.css). */
 
   :where(button) {
     cursor: pointer;
@@ -56,13 +49,9 @@
     text-wrap: balance;
   }
 
-  /* Times, aligned figures and hashes are tabular; amounts read as money in proportional figures (ADR-0016). */
-  :where(time, .fs-t-figure, .fs-t-hash) {
-    font-variant-numeric: tabular-nums lining-nums;
-  }
-
-  :where(.fs-t-amount-l, .fs-t-amount-hero) {
-    font-variant-numeric: lining-nums proportional-nums;
+  /* Every number is tabular (ui-web's root rule, one money style); a time is an id, so it is the mono. */
+  :where(time) {
+    font-family: var(--fs-font-mono);
   }
 
   /* A keyboard key: a small plate (radius 6) with a heavier lower rule. Never a slab, never pressable. */
@@ -86,13 +75,13 @@
     white-space: nowrap;
   }
 
-  /* The lockup: "Fair Split:" in the slab cut, "co-op payroll" beneath it (inline when compact). */
+  /* The lockup: "Fair Split" on the body step at title weight, semi-expanded; "co-op payroll" beside it in ink-2. */
   .fsc-wordmark {
     margin: 0;
     color: var(--fs-ink);
     font-family: var(--fs-font-ui);
     font-stretch: 112.5%;
-    font-weight: 700;
+    font-weight: 600;
     font-size: 1rem;
     line-height: 1.25rem;
     white-space: nowrap;
@@ -119,9 +108,9 @@
     border-radius: var(--fs-radius-control);
     background: var(--fs-ink);
     color: var(--fs-ground);
-    font-weight: 560;
-    font-size: 0.8125rem;
-    line-height: 1rem;
+    font-weight: 520;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
     text-decoration: none;
     transform: translateY(calc(-100% - 16px));
   }

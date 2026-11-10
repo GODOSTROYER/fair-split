@@ -119,7 +119,7 @@ export const VERIFY_COPY = {
   checking: "Checking the chain and six plates.",
   matches: (n: number) => `${NUMBER_WORDS[n] ?? String(n)} of six match.`,
   checkedAt: (time: string) => `Checked in this browser at ${time}, Davao time.`,
-  /** The words beside the dot-matrix count, by the panel's state. */
+  /** The words beside the hero count, by the panel's state. */
   count: {
     idle: "not checked yet",
     checking: "checking",

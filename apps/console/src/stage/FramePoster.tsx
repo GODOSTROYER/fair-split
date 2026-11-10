@@ -1,12 +1,22 @@
 // What a phone frame shows until the app's web build answers fs.ready (and if it never does): a still of
 // that persona's screen, drawn from the run the stage is showing, in Adlaw, and labelled as a preview.
 // It never pretends to be the app: no controls, and a caption that says what it is. Member copy is
-// Cebuano with the "machine-translated, pending native review" chip (S1.6).
+// Cebuano; "machine-translated, pending native review" is its legend glyph's name and tooltip (UI gate round 3:
+// no provenance pill). The Chair's seal is the console's, at the same 180 px.
 
 import { MEMBER_LINE_LABELS, type MemberLineState, type SeasonSnapshot } from "@fairsplit/contracts";
 import { translate } from "@fairsplit/i18n";
 import { sealHash } from "@fairsplit/seal";
-import { AmountDisplay, type CapsuleState, Glyph, Seal, StatusCapsule } from "@fairsplit/ui-web";
+import { LAYOUT } from "@fairsplit/tokens";
+import {
+  AmountDisplay,
+  type CapsuleState,
+  Glyph,
+  HONESTY,
+  LegendGlyph,
+  Seal,
+  StatusCapsule,
+} from "@fairsplit/ui-web";
 import { POSTER, STAGE } from "../chrome/copy.js";
 import type { FramePersona } from "../data/adapter.js";
 import { payoutStatus } from "../data/payout-replay.js";
@@ -71,6 +81,7 @@ function MemberPoster({
         {snapshot
           ? `${snapshot.coop.shortName}, ${translate("ceb", "M-MB-01.season", { season: snapshot.season.label })}`
           : ""}
+        <LegendGlyph {...HONESTY.machineTranslated} className="fsc-poster__glyph" />
       </p>
       <p className="fsc-poster__greet fs-t-statement-lead">
         {translate("ceb", "M-MB-01.greeting", { name: member?.addressAs.ceb ?? "Nang Celing" })}
@@ -88,10 +99,6 @@ function MemberPoster({
         text={personaStatus("member", view) ?? MEMBER_LINE_LABELS[state].ceb}
         lang={payout.replayed ? "en" : "ceb"}
       />
-      <p className="fsc-poster__chip fs-t-caption" lang="en">
-        <Glyph name="ms:translate" size={14} />
-        <span>{translate("en", "W-JG-01.machineTranslated")}</span>
-      </p>
     </div>
   );
 }
@@ -124,7 +131,10 @@ function ChairPoster({
   const keys = sealKeys(view);
   return (
     <div className="fsc-poster__statement fsc-poster__chair" data-testid="W-JG-01.poster.chair.request">
-      <p className="fsc-poster__coop fs-t-caption">{chair ? POSTER.chairRole(chair.name) : ""}</p>
+      <p className="fsc-poster__coop fs-t-caption">
+        {chair ? POSTER.chairRole(chair.name) : ""}
+        <LegendGlyph {...HONESTY.machineTranslated} className="fsc-poster__glyph" />
+      </p>
       <p className="fsc-poster__title fs-t-label" lang="ceb">
         {POSTER.chairTitle(snapshot.season.label)}
       </p>
@@ -138,7 +148,7 @@ function ChairPoster({
       </p>
       {hash && (
         <figure className="fsc-poster__seal">
-          <Seal batchSha256={hash} size={112} keys={keys} />
+          <Seal batchSha256={hash} size={LAYOUT.app.seal} keys={keys} />
           <figcaption className="fs-t-hash">{sealHash(hash)}</figcaption>
         </figure>
       )}
@@ -149,10 +159,6 @@ function ChairPoster({
         </span>
         <span className="fsc-poster__slab-note fs-t-caption">{POSTER.slabPreview}</span>
       </div>
-      <p className="fsc-poster__chip fs-t-caption" lang="en">
-        <Glyph name="ms:translate" size={14} />
-        <span>{translate("en", "W-JG-01.machineTranslated")}</span>
-      </p>
     </div>
   );
 }

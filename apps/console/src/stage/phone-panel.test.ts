@@ -4,6 +4,7 @@
 // motion mode, the panel's visibility never waits for its transition; only the way down holds it until the
 // slide (or, reduced, the fade) is over.
 
+import { LAYOUT } from "@fairsplit/tokens";
 import { afterEach, describe, expect, it } from "vitest";
 import { cascaded, readRules, transitionDelay } from "../test/css.js";
 import { phoneSizeFor, stageLayoutFor } from "./layout.js";
@@ -148,7 +149,11 @@ it.each([
     expect(cascaded(rules, body, "grid-template-columns", medium)).toBe(
       "minmax(0, 1fr) var(--fsc-phone-rail)",
     );
-    expect(cascaded(rules, body.parentElement as HTMLElement, "--fsc-phone-rail", medium)).toBe("56px");
+    // The rail is the tokens' 56 px (LAYOUT.console.phoneRail), never a number of the stage's own.
+    expect(cascaded(rules, body.parentElement as HTMLElement, "--fsc-phone-rail", medium)).toBe(
+      "var(--fs-console-phone-rail)",
+    );
+    expect(LAYOUT.console.phoneRail).toBe(56);
     // The word leaves the screen, never the accessibility tree (clipped, not display: none).
     expect(cascaded(rules, word, "clip-path", medium)).toBe("inset(50%)");
     expect(cascaded(rules, word, "display", medium)).toBeUndefined();

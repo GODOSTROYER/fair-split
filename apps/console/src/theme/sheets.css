@@ -1,5 +1,6 @@
 /* Sheets, menus and notices: What's real (W-JG-02), the shortcut sheet (W-TR-10), the run pill's menu, command
-   notices and Data mode's tables. Sheets are plate on e3 over the scrim, menus plate on e2 at radius 10 (ADR-0016).
+   notices and Data mode's tables. Sheets are plate on e3 over the scrim, menus plate on e2 (ADR-0016); a lifted
+   surface has its shadow and no border (round 3). A menu item takes the one focus ring inside the 6 px padding.
    Base UI's data-starting-style and data-ending-style drive the motion. */
 
 /* ---------------------------------------------------------------- sheets */
@@ -22,12 +23,9 @@
   flex-direction: column;
   width: min(var(--fs-console-drawer), 100vw);
   overflow: hidden auto;
-  border-left: 1px solid var(--fs-rule);
   border-radius: var(--fs-radius-panel) 0 0 var(--fs-radius-panel);
   background: var(--fs-plate);
-  box-shadow:
-    inset 0 1px 0 var(--fs-drawer-highlight),
-    var(--fs-shadow-e3);
+  box-shadow: var(--fs-shadow-e3);
   color: var(--fs-ink);
   overscroll-behavior: contain;
   transition:
@@ -148,7 +146,6 @@
   border: 1px solid var(--fs-rule-strong);
   border-radius: var(--fs-radius-card);
   background: var(--fs-plate-2);
-  box-shadow: var(--fs-shadow-e1);
 }
 
 .fsc-bolted::before,
@@ -419,7 +416,6 @@
   display: grid;
   min-width: 248px;
   padding: 6px;
-  border: 1px solid var(--fs-rule);
   border-radius: var(--fs-radius-control);
   background: var(--fs-plate);
   box-shadow: var(--fs-shadow-e2);
@@ -449,18 +445,13 @@
   font-size: 0.875rem;
   line-height: 1.25rem;
   text-decoration: none;
-  outline: none;
   cursor: pointer;
   user-select: none;
 }
 
 .fsc-menu__item[data-highlighted] {
-  background: var(--fs-plate);
+  background: var(--fs-plate-2);
   color: var(--fs-ink);
-}
-
-.fsc-menu__item:focus-visible {
-  box-shadow: inset 0 0 0 var(--fs-focus-width) var(--fs-pod);
 }
 
 .fsc-menu__item .fsc-kbd {

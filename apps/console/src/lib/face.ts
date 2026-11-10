@@ -27,7 +27,7 @@ export function hasProofFace(root: HTMLElement = document.documentElement): bool
   return root.dataset[ATTRIBUTE] === PROOF;
 }
 
-/** The lot mark's face: the id role in FS Sans Proof (the stencil is retired, UI gate round 3). */
+/** Proof's face, loading before the hero's first layout (the lot mark itself is the platform mono since round 3). */
 export const MARK_FACE = '500 1em "FS Sans Proof"';
 
 /** Starts the lot mark's face loading now, not at the hero's first layout (a browser loads a face on first use). */

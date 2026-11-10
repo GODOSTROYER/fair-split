@@ -84,10 +84,10 @@ describe("W-TR-03 reading room", { timeout: 60_000 }, () => {
     // One stand-in tag, its canonical phrase whole (the tail for screen readers), no sentence beside it.
     expect(screen.getByTestId("W-TR-03.footer").textContent).toBe("Seed stand-in, not a Claude recording");
     expect(screen.getByTestId("W-TR-03.footer").classList.contains("fs-honesty")).toBe(true);
-    // The instrument: slips read in dot-matrix, the words for screen readers.
-    expect(
-      screen.getByTestId("W-TR-03.film.progress").querySelector("svg.fsr-dm")?.getAttribute("data-value"),
-    ).toBe("0/48");
+    // The one hero count: slips read in FS Sans (no dot-matrix), the words for screen readers.
+    const progress = screen.getByTestId("W-TR-03.film.progress");
+    expect(progress.querySelector(".fs-numeral")?.getAttribute("data-value")).toBe("0/48");
+    expect(progress.querySelector("svg")).toBeNull();
     await expectNoAxeViolations(r.container);
     r.unmount();
   });
@@ -106,7 +106,9 @@ describe("W-TR-03 reading room", { timeout: 60_000 }, () => {
     const row = screen.getByTestId("W-TR-03.beds.row.0425");
     expect(row.querySelector('[data-amount-state="pencil"]')?.textContent).toMatch(/^\d+\.\d{2}$/);
     expect(screen.getByTestId("W-TR-03.film.A").dataset.read).toBe("");
-    expect(screen.getByTestId("W-TR-03.film.progress").textContent).toBe("4 of 48 slips read");
+    expect(screen.getByTestId("W-TR-03.film.progress").querySelector(".fs-sr")?.textContent).toBe(
+      "4 of 48 slips read",
+    );
     expect(screen.getByTestId("W-TR-03.bench.band").dataset.serial).toBe("0428");
     await expectNoAxeViolations(r.container);
     r.unmount();
@@ -160,7 +162,8 @@ describe("W-TR-03 reading room", { timeout: 60_000 }, () => {
       const r = await readingRun(motion);
       clearMomentTrace();
       const photoRows = (id: string) => replayRows(seedSnapshot()).filter((row) => row.photoId === id);
-      const progress = () => screen.getByTestId("W-TR-03.film.progress").textContent;
+      // The words a screen reader hears; the numeral beside them is hidden (round 3: FS Sans, no dot-matrix).
+      const progress = () => screen.getByTestId("W-TR-03.film.progress").querySelector(".fs-sr")?.textContent;
       // Round 3: no ribbon; each new event is the one toast at the bottom left (the Log keeps them all).
       const ribbon = (serial: string) =>
         waitFor(() => {

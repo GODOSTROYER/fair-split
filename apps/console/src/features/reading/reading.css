@@ -313,12 +313,12 @@
   min-width: 0;
 }
 
-/* The room's instrument: the slips read as dot-matrix ("48/48"), "slips read" as micro, the stand-in tag at the
-   row's end. The one numeral of its kind on the screen (unslop spec §1.6). */
+/* The room's one hero count: the slips read in FS Sans ("48/48"), "slips read" as micro on its baseline, the
+   stand-in mark at the row's end (UI gate round 3: no dot-matrix). */
 .fsc-read__counter {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-end;
+  align-items: baseline;
   gap: 8px 12px;
   padding-bottom: 16px;
   border-bottom: 1px solid var(--fs-rule);

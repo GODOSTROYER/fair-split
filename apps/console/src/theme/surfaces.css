@@ -34,13 +34,12 @@
   font-display: swap;
 }
 
-/* The stencil face is retired (UI gate round 3): Proof's lot mark (.pf-hero__lot) is the id role, FS Sans Proof's
-   code-like figures at 13 px, so it needs no face of its own and has no frame in a fallback. */
+/* One family and one mono (UI gate round 3): Proof's lot mark (.pf-hero__lot) is the id role, the platform's mono
+   (--fs-font-mark), so it needs no face of its own; no stencil, no Atkinson. */
 
 :root[data-face="proof"] {
   --fs-font-ui: "FS Sans Proof", system-ui, sans-serif;
-  --fs-font-statement: "Atkinson Hyperlegible Next", "FS Sans Proof", system-ui, sans-serif;
-  --fs-font-mark: "FS Sans Proof", system-ui, sans-serif;
+  --fs-font-statement: "FS Sans Proof", system-ui, sans-serif;
   --fs-font-hollow: "FS Sans Proof", system-ui, sans-serif;
 }
 

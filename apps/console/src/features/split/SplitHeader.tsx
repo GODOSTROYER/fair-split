@@ -1,18 +1,17 @@
 // Split review's bench (S1.7 W-TR-05 header; unslop spec §3.6), one short band so the lines get the height: the
-// mass-balance tick ring with its reading as the screen's one instrument numeral (dot-matrix), the limit as micro
+// mass-balance tick ring with its reading as the screen's one hero numeral (FS Sans, round 3), the limit as micro
 // and the state as a pill; the pool, the screen's money, in pencil (the engine's figure, nobody has signed) with
 // its two parts and the balance check; and the open decisions as counts with the next one linked. The filters run
 // beneath it as one segmented row. The dial swings only on a live decision (the needle spring, MM-3); replayed
 // history sets it in place. In reduced motion the needle cuts to its new value under a 200 ms crossfade.
 
-import { Glyph, MassBalanceDial, useMotionMode } from "@fairsplit/ui-web";
+import { Glyph, MassBalanceDial, Numeral, useMotionMode } from "@fairsplit/ui-web";
 import type { ReactNode } from "react";
 import { AppLink } from "../../chrome/AppLink.js";
 import { DataTable, Mirrored } from "../../chrome/DataTable.js";
 import { format } from "../../lib/format.js";
 import { type MassBalanceView, SPLIT_FILTERS, type SplitFilter } from "./model.js";
 import { en, SPLIT } from "./shared/copy.js";
-import { DotMatrix } from "./shared/DotMatrix.js";
 
 export interface PoolsView {
   readonly premiumCents: number;
@@ -136,16 +135,17 @@ export function DialState({ dial, testId }: { readonly dial: MassBalanceView; re
   );
 }
 
-/** The reading as the instrument numeral, its unit and limit as micro beside it. */
+/** The reading as the screen's one hero numeral (FS Sans tabular figures), its unit and limit as micro beside it. */
 export function DialReading({
   dial,
   was,
-  pitch = 7,
+  size = "hero",
   testId,
 }: {
   readonly dial: MassBalanceView;
   readonly was?: string | null;
-  readonly pitch?: number;
+  /** The type step: the bench's hero, or the title step beside a smaller dial. */
+  readonly size?: "hero" | "title";
   readonly testId?: string;
 }) {
   if (dial.status === "PENDING") return null;
@@ -153,7 +153,7 @@ export function DialReading({
   return (
     <span className="fsr-reading" data-testid={testId}>
       <span className="fsr-reading__value">
-        <DotMatrix value={value} pitch={pitch} label={SPLIT.dialSpoken(value)} />
+        <Numeral value={value} size={size} label={SPLIT.dialSpoken(value)} />
         <span className="fsr-reading__unit" aria-hidden>
           %
         </span>

@@ -9,7 +9,7 @@
 
 import type { RunEvent, SeasonSnapshot } from "@fairsplit/contracts";
 import { webRoutes } from "@fairsplit/contracts";
-import { Glyph, useMotionMode } from "@fairsplit/ui-web";
+import { Glyph, Numeral, useMotionMode } from "@fairsplit/ui-web";
 import { useRouter } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ScreenRoot } from "../../chrome/ScreenRoot.js";
@@ -20,7 +20,6 @@ import { useMoment } from "../../lib/moment.js";
 import { useShortcut } from "../../lib/shortcuts.js";
 import { useOptionalStage } from "../../stage/context.js";
 import { useOnline } from "../season/online.js";
-import { DotMatrix } from "../split/shared/DotMatrix.js";
 import { ConfirmZoomRead, RequestRescan } from "./Actions.js";
 import { Beds, type Landing } from "./Beds.js";
 import { Bench, type BenchZoom, FIT, zoomOnSlip } from "./Bench.js";
@@ -352,15 +351,10 @@ export function ReadingRoom({
           />
         </div>
         <div className="fsc-read__side" data-testid="W-TR-03.side">
-          {/* The screen's instrument: the slips read, in dot-matrix, the stand-in's tag beside it (spec §3.4). */}
+          {/* The screen's one hero count: the slips read, in FS Sans, the stand-in's mark beside it (round 3). */}
           <div className="fsc-read__counter">
             <p className="fsc-read__progress" data-testid="W-TR-03.film.progress">
-              <DotMatrix
-                value={READING_COPY.progressDots(progress.read, progress.total)}
-                pitch={7}
-                label={READING_COPY.progress(progress.read, progress.total)}
-                decorative
-              />
+              <Numeral value={READING_COPY.progressDots(progress.read, progress.total)} decorative />
               <span className="fs-sr">{READING_COPY.progress(progress.read, progress.total)}</span>
             </p>
             <span className="fsc-read__counter-unit fs-t-micro" aria-hidden>

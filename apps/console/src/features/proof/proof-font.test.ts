@@ -129,10 +129,13 @@ describe("Proof's face", () => {
     await waitFor(() => expect(rootReadsProof()).toBe(false));
   });
 
-  it("the lot mark has no face of its own: the stencil is retired, the mark is the id role (round 3)", () => {
+  it("the lot mark has no face of its own: no stencil, no Atkinson; the mark is the id role, the mono (round 3)", () => {
     const faces = [...surfaces.matchAll(/@font-face\s*\{([^}]*)\}/g)].map((m) => m[1] ?? "");
-    expect(faces.filter((f) => /FS Stencil/.test(f))).toHaveLength(0);
-    expect(surfaces).toMatch(/--fs-font-mark: "FS Sans Proof"/);
+    expect(faces.filter((f) => /FS Stencil|Atkinson/.test(f))).toHaveLength(0);
+    // Proof leaves --fs-font-mark to the tokens' mono; its statement slot reads in the Proof subset.
+    expect(surfaces).not.toMatch(/--fs-font-mark:/);
+    expect(surfaces).not.toMatch(/--fs-font-[a-z]+: "Atkinson/);
+    expect(surfaces).toMatch(/--fs-font-statement: "FS Sans Proof"/);
   });
 
   it("a cold Proof load starts the lot mark's face loading before the first render; a console path does not", () => {
