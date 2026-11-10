@@ -195,7 +195,7 @@ export async function startJudgeSession(c: AppContext, deps: AppDeps): Promise<S
         if (!admissionLock?.acquired) {
           admissionContended = true;
           throw new ApiProblem("QUEUED", "Preparing a fresh workspace. You're next; try again in a moment.", {
-            retryAfterMs: 500,
+            retryAfterMs: 250,
             details: { reason: "PREPARING_WORKSPACE" },
           });
         }
@@ -218,7 +218,7 @@ export async function startJudgeSession(c: AppContext, deps: AppDeps): Promise<S
               "QUEUED",
               "Preparing a fresh workspace. You're next; try again in a moment.",
               {
-                retryAfterMs: 500,
+                retryAfterMs: 250,
                 details: { reason: "PREPARING_WORKSPACE" },
               },
             );
