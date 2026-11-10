@@ -323,10 +323,10 @@ describe("POST /v1/judge/sessions (createJudgeSession)", () => {
       expect(r.status).toBe(429);
       expect(ApiError.parse(r.body)).toMatchObject({
         code: "QUEUED",
-        retryAfterMs: 3000,
+        retryAfterMs: 500,
         details: { reason: "PREPARING_WORKSPACE" },
       });
-      expect(r.headers.get("retry-after")).toBe("3");
+      expect(r.headers.get("retry-after")).toBe("1");
     } finally {
       for (let i = 0; i < MAX_CONCURRENT_CLONES; i++) rt.leaveClone();
     }
