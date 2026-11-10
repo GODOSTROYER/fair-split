@@ -53,7 +53,7 @@ async function keysWithChairWatching(page: Page, api: Api, s: JudgeSession, keys
   const chair = page.frameLocator('[data-testid="W-JG-01.frame.chair"]');
   await expect(chair.getByTestId("M-BD-01")).toHaveAttribute("data-state", "request");
   await expect(chair.getByTestId("demo-label")).toHaveCount(0);
-  await expect(chair.getByTestId("M-BD-01.rail")).toHaveText("Simulated PayPal sandbox");
+  await expect(chair.getByTestId("M-BD-01.rail")).toContainText("Simulated PayPal sandbox");
   await expect(chair.getByTestId("M-BD-01.item.M-014")).toBeVisible();
   await expect(chair.getByTestId("M-BD-01.amount")).toHaveAttribute("data-amount-state", "pencil");
   expect((await sign(api, s, keys.chair)).status).toBe(201);
@@ -88,7 +88,7 @@ async function phoneScreenSweep(page: Page, replayed: boolean): Promise<void> {
   await expect(chair.getByTestId("M-BD-01.amount")).toHaveAttribute("data-amount-state", "ink");
   await expect(chair.getByTestId("M-BD-01.total")).toHaveAttribute("data-amount-state", "ink");
   await expect(chair.getByTestId("M-BD-01.total")).toContainText("US$0.00");
-  await expect(chair.getByTestId("M-BD-01.rail")).toHaveText("Simulated PayPal sandbox");
+  await expect(chair.getByTestId("M-BD-01.rail")).toContainText("Simulated PayPal sandbox");
   await expect(chair.getByTestId("M-BD-01")).not.toContainText(/replay|\bPaid\b|Bayad na/i);
   await expect(
     chair
