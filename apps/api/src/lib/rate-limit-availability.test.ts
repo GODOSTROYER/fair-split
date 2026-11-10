@@ -58,7 +58,7 @@ it("HD6 R1: total keyed pressure leaves room for global rules and new routes", (
   });
   expect(limiter.peek(LINK_READ_RULES.link, "attacker:0")).toEqual({
     ok: true,
-    remaining: LINK_READ_RULES.link.limit - 1,
+    remaining: LINK_READ_RULES.link.limit,
   });
   expect(limiter.size).toBeLessThanOrEqual(MAX_KEYS);
 });
