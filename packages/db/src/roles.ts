@@ -71,7 +71,10 @@ export async function inspectAppRole(db: DbOrTx): Promise<AppRoleReport> {
            (select array_agg(t.name || ':' || p.priv order by t.name, p.priv)
               from (values ${tables}) as t(name)
               cross join (values ('UPDATE'), ('DELETE'), ('TRUNCATE')) as p(priv)
-             where has_table_privilege(current_user, t.name, p.priv)) as writable`);
+             -- UPDATE also by column: has_table_privilege answers only for a table-level grant, so a column-level
+             -- GRANT UPDATE (col) would pass unseen (TRUNCATE and DELETE have no column form)
+             where has_table_privilege(current_user, t.name, p.priv)
+                or (p.priv = 'UPDATE' and has_any_column_privilege(current_user, t.name, 'UPDATE'))) as writable`);
   const row = (res as unknown as RoleRow[])[0];
   if (!row) throw new Error("inspectAppRole: no row");
   const mode: AppRoleMode =
