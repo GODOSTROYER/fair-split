@@ -17,6 +17,8 @@ export const SPLIT = {
   decidedKey1: "Every hold decided · Analyn signed",
   decidedApproved: "Every hold decided · both keys signed",
   decidedSettled: "Every hold decided · settled",
+  /** Settled with cash still due at the bodega: PayPal's part is complete, the run is not (round 3). */
+  decidedCashDue: "Every hold decided · PayPal complete · cash due",
   /** A replay run never promises fresh simulator confirmations (inv.i8). */
   decidedReplayed: "Every hold decided · both keys signed · payouts replayed (labelled)",
   /** The open decisions as counts: "3 holds open · 1 by hand". Nothing that is zero is said. */

@@ -45,6 +45,14 @@ describe("split review after a payout replay", () => {
     }
   });
 
+  it("a settled run with cash still due never reads settled (UI gate round 3)", () => {
+    for (const state of ["SETTLED", "CLOSED"]) {
+      expect(decidedWords(state, false, true)).toBe("Every hold decided · PayPal complete · cash due");
+      expect(decidedWords(state, false, true)).not.toMatch(/settled|done/i);
+    }
+    expect(decidedWords("SETTLED", false, false)).toBe("Every hold decided · settled");
+  });
+
   it("keeps cash statuses distinct from replayed PayPal statuses", () => {
     const row = splitRows(snapshot, replayView).find((r) => r.rail === "CASH");
     expect(row?.replayed).not.toBe(true);

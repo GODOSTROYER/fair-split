@@ -12,6 +12,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { AppLink } from "../../chrome/AppLink.js";
 import { CommandNotice } from "../../chrome/CommandNotice.js";
 import { RunRouteGate } from "../../chrome/Fallbacks.js";
+import { cashStillDue } from "../../chrome/next-step.js";
 import { PrintBed } from "../../chrome/PrintBed.js";
 import { ScreenRoot } from "../../chrome/ScreenRoot.js";
 import { payoutReplayed } from "../../data/payout-replay.js";
@@ -283,7 +284,7 @@ export function Screen({ runSlug, hold, member }: SplitScreenProps) {
         filter={filter}
         onFilter={setFilter}
         railsPlanned={!posted}
-        decidedWords={decidedWords(view.state, replayed)}
+        decidedWords={decidedWords(view.state, replayed, cashStillDue(view, snapshot.figures.cashMembers))}
         reconcile={
           <Reconcile
             totals={totals}
@@ -330,10 +331,13 @@ export function Screen({ runSlug, hold, member }: SplitScreenProps) {
   );
 }
 
-/** What the bench says once every hold is decided, by how far the run has gone since. */
-export function decidedWords(state: string, replayed = false): string {
+/**
+ * What the bench says once every hold is decided, by how far the run has gone since. A settled run with cash still
+ * due never reads "settled" (round 3): PayPal's part is complete, the cash is not handed over.
+ */
+export function decidedWords(state: string, replayed = false, cashDue = false): string {
   if (replayed && POSTED.includes(state)) return SPLIT.decidedReplayed;
-  if (state === "SETTLED" || state === "CLOSED") return SPLIT.decidedSettled;
+  if (state === "SETTLED" || state === "CLOSED") return cashDue ? SPLIT.decidedCashDue : SPLIT.decidedSettled;
   if (state === "TREASURER_APPROVED" || state === "AWAITING_BOARD") return SPLIT.decidedKey1;
   if (["APPROVED", "POSTING", "POSTED", "SETTLING", "NEEDS_FOLLOW_UP"].includes(state))
     return SPLIT.decidedApproved;
