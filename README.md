@@ -314,7 +314,15 @@ corepack pnpm e2e                                # the Playwright suite
 ```
 
 On Linux or macOS, run the same commands in a POSIX shell, with `export COREPACK_ENABLE_DOWNLOAD_PROMPT=0` in place
-of the `$env:` line. CI runs them on Linux; macOS is untested.
+of the `$env:` line (the `core.longpaths` line matters only on Windows). CI runs them on Linux; macOS is untested.
+Two Linux specifics, from the clean-clone check on Ubuntu 24.04 ([DR-4](docs/reports/cloud-dr4-linux.md)):
+- Run as a regular user, not root. Postgres refuses to run as root, so the embedded database cannot start in a root
+  shell, such as a Docker container. As root, give the tests and the stack a Postgres server's admin URL instead:
+  `export FS_TEST_DATABASE_URL=postgres://postgres@127.0.0.1:5432/postgres`. `corepack pnpm verify` removes `FS_*`
+  variables from its children, so pass it the same URL as `corepack pnpm verify --db=<url>`.
+- A fresh Linux install lacks the system libraries Chromium needs. Install them with the browser, once:
+  `corepack pnpm --filter @fairsplit/e2e exec playwright install --with-deps chromium` (it asks for sudo for the
+  system packages).
 
 The keyless stack is the local path we support. fs-api does not read `.env` by itself: `.env.example` lists the
 variable names a deployment sets (on Render, per-service environment variables). Never commit `.env`.
@@ -337,6 +345,23 @@ environment, so it proves the repo passes on recorded fixtures alone. The Postgr
 fetches the bundle and the published keys with no cookie or credential, and runs the same verify-core as the
 browser: the hash chain, its signed checkpoint and the six plates. It prints each plate's result and the rail's
 provenance, and exits 0 only when the record is accepted.
+
+## Postman
+
+[`postman/`](postman/README.md) holds a Postman v2.1 collection with tests: the judge's 60-second loop, Proof verify
+and the labelled failure paths. It runs against a **local keyless stack only** (the simulated PayPal sandbox and the
+seed's labelled stand-in reading), never against a hosted demo. Start the stack in one terminal and run the collection
+from the repository root in another; newman 6.2.3 comes through `npx`, so nothing is installed.
+
+```powershell
+$env:COREPACK_ENABLE_DOWNLOAD_PROMPT = "0"
+corepack pnpm --filter @fairsplit/e2e stack              # prints "fs-api up at http://127.0.0.1:<port>"
+node postman/run.mjs --base-url http://127.0.0.1:<port>  # in a second terminal
+```
+
+On Linux or macOS, use `export COREPACK_ENABLE_DOWNLOAD_PROMPT=0` in place of the `$env:` line. The runner refuses
+any origin that is not loopback http and any fs-api whose rail is not `simulated`. It prints the request, assertion
+and failure counts, and keeps newman's JSON report under `.codex-scratch/postman/`.
 
 ## Tests
 

@@ -1,0 +1,21 @@
+judge,ip,outcome,failedAt,detail,rail,railReason,payoutRail,payoutReason,pressStatus,pressMs,invoicedMs,fundedMs,inReviewMs,keysMs,postingMs,postedMs,settledMs,proofMs,resetMs,markPaidQueued,cashPaced,proofStatus,payoutPlate,paypalVerified,labelViolations,labelNotes,lines,paidLineProvenance,exportItems,events,streamRefusals,streamReconnects
+5,127.31.0.6,settled,,,live,,live,,201,660,121876,482812,495050,495445,856549,856702,882488,882567,16,2,,replay,replay,0,2,live payout's Proof reads replay; live item without simulated provenance,PAID:7 OFF_RAIL_DUE:57,live:7,,1451,0,0
+1,127.31.0.2,settled,,,live,,live,,201,94,807,161773,174050,174618,535274,535398,904387,904498,11,2,503 CIRCUIT_OPEN,sample,?,7,0,,OFF_RAIL_DUE:57 PAID:7,live:7,,1462,0,0
+2,127.31.0.3,settled,,,live,,live,,201,915,201994,562198,574489,575086,895752,896032,921614,921729,11,1,,replay,replay,0,2,live payout's Proof reads replay; live item without simulated provenance,OFF_RAIL_DUE:57 PAID:7,live:7,,1451,0,0
+10,127.31.0.11,settled,,,replay,daily_cap,replay,daily_cap,201,36,791,827,13591,14236,14536,14603,39825,39918,12,0,,replay,replay,0,0,,OFF_RAIL_DUE:57 PAID:7,live:7,replay:8,1449,0,0
+11,127.31.0.12,settled,,,replay,daily_cap,replay,daily_cap,201,13,310,369,12144,12911,13123,13178,39319,39510,26,0,,replay,replay,0,0,,OFF_RAIL_DUE:57 PAID:7,live:7,replay:8,1449,0,0
+13,127.31.0.14,settled,,,replay,daily_cap,replay,daily_cap,201,22,414,484,13409,14385,14606,14675,40489,40745,115,0,,replay,replay,0,0,,OFF_RAIL_DUE:57 PAID:7,live:7,replay:8,1449,0,0
+12,127.31.0.13,settled,,,replay,daily_cap,replay,daily_cap,201,32,395,437,12866,14411,14878,14991,41367,41678,174,0,,replay,replay,0,0,,PAID:7 OFF_RAIL_DUE:57,live:7,replay:8,1449,0,0
+6,127.31.0.7,settled,,,live,,live,,201,3331,204657,565456,577404,578082,938923,939195,965227,965355,27,1,,replay,replay,0,2,live payout's Proof reads replay; live item without simulated provenance,OFF_RAIL_DUE:57 PAID:7,live:7,,1451,0,0
+14,127.31.0.15,settled,,,replay,daily_cap,replay,daily_cap,201,29,231,284,12584,13176,13751,13898,39732,39904,9,0,,replay,replay,0,0,,OFF_RAIL_DUE:57 PAID:7,live:7,replay:8,1449,0,0
+15,127.31.0.16,settled,,,replay,daily_cap,replay,daily_cap,201,57,518,713,12539,13383,14041,14229,39778,39854,47,0,,replay,replay,0,0,,PAID:7 OFF_RAIL_DUE:57,live:7,replay:8,1449,0,0
+16,127.31.0.17,settled,,,replay,daily_cap,replay,daily_cap,201,87,788,952,13294,14965,15795,15954,41551,41748,21,0,,replay,replay,0,0,,OFF_RAIL_DUE:57 PAID:7,live:7,replay:8,1449,0,0
+17,127.31.0.18,settled,,,replay,daily_cap,replay,daily_cap,201,21,301,363,12606,14208,14725,14871,40216,40345,22,0,,replay,replay,0,0,,OFF_RAIL_DUE:57 PAID:7,live:7,replay:8,1449,0,0
+4,127.31.0.5,settled,,,live,,live,,201,3338,244870,605617,618363,619727,981876,981959,1007515,1007632,11,1,,replay,replay,0,2,live payout's Proof reads replay; live item without simulated provenance,PAID:7 OFF_RAIL_DUE:57,live:7,,1451,0,0
+18,127.31.0.19,settled,,,replay,daily_cap,replay,daily_cap,201,28,351,402,11789,12392,12603,12687,38019,38160,21,0,,replay,replay,0,0,,OFF_RAIL_DUE:57 PAID:7,live:7,replay:8,1449,0,0
+19,127.31.0.20,settled,,,replay,daily_cap,replay,daily_cap,201,25,324,362,13934,14513,14845,14914,40810,40898,12,0,,replay,replay,0,0,,OFF_RAIL_DUE:57 PAID:7,live:7,replay:8,1449,0,0
+20,127.31.0.21,settled,,,replay,daily_cap,replay,daily_cap,201,50,574,720,13169,14185,14973,15016,41255,41391,66,0,,replay,replay,0,0,,OFF_RAIL_DUE:57 PAID:7,live:7,replay:8,1449,0,0
+3,127.31.0.4,settled,,,live,,live,,201,3342,285409,646649,658769,659703,1020332,1020498,1046879,1047206,35,2,,replay,replay,0,2,live payout's Proof reads replay; live item without simulated provenance,OFF_RAIL_DUE:57 PAID:7,live:7,,1451,0,0
+21,127.31.0.22,settled,,,replay,daily_cap,replay,daily_cap,201,50,739,828,13641,14639,14917,14957,41512,41851,30,0,,replay,replay,0,0,,OFF_RAIL_DUE:57 PAID:7,live:7,replay:8,1449,0,0
+22,127.31.0.23,settled,,,replay,daily_cap,replay,daily_cap,201,41,518,557,13270,14540,14880,15052,41800,42080,28,0,,replay,replay,0,0,,OFF_RAIL_DUE:57 PAID:7,live:7,replay:8,1449,0,0
+23,127.31.0.24,settled,,,replay,daily_cap,replay,daily_cap,201,42,1113,1277,12942,13514,13744,13830,39554,39733,21,0,,replay,replay,0,0,,OFF_RAIL_DUE:57 PAID:7,live:7,replay:8,1449,0,0

@@ -1,0 +1,1599 @@
+# T3 mutation testing: every remaining survivor
+
+Generated from the final Stryker reports. Each line: file:line:column, mutator, replacement, and why it is acceptable (see the report's classes).
+
+## domain (558)
+
+- `src/money.ts:152:25` (no coverage) StringLiteral → `""`: equivalent: the regex always captures the whole part
+- `src/money.ts:136:45` EqualityOperator → `a.remainder >= b.remainder`: equivalent: inside `a.remainder !== b.remainder`, `>` and `>=` agree
+- `src/money.ts:137:12` EqualityOperator → `a.id <= b.id`: sort comparator (unique keys; V8 asks only < 0)
+- `src/money.ts:137:31` ConditionalExpression → `true`: sort comparator (unique keys; V8 asks only < 0)
+- `src/money.ts:137:31` ConditionalExpression → `false`: sort comparator (unique keys; V8 asks only < 0)
+- `src/money.ts:137:31` EqualityOperator → `a.id >= b.id`: sort comparator (unique keys; V8 asks only < 0)
+- `src/money.ts:137:31` EqualityOperator → `a.id <= b.id`: sort comparator (unique keys; V8 asks only < 0)
+- `src/money.ts:142:37` StringLiteral → `""`: unreachable: a share is at most the safe total, so the overflow message never shows
+- `src/money.ts:145:54` StringLiteral → `""`: unreachable: the total weight check message never shows (weights are safe integers)
+- `src/digest-input.ts:41:22` EqualityOperator → `a.senderItemId <= b.senderItemId`: sort comparator (unique keys; V8 asks only < 0)
+- `src/digest-input.ts:41:61` ConditionalExpression → `true`: sort comparator (unique keys; V8 asks only < 0)
+- `src/digest-input.ts:41:61` ConditionalExpression → `false`: sort comparator (unique keys; V8 asks only < 0)
+- `src/digest-input.ts:41:61` EqualityOperator → `a.senderItemId >= b.senderItemId`: sort comparator (unique keys; V8 asks only < 0)
+- `src/digest-input.ts:41:61` EqualityOperator → `a.senderItemId <= b.senderItemId`: sort comparator (unique keys; V8 asks only < 0)
+- `src/digest-input.ts:68:22` EqualityOperator → `a.memberNo <= b.memberNo`: sort comparator (unique keys; V8 asks only < 0)
+- `src/digest-input.ts:68:53` ConditionalExpression → `true`: sort comparator (unique keys; V8 asks only < 0)
+- `src/digest-input.ts:68:53` ConditionalExpression → `false`: sort comparator (unique keys; V8 asks only < 0)
+- `src/digest-input.ts:68:53` EqualityOperator → `a.memberNo >= b.memberNo`: sort comparator (unique keys; V8 asks only < 0)
+- `src/digest-input.ts:68:53` EqualityOperator → `a.memberNo <= b.memberNo`: sort comparator (unique keys; V8 asks only < 0)
+- `src/approval.ts:293:65` (no coverage) ArrayDeclaration → `["Stryker was here"]`: equivalent: both indices are always in range
+- `src/approval.ts:291:19` EqualityOperator → `i <= pairs.length`: equivalent: an out-of-range index reads undefined and finds no overlap
+- `src/approval.ts:292:25` EqualityOperator → `j <= pairs.length`: equivalent: an out-of-range index reads undefined and finds no overlap
+- `src/approval.ts:293:82` OptionalChaining → `sets[j].has`: equivalent: both indices are always in range
+- `src/sig.ts:29:7` ConditionalExpression → `false`: unreachable: node always exports x for an Ed25519 key
+- `src/sig.ts:29:50` (no coverage) StringLiteral → `""`: unreachable: node always exports x for an Ed25519 key
+- `src/sig.ts:34:61` StringLiteral → `""`: equivalent: Buffer.from treats a string without an encoding as UTF-8, and ignores it for bytes
+- `src/sig.ts:54:11` (no coverage) BlockStatement → `{}`: unreachable: node's verify does not throw for a well-formed 32-byte key (checked)
+- `src/sig.ts:55:12` (no coverage) BooleanLiteral → `true`: unreachable: node's verify does not throw for a well-formed 32-byte key (checked)
+- `src/sig.ts:34:10` ConditionalExpression → `true`: equivalent: Buffer.from treats a string without an encoding as UTF-8, and ignores it for bytes
+- `src/sig.ts:34:10` ConditionalExpression → `false`: equivalent: Buffer.from treats a string without an encoding as UTF-8, and ignores it for bytes
+- `src/sig.ts:34:10` EqualityOperator → `typeof message !== "string"`: equivalent: Buffer.from treats a string without an encoding as UTF-8, and ignores it for bytes
+- `src/sig.ts:34:29` StringLiteral → `""`: equivalent: Buffer.from treats a string without an encoding as UTF-8, and ignores it for bytes
+- `src/sig.ts:47:7` ConditionalExpression → `false`: equivalent: a malformed key or signature makes createPublicKey or verify throw, caught as false
+- `src/sig.ts:47:7` LogicalOperator → `!/^[0-9a-f]{64}$/.test(publicKeyHex) && !/^[0-9a-f`: equivalent: a malformed key or signature makes createPublicKey or verify throw, caught as false
+- `src/sig.ts:47:8` Regex → `/[0-9a-f]{64}$/`: equivalent: a malformed key or signature makes createPublicKey or verify throw, caught as false
+- `src/sig.ts:47:8` Regex → `/^[0-9a-f]{64}/`: equivalent: a malformed key or signature makes createPublicKey or verify throw, caught as false
+- `src/sig.ts:47:48` Regex → `/[0-9a-f]{128}$/`: equivalent: a malformed key or signature makes createPublicKey or verify throw, caught as false
+- `src/sig.ts:47:48` Regex → `/^[0-9a-f]{128}/`: equivalent: a malformed key or signature makes createPublicKey or verify throw, caught as false
+- `src/policy.ts:325:80` (no coverage) StringLiteral → `""`: wording: a refusal or error message (the refusal itself is tested)
+- `src/policy.ts:560:52` ArrayDeclaration → `["Stryker was here"]`: equivalent: a placeholder rule is not a record, so it is refused the same way
+- `src/policy.ts:45:10` ConditionalExpression → `true`: equivalent: a non-string hold_id matches no hold's string id
+- `src/policy.ts:42:24` ConditionalExpression → `true`: equivalent: a non-object argument has no hold_id either way, so the hold is not found
+- `src/policy.ts:77:9` ConditionalExpression → `false`: equivalent: a number segment fails IDENT and prints as [n] through the quoting branch too
+- `src/policy.ts:77:22` StringLiteral → `""`: equivalent: a number segment fails IDENT and prints as [n] through the quoting branch too
+- `src/policy.ts:96:9` ConditionalExpression → `true`: equivalent: the root path has no key, and every visitor descends into it
+- `src/policy.ts:96:9` EqualityOperator → `path.length >= 0`: equivalent: the root path has no key, and every visitor descends into it
+- `src/policy.ts:98:20` ArithmeticOperator → `value.length + 1`: equivalent: indices past the end read undefined, which no visitor flags
+- `src/policy.ts:148:89` ArrayDeclaration → `["Stryker was here"]`: equivalent: a placeholder recipient is not a record, so no e-mail is read from it
+- `src/policy.ts:237:68` ArrowFunction → `() => undefined`: equivalent: undefined is falsy like false
+- `src/policy.ts:241:9` ConditionalExpression → `false`: equivalent: a non-string key never matches /date/ or the term names
+- `src/policy.ts:313:11` ConditionalExpression → `false`: equivalent for JSON: a missing key is reported by the value comparison one level down
+- `src/policy.ts:313:11` LogicalOperator → `!has(a, k) && !has(b, k)`: equivalent for JSON: a missing key is reported by the value comparison one level down
+- `src/policy.ts:460:9` ConditionalExpression → `false`: redundant: canonicalInvoiceCall refuses with the same reason
+- `src/policy.ts:464:9` ConditionalExpression → `false`: redundant: once the dates read, the canonical rule can always be built
+- `src/policy.ts:523:27` MethodExpression → `ctx.expected.brandAllowlist.map(asciiEmailKey)`: equivalent: a null key never equals a recipient's non-null key
+- `src/policy.ts:523:88` ConditionalExpression → `true`: equivalent: a null key never equals a recipient's non-null key
+- `src/policy.ts:540:3` ConditionalExpression → `true`: unreachable: a longer path under the date key is never visited (dates are not descended into)
+- `src/policy.ts:542:3` ConditionalExpression → `true`: unreachable: a second rule is refused before this check
+- `src/policy.ts:626:9` EqualityOperator → `r.verdict >= rank`: equivalent: `>=` and `>` set the same rank
+- `src/invoice.ts:357:70` (no coverage) StringLiteral → `""`: unreachable: canonicalInvoice only throws Error instances
+- `src/invoice.ts:163:12` Regex → `/[ ,()]/`: equivalent: empty words from repeated separators are filtered out
+- `src/invoice.ts:193:9` ConditionalExpression → `false`: equivalent: a non-string label fails the regex test the same way
+- `src/invoice.ts:270:7` ConditionalExpression → `false`: equivalent: a non-string never matches the date regex
+- `src/invoice.ts:275:38` ConditionalExpression → `true`: equivalent: a rolled-over date always changes the month, so the month or year check refuses it
+- `src/invoice.ts:275:68` ConditionalExpression → `true`: equivalent: a rolled-over date always changes the month, so the month or year check refuses it
+- `src/engine.ts:124:30` (no coverage) UnaryOperator → `+1`: sort comparator (unique keys; V8 asks only < 0)
+- `src/engine.ts:191:43` (no coverage) ArrayDeclaration → `["Stryker was here"]`: equivalent: every serial key comes from the map itself
+- `src/engine.ts:123:7` ConditionalExpression → `true`: sort comparator (unique keys; V8 asks only < 0)
+- `src/engine.ts:123:7` ConditionalExpression → `false`: sort comparator (unique keys; V8 asks only < 0)
+- `src/engine.ts:123:7` EqualityOperator → `a.documentId === b.documentId`: sort comparator (unique keys; V8 asks only < 0)
+- `src/engine.ts:123:45` ConditionalExpression → `false`: sort comparator (unique keys; V8 asks only < 0)
+- `src/engine.ts:123:45` EqualityOperator → `a.documentId <= b.documentId`: sort comparator (unique keys; V8 asks only < 0)
+- `src/engine.ts:124:10` ConditionalExpression → `false`: sort comparator (unique keys; V8 asks only < 0)
+- `src/engine.ts:124:10` EqualityOperator → `a.rowId <= b.rowId`: sort comparator (unique keys; V8 asks only < 0)
+- `src/engine.ts:124:35` ConditionalExpression → `true`: sort comparator (unique keys; V8 asks only < 0)
+- `src/engine.ts:124:35` ConditionalExpression → `false`: sort comparator (unique keys; V8 asks only < 0)
+- `src/engine.ts:124:35` EqualityOperator → `a.rowId >= b.rowId`: sort comparator (unique keys; V8 asks only < 0)
+- `src/engine.ts:123:75` UnaryOperator → `+1`: sort comparator (unique keys; V8 asks only < 0)
+- `src/engine.ts:124:35` EqualityOperator → `a.rowId <= b.rowId`: sort comparator (unique keys; V8 asks only < 0)
+- `src/engine.ts:163:54` EqualityOperator → `a.memberNo <= b.memberNo`: sort comparator (unique keys; V8 asks only < 0)
+- `src/engine.ts:169:16` MethodExpression → `[...input.rows]`: sort comparator (unique keys; V8 asks only < 0)
+- `src/engine.ts:169:37` ArrowFunction → `() => undefined`: sort comparator (unique keys; V8 asks only < 0)
+- `src/engine.ts:169:48` ConditionalExpression → `true`: sort comparator (unique keys; V8 asks only < 0)
+- `src/engine.ts:169:48` ConditionalExpression → `false`: sort comparator (unique keys; V8 asks only < 0)
+- `src/engine.ts:169:48` EqualityOperator → `a.rowId <= b.rowId`: sort comparator (unique keys; V8 asks only < 0)
+- `src/engine.ts:169:68` UnaryOperator → `+1`: sort comparator (unique keys; V8 asks only < 0)
+- `src/engine.ts:169:48` EqualityOperator → `a.rowId >= b.rowId`: sort comparator (unique keys; V8 asks only < 0)
+- `src/engine.ts:169:73` ConditionalExpression → `true`: sort comparator (unique keys; V8 asks only < 0)
+- `src/engine.ts:169:73` ConditionalExpression → `false`: sort comparator (unique keys; V8 asks only < 0)
+- `src/engine.ts:169:73` EqualityOperator → `a.rowId >= b.rowId`: sort comparator (unique keys; V8 asks only < 0)
+- `src/engine.ts:169:73` EqualityOperator → `a.rowId <= b.rowId`: sort comparator (unique keys; V8 asks only < 0)
+- `src/engine.ts:190:24` MethodExpression → `[...bySerial.keys()]`: sort comparator (unique keys; V8 asks only < 0)
+- `src/engine.ts:201:60` StringLiteral → `""`: wording: a refusal or error message (the refusal itself is tested)
+- `src/engine.ts:229:20` MethodExpression → `[...input.nearDuplicates]`: sort comparator (unique keys; V8 asks only < 0)
+- `src/engine.ts:229:62` ConditionalExpression → `true`: sort comparator (unique keys; V8 asks only < 0)
+- `src/engine.ts:229:51` ArrowFunction → `() => undefined`: sort comparator (unique keys; V8 asks only < 0)
+- `src/engine.ts:229:62` ConditionalExpression → `false`: sort comparator (unique keys; V8 asks only < 0)
+- `src/engine.ts:229:62` EqualityOperator → `a.rowA + a.rowB <= b.rowA + b.rowB`: sort comparator (unique keys; V8 asks only < 0)
+- `src/engine.ts:229:62` EqualityOperator → `a.rowA + a.rowB >= b.rowA + b.rowB`: sort comparator (unique keys; V8 asks only < 0)
+- `src/engine.ts:229:62` ArithmeticOperator → `a.rowA - a.rowB`: sort comparator (unique keys; V8 asks only < 0)
+- `src/engine.ts:229:80` ArithmeticOperator → `b.rowA - b.rowB`: sort comparator (unique keys; V8 asks only < 0)
+- `src/engine.ts:229:98` UnaryOperator → `+1`: sort comparator (unique keys; V8 asks only < 0)
+- `src/engine.ts:287:19` ConditionalExpression → `false`: equivalent: a low-confidence hold leaves OPEN only through a resolution
+- `src/engine.ts:306:35` MethodExpression → `k.serials`: sort comparator (unique keys; V8 asks only < 0)
+- `src/engine.ts:326:20` MethodExpression → `[...pendingRowIds]`: sort comparator (unique keys; V8 asks only < 0)
+- `src/engine.ts:335:44` ArithmeticOperator → `s - w.weight`: equivalent: weights are non-negative, so the total is zero exactly when the sum is
+- `src/engine.ts:336:56` ArrayDeclaration → `[]`: equivalent: a missing member reads 0 through `?? 0`
+- `src/engine.ts:353:9` ConditionalExpression → `true`: equivalent: without REGISTER_PLOT no trees are added, so an over-yield stays over
+- `src/engine.ts:391:9` ConditionalExpression → `true`: equivalent: NO_MATCH is never in the closed list
+- `src/engine.ts:391:25` StringLiteral → `""`: equivalent: NO_MATCH is never in the closed list
+- `src/engine.ts:398:92` StringLiteral → `""`: wording: a refusal or error message (the refusal itself is tested)
+- `src/engine.ts:399:53` ConditionalExpression → `true`: redundant: creditCents is null exactly when the written amount is
+- `src/engine.ts:399:86` ConditionalExpression → `true`: redundant: creditCents is null exactly when the written amount is
+- `src/engine.ts:400:19` StringLiteral → `""`: wording: a refusal or error message (the refusal itself is tested)
+- `src/engine.ts:427:29` ConditionalExpression → `true`: display text in hold params
+- `src/engine.ts:427:29` ConditionalExpression → `false`: display text in hold params
+- `src/engine.ts:427:29` EqualityOperator → `mark.writtenCentavos !== null`: display text in hold params
+- `src/engine.ts:429:28` ConditionalExpression → `true`: display text in hold params
+- `src/engine.ts:429:28` ConditionalExpression → `false`: display text in hold params
+- `src/engine.ts:429:28` EqualityOperator → `creditCents !== null`: display text in hold params
+- `src/engine.ts:430:20` ArrayDeclaration → `["Stryker was here"]`: equivalent: stays is overwritten for every pending hold after the row's marks
+- `src/engine.ts:432:23` LogicalOperator → `r || state !== "OPEN"`: equivalent: a NO_RULE hold leaves OPEN only through a resolution
+- `src/engine.ts:432:28` ConditionalExpression → `true`: equivalent: a NO_RULE hold leaves OPEN only through a resolution
+- `src/engine.ts:432:38` StringLiteral → `""`: equivalent: a NO_RULE hold leaves OPEN only through a resolution
+- `src/engine.ts:447:55` StringLiteral → `""`: wording: a refusal or error message (the refusal itself is tested)
+- `src/engine.ts:453:19` StringLiteral → `""`: wording: a refusal or error message (the refusal itself is tested)
+- `src/engine.ts:482:21` LogicalOperator → `r || state !== "OPEN"`: equivalent: every allowed RATE_MISMATCH resolution changes the state
+- `src/engine.ts:482:26` ConditionalExpression → `true`: equivalent: every allowed RATE_MISMATCH resolution changes the state
+- `src/engine.ts:482:36` StringLiteral → `""`: equivalent: every allowed RATE_MISMATCH resolution changes the state
+- `src/engine.ts:518:21` LogicalOperator → `r || state !== "OPEN"`: equivalent: every allowed injection resolution changes the state
+- `src/engine.ts:518:26` ConditionalExpression → `true`: equivalent: every allowed injection resolution changes the state
+- `src/engine.ts:518:36` StringLiteral → `""`: equivalent: every allowed injection resolution changes the state
+- `src/engine.ts:522:31` ConditionalExpression → `true`: sort comparator (unique keys; V8 asks only < 0)
+- `src/engine.ts:522:31` EqualityOperator → `a.serial + a.anomalyId <= b.serial + b.anomalyId`: sort comparator (unique keys; V8 asks only < 0)
+- `src/engine.ts:541:14` ConditionalExpression → `false`: equivalent sub-conditions: PENDING-with-prior and OUTSIDE are decided by the branch before
+- `src/engine.ts:541:14` ConditionalExpression → `true`: equivalent sub-conditions: PENDING-with-prior and OUTSIDE are decided by the branch before
+- `src/engine.ts:541:14` EqualityOperator → `massBalance.status !== "INSIDE"`: equivalent sub-conditions: PENDING-with-prior and OUTSIDE are decided by the branch before
+- `src/engine.ts:541:71` BlockStatement → `{}`: equivalent sub-conditions: PENDING-with-prior and OUTSIDE are decided by the branch before
+- `src/engine.ts:541:37` StringLiteral → `""`: equivalent sub-conditions: PENDING-with-prior and OUTSIDE are decided by the branch before
+- `src/engine.ts:549:7` ConditionalExpression → `true`: equivalent: only a LOW_CONFIDENCE key can name a row after its 15-character prefix (tested with a NO_RULE key)
+- `src/engine.ts:550:7` OptionalChaining → `rowById.get(p.key.slice("LOW_CONFIDENCE:".length))`: killed by the unknown-row test (rerun pending)
+- `src/engine.ts:791:21` (no coverage) StringLiteral → `"Stryker was here!"`: sort comparator (unique keys; V8 asks only < 0)
+- `src/engine.ts:791:43` (no coverage) StringLiteral → `"Stryker was here!"`: sort comparator (unique keys; V8 asks only < 0)
+- `src/engine.ts:574:78` ConditionalExpression → `true`: sort comparator (unique keys; V8 asks only < 0)
+- `src/engine.ts:574:78` EqualityOperator → `x.markId <= y.markId`: sort comparator (unique keys; V8 asks only < 0)
+- `src/engine.ts:599:26` ArrowFunction → `() => undefined`: sort comparator (unique keys; V8 asks only < 0)
+- `src/engine.ts:608:47` ArrowFunction → `() => undefined`: killed by the two-duplicates effect test (rerun pending)
+- `src/engine.ts:608:54` ConditionalExpression → `false`: killed by the two-duplicates effect test (rerun pending)
+- `src/engine.ts:613:84` StringLiteral → `""`: equivalent: the effect computation's `by` is not read
+- `src/engine.ts:618:9` OptionalChaining → `out.lines.find(l => l.memberNo === no).netCents`: equivalent: both recomputations have every member's line
+- `src/engine.ts:638:21` EqualityOperator → `Math.abs(both.massBalance.verifiedG - lot.shippedG`: killed by the tolerance-edge test (rerun pending)
+- `src/engine.ts:638:85` ArithmeticOperator → `tolBp / lot.shippedG`: killed by the tolerance-edge test (rerun pending)
+- `src/engine.ts:648:27` ArithmeticOperator → `ka + kb`: killed by the hold-order test (rerun pending)
+- `src/engine.ts:649:12` EqualityOperator → `a.key <= b.key`: sort comparator (unique keys; V8 asks only < 0)
+- `src/engine.ts:649:33` ConditionalExpression → `true`: sort comparator (unique keys; V8 asks only < 0)
+- `src/engine.ts:649:33` ConditionalExpression → `false`: sort comparator (unique keys; V8 asks only < 0)
+- `src/engine.ts:649:33` EqualityOperator → `a.key >= b.key`: sort comparator (unique keys; V8 asks only < 0)
+- `src/engine.ts:649:33` EqualityOperator → `a.key <= b.key`: sort comparator (unique keys; V8 asks only < 0)
+- `src/engine.ts:663:22` ConditionalExpression → `false`: killed by the pending-run test (rerun pending)
+- `src/engine.ts:709:57` StringLiteral → `""`: wording: a refusal or error message (the refusal itself is tested)
+- `src/engine.ts:738:55` StringLiteral → `""`: wording: a refusal or error message (the refusal itself is tested)
+- `src/engine.ts:754:7` EqualityOperator → `member.cbuPaidUpCentavos <= rules.cbu.paidUpCapCen`: equivalent: at the cap nothing is left to take, so no CBU line is written either way
+- `src/engine.ts:756:98` StringLiteral → `""`: wording: a refusal or error message (the refusal itself is tested)
+- `src/engine.ts:772:56` ConditionalExpression → `true`: sort comparator (unique keys; V8 asks only < 0)
+- `src/engine.ts:772:56` EqualityOperator → `a.ref <= b.ref`: sort comparator (unique keys; V8 asks only < 0)
+- `src/engine.ts:774:64` StringLiteral → `""`: wording: a refusal or error message (the refusal itself is tested)
+- `src/engine.ts:776:88` StringLiteral → `""`: wording: a refusal or error message (the refusal itself is tested)
+- `src/engine.ts:791:5` ConditionalExpression → `true`: sort comparator (unique keys; V8 asks only < 0)
+- `src/engine.ts:791:5` EqualityOperator → `(a.voucherNo ?? "") <= (b.voucherNo ?? "")`: sort comparator (unique keys; V8 asks only < 0)
+- `src/engine.ts:791:6` LogicalOperator → `a.voucherNo && ""`: sort comparator (unique keys; V8 asks only < 0)
+- `src/engine.ts:794:63` StringLiteral → `""`: wording: a refusal or error message (the refusal itself is tested)
+- `src/engine.ts:796:87` StringLiteral → `""`: wording: a refusal or error message (the refusal itself is tested)
+- `src/engine.ts:807:5` AssignmentOperator → `room += amount`: equivalent: room is not read after the last advance
+- `src/engine.ts:891:7` ConditionalExpression → `true`: equivalent: true by construction (each line's net goes to exactly one of the three sums)
+- `src/chain.ts:76:35` (no coverage) StringLiteral → `""`: redundant: signing a checkpoint of an empty ledger fails on the missing head either way
+- `src/chain.ts:76:7` ConditionalExpression → `false`: redundant: signing a checkpoint of an empty ledger fails on the missing head either way
+- `src/verify-core.ts:201:17` StringLiteral → `""`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:259:30` (no coverage) StringLiteral → `""`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:273:5` (no coverage) BlockStatement → `{}`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:274:17` (no coverage) StringLiteral → `""`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:276:58` (no coverage) BlockStatement → `{}`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:277:17` (no coverage) StringLiteral → `""`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:286:27` EqualityOperator → `Date.parse(revokedAt) >= Date.parse(at)`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:308:30` (no coverage) StringLiteral → `""`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:311:23` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:311:23` EqualityOperator → `i.amountCents >= cosign.lineOverCents`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:321:5` BlockStatement → `{}`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:322:17` StringLiteral → `""`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:344:63` (no coverage) StringLiteral → `""`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:412:24` (no coverage) BlockStatement → `{}`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:413:12` (no coverage) ObjectLiteral → `{}`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:413:18` (no coverage) BooleanLiteral → `true`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:413:33` (no coverage) StringLiteral → `""`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:515:99` (no coverage) BlockStatement → `{}`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:516:19` (no coverage) StringLiteral → `""`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:525:74` (no coverage) BlockStatement → `{}`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:526:17` (no coverage) StringLiteral → `""`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:533:9` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:533:9` LogicalOperator → `(q === null || typeof q !== "object") && Array.isA`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:533:9` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:533:9` LogicalOperator → `q === null && typeof q !== "object"`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:533:9` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:533:23` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:535:8` ConditionalExpression → `true`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:535:8` LogicalOperator → `q.runId === p.runId && b.items.some(it => it.sende`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:535:8` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:535:8` EqualityOperator → `q.runId !== p.runId`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:535:31` MethodExpression → `b.items.every(it => it.senderItemId === q.senderIt`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:535:44` ArrowFunction → `() => undefined`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:535:52` ConditionalExpression → `true`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:535:52` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:535:52` EqualityOperator → `it.senderItemId !== q.senderItemId`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:538:19` StringLiteral → `""`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:547:7` EqualityOperator → `e.seq <= submitting.seq`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:548:7` ConditionalExpression → `true`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:549:7` ConditionalExpression → `true`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:551:7` ConditionalExpression → `true`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:552:7` ConditionalExpression → `true`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:572:11` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:572:11` EqualityOperator → `e.seq <= submitting.seq`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:574:81` ConditionalExpression → `true`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:577:23` StringLiteral → `""`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:579:13` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:579:43` StringLiteral → `""`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:609:9` ConditionalExpression → `true`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:610:9` ConditionalExpression → `true`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:615:52` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:616:21` StringLiteral → `""`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:623:11` (no coverage) ConditionalExpression → `true`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:623:11` (no coverage) ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:623:11` (no coverage) LogicalOperator → `it.status === "SUBMITTED" || it.status === "PENDIN`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:623:12` (no coverage) ConditionalExpression → `true`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:623:12` (no coverage) LogicalOperator → `it.status === "SUBMITTED" && it.status === "PENDIN`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:623:12` (no coverage) ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:623:12` (no coverage) EqualityOperator → `it.status !== "SUBMITTED"`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:623:26` (no coverage) StringLiteral → `""`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:623:41` (no coverage) ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:623:41` (no coverage) EqualityOperator → `it.status !== "PENDING"`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:623:55` (no coverage) StringLiteral → `""`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:623:69` (no coverage) ConditionalExpression → `true`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:623:69` (no coverage) EqualityOperator → `it.eventId !== null`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:645:49` ArrayDeclaration → `["Stryker was here"]`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:645:61` ArrayDeclaration → `["Stryker was here"]`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:669:63` (no coverage) ArrayDeclaration → `["Stryker was here"]`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:673:11` (no coverage) BlockStatement → `{}`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:674:13` (no coverage) ObjectLiteral → `{}`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:674:19` (no coverage) BooleanLiteral → `true`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:680:11` (no coverage) BlockStatement → `{}`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:681:18` (no coverage) ObjectLiteral → `{}`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:681:24` (no coverage) BooleanLiteral → `true`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:681:39` (no coverage) StringLiteral → `""`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:702:13` (no coverage) StringLiteral → `""`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:85:9` LogicalOperator → `e.seq !== expectedSeq && e.prevHash !== prevHash`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:85:9` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:85:34` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:135:36` ConditionalExpression → `true`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:109:9` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:145:10` MethodExpression → `attestedEntries(p.ledger, "lines.computed")`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:146:20` ConditionalExpression → `true`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:155:7` ConditionalExpression → `true`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:155:7` LogicalOperator → `e.actorId === q.approverId || e.payload.runId === `: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:155:7` ConditionalExpression → `true`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:156:7` ConditionalExpression → `true`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:159:7` ConditionalExpression → `true`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:160:7` ConditionalExpression → `true`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:180:18` OptionalChaining → `attestedEntries(p.ledger, "invoice.funded").filter`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:180:18` MethodExpression → `attestedEntries(p.ledger, "invoice.funded")`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:181:20` ConditionalExpression → `true`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:184:5` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:184:5` LogicalOperator → `!funded && funded.invoiceNumber !== inv.invoiceNum`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:185:5` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:187:5` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:188:5` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:189:5` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:209:7` EqualityOperator → `card.ratifiedAt.slice(0, 10) >= p.firstSlipDate`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:209:7` MethodExpression → `card.ratifiedAt`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:213:21` MethodExpression → `rows.flatMap(e => e.payload.slipDates)`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:211:24` EqualityOperator → `e.seq <= ratified.seq`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:238:7` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:242:7` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:243:7` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:244:7` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:245:7` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:246:7` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:246:27` ArrowFunction → `() => undefined`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:247:7` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:247:7` ArithmeticOperator → `l.premiumCents + l.bonusCents - l.deductionsCents `: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:259:7` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:262:5` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:262:5` LogicalOperator → `k.rateCardSha256 !== p.rateCard.sha256 && k.lineCo`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:262:5` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:263:5` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:269:5` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:269:5` LogicalOperator → `(k.premiumPoolCents !== p.pools.premiumPoolCents |`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:269:5` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:269:5` LogicalOperator → `(k.premiumPoolCents !== p.pools.premiumPoolCents |`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:269:5` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:269:5` LogicalOperator → `k.premiumPoolCents !== p.pools.premiumPoolCents &&`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:269:5` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:270:5` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:271:5` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:276:7` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:276:28` ArrowFunction → `() => undefined`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:276:35` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:276:35` EqualityOperator → `e.seq >= computed.seq`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:279:31` EqualityOperator → `(signedEntry(p, a)?.seq ?? Number.POSITIVE_INFINIT`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:308:7` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:310:5` LogicalOperator → `total > cosign.batchOverCents && items.some(i => i`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:310:5` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:310:5` EqualityOperator → `total >= cosign.batchOverCents`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:311:5` MethodExpression → `items.every(i => i.amountCents > cosign.lineOverCe`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:311:16` ArrowFunction → `() => undefined`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:316:38` ConditionalExpression → `true`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:318:5` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:318:5` LogicalOperator → `(!distinct(roles) || !distinct(p.approvals.map(a =`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:318:5` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:318:5` LogicalOperator → `!distinct(roles) && !distinct(p.approvals.map(a =>`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:326:35` ArrayDeclaration → `["Stryker was here"]`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:331:7` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:331:7` LogicalOperator → `(a.role !== q.role || q.runId !== p.runId) && q.ra`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:331:7` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:331:7` LogicalOperator → `a.role !== q.role && q.runId !== p.runId`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:331:7` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:332:7` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:333:7` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:335:7` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:337:7` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:344:9` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:344:9` EqualityOperator → `Date.parse(entry.at) >= Date.parse(q.exp)`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:356:7` MethodExpression → `regs.every(e => e.payload.publicKeyHex !== reg.pay`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:357:9` ArrowFunction → `() => undefined`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:358:11` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:358:11` LogicalOperator → `(e.payload.publicKeyHex !== reg.payload.publicKeyH`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:358:11` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:358:11` LogicalOperator → `e.payload.publicKeyHex !== reg.payload.publicKeyHe`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:358:11` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:359:11` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:360:11` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:365:9` EqualityOperator → `reg.seq >= entry.seq`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:365:32` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:368:9` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:375:9` LogicalOperator → `keyIdIsSample(a.keyId, pub.kind) && keyIdIsSample(`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:408:28` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:412:7` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:419:7` LogicalOperator → `!key && pinned.length !== 1`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:419:15` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:425:7` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:425:7` LogicalOperator → `(!head || ledger.length !== cp.seq) && head.seq !=`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:425:7` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:425:7` LogicalOperator → `!head && ledger.length !== cp.seq`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:425:16` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:425:44` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:448:14` ConditionalExpression → `true`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:471:5` LogicalOperator → `(!slug || slug.seasonCode !== season || b.runId !=`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:471:5` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:471:5` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:471:5` LogicalOperator → `(!slug || slug.seasonCode !== season) && b.runId !`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:471:5` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:471:5` LogicalOperator → `!slug && slug.seasonCode !== season`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:473:5` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:472:5` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:474:5` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:495:12` ConditionalExpression → `true`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:495:12` LogicalOperator → `e.payload.runId === p.runId || e.payload.senderBat`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:495:12` ConditionalExpression → `true`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:495:43` ConditionalExpression → `true`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:498:5` LogicalOperator → `(!submitting || submitting.payload.batchSha256 !==`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:498:5` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:498:5` LogicalOperator → `(!submitting || submitting.payload.batchSha256 !==`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:498:5` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:498:5` LogicalOperator → `(!submitting || submitting.payload.batchSha256 !==`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:498:5` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:498:5` LogicalOperator → `!submitting && submitting.payload.batchSha256 !== `: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:499:5` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:500:5` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:501:5` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:502:5` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:508:19` EqualityOperator → `entry.seq >= submitting.seq`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:515:9` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:515:9` LogicalOperator → `(!id || id.runSeq !== slug.runSeq || id.rerouteN !`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:515:9` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:515:9` LogicalOperator → `(!id || id.runSeq !== slug.runSeq) && id.rerouteN `: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:515:9` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:515:9` LogicalOperator → `!id && id.runSeq !== slug.runSeq`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:515:16` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:515:45` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:518:5` CallExpression → `;`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:525:7` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:525:7` LogicalOperator → `!computed && computed.payload.onRailNetCents !== c`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:525:20` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:546:7` ConditionalExpression → `true`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:562:14` ConditionalExpression → `true`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:564:21` MethodExpression → `[...itemEvents, ...itemReplays]`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:564:58` ArrowFunction → `() => undefined`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:564:68` ArithmeticOperator → `a.seq + b.seq`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:567:16` ConditionalExpression → `true`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:567:16` LogicalOperator → `x.payload.senderItemId === it.senderItemId && x.se`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:567:16` ConditionalExpression → `true`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:567:16` LogicalOperator → `x.payload.senderItemId === it.senderItemId || x.se`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:567:16` ConditionalExpression → `true`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:567:62` ConditionalExpression → `true`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:567:62` EqualityOperator → `x.seq >= submitting.seq`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:567:88` ConditionalExpression → `true`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:567:88` EqualityOperator → `x.seq <= e.seq`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:585:11` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:587:9` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:587:9` EqualityOperator → `e.seq <= submitting.seq`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:590:9` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:590:27` StringLiteral → `""`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:592:9` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:598:11` ConditionalExpression → `true`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:622:7` ConditionalExpression → `false`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:684:19` StringLiteral → `""`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:685:23` StringLiteral → `""`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:686:19` StringLiteral → `""`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:688:22` StringLiteral → `""`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:689:26` StringLiteral → `""`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:706:9` ConditionalExpression → `true`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/verify-core.ts:710:17` MethodExpression → `[...sample]`: Proof verifier second layer (open): a bundle field another plate check also compares; tampering it alone fails that other check, and a re-chained ledger fails the signed checkpoint
+- `src/agreement.ts:38:32` StringLiteral → `""`: agreement scoring (open): AI-2 score constants
+- `src/agreement.ts:43:25` ConditionalExpression → `true`: agreement scoring (open): AI-2 score constants
+- `src/agreement.ts:43:32` StringLiteral → `""`: agreement scoring (open): AI-2 score constants
+- `src/agreement.ts:55:45` EqualityOperator → `score > AUTO_ACCEPT`: agreement scoring (open): AI-2 score constants
+- `src/agreement.ts:66:50` MethodExpression → `s`: agreement scoring (open): AI-2 score constants
+- `src/agreement.ts:70:7` LogicalOperator → `!required && a.legibility === "ABSENT" || b.legibi`: agreement scoring (open): AI-2 score constants
+- `src/agreement.ts:70:7` ConditionalExpression → `true`: agreement scoring (open): AI-2 score constants
+- `src/agreement.ts:70:7` LogicalOperator → `!required || a.legibility === "ABSENT"`: agreement scoring (open): AI-2 score constants
+- `src/agreement.ts:70:20` ConditionalExpression → `true`: agreement scoring (open): AI-2 score constants
+- `src/agreement.ts:70:49` ConditionalExpression → `true`: agreement scoring (open): AI-2 score constants
+- `src/agreement.ts:71:42` StringLiteral → `"Stryker was here!"`: agreement scoring (open): AI-2 score constants
+- `src/agreement.ts:76:5` ConditionalExpression → `false`: agreement scoring (open): AI-2 score constants
+- `src/agreement.ts:76:22` StringLiteral → `""`: agreement scoring (open): AI-2 score constants
+- `src/agreement.ts:77:48` ConditionalExpression → `false`: agreement scoring (open): AI-2 score constants
+- `src/agreement.ts:77:65` StringLiteral → `""`: agreement scoring (open): AI-2 score constants
+- `src/agreement.ts:82:41` ConditionalExpression → `false`: agreement scoring (open): AI-2 score constants
+- `src/agreement.ts:82:58` StringLiteral → `""`: agreement scoring (open): AI-2 score constants
+- `src/agreement.ts:83:42` StringLiteral → `""`: agreement scoring (open): AI-2 score constants
+- `src/agreement.ts:87:16` ConditionalExpression → `true`: agreement scoring (open): AI-2 score constants
+- `src/agreement.ts:87:16` LogicalOperator → `na !== null || nb !== null`: agreement scoring (open): AI-2 score constants
+- `src/agreement.ts:87:16` ConditionalExpression → `true`: agreement scoring (open): AI-2 score constants
+- `src/agreement.ts:87:31` ConditionalExpression → `true`: agreement scoring (open): AI-2 score constants
+- `src/agreement.ts:89:57` ConditionalExpression → `true`: agreement scoring (open): AI-2 score constants
+- `src/agreement.ts:93:19` ArithmeticOperator → `(a.legibility === "SMUDGED" ? 1 : 0) - (b.legibili`: agreement scoring (open): AI-2 score constants
+- `src/agreement.ts:93:20` ConditionalExpression → `true`: agreement scoring (open): AI-2 score constants
+- `src/agreement.ts:93:59` ConditionalExpression → `false`: agreement scoring (open): AI-2 score constants
+- `src/agreement.ts:93:76` StringLiteral → `""`: agreement scoring (open): AI-2 score constants
+- `src/agreement.ts:94:18` ConditionalExpression → `false`: agreement scoring (open): AI-2 score constants
+- `src/agreement.ts:94:35` StringLiteral → `""`: agreement scoring (open): AI-2 score constants
+- `src/agreement.ts:94:55` ConditionalExpression → `true`: agreement scoring (open): AI-2 score constants
+- `src/agreement.ts:95:7` LogicalOperator → `same && checksPass && smudged === 1 || clear === 1`: agreement scoring (open): AI-2 score constants
+- `src/agreement.ts:95:7` ConditionalExpression → `true`: agreement scoring (open): AI-2 score constants
+- `src/agreement.ts:95:7` LogicalOperator → `same && checksPass || smudged === 1`: agreement scoring (open): AI-2 score constants
+- `src/agreement.ts:95:7` ConditionalExpression → `true`: agreement scoring (open): AI-2 score constants
+- `src/agreement.ts:95:7` LogicalOperator → `same || checksPass`: agreement scoring (open): AI-2 score constants
+- `src/agreement.ts:95:29` ConditionalExpression → `true`: agreement scoring (open): AI-2 score constants
+- `src/agreement.ts:95:46` ConditionalExpression → `true`: agreement scoring (open): AI-2 score constants
+- `src/agreement.ts:96:41` StringLiteral → `""`: agreement scoring (open): AI-2 score constants
+- `src/agreement.ts:102:7` ConditionalExpression → `true`: agreement scoring (open): AI-2 score constants
+- `src/agreement.ts:102:70` ConditionalExpression → `false`: agreement scoring (open): AI-2 score constants
+- `src/agreement.ts:245:19` EqualityOperator → `Math.abs(r.grossG - r.tareG - r.netG) < 10`: agreement scoring (open): AI-2 score constants
+- `src/agreement.ts:246:19` ConditionalExpression → `true`: agreement scoring (open): AI-2 score constants
+- `src/agreement.ts:246:19` EqualityOperator → `Math.abs(r.netG - r.mcLessG - r.payableG) < 10`: agreement scoring (open): AI-2 score constants
+- `src/agreement.ts:246:28` ArithmeticOperator → `r.netG + r.mcLessG`: agreement scoring (open): AI-2 score constants
+- `src/agreement.ts:252:7` ConditionalExpression → `false`: agreement scoring (open): AI-2 score constants
+- `src/agreement.ts:253:7` ConditionalExpression → `false`: agreement scoring (open): AI-2 score constants
+- `src/agreement.ts:253:7` LogicalOperator → `s1.length === 0 && s2.length === 0`: agreement scoring (open): AI-2 score constants
+- `src/agreement.ts:253:7` ConditionalExpression → `false`: agreement scoring (open): AI-2 score constants
+- `src/agreement.ts:253:26` ConditionalExpression → `false`: agreement scoring (open): AI-2 score constants
+- `src/agreement.ts:254:29` ArithmeticOperator → `Math.floor(Math.max(s1.length, s2.length) / 2) + 1`: agreement scoring (open): AI-2 score constants
+- `src/agreement.ts:254:40` ArithmeticOperator → `Math.max(s1.length, s2.length) * 2`: agreement scoring (open): AI-2 score constants
+- `src/agreement.ts:254:40` MethodExpression → `Math.min(s1.length, s2.length)`: agreement scoring (open): AI-2 score constants
+- `src/agreement.ts:255:14` ArrayDeclaration → `new Array()`: agreement scoring (open): AI-2 score constants
+- `src/agreement.ts:256:14` ArrayDeclaration → `new Array()`: agreement scoring (open): AI-2 score constants
+- `src/agreement.ts:258:19` EqualityOperator → `i <= s1.length`: agreement scoring (open): AI-2 score constants
+- `src/agreement.ts:259:16` MethodExpression → `Math.min(0, i - range)`: agreement scoring (open): AI-2 score constants
+- `src/agreement.ts:260:16` MethodExpression → `Math.max(i + range + 1, s2.length)`: agreement scoring (open): AI-2 score constants
+- `src/agreement.ts:261:22` EqualityOperator → `j <= hi`: agreement scoring (open): AI-2 score constants
+- `src/agreement.ts:272:19` EqualityOperator → `i <= s1.length`: agreement scoring (open): AI-2 score constants
+- `src/agreement.ts:274:12` ConditionalExpression → `false`: agreement scoring (open): AI-2 score constants
+- `src/agreement.ts:280:10` ConditionalExpression → `true`: agreement scoring (open): AI-2 score constants
+- `src/agreement.ts:280:10` LogicalOperator → `prefix < 4 && prefix < s1.length || prefix < s2.le`: agreement scoring (open): AI-2 score constants
+- `src/agreement.ts:280:10` ConditionalExpression → `true`: agreement scoring (open): AI-2 score constants
+- `src/agreement.ts:280:10` LogicalOperator → `prefix < 4 || prefix < s1.length`: agreement scoring (open): AI-2 score constants
+- `src/agreement.ts:280:10` ConditionalExpression → `true`: agreement scoring (open): AI-2 score constants
+- `src/agreement.ts:280:10` EqualityOperator → `prefix <= 4`: agreement scoring (open): AI-2 score constants
+- `src/agreement.ts:280:24` ConditionalExpression → `true`: agreement scoring (open): AI-2 score constants
+- `src/agreement.ts:280:24` EqualityOperator → `prefix <= s1.length`: agreement scoring (open): AI-2 score constants
+- `src/agreement.ts:280:46` ConditionalExpression → `true`: agreement scoring (open): AI-2 score constants
+- `src/agreement.ts:280:46` EqualityOperator → `prefix <= s2.length`: agreement scoring (open): AI-2 score constants
+- `src/agreement.ts:286:58` Regex → `/(\d(?:,\d{3})+|\d+)(?:\.(\d{1,2}))?/g`: agreement scoring (open): AI-2 score constants
+- `src/agreement.ts:286:58` Regex → `/(\d{1,3}(?:,\d{3})|\d+)(?:\.(\d{1,2}))?/g`: agreement scoring (open): AI-2 score constants
+- `src/agreement.ts:307:7` LogicalOperator → `tareG !== null || netG !== null`: agreement scoring (open): AI-2 score constants
+- `src/agreement.ts:307:7` ConditionalExpression → `true`: agreement scoring (open): AI-2 score constants
+- `src/agreement.ts:307:25` ConditionalExpression → `true`: agreement scoring (open): AI-2 score constants
+- `src/agreement.ts:313:7` ConditionalExpression → `false`: agreement scoring (open): AI-2 score constants
+- `src/agreement.ts:314:19` EqualityOperator → `i <= value.length`: agreement scoring (open): AI-2 score constants
+- `src/ascii.ts:27:47` ConditionalExpression → `true`: equivalent: an unpadded invalid address stays invalid after trim
+- `src/copy.ts:40:10` ConditionalExpression → `false`: wording: copy and labels
+- `src/copy.ts:40:10` LogicalOperator → `v === null && v === undefined`: wording: copy and labels
+- `src/copy.ts:40:10` ConditionalExpression → `false`: wording: copy and labels
+- `src/copy.ts:40:24` ConditionalExpression → `false`: wording: copy and labels
+- `src/copy.ts:40:42` (no coverage) StringLiteral → `"Stryker was here!"`: wording: copy and labels
+- `src/copy.ts:44:44` StringLiteral → `"Stryker was here!"`: wording: copy and labels
+- `src/copy.ts:45:28` UnaryOperator → `+1`: wording: copy and labels
+- `src/copy.ts:45:37` StringLiteral → `""`: wording: copy and labels
+- `src/copy.ts:45:59` UnaryOperator → `+1`: wording: copy and labels
+- `src/copy.ts:50:64` StringLiteral → `"Stryker was here!"`: wording: copy and labels
+- `src/copy.ts:56:101` (no coverage) StringLiteral → `"Stryker was here!"`: wording: copy and labels
+- `src/copy.ts:57:23` ConditionalExpression → `true`: wording: copy and labels
+- `src/copy.ts:57:60` (no coverage) StringLiteral → `''`: wording: copy and labels
+- `src/copy.ts:62:5` (no coverage) ConditionalExpression → `case "IMPLAUSIBLE_YIELD":`: wording: copy and labels
+- `src/copy.ts:62:10` StringLiteral → `""`: wording: copy and labels
+- `src/copy.ts:62:31` (no coverage) BlockStatement → `{}`: wording: copy and labels
+- `src/copy.ts:63:11` (no coverage) ConditionalExpression → `true`: wording: copy and labels
+- `src/copy.ts:63:11` (no coverage) ConditionalExpression → `false`: wording: copy and labels
+- `src/copy.ts:63:11` (no coverage) LogicalOperator → `hold.state === "RESOLVED" || p(hold, "treesAfter")`: wording: copy and labels
+- `src/copy.ts:63:11` (no coverage) ConditionalExpression → `true`: wording: copy and labels
+- `src/copy.ts:63:11` (no coverage) EqualityOperator → `hold.state !== "RESOLVED"`: wording: copy and labels
+- `src/copy.ts:63:26` (no coverage) StringLiteral → `""`: wording: copy and labels
+- `src/copy.ts:63:40` (no coverage) ConditionalExpression → `true`: wording: copy and labels
+- `src/copy.ts:63:40` (no coverage) EqualityOperator → `p(hold, "treesAfter") === null`: wording: copy and labels
+- `src/copy.ts:63:48` (no coverage) StringLiteral → `""`: wording: copy and labels
+- `src/copy.ts:63:72` (no coverage) BlockStatement → `{}`: wording: copy and labels
+- `src/copy.ts:64:16` (no coverage) StringLiteral → `''`: wording: copy and labels
+- `src/copy.ts:64:27` (no coverage) StringLiteral → `""`: wording: copy and labels
+- `src/copy.ts:64:62` (no coverage) StringLiteral → `""`: wording: copy and labels
+- `src/copy.ts:64:96` (no coverage) StringLiteral → `""`: wording: copy and labels
+- `src/copy.ts:66:14` (no coverage) StringLiteral → `''`: wording: copy and labels
+- `src/copy.ts:66:33` (no coverage) StringLiteral → `""`: wording: copy and labels
+- `src/copy.ts:66:68` (no coverage) StringLiteral → `""`: wording: copy and labels
+- `src/copy.ts:66:118` (no coverage) StringLiteral → `""`: wording: copy and labels
+- `src/copy.ts:66:166` (no coverage) StringLiteral → `""`: wording: copy and labels
+- `src/copy.ts:68:5` (no coverage) ConditionalExpression → `case "NO_RULE":`: wording: copy and labels
+- `src/copy.ts:68:10` StringLiteral → `""`: wording: copy and labels
+- `src/copy.ts:68:21` (no coverage) BlockStatement → `{}`: wording: copy and labels
+- `src/copy.ts:70:20` (no coverage) ConditionalExpression → `true`: wording: copy and labels
+- `src/copy.ts:70:20` (no coverage) ConditionalExpression → `false`: wording: copy and labels
+- `src/copy.ts:70:20` (no coverage) EqualityOperator → `stays.length >= 0`: wording: copy and labels
+- `src/copy.ts:70:20` (no coverage) EqualityOperator → `stays.length <= 0`: wording: copy and labels
+- `src/copy.ts:70:39` (no coverage) StringLiteral → `''`: wording: copy and labels
+- `src/copy.ts:70:58` (no coverage) ConditionalExpression → `true`: wording: copy and labels
+- `src/copy.ts:70:58` (no coverage) ConditionalExpression → `false`: wording: copy and labels
+- `src/copy.ts:70:58` (no coverage) EqualityOperator → `stays.length !== 1`: wording: copy and labels
+- `src/copy.ts:70:79` (no coverage) StringLiteral → `""`: wording: copy and labels
+- `src/copy.ts:70:89` (no coverage) StringLiteral → `""`: wording: copy and labels
+- `src/copy.ts:70:101` (no coverage) StringLiteral → `"Stryker was here!"`: wording: copy and labels
+- `src/copy.ts:71:14` (no coverage) StringLiteral → `''`: wording: copy and labels
+- `src/copy.ts:71:26` (no coverage) StringLiteral → `""`: wording: copy and labels
+- `src/copy.ts:71:168` (no coverage) StringLiteral → `""`: wording: copy and labels
+- `src/format.ts:206:39` (no coverage) StringLiteral → `"Stryker was here!"`: wording: a refusal or error message (the refusal itself is tested)
+- `src/format.ts:207:53` (no coverage) StringLiteral → `"Stryker was here!"`: wording: a refusal or error message (the refusal itself is tested)
+- `src/format.ts:31:7` ConditionalExpression → `false`: equivalent at every precision used: drop 0 multiplies or divides by 1 (no caller asks for more than 3 kilo decimals)
+- `src/format.ts:31:7` EqualityOperator → `drop < 0`: equivalent at every precision used: drop 0 multiplies or divides by 1 (no caller asks for more than 3 kilo decimals)
+- `src/format.ts:31:25` ArithmeticOperator → `n / 10 ** -drop`: equivalent at every precision used: drop 0 multiplies or divides by 1 (no caller asks for more than 3 kilo decimals)
+- `src/format.ts:31:35` UnaryOperator → `+drop`: equivalent at every precision used: drop 0 multiplies or divides by 1 (no caller asks for more than 3 kilo decimals)
+- `src/format.ts:32:15` EqualityOperator → `n <= 0`: equivalent: a zero amount rounds to 0 either way, and -0 prints as 0
+- `src/format.ts:57:10` ArithmeticOperator → `mulDivHalfUp(Math.abs(cents), fx.num, fx.den * 100`: equivalent: multiplying or dividing by ±1 is the same
+- `src/format.ts:119:36` ArithmeticOperator → `hex.length * 4`: equivalent: the loop also stops at the hash's length
+
+## paypal-payouts (92)
+
+- `src/ids.ts:33:50` (no coverage) StringLiteral → `""`: wording: a refusal or error message (the refusal itself is tested)
+- `src/ids.ts:86:40` StringLiteral → `''`: wording: a refusal or error message (the refusal itself is tested)
+- `src/ids.ts:91:42` StringLiteral → `''`: wording: a refusal or error message (the refusal itself is tested)
+- `src/ids.ts:116:58` StringLiteral → `""`: wording: a refusal or error message (the refusal itself is tested)
+- `src/ids.ts:122:29` StringLiteral → `""`: wording: a refusal or error message (the refusal itself is tested)
+- `src/ids.ts:34:31` StringLiteral → `''`: wording: a refusal or error message (the refusal itself is tested)
+- `src/ids.ts:46:32` StringLiteral → `""`: wording: a refusal or error message (the refusal itself is tested)
+- `src/ids.ts:69:5` StringLiteral → `""`: wording: a refusal or error message (the refusal itself is tested)
+- `src/ids.ts:75:37` StringLiteral → `''`: wording: a refusal or error message (the refusal itself is tested)
+- `src/ids.ts:78:9` ConditionalExpression → `true`: unreachable: our sender_batch_ids are at most about 91 characters, so the 256 limit never trips
+- `src/ids.ts:78:9` EqualityOperator → `id.length < SENDER_BATCH_ID_MAX`: unreachable: our sender_batch_ids are at most about 91 characters, so the 256 limit never trips
+- `src/ids.ts:78:43` StringLiteral → `""`: unreachable: our sender_batch_ids are at most about 91 characters, so the 256 limit never trips
+- `src/service.ts:535:62` (no coverage) BooleanLiteral → `true`: redundant: every caller handles 429 and 401 before isRetryable
+- `src/service.ts:568:81` (no coverage) ArrayDeclaration → `["Stryker was here"]`: redundant: PayPalHttp always hands details as an array
+- `src/service.ts:577:54` (no coverage) ArrayDeclaration → `["Stryker was here"]`: redundant: PayPalHttp always hands links as an array
+- `src/service.ts:578:37` (no coverage) ArrayDeclaration → `["Stryker was here"]`: redundant: PayPalHttp always hands details as an array
+- `src/service.ts:953:74` (no coverage) StringLiteral → `""`: equivalent: a failed zod parse always has at least one issue
+- `src/service.ts:514:7` ConditionalExpression → `false`: equivalent: `check: undefined` is dropped from JSON and equal under toEqual
+- `src/service.ts:527:17` StringLiteral → `""`: wording: a refusal or error message (the refusal itself is tested)
+- `src/service.ts:535:7` ConditionalExpression → `false`: redundant: every caller handles 429 and 401 before isRetryable
+- `src/service.ts:535:7` LogicalOperator → `result.status === 429 && result.status === 401`: redundant: every caller handles 429 and 401 before isRetryable
+- `src/service.ts:535:7` ConditionalExpression → `false`: redundant: every caller handles 429 and 401 before isRetryable
+- `src/service.ts:535:32` ConditionalExpression → `false`: redundant: every caller handles 429 and 401 before isRetryable
+- `src/service.ts:560:35` StringLiteral → `"Stryker was here!"`: wording: a refusal or error message (the refusal itself is tested)
+- `src/service.ts:560:60` StringLiteral → `"Stryker was here!"`: wording: a refusal or error message (the refusal itself is tested)
+- `src/service.ts:560:91` StringLiteral → `"Stryker was here!"`: wording: a refusal or error message (the refusal itself is tested)
+- `src/service.ts:562:11` StringLiteral → `""`: wording: a refusal or error message (the refusal itself is tested)
+- `src/service.ts:582:14` ConditionalExpression → `true`: equivalent: a falsy link pushed is skipped by the href check
+- `src/service.ts:586:9` ConditionalExpression → `false`: equivalent: a non-string href makes new URL throw, which is caught and skipped
+- `src/service.ts:589:11` ConditionalExpression → `true`: equivalent: a null match throws inside the try, which is caught and skipped
+- `src/service.ts:589:11` OptionalChaining → `m[1]`: equivalent: a null match throws inside the try, which is caught and skipped
+- `src/service.ts:630:9` ConditionalExpression → `false`: redundant: the regex test rejects a non-string the same way
+- `src/service.ts:645:24` ConditionalExpression → `false`: redundant: destructuring a non-object gives no kind, rejected next
+- `src/service.ts:647:7` ConditionalExpression → `false`: redundant: the Set lookup rejects a non-string kind the same way
+- `src/service.ts:650:10` ConditionalExpression → `true`: redundant: the Set lookup rejects a non-string kind the same way
+- `src/service.ts:677:25` StringLiteral → `""`: wording: a refusal or error message (the refusal itself is tested)
+- `src/service.ts:679:25` StringLiteral → `""`: wording: a refusal or error message (the refusal itself is tested)
+- `src/service.ts:681:25` StringLiteral → `""`: wording: a refusal or error message (the refusal itself is tested)
+- `src/service.ts:683:25` StringLiteral → `""`: wording: a refusal or error message (the refusal itself is tested)
+- `src/service.ts:685:25` StringLiteral → `""`: wording: a refusal or error message (the refusal itself is tested)
+- `src/service.ts:687:25` StringLiteral → `""`: wording: a refusal or error message (the refusal itself is tested)
+- `src/service.ts:689:25` StringLiteral → `""`: wording: a refusal or error message (the refusal itself is tested)
+- `src/service.ts:703:15` EqualityOperator → `cents <= 0n`: equivalent: -0n is 0n; the sign is decided separately
+- `src/service.ts:708:56` StringLiteral → `''`: wording: a refusal or error message (the refusal itself is tested)
+- `src/service.ts:738:59` StringLiteral → `""`: wording: a refusal or error message (the refusal itself is tested)
+- `src/service.ts:739:57` StringLiteral → `""`: wording: a refusal or error message (the refusal itself is tested)
+- `src/service.ts:742:34` ArrowFunction → `() => undefined`: timing only: the default sleep's promise; retries still happen (tested with the real sleep)
+- `src/service.ts:752:39` StringLiteral → `""`: wording: a refusal or error message (the refusal itself is tested)
+- `src/service.ts:774:68` StringLiteral → `""`: wording: a refusal or error message (the refusal itself is tested)
+- `src/service.ts:787:9` StringLiteral → `""`: wording: a refusal or error message (the refusal itself is tested)
+- `src/service.ts:812:21` BlockStatement → `{}`: redundant: #post re-derives the same ids and refuses the same PayoutIdError
+- `src/service.ts:813:11` ConditionalExpression → `true`: equivalent: only PayoutIdError can be thrown in that block
+- `src/service.ts:860:42` StringLiteral → `""`: wording: a refusal or error message (the refusal itself is tested)
+- `src/service.ts:880:26` EqualityOperator → `a.senderItemId <= b.senderItemId`: sort comparator (unique sender_item_ids; V8 asks only < 0)
+- `src/service.ts:880:65` ConditionalExpression → `true`: sort comparator (unique sender_item_ids; V8 asks only < 0)
+- `src/service.ts:880:65` ConditionalExpression → `false`: sort comparator (unique sender_item_ids; V8 asks only < 0)
+- `src/service.ts:880:65` EqualityOperator → `a.senderItemId >= b.senderItemId`: sort comparator (unique sender_item_ids; V8 asks only < 0)
+- `src/service.ts:882:11` ConditionalExpression → `true`: equivalent: only PayoutIdError can be thrown in that block
+- `src/service.ts:880:65` EqualityOperator → `a.senderItemId <= b.senderItemId`: sort comparator (unique sender_item_ids; V8 asks only < 0)
+- `src/service.ts:953:39` OptionalChaining → `strict.error.issues[0].message`: equivalent: a failed zod parse always has at least one issue
+- `src/service.ts:970:21` StringLiteral → `""`: wording: a refusal or error message (the refusal itself is tested)
+- `src/service.ts:1058:11` ConditionalExpression → `false`: redundant: checkApprovals refuses a role that signed twice either way (SIGNERS_NOT_DISTINCT)
+- `src/service.ts:1058:11` LogicalOperator → `expected[role] && unknownSigner[role]`: redundant: checkApprovals refuses a role that signed twice either way (SIGNERS_NOT_DISTINCT)
+- `src/service.ts:1093:7` ConditionalExpression → `true`: wording: which unknown-signer text is shown; the refusal code is tested
+- `src/service.ts:1137:13` ConditionalExpression → `false`: unreachable: the service builds the body, so createPayoutBatch never throws PayoutParamsError
+- `src/service.ts:1157:26` OptionalChaining → `header.batch_status`: redundant: the header exists once the id check passed
+- `src/service.ts:1165:26` OptionalChaining → `header.batch_status`: redundant: the header exists once the id check passed
+- `src/service.ts:1181:38` StringLiteral → `""`: wording: a refusal or error message (the refusal itself is tested)
+- `src/service.ts:1185:15` StringLiteral → `""`: wording: a refusal or error message (the refusal itself is tested)
+- `src/service.ts:1193:15` StringLiteral → `''`: wording: a refusal or error message (the refusal itself is tested)
+- `src/service.ts:1196:11` ConditionalExpression → `case null:`: equivalent: removing `case null:` falls through to the same code
+- `src/service.ts:1203:13` StringLiteral → `""`: wording: a refusal or error message (the refusal itself is tested)
+- `src/service.ts:1262:21` StringLiteral → `""`: wording: a refusal or error message (the refusal itself is tested)
+- `src/service.ts:1266:60` ObjectLiteral → `{}`: equivalent: the initial value is always overwritten before use
+- `src/service.ts:1267:24` EqualityOperator → `page < MAX_ADOPT_PAGES`: fail-closed: only a 15,000-item batch reaches page 15; fewer pages make adoption fail, never succeed
+- `src/service.ts:1283:25` StringLiteral → `''`: wording: a refusal or error message (the refusal itself is tested)
+- `src/service.ts:1284:11` ConditionalExpression → `case null:`: equivalent: removing `case null:` falls through to the same code
+- `src/service.ts:1297:20` ConditionalExpression → `false`: redundant: a non-object body has no batch_header, refused by the next clause
+- `src/service.ts:1304:9` OptionalChaining → `header.sender_batch_header`: redundant: the loop always sets the header before this line
+- `src/service.ts:1312:42` OptionalChaining → `it?.payout_item?.amount.value`: redundant after the no-amount test: a missing amount object is refused by the null check
+- `src/service.ts:1316:9` ConditionalExpression → `false`: equivalent: `null <= 0n` is true in JS, so the next clause refuses it
+- `src/service.ts:1366:68` StringLiteral → `''`: wording: a refusal or error message (the refusal itself is tested)
+- `src/service.ts:1371:50` StringLiteral → `""`: wording: a refusal or error message (the refusal itself is tested)
+- `src/service.ts:1373:22` StringLiteral → `""`: wording: a refusal or error message (the refusal itself is tested)
+- `src/service.ts:1411:13` ConditionalExpression → `false`: unreachable: the cancel body is fixed, so PayoutParamsError is never thrown
+- `src/service.ts:1433:13` StringLiteral → `""`: wording: a refusal or error message (the refusal itself is tested)
+- `src/service.ts:1448:13` StringLiteral → `""`: wording: a refusal or error message (the refusal itself is tested)
+- `src/service.ts:1473:33` StringLiteral → `""`: wording: a refusal or error message (the refusal itself is tested)
+- `src/service.ts:1482:9` StringLiteral → `""`: wording: a refusal or error message (the refusal itself is tested)
+- `src/service.ts:1515:11` BlockStatement → `{}`: equivalent: a listing batchDigest refuses never equals the approved digest either way
+- `src/money.ts:7:41` StringLiteral → `''`: wording: a refusal or error message (the refusal itself is tested)
+- `src/money.ts:16:58` StringLiteral → `""`: wording: a refusal or error message (the refusal itself is tested)
+
+## paypal-core (402)
+
+- `src/webhook/verify.ts:478:7` ConditionalExpression → `false`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:505:20` BlockStatement → `{}`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:506:13` ConditionalExpression → `true`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:506:13` ConditionalExpression → `false`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:507:20` BooleanLiteral → `false`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:508:9` CallExpression → `;`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:509:18` MethodExpression → `Math.max(perHour, tokens + 1)`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:509:36` ArithmeticOperator → `tokens - 1`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:531:7` CallExpression → `;`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:532:14` ArithmeticOperator → `limit + uses.length`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:539:20` BlockStatement → `{}`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:540:13` ConditionalExpression → `true`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:540:13` ConditionalExpression → `false`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:541:20` BooleanLiteral → `false`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:543:13` ConditionalExpression → `true`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:543:13` ConditionalExpression → `false`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:543:13` EqualityOperator → `index === -1`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:543:23` UnaryOperator → `+1`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:543:27` CallExpression → `;`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:553:26` (no coverage) BlockStatement → `{}`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:555:9` (no coverage) ConditionalExpression → `true`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:555:9` (no coverage) ConditionalExpression → `false`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:556:5` (no coverage) CallExpression → `;`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:560:32` MethodExpression → `new Date(ms).toISOString()`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:567:33` StringLiteral → `""`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:572:7` StringLiteral → `""`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:594:33` StringLiteral → `""`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:627:35` StringLiteral → `""`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:647:51` ArithmeticOperator → `marks.length + MAX_MARKS`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:661:21` BlockStatement → `{}`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:666:5` OptionalChaining → `logger?.error({ error: failure instanceof Error ? `: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:666:5` OptionalChaining → `logger.error`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:686:21` (no coverage) BlockStatement → `{}`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:687:9` (no coverage) OptionalChaining → `logger?.error({ error: err instanceof Error ? err.`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:687:9` (no coverage) OptionalChaining → `logger.error`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:688:11` (no coverage) ObjectLiteral → `{}`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:689:11` (no coverage) StringLiteral → `""`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:691:16` (no coverage) ObjectLiteral → `{}`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:691:22` (no coverage) BooleanLiteral → `true`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:691:37` (no coverage) StringLiteral → `""`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:691:69` (no coverage) StringLiteral → `""`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:691:97` (no coverage) BooleanLiteral → `false`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:477:56` StringLiteral → `""`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:477:7` ConditionalExpression → `true`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:496:41` ArithmeticOperator → `(t - at) * perHour * HOUR_MS`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:502:11` ArithmeticOperator → `tokens + leave`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:504:22` BooleanLiteral → `true`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:526:12` ConditionalExpression → `true`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:526:12` EqualityOperator → `uses.length >= 0`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:538:22` BooleanLiteral → `true`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:551:3` CallExpression → `;`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:553:10` ConditionalExpression → `false`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:553:10` EqualityOperator → `map.size >= max`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:585:83` ObjectLiteral → `{}`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:587:59` ObjectLiteral → `{}`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:596:27` ConditionalExpression → `true`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:647:9` ConditionalExpression → `true`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:647:9` ConditionalExpression → `false`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:647:9` EqualityOperator → `marks.length >= MAX_MARKS`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:647:9` EqualityOperator → `marks.length <= MAX_MARKS`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:724:34` StringLiteral → `""`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:724:46` StringLiteral → `""`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:728:28` StringLiteral → `""`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:728:40` StringLiteral → `""`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:735:15` OptionalChaining → `limiter?.reportRateLimited(new Date(now()))`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:735:15` OptionalChaining → `limiter.reportRateLimited`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:736:21` (no coverage) BlockStatement → `{}`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:737:9` (no coverage) OptionalChaining → `logger?.error({ error: err instanceof Error ? err.`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:737:9` (no coverage) OptionalChaining → `logger.error`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:738:11` (no coverage) ObjectLiteral → `{}`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:739:11` (no coverage) StringLiteral → `""`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:749:42` EqualityOperator → `res.status > 500`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:753:34` (no coverage) BlockStatement → `{}`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:754:13` (no coverage) OptionalChaining → `res.body.cancel`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:755:14` (no coverage) ObjectLiteral → `{}`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:755:20` (no coverage) BooleanLiteral → `true`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:755:35` (no coverage) StringLiteral → `""`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:755:64` (no coverage) StringLiteral → `""`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:755:88` (no coverage) BooleanLiteral → `true`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:758:24` (no coverage) BlockStatement → `{}`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:759:14` (no coverage) ObjectLiteral → `{}`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:759:20` (no coverage) BooleanLiteral → `true`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:759:35` (no coverage) StringLiteral → `""`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:759:64` (no coverage) StringLiteral → `""`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:759:95` (no coverage) BooleanLiteral → `false`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:768:81` BooleanLiteral → `true`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:771:23` (no coverage) ObjectLiteral → `{}`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:771:29` (no coverage) BooleanLiteral → `true`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:771:44` (no coverage) StringLiteral → `""`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:771:90` (no coverage) BooleanLiteral → `true`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:810:11` ConditionalExpression → `true`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:810:11` ConditionalExpression → `false`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:810:34` CallExpression → `;`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:811:61` StringLiteral → `""`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:816:34` EqualityOperator → `blocked.until >= now()`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:819:17` StringLiteral → `""`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:837:31` BlockStatement → `{}`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:838:49` CallExpression → `;`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:843:9` CallExpression → `;`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:844:26` StringLiteral → `""`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:851:9` CallExpression → `;`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:861:62` BlockStatement → `{}`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:863:11` CallExpression → `;`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:919:13` ConditionalExpression → `true`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:919:13` ConditionalExpression → `false`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:919:13` EqualityOperator → `throttleTimes.length >= MAX_THROTTLE_TIMES`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:919:13` EqualityOperator → `throttleTimes.length <= MAX_THROTTLE_TIMES`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:920:35` (no coverage) ArithmeticOperator → `throttleTimes.length + MAX_THROTTLE_TIMES`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:933:68` StringLiteral → `''`: wording: a refusal or error message (the refusal itself is tested)
+- `src/webhook/verify.ts:995:15` (no coverage) BlockStatement → `{}`: unreachable: rsaVerify on a parsed certificate key does not throw for a decoded signature
+- `src/webhook/verify.ts:996:16` (no coverage) BooleanLiteral → `true`: unreachable: rsaVerify on a parsed certificate key does not throw for a decoded signature
+- `src/webhook/verify.ts:1016:22` ObjectLiteral → `{}`: logging or health events, not a money decision
+- `src/webhook/verify.ts:1047:7` OptionalChaining → `logger?.error({ error: err instanceof Error ? err.`: logging or health events, not a money decision
+- `src/webhook/verify.ts:1048:9` ObjectLiteral → `{}`: logging
+- `src/webhook/verify.ts:1049:9` StringLiteral → `""`: wording: a refusal or error message (the refusal itself is tested)
+- `src/webhook/verify.ts:1055:42` StringLiteral → `""`: wording: a refusal or error message (the refusal itself is tested)
+- `src/webhook/verify.ts:1058:7` OptionalChaining → `logger?.warn({ transmissionId, certUrl: certKey },`: logging or health events, not a money decision
+- `src/webhook/verify.ts:1058:22` (no coverage) ObjectLiteral → `{}`: logging or health events, not a money decision
+- `src/webhook/verify.ts:1058:60` (no coverage) StringLiteral → `""`: logging or health events, not a money decision
+- `src/webhook/verify.ts:1080:37` StringLiteral → `''`: wording: a refusal or error message (the refusal itself is tested)
+- `src/webhook/verify.ts:1092:26` ConditionalExpression → `true`: optional confirmation postback on a self-verified delivery (open): asked again after an expired-certificate postback
+- `src/webhook/verify.ts:1094:20` ConditionalExpression → `false`: optional confirmation postback (open): a per-call postback function overriding the configured one
+- `src/webhook/verify.ts:1094:45` StringLiteral → `""`: optional confirmation postback (open): a per-call postback function overriding the configured one
+- `src/webhook/verify.ts:1112:25` MethodExpression → `[...new Set(certUrls)]`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:1116:20` MethodExpression → `value`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:1141:9` LogicalOperator → `checkLeafProperties(loaded.cert, leafOptions(at)) `: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:1144:13` ConditionalExpression → `true`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:1158:12` ConditionalExpression → `true`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:1158:12` EqualityOperator → `stale <= marks.length`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:1158:36` EqualityOperator → `(marks[stale]?.at ?? t) <= since`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:1158:37` OptionalChaining → `marks[stale].at`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:1159:9` ConditionalExpression → `true`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:1159:9` EqualityOperator → `stale >= 0`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:1173:16` ConditionalExpression → `true`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:1181:11` ConditionalExpression → `true`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:1184:12` ConditionalExpression → `true`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:1184:12` EqualityOperator → `fresh <= throttleTimes.length`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:1184:44` EqualityOperator → `(throttleTimes[fresh] ?? t) < t - throttleWindowMs`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:1185:9` ConditionalExpression → `true`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:1185:9` EqualityOperator → `fresh >= 0`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:1191:11` StringLiteral → `""`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:1192:11` StringLiteral → `""`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:1198:9` StringLiteral → `""`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:1199:9` StringLiteral → `''`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:1199:36` ConditionalExpression → `true`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:1199:36` ConditionalExpression → `false`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:1199:36` EqualityOperator → `signedExpired !== 1`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:1199:58` (no coverage) StringLiteral → `""`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:1199:71` StringLiteral → `""`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:1205:9` StringLiteral → `""`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:1212:50` ConditionalExpression → `true`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:1212:79` (no coverage) StringLiteral → `""`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:1214:11` StringLiteral → `''`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:1214:14` ConditionalExpression → `true`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:1214:14` ConditionalExpression → `false`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:1214:14` EqualityOperator → `releaseFailed !== 1`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:1214:36` StringLiteral → `""`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:1214:54` (no coverage) StringLiteral → `""`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:1215:11` StringLiteral → `""`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:1226:11` EqualityOperator → `lastVerified.validTo <= t`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:1228:11` StringLiteral → `""`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:1231:18` EqualityOperator → `daysLeft <= warnDays`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:716:39` ObjectLiteral → `{}`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:708:15` ArithmeticOperator → `now() + startedAt`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:718:18` ObjectLiteral → `{}`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:718:28` StringLiteral → `""`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:752:29` LogicalOperator → `res.headers.get("content-length") && "0"`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:752:66` StringLiteral → `""`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:753:9` ConditionalExpression → `false`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:753:9` EqualityOperator → `declared >= maxCertBytes`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:757:41` ArrowFunction → `() => undefined`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:758:9` ConditionalExpression → `false`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:771:9` ConditionalExpression → `false`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:795:12` ConditionalExpression → `false`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:834:11` ConditionalExpression → `false`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:834:21` CallExpression → `;`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:859:11` CallExpression → `;`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:860:15` ConditionalExpression → `true`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:892:7` ConditionalExpression → `true`: killed by the missing-id test (rerun pending)
+- `src/webhook/verify.ts:950:17` EqualityOperator → `skew <= 0`: equivalent: a zero skew is never out of the window
+- `src/webhook/verify.ts:917:11` ConditionalExpression → `true`: infrastructure (open): certificate fetch, budgets, caches, health and alerts
+- `src/webhook/verify.ts:1023:7` OptionalChaining → `logger?.warn({ certUrl: certKey, validTo, expiredC`: logging or health events, not a money decision
+- `src/webhook/verify.ts:991:77` StringLiteral → `""`: wording: a refusal or error message (the refusal itself is tested)
+- `src/webhook/verify.ts:1030:11` ConditionalExpression → `true`: equivalent sub-condition: only a dev-mock signature reaches here without being self
+- `src/webhook/verify.ts:1083:14` StringLiteral → `""`: wording: a refusal or error message (the refusal itself is tested)
+- `src/webhook/verify.ts:1085:9` ConditionalExpression → `true`: logging or health events, not a money decision
+- `src/http.ts:179:48` ConditionalExpression → `true`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:179:48` ConditionalExpression → `false`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:179:48` LogicalOperator → `value === undefined && value === null`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:179:48` ConditionalExpression → `false`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:179:48` EqualityOperator → `value !== undefined`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:179:71` ConditionalExpression → `false`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:179:71` EqualityOperator → `value !== null`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:179:88` ArrayDeclaration → `["Stryker was here"]`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:179:93` ArrayDeclaration → `[]`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:183:9` ConditionalExpression → `true`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:185:9` ConditionalExpression → `false`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:207:74` ArrayDeclaration → `["Stryker was here"]`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:223:38` StringLiteral → `''`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:224:19` LogicalOperator → `data.message && data.error_description`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:224:61` StringLiteral → `''`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:247:13` (no coverage) BlockStatement → `{}`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:248:14` (no coverage) ObjectLiteral → `{}`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:248:20` (no coverage) BooleanLiteral → `true`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:248:36` (no coverage) StringLiteral → `""`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:257:14` ObjectLiteral → `{}`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:257:36` StringLiteral → `""`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:262:14` ObjectLiteral → `{}`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:262:36` StringLiteral → `""`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:266:12` ObjectLiteral → `{}`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:266:34` StringLiteral → `""`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:269:9` ConditionalExpression → `true`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:276:25` ConditionalExpression → `true`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:276:46` BooleanLiteral → `false`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:278:7` StringLiteral → `""`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:279:7` StringLiteral → `""`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:340:53` StringLiteral → `""`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:384:38` StringLiteral → `""`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:384:98` ObjectLiteral → `{}`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:389:11` ConditionalExpression → `true`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:390:11` ConditionalExpression → `false`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:392:25` ArrowFunction → `() => undefined`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:393:39` StringLiteral → `""`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:393:57` ObjectLiteral → `{}`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:393:65` BooleanLiteral → `false`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:394:34` BlockStatement → `{}`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:395:44` StringLiteral → `""`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:396:11` CallExpression → `;`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:408:21` StringLiteral → `""`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:409:21` StringLiteral → `""`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:409:77` StringLiteral → `''`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:410:24` BooleanLiteral → `false`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:419:48` LogicalOperator → `authErr?.message && "PayPal OAuth token unavailabl`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:419:48` OptionalChaining → `authErr.message`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:419:68` (no coverage) StringLiteral → `""`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:420:19` OptionalChaining → `authErr.status`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:421:20` LogicalOperator → `authErr?.debugId && null`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:421:20` OptionalChaining → `authErr.debugId`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:422:22` ConditionalExpression → `false`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:422:22` LogicalOperator → `(authErr === null || authErr.kind !== "http") && a`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:422:22` ConditionalExpression → `false`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:422:22` LogicalOperator → `authErr === null && authErr.kind !== "http"`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:422:22` ConditionalExpression → `false`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:422:42` ConditionalExpression → `false`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:422:69` ConditionalExpression → `false`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:422:69` EqualityOperator → `authErr.status > 500`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:449:26` ConditionalExpression → `true`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:452:48` (no coverage) StringLiteral → `""`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:452:85` LogicalOperator → `gate.ticket && null`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:453:13` ConditionalExpression → `false`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:453:24` BlockStatement → `{}`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:454:49` StringLiteral → `""`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:454:106` ObjectLiteral → `{}`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:460:11` OptionalChaining → `logger?.warn({ purpose: req.purpose, attempt: atte`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:461:13` (no coverage) ObjectLiteral → `{}`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:462:13` (no coverage) StringLiteral → `""`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:468:34` (no coverage) StringLiteral → `""`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:469:22` StringLiteral → `""`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:469:37` (no coverage) StringLiteral → `""`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:470:22` StringLiteral → `''`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:470:61` (no coverage) StringLiteral → `""`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:477:49` (no coverage) StringLiteral → `"Stryker was here!"`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:481:25` StringLiteral → `""`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:488:44` (no coverage) ConditionalExpression → `true`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:488:44` (no coverage) ConditionalExpression → `false`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:488:44` (no coverage) EqualityOperator → `text !== ""`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:488:53` (no coverage) StringLiteral → `"Stryker was here!"`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:510:17` OptionalChaining → `limiter.reportRateLimited(new Date(now()))`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:511:23` (no coverage) BlockStatement → `{}`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:512:11` (no coverage) OptionalChaining → `logger?.error({ error: err instanceof Error ? err.`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:512:11` (no coverage) OptionalChaining → `logger.error`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:513:13` (no coverage) ObjectLiteral → `{}`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:514:13` (no coverage) StringLiteral → `""`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:521:20` LogicalOperator → `headerDebugId && error.debugId`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:530:11` OptionalChaining → `logger?.warn({ purpose: req.purpose, status: res.s`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:531:13` (no coverage) ObjectLiteral → `{}`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:538:13` (no coverage) StringLiteral → `""`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:265:7` ConditionalExpression → `false`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:261:34` MethodExpression → `path.endsWith("//")`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:321:18` ArrayDeclaration → `["Stryker was here"]`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:304:13` ArithmeticOperator → `now() + startedAt`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:322:16` ArrayDeclaration → `["Stryker was here"]`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:324:20` BooleanLiteral → `true`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:332:9` StringLiteral → `""`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:337:39` StringLiteral → `""`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:329:9` ConditionalExpression → `true`: UNCLASSIFIED
+- `src/http.ts:343:42` ConditionalExpression → `false`: UNCLASSIFIED
+- `src/http.ts:367:15` ArithmeticOperator → `now() + attemptStart`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:402:11` ConditionalExpression → `false`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:403:39` ObjectLiteral → `{}`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:426:11` ConditionalExpression → `false`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:443:15` ConditionalExpression → `false`: UNCLASSIFIED
+- `src/http.ts:477:43` ArrowFunction → `() => undefined`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:484:9` LogicalOperator → `gate.ticket && null`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:488:22` ConditionalExpression → `false`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/http.ts:494:15` ArithmeticOperator → `now() + startedAt`: infrastructure (open): PayPalHttp retry, timing, logging, error parsing
+- `src/item-status.ts:31:7` ConditionalExpression → `false`: equivalent: without the prefix the remaining name matches no item event
+- `src/item-status.ts:40:10` ConditionalExpression → `true`: equivalent: the Set lookup refuses a non-string
+- `src/webhook/cert-url.ts:73:7` ConditionalExpression → `false`: killed by the URL tests (rerun pending)
+- `src/webhook/cert-url.ts:73:7` LogicalOperator → `value.length === 0 && value.length > MAX_CERT_URL_`: killed by the URL tests (rerun pending)
+- `src/webhook/cert-url.ts:73:7` ConditionalExpression → `false`: killed by the URL tests (rerun pending)
+- `src/webhook/cert-url.ts:73:29` ConditionalExpression → `false`: killed by the URL tests (rerun pending)
+- `src/webhook/cert-url.ts:73:29` EqualityOperator → `value.length >= MAX_CERT_URL_LENGTH`: killed by the URL tests (rerun pending)
+- `src/webhook/cert-url.ts:73:72` ObjectLiteral → `{}`: killed by the URL tests (rerun pending)
+- `src/webhook/cert-url.ts:73:93` StringLiteral → `""`: killed by the URL tests (rerun pending)
+- `src/webhook/cert-url.ts:80:38` ConditionalExpression → `true`: killed by the loopback test (rerun pending)
+- `src/webhook/cert-url.ts:83:7` LogicalOperator → `url.username !== "" && url.password !== ""`: killed by the URL tests (rerun pending)
+- `src/webhook/cert-url.ts:83:7` ConditionalExpression → `false`: killed by the URL tests (rerun pending)
+- `src/webhook/cert-url.ts:83:30` ConditionalExpression → `false`: killed by the URL tests (rerun pending)
+- `src/webhook/cert-url.ts:84:7` LogicalOperator → `(url.search !== "" || url.hash !== "") && value.in`: killed by the URL tests (rerun pending)
+- `src/webhook/cert-url.ts:84:7` ConditionalExpression → `false`: killed by the URL tests (rerun pending)
+- `src/webhook/cert-url.ts:84:7` LogicalOperator → `url.search !== "" && url.hash !== ""`: killed by the URL tests (rerun pending)
+- `src/webhook/cert-url.ts:84:7` ConditionalExpression → `false`: killed by the URL tests (rerun pending)
+- `src/webhook/cert-url.ts:84:28` ConditionalExpression → `false`: killed by the URL tests (rerun pending)
+- `src/webhook/cert-url.ts:88:68` Regex → `/[^gy]/g`: equivalent: the y flag is never set on the expected pattern
+- `src/webhook/cert-url.ts:88:77` StringLiteral → `"Stryker was here!"`: equivalent: the y flag is never set on the expected pattern
+- `src/webhook/cert-url.ts:92:7` ConditionalExpression → `false`: redundant: the anchored pattern test already requires the file name
+- `src/webhook/cert-url.ts:92:8` OptionalChaining → `file[1]`: redundant: the anchored pattern test already requires the file name
+- `src/webhook/cert-url.ts:92:26` (no coverage) ObjectLiteral → `{}`: redundant: the anchored pattern test already requires the file name
+- `src/webhook/cert-url.ts:92:32` (no coverage) BooleanLiteral → `true`: redundant: the anchored pattern test already requires the file name
+- `src/webhook/cert-url.ts:92:47` (no coverage) StringLiteral → `""`: redundant: the anchored pattern test already requires the file name
+- `src/webhook/cert-url.ts:36:7` ConditionalExpression → `false`: killed by the URL tests (rerun pending)
+- `src/webhook/cert-url.ts:36:29` EqualityOperator → `value.length >= MAX_CERT_URL_LENGTH`: killed by the URL tests (rerun pending)
+- `src/webhook/cert-url.ts:44:30` ConditionalExpression → `false`: killed by the URL tests (rerun pending)
+- `src/webhook/cert-url.ts:48:7` ConditionalExpression → `false`: killed by the URL tests (rerun pending)
+- `src/webhook/cert-url.ts:48:7` LogicalOperator → `url.search !== "" && url.hash !== ""`: killed by the URL tests (rerun pending)
+- `src/webhook/cert-url.ts:48:7` ConditionalExpression → `false`: killed by the URL tests (rerun pending)
+- `src/webhook/cert-url.ts:48:28` ConditionalExpression → `false`: killed by the URL tests (rerun pending)
+- `src/webhook/event.ts:64:5` ConditionalExpression → `true`: envelope classification (open): which non-item events are told apart; item events are tested through toItemStatus
+- `src/webhook/event.ts:65:51` MethodExpression → `rawType`: envelope classification (open): which non-item events are told apart; item events are tested through toItemStatus
+- `src/webhook/event.ts:86:49` ConditionalExpression → `true`: envelope classification (open): which non-item events are told apart; item events are tested through toItemStatus
+- `src/webhook/event.ts:86:78` ConditionalExpression → `true`: envelope classification (open): which non-item events are told apart; item events are tested through toItemStatus
+- `src/webhook/event.ts:86:78` EqualityOperator → `value.length >= 0`: envelope classification (open): which non-item events are told apart; item events are tested through toItemStatus
+- `src/webhook/event.ts:88:32` ConditionalExpression → `true`: envelope classification (open): which non-item events are told apart; item events are tested through toItemStatus
+- `src/webhook/event.ts:111:7` ConditionalExpression → `true`: envelope classification (open): which non-item events are told apart; item events are tested through toItemStatus
+- `src/webhook/event.ts:111:35` StringLiteral → `""`: envelope classification (open): which non-item events are told apart; item events are tested through toItemStatus
+- `src/webhook/event.ts:120:10` ObjectLiteral → `{}`: envelope classification (open): which non-item events are told apart; item events are tested through toItemStatus
+- `src/webhook/event.ts:120:18` StringLiteral → `""`: envelope classification (open): which non-item events are told apart; item events are tested through toItemStatus
+- `src/webhook/event.ts:54:16` ConditionalExpression → `true`: envelope classification (open): which non-item events are told apart; item events are tested through toItemStatus
+- `src/webhook/event.ts:54:16` ConditionalExpression → `false`: envelope classification (open): which non-item events are told apart; item events are tested through toItemStatus
+- `src/webhook/event.ts:54:16` EqualityOperator → `typeof raw !== "string"`: envelope classification (open): which non-item events are told apart; item events are tested through toItemStatus
+- `src/webhook/event.ts:54:31` StringLiteral → `""`: envelope classification (open): which non-item events are told apart; item events are tested through toItemStatus
+- `src/webhook/stored-apply.ts:101:83` StringLiteral → `""`: wording: a refusal or error message (the refusal itself is tested)
+- `src/webhook/stored-apply.ts:106:54` StringLiteral → `""`: wording: a refusal or error message (the refusal itself is tested)
+- `src/webhook/stored-apply.ts:122:81` StringLiteral → `""`: wording: a refusal or error message (the refusal itself is tested)
+- `src/webhook/stored-apply.ts:161:54` StringLiteral → `""`: wording: a refusal or error message (the refusal itself is tested)
+- `src/webhook/stored-apply.ts:169:21` StringLiteral → `""`: wording: a refusal or error message (the refusal itself is tested)
+- `src/webhook/stored-apply.ts:58:3` LogicalOperator → `typeof value === "string" && value.length > 0 || v`: equivalent sub-conditions: a non-string or empty id fails the character check or the event-id comparison
+- `src/webhook/stored-apply.ts:58:3` ConditionalExpression → `true`: equivalent sub-conditions: a non-string or empty id fails the character check or the event-id comparison
+- `src/webhook/stored-apply.ts:58:3` LogicalOperator → `typeof value === "string" || value.length > 0`: equivalent sub-conditions: a non-string or empty id fails the character check or the event-id comparison
+- `src/webhook/stored-apply.ts:58:3` ConditionalExpression → `true`: equivalent sub-conditions: a non-string or empty id fails the character check or the event-id comparison
+- `src/webhook/stored-apply.ts:59:3` ConditionalExpression → `true`: equivalent: an empty id fails the event-id comparison with the parsed event
+- `src/webhook/stored-apply.ts:59:3` EqualityOperator → `value.length >= 0`: equivalent: an empty id fails the event-id comparison with the parsed event
+- `src/webhook/stored-apply.ts:60:3` ConditionalExpression → `true`: killed by the 129-character id test (rerun pending)
+- `src/webhook/stored-apply.ts:62:35` EqualityOperator → `character.charCodeAt(0) >= 31`: equivalent: character 31 is a control character that the whitespace check or the event comparison also refuses
+- `src/webhook/stored-apply.ts:70:11` ConditionalExpression → `true`: equivalent: a non-string receipt time is refused as unreadable either way
+- `src/webhook/stored-apply.ts:73:10` ConditionalExpression → `true`: equivalent: a null or non-finite time is refused by the skew comparison
+- `src/webhook/stored-apply.ts:77:36` EqualityOperator → `value.length >= 1_400`: killed by the 1,400-character test (rerun pending)
+- `src/webhook/stored-apply.ts:111:5` ConditionalExpression → `false`: equivalent: a non-string time fails the strict parser
+- `src/webhook/stored-apply.ts:121:7` ConditionalExpression → `false`: equivalent: a null time makes the skew comparison NaN, refused as stale
+- `src/webhook/stored-apply.ts:125:5` ConditionalExpression → `false`: equivalent: a non-string raw event fails the envelope parser
+- `src/webhook/stored-apply.ts:125:5` LogicalOperator → `typeof input.raw !== "string" && Buffer.byteLength`: equivalent: a non-string raw event fails the envelope parser
+- `src/webhook/stored-apply.ts:125:5` ConditionalExpression → `false`: equivalent: a non-string raw event fails the envelope parser
+- `src/webhook/stored-apply.ts:126:5` ConditionalExpression → `false`: size cap (open): a stored event over 64 KB
+- `src/webhook/stored-apply.ts:126:5` EqualityOperator → `Buffer.byteLength(input.raw, "utf8") >= 64 * 1_024`: size cap (open): a stored event over 64 KB
+- `src/webhook/stored-apply.ts:126:34` StringLiteral → `""`: size cap (open): a stored event over 64 KB
+- `src/webhook/stored-apply.ts:152:6` ConditionalExpression → `false`: equivalent: a malformed stored item id never equals the resource's id
+- `src/webhook/transmission.ts:64:7` ConditionalExpression → `false`: killed by the offset tests (rerun pending)
+- `src/webhook/transmission.ts:64:7` LogicalOperator → `offsetHours > 23 && offsetMinutes > 59`: killed by the offset tests (rerun pending)
+- `src/webhook/transmission.ts:64:7` ConditionalExpression → `false`: killed by the offset tests (rerun pending)
+- `src/webhook/transmission.ts:64:7` EqualityOperator → `offsetHours >= 23`: killed by the offset tests (rerun pending)
+- `src/webhook/transmission.ts:64:27` ConditionalExpression → `false`: killed by the offset tests (rerun pending)
+- `src/webhook/transmission.ts:64:27` EqualityOperator → `offsetMinutes >= 59`: killed by the offset tests (rerun pending)
+- `src/webhook/transmission.ts:66:26` ArithmeticOperator → `offsetHours * 60 - offsetMinutes`: killed by the offset tests (rerun pending)
+- `src/webhook/transmission.ts:117:42` EqualityOperator → `record.expiresAt < t`: killed by the store test (rerun pending)
+- `src/webhook/transmission.ts:53:7` ConditionalExpression → `false`: killed by the field-edge tests (rerun pending)
+- `src/webhook/transmission.ts:53:7` LogicalOperator → `(month < 1 || month > 12 || day < 1) && hour > 23`: killed by the field-edge tests (rerun pending)
+- `src/webhook/transmission.ts:53:7` ConditionalExpression → `false`: killed by the field-edge tests (rerun pending)
+- `src/webhook/transmission.ts:53:7` LogicalOperator → `(month < 1 || month > 12) && day < 1`: killed by the field-edge tests (rerun pending)
+- `src/webhook/transmission.ts:53:7` ConditionalExpression → `false`: killed by the field-edge tests (rerun pending)
+- `src/webhook/transmission.ts:53:7` LogicalOperator → `month < 1 && month > 12`: killed by the field-edge tests (rerun pending)
+- `src/webhook/transmission.ts:53:7` ConditionalExpression → `false`: killed by the field-edge tests (rerun pending)
+- `src/webhook/transmission.ts:53:7` EqualityOperator → `month <= 1`: killed by the field-edge tests (rerun pending)
+- `src/webhook/transmission.ts:53:20` ConditionalExpression → `false`: killed by the field-edge tests (rerun pending)
+- `src/webhook/transmission.ts:53:20` EqualityOperator → `month >= 12`: killed by the field-edge tests (rerun pending)
+- `src/webhook/transmission.ts:53:34` ConditionalExpression → `false`: killed by the field-edge tests (rerun pending)
+- `src/webhook/transmission.ts:53:45` ConditionalExpression → `false`: killed by the field-edge tests (rerun pending)
+- `src/webhook/transmission.ts:53:45` EqualityOperator → `hour >= 23`: killed by the field-edge tests (rerun pending)
+- `src/webhook/transmission.ts:53:73` ConditionalExpression → `false`: killed by the field-edge tests (rerun pending)
+- `src/webhook/transmission.ts:54:32` MethodExpression → `m[7]`: killed by the fraction tests (rerun pending)
+- `src/webhook/transmission.ts:53:73` EqualityOperator → `second >= 59`: killed by the field-edge tests (rerun pending)
+- `src/webhook/transmission.ts:54:59` StringLiteral → `""`: killed by the fraction tests (rerun pending)
+- `src/webhook/transmission.ts:58:7` LogicalOperator → `(check.getUTCFullYear() !== year || check.getUTCMo`: killed by the 30 February and year-99 tests (rerun pending)
+- `src/webhook/transmission.ts:58:7` ConditionalExpression → `false`: killed by the 30 February and year-99 tests (rerun pending)
+- `src/webhook/transmission.ts:58:7` LogicalOperator → `check.getUTCFullYear() !== year && check.getUTCMon`: killed by the 30 February and year-99 tests (rerun pending)
+- `src/webhook/transmission.ts:58:7` ConditionalExpression → `false`: killed by the 30 February and year-99 tests (rerun pending)
+- `src/webhook/transmission.ts:58:42` ConditionalExpression → `false`: killed by the 30 February and year-99 tests (rerun pending)
+- `src/webhook/transmission.ts:58:79` ConditionalExpression → `false`: killed by the 30 February and year-99 tests (rerun pending)
+- `src/webhook/transmission.ts:125:11` ConditionalExpression → `true`: killed by the store test (rerun pending)
+- `src/webhook/transmission.ts:125:11` LogicalOperator → `existing === undefined || seen.size >= maxEntries`: killed by the store test (rerun pending)
+- `src/webhook/transmission.ts:125:11` ConditionalExpression → `true`: killed by the store test (rerun pending)
+- `src/webhook/transmission.ts:125:37` ConditionalExpression → `true`: killed by the store test (rerun pending)
+
+## outbox (189)
+
+- `src/enqueue.ts:73:34` (no coverage) StringLiteral → `''`: unreachable race guard: the conflicting row exists in the same transaction
+- `src/enqueue.ts:51:35` StringLiteral → `''`: wording: the label in toJsonObject's error
+- `src/enqueue.ts:66:26` ObjectLiteral → `{}`: equivalent: dedupe_key is the only unique column an insert can conflict on (the id is a fresh UUIDv7)
+- `src/enqueue.ts:73:7` ConditionalExpression → `false`: unreachable race guard: the conflicting row exists in the same transaction
+- `src/index.ts:25:13` MethodExpression → `env.EXECUTOR ?? "inline"`: config parsing (open): EXECUTOR with spaces or capitals
+- `src/index.ts:75:9` ConditionalExpression → `true`: timing: heartbeat interval pass-through
+- `src/index.ts:75:9` ConditionalExpression → `false`: timing: heartbeat interval pass-through
+- `src/index.ts:75:9` EqualityOperator → `o.heartbeatMs === undefined`: timing: heartbeat interval pass-through
+- `src/index.ts:75:39` (no coverage) ObjectLiteral → `{}`: timing: heartbeat interval pass-through
+- `src/index.ts:76:23` (no coverage) ObjectLiteral → `{}`: timing: backoff pass-through
+- `src/index.ts:80:30` StringLiteral → `""`: equivalent: an empty executor kind is neither workflow nor worker, so inline
+- `src/index.ts:83:9` ConditionalExpression → `false`: config validation (open): workflow executor without a client
+- `src/index.ts:83:44` (no coverage) StringLiteral → `""`: config validation (open): workflow executor without a client
+- `src/index.ts:85:14` ConditionalExpression → `true`: config (open): worker executor wiring
+- `src/index.ts:102:36` (no coverage) StringLiteral → `""`: wording: default executor label
+- `src/routing.ts:37:3` ConditionalExpression → `true`: equivalent: with configured inline the route answers inline either way
+- `src/routing.ts:37:22` StringLiteral → `""`: equivalent: with configured inline the route answers inline either way
+- `src/routing.ts:60:9` ConditionalExpression → `false`: equivalent: a null workspace matches no row, so false either way
+- `src/runner.ts:116:13` ConditionalExpression → `true`: timing: the heartbeat's lost-claim path (30 s interval)
+- `src/runner.ts:116:13` LogicalOperator → `r.length === 0 || !abort.signal.aborted`: timing: the heartbeat's lost-claim path (30 s interval)
+- `src/runner.ts:116:13` ConditionalExpression → `true`: timing: the heartbeat's lost-claim path (30 s interval)
+- `src/runner.ts:117:16` ObjectLiteral → `{}`: timing: the heartbeat's lost-claim event
+- `src/runner.ts:117:24` StringLiteral → `""`: timing: the heartbeat's lost-claim event
+- `src/runner.ts:118:33` StringLiteral → `""`: wording: abort reason
+- `src/runner.ts:184:43` OptionalChaining → `cur.state`: unreachable: the row exists (it was just claimed)
+- `src/runner.ts:123:3` OptionalChaining → `beat.unref()`: timing: unref on the heartbeat timer
+- `src/runner.ts:132:29` BlockStatement → `{}`: not observable without a crash: ctx.complete's atomicity (the runner marks done afterwards either way)
+- `src/runner.ts:148:7` ConditionalExpression → `false`: race path: the row was swept or completed elsewhere between claim and finish
+- `src/runner.ts:149:9` ConditionalExpression → `true`: event emission for the race path
+- `src/runner.ts:152:19` MethodExpression → `e instanceof Error ? '${e.name}: ${e.message}' : S`: wording: error text of a thrown non-Error
+- `src/runner.ts:159:11` ConditionalExpression → `false`: race path: lost claim before marking dead
+- `src/runner.ts:169:9` ConditionalExpression → `false`: race path: lost claim before re-queueing
+- `src/runner.ts:172:13` BlockStatement → `{}`: timing: clearing the heartbeat timer
+- `src/runner.ts:173:5` CallExpression → `;`: timing: clearing the heartbeat timer
+- `src/runner.ts:183:7` OptionalChaining → `cur.state`: unreachable: the row exists (it was just claimed)
+- `src/dispatcher.ts:132:19` (no coverage) BlockStatement → `{}`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:133:14` (no coverage) ObjectLiteral → `{}`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:133:22` (no coverage) StringLiteral → `""`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:133:78` (no coverage) StringLiteral → `''`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:134:16` (no coverage) StringLiteral → `""`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:184:44` (no coverage) ArrayDeclaration → `["Stryker was here"]`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:238:30` (no coverage) ObjectLiteral → `{}`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:238:38` (no coverage) StringLiteral → `""`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:259:12` (no coverage) BlockStatement → `{}`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:262:16` (no coverage) ObjectLiteral → `{}`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:262:25` (no coverage) StringLiteral → `""`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:263:75` (no coverage) StringLiteral → `""`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:264:14` (no coverage) ObjectLiteral → `{}`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:264:22` (no coverage) StringLiteral → `""`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:343:74` (no coverage) ObjectLiteral → `{}`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:356:30` (no coverage) ObjectLiteral → `{}`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:356:38` (no coverage) StringLiteral → `""`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:368:36` (no coverage) BlockStatement → `{}`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:369:11` (no coverage) ConditionalExpression → `true`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:369:11` (no coverage) ConditionalExpression → `false`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:369:34` (no coverage) ArrowFunction → `() => undefined`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:369:46` (no coverage) ObjectLiteral → `{}`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:369:54` (no coverage) StringLiteral → `""`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:396:22` (no coverage) BlockStatement → `{}`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:122:15` BooleanLiteral → `true`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:129:9` ConditionalExpression → `true`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:129:9` LogicalOperator → `replay || route(task.name, ctx) !== "inline"`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:129:19` ConditionalExpression → `true`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:129:45` StringLiteral → `""`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:138:12` ConditionalExpression → `false`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:138:21` StringLiteral → `""`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:138:42` OptionalChaining → `remote.kind`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:145:16` LogicalOperator → `kind !== "inline" || kind === remote.kind`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:145:16` ConditionalExpression → `true`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:145:25` StringLiteral → `""`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:145:37` ConditionalExpression → `true`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:147:7` ArrayDeclaration → `["Stryker was here"]`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:163:9` ConditionalExpression → `true`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:163:9` EqualityOperator → `inlineFree >= 0`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:183:22` OptionalChaining → `local.capacity()`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:184:9` ConditionalExpression → `false`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:184:9` EqualityOperator → `inlineFree < 0`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:184:28` BooleanLiteral → `remote`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:188:9` ConditionalExpression → `false`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:188:37` ArrayDeclaration → `["Stryker was here"]`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:198:13` ConditionalExpression → `false`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:198:13` EqualityOperator → `picked.length > batchSize`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:207:21` MethodExpression → `picked`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:207:42` ConditionalExpression → `true`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:231:7` CallExpression → `;`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:237:13` ConditionalExpression → `true`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:237:13` OptionalChaining → `row.state`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:238:18` ArrowFunction → `() => undefined`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:240:5` OptionalChaining → `timer.unref()`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:241:5` CallExpression → `;`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:254:12` ObjectLiteral → `{}`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:254:20` StringLiteral → `""`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:255:11` ConditionalExpression → `true`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:257:11` ConditionalExpression → `true`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:278:9` ConditionalExpression → `false`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:278:18` BlockStatement → `{}`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:279:15` BooleanLiteral → `false`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:287:11` AssignmentOperator → `total -= await tickOnce()`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:288:18` ConditionalExpression → `false`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:349:9` ConditionalExpression → `true`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:349:9` ConditionalExpression → `false`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:349:9` EqualityOperator → `counts.rescued + counts.redispatched + counts.reco`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:349:9` EqualityOperator → `counts.rescued + counts.redispatched + counts.reco`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:349:9` ArithmeticOperator → `counts.rescued + counts.redispatched + counts.reco`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:349:9` ArithmeticOperator → `counts.rescued + counts.redispatched - counts.reco`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:349:9` ArithmeticOperator → `counts.rescued - counts.redispatched`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:350:12` ObjectLiteral → `{}`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:350:20` StringLiteral → `""`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:355:9` ConditionalExpression → `false`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:356:18` ArrowFunction → `() => undefined`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:360:9` ConditionalExpression → `false`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:363:41` ObjectLiteral → `{}`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:371:5` CallExpression → `;`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:375:15` BooleanLiteral → `true`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:376:9` ConditionalExpression → `true`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:376:9` ConditionalExpression → `false`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:376:20` CallExpression → `;`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:377:9` ConditionalExpression → `true`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:377:9` ConditionalExpression → `false`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:377:21` CallExpression → `;`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:378:32` CallExpression → `;`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:379:5` CallExpression → `;`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:380:9` ConditionalExpression → `false`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:380:40` ObjectLiteral → `{}`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:382:9` ConditionalExpression → `false`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:382:38` ArrowFunction → `() => undefined`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:383:9` ConditionalExpression → `true`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:383:9` ConditionalExpression → `false`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:383:21` BlockStatement → `{}`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:384:32` ArrayDeclaration → `[]`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:384:59` BlockStatement → `{}`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/dispatcher.ts:386:13` ConditionalExpression → `false`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/executors.ts:47:32` (no coverage) StringLiteral → `''`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/executors.ts:66:27` (no coverage) CallExpression → `;`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/executors.ts:76:23` (no coverage) OptionalChaining → `opts.onError(e, id)`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/executors.ts:99:82` (no coverage) ArrowFunction → `() => undefined`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/executors.ts:100:18` (no coverage) BlockStatement → `{}`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/executors.ts:47:7` ConditionalExpression → `false`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/executors.ts:62:28` BlockStatement → `{}`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/executors.ts:63:9` ConditionalExpression → `true`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/executors.ts:63:9` ConditionalExpression → `false`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/executors.ts:63:9` LogicalOperator → `active === 0 || queue.length === 0`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/executors.ts:63:9` ConditionalExpression → `true`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/executors.ts:63:9` EqualityOperator → `active !== 0`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/executors.ts:63:25` ConditionalExpression → `true`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/executors.ts:63:25` EqualityOperator → `queue.length !== 0`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/executors.ts:63:45` BlockStatement → `{}`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/executors.ts:71:12` ConditionalExpression → `true`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/executors.ts:71:12` EqualityOperator → `active <= concurrency`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/executors.ts:73:7` CallExpression → `;`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/executors.ts:76:16` ArrowFunction → `() => undefined`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/executors.ts:80:11` CallExpression → `;`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/executors.ts:86:11` LogicalOperator → `opts.kind && "inline"`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/executors.ts:86:24` StringLiteral → `""`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/executors.ts:90:11` ConditionalExpression → `true`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/executors.ts:91:9` CallExpression → `;`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/executors.ts:97:33` ArithmeticOperator → `concurrency - active + queue.length`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/executors.ts:97:33` ArithmeticOperator → `concurrency + active`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/executors.ts:98:11` ArrowFunction → `() => undefined`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/executors.ts:99:7` ConditionalExpression → `true`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/executors.ts:99:7` LogicalOperator → `active === 0 || queue.length === 0`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/executors.ts:99:7` ConditionalExpression → `true`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/executors.ts:99:23` ConditionalExpression → `true`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/executors.ts:125:7` ConditionalExpression → `true`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/executors.ts:125:7` LogicalOperator → `res || typeof res === "object"`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/executors.ts:125:14` ConditionalExpression → `true`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/executors.ts:126:28` StringLiteral → `""`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/executors.ts:126:41` StringLiteral → `""`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/executors.ts:128:11` ConditionalExpression → `true`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/executors.ts:128:11` LogicalOperator → `typeof v === "string" || v`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/executors.ts:128:11` ConditionalExpression → `true`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/worker.ts:31:21` (no coverage) OptionalChaining → `o.onError(e)`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/worker.ts:28:65` ObjectLiteral → `{}`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/worker.ts:29:11` StringLiteral → `""`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/worker.ts:30:18` LogicalOperator → `o.concurrency && 4`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/worker.ts:31:14` ArrowFunction → `() => undefined`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/worker.ts:41:9` ConditionalExpression → `true`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/worker.ts:41:9` LogicalOperator → `id || name`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/worker.ts:46:9` ConditionalExpression → `false`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/worker.ts:46:9` EqualityOperator → `free < 0`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/worker.ts:64:41` ObjectLiteral → `{}`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/worker.ts:65:56` ArrowFunction → `() => undefined`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/worker.ts:66:27` ArrowFunction → `() => undefined`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/worker.ts:66:63` LogicalOperator → `o.scanMs && 2000`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/worker.ts:69:11` ConditionalExpression → `true`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/worker.ts:69:11` ConditionalExpression → `false`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/worker.ts:69:18` CallExpression → `;`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/worker.ts:70:11` ConditionalExpression → `true`: infrastructure (open): dispatch timers, watchdogs, events
+- `src/worker.ts:70:42` ObjectLiteral → `{}`: infrastructure (open): dispatch timers, watchdogs, events
+
+## contracts (7)
+
+- `src/labels.ts:292:86` StringLiteral → `""`: wording: Cebuano/Filipino noun markers
+- `src/labels.ts:294:32` StringLiteral → `''`: wording: Cebuano/Filipino noun markers
+- `src/primitives.ts:213:11` (no coverage) ArrayDeclaration → `[]`: static schema definition (Json union), exercised by every parse
+- `src/primitives.ts:156:7` ConditionalExpression → `false`: equivalent: a non-string kind is not an own key of the shape table, and a non-string key ID fails the regex
+- `src/primitives.ts:156:7` LogicalOperator → `typeof kind !== "string" && typeof keyId !== "stri`: equivalent: a non-string kind is not an own key of the shape table, and a non-string key ID fails the regex
+- `src/primitives.ts:156:7` ConditionalExpression → `false`: equivalent: a non-string kind is not an own key of the shape table, and a non-string key ID fails the regex
+- `src/primitives.ts:156:35` ConditionalExpression → `false`: equivalent: a non-string kind is not an own key of the shape table, and a non-string key ID fails the regex
+
+## seed (330)
+
+- `src/build.ts:119:27` (no coverage) StringLiteral → `''`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/build.ts:140:45` (no coverage) StringLiteral → `""`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/build.ts:214:35` (no coverage) StringLiteral → `""`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/build.ts:302:253` (no coverage) StringLiteral → `""`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/build.ts:332:44` (no coverage) StringLiteral → `''`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/build.ts:398:79` (no coverage) StringLiteral → `""`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/build.ts:500:34` (no coverage) StringLiteral → `''`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/build.ts:643:65` (no coverage) StringLiteral → `""`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/build.ts:675:9` (no coverage) ArrayDeclaration → `["Stryker was here"]`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/build.ts:768:9` (no coverage) ArrayDeclaration → `["Stryker was here"]`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/build.ts:111:11` ConditionalExpression → `true`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/build.ts:119:7` ConditionalExpression → `false`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/build.ts:138:42` ConditionalExpression → `true`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/build.ts:140:7` ConditionalExpression → `false`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/build.ts:140:7` LogicalOperator → `!treasurer && !chair`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/build.ts:178:28` StringLiteral → `"Stryker was here!"`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/build.ts:211:21` OptionalChaining → `world.slips.find(s => s.serial === MULTA_SERIAL).m`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/build.ts:214:7` ConditionalExpression → `false`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/build.ts:243:34` OptionalChaining → `memberOf.get(no).consoleName`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/build.ts:248:19` OptionalChaining → `world.logbook[0].lines`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/build.ts:302:143` ConditionalExpression → `true`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/build.ts:302:143` LogicalOperator → `logLine || logLine.netKgText === format.slipKg(byH`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/build.ts:302:154` ConditionalExpression → `true`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/build.ts:332:9` ConditionalExpression → `false`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/build.ts:332:10` OptionalChaining → `m.receiverAlias`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/build.ts:375:71` ArrowFunction → `() => undefined`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/build.ts:380:23` OptionalChaining → `world.members.find(m => m.receiverKind === "NO_PAY`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/build.ts:398:12` OptionalChaining → `snapshotItems.find(i => i.memberNo === l.memberNo)`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/build.ts:492:24` MethodExpression → `[...world.photos]`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/build.ts:492:47` ArrowFunction → `() => undefined`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/build.ts:493:5` ConditionalExpression → `false`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/build.ts:493:5` EqualityOperator → `(a.readOn ?? "9999") + a.photoId <= (b.readOn ?? "`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/build.ts:493:5` ArithmeticOperator → `(a.readOn ?? "9999") - a.photoId`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/build.ts:493:6` LogicalOperator → `a.readOn && "9999"`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/build.ts:493:18` StringLiteral → `""`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/build.ts:493:40` ArithmeticOperator → `(b.readOn ?? "9999") - b.photoId`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/build.ts:493:75` UnaryOperator → `+1`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/build.ts:498:16` ConditionalExpression → `true`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/build.ts:498:69` ConditionalExpression → `true`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/build.ts:500:11` ConditionalExpression → `false`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/build.ts:516:11` LogicalOperator → `card.ratifications[0]?.at && card.ratifiedAt`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/build.ts:516:11` OptionalChaining → `card.ratifications[0].at`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/build.ts:521:7` OptionalChaining → `card.ratifications[1].at`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/build.ts:677:86` ConditionalExpression → `true`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/build.ts:677:86` ConditionalExpression → `false`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/build.ts:677:86` EqualityOperator → `a.at <= b.at`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/build.ts:677:86` EqualityOperator → `a.at >= b.at`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/index.ts:77:57` (no coverage) StringLiteral → `""`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:182:33` (no coverage) BlockStatement → `{}`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:184:12` (no coverage) ConditionalExpression → `true`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:184:12` (no coverage) ConditionalExpression → `false`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:184:12` (no coverage) LogicalOperator → `(b.kgD - b.g2D) * DKG / g1Slots(b, (n[i] as number`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:184:12` (no coverage) ConditionalExpression → `true`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:184:12` (no coverage) EqualityOperator → `(b.kgD - b.g2D) * DKG / g1Slots(b, (n[i] as number`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:184:12` (no coverage) EqualityOperator → `(b.kgD - b.g2D) * DKG / g1Slots(b, (n[i] as number`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:184:12` (no coverage) ArithmeticOperator → `(b.kgD - b.g2D) * DKG * g1Slots(b, (n[i] as number`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:184:13` (no coverage) ArithmeticOperator → `(b.kgD - b.g2D) / DKG`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:184:14` (no coverage) ArithmeticOperator → `b.kgD + b.g2D`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:184:49` (no coverage) ArithmeticOperator → `(n[i] as number) - 1`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:184:88` (no coverage) ConditionalExpression → `true`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:184:88` (no coverage) EqualityOperator → `n[i] as number <= 8`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:184:88` (no coverage) EqualityOperator → `n[i] as number >= 8`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:186:34` (no coverage) BlockStatement → `{}`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:188:26` (no coverage) ArithmeticOperator → `(n[i] as number) + 1`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:189:12` (no coverage) ConditionalExpression → `true`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:189:12` (no coverage) ConditionalExpression → `false`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:189:12` (no coverage) LogicalOperator → `s >= 1 || (b.kgD - b.g2D) * DKG / s <= SLIP_MAX_G`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:189:12` (no coverage) ConditionalExpression → `true`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:189:12` (no coverage) EqualityOperator → `s > 1`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:189:12` (no coverage) EqualityOperator → `s < 1`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:189:22` (no coverage) ConditionalExpression → `true`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:189:22` (no coverage) EqualityOperator → `(b.kgD - b.g2D) * DKG / s < SLIP_MAX_G`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:189:22` (no coverage) EqualityOperator → `(b.kgD - b.g2D) * DKG / s > SLIP_MAX_G`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:189:22` (no coverage) ArithmeticOperator → `(b.kgD - b.g2D) * DKG * s`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:189:23` (no coverage) ArithmeticOperator → `(b.kgD - b.g2D) / DKG`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:189:24` (no coverage) ArithmeticOperator → `b.kgD + b.g2D`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:191:34` (no coverage) ArithmeticOperator → `(bg[i] as BgKilos).kgD * DKG * (n[i] as number)`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:191:35` (no coverage) ArithmeticOperator → `(bg[i] as BgKilos).kgD / DKG`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:192:38` (no coverage) UpdateOperator → `guard--`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:195:24` (no coverage) ArrowFunction → `() => undefined`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:196:9` (no coverage) ConditionalExpression → `true`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:196:9` (no coverage) ConditionalExpression → `false`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:196:9` (no coverage) EqualityOperator → `total <= BG_SLIPS`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:196:9` (no coverage) EqualityOperator → `total >= BG_SLIPS`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:196:27` (no coverage) BlockStatement → `{}`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:197:17` (no coverage) MethodExpression → `idx.filter(canAdd)`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:197:17` (no coverage) MethodExpression → `idx`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:197:41` (no coverage) ArrowFunction → `() => undefined`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:197:51` (no coverage) ConditionalExpression → `true`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:197:51` (no coverage) ConditionalExpression → `false`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:197:51` (no coverage) LogicalOperator → `perSlip(b) - perSlip(a) && a - b`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:197:51` (no coverage) ArithmeticOperator → `perSlip(b) + perSlip(a)`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:197:78` (no coverage) ArithmeticOperator → `a + b`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:198:11` (no coverage) ConditionalExpression → `true`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:198:11` (no coverage) ConditionalExpression → `false`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:198:11` (no coverage) EqualityOperator → `i !== undefined`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:198:44` (no coverage) StringLiteral → `""`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:199:14` (no coverage) ArithmeticOperator → `(n[i] as number) - 1`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:200:12` (no coverage) BlockStatement → `{}`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:201:17` (no coverage) MethodExpression → `idx.filter(canDrop)`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:201:17` (no coverage) MethodExpression → `idx`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:201:42` (no coverage) ArrowFunction → `() => undefined`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:201:52` (no coverage) ConditionalExpression → `true`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:201:52` (no coverage) ConditionalExpression → `false`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:201:52` (no coverage) LogicalOperator → `perSlip(a) - perSlip(b) && a - b`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:201:52` (no coverage) ArithmeticOperator → `perSlip(a) + perSlip(b)`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:201:79` (no coverage) ArithmeticOperator → `a + b`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:202:11` (no coverage) ConditionalExpression → `true`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:202:11` (no coverage) ConditionalExpression → `false`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:202:11` (no coverage) EqualityOperator → `i !== undefined`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:202:44` (no coverage) StringLiteral → `""`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:203:14` (no coverage) ArithmeticOperator → `(n[i] as number) + 1`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:211:23` (no coverage) StringLiteral → `''`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:220:39` (no coverage) UpdateOperator → `attempt--`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:229:19` (no coverage) StringLiteral → `''`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:238:42` (no coverage) StringLiteral → `""`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:245:49` (no coverage) StringLiteral → `""`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:335:63` (no coverage) StringLiteral → `""`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:422:42` (no coverage) ArrayDeclaration → `["Stryker was here"]`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:445:46` (no coverage) ArrayDeclaration → `["Stryker was here"]`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:464:46` (no coverage) StringLiteral → `''`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:499:50` (no coverage) StringLiteral → `""`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:530:45` (no coverage) ArrayDeclaration → `["Stryker was here"]`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:606:45` (no coverage) StringLiteral → `''`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:612:41` (no coverage) ArrayDeclaration → `["Stryker was here"]`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:630:68` (no coverage) BlockStatement → `{}`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:631:23` (no coverage) StringLiteral → `''`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:90:38` ConditionalExpression → `true`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:91:32` StringLiteral → `''`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:167:26` StringLiteral → `""`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:180:19` ArrowFunction → `() => undefined`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:180:46` ArithmeticOperator → `n + (b.g2D > 0 ? 1 : 0)`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:180:51` ConditionalExpression → `false`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:191:19` ArrowFunction → `() => undefined`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:192:23` ConditionalExpression → `false`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:192:23` EqualityOperator → `guard <= 1_000`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:192:23` EqualityOperator → `guard >= 1_000`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:194:9` ConditionalExpression → `true`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:206:19` ConditionalExpression → `false`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:206:19` EqualityOperator → `i >= bg.length`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:206:39` BlockStatement → `{}`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:210:9` ConditionalExpression → `false`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:210:9` LogicalOperator → `(s < 1 || per < SLIP_MIN_G) && per > SLIP_MAX_G`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:210:9` ConditionalExpression → `false`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:210:9` LogicalOperator → `s < 1 && per < SLIP_MIN_G`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:210:9` ConditionalExpression → `false`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:210:9` EqualityOperator → `s <= 1`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:210:18` ConditionalExpression → `false`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:210:18` EqualityOperator → `per <= SLIP_MIN_G`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:210:38` ConditionalExpression → `false`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:210:38` EqualityOperator → `per >= SLIP_MAX_G`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:220:25` EqualityOperator → `attempt <= 60`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:221:20` ConditionalExpression → `true`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:221:20` EqualityOperator → `attempt <= 40`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:227:9` ConditionalExpression → `true`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:227:9` MethodExpression → `grams.some(x => x >= SLIP_MIN_G && x <= SLIP_MAX_G`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:227:28` ConditionalExpression → `true`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:227:28` LogicalOperator → `x >= SLIP_MIN_G || x <= SLIP_MAX_G`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:227:28` ConditionalExpression → `true`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:227:28` EqualityOperator → `x > SLIP_MIN_G`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:227:47` ConditionalExpression → `true`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:227:47` EqualityOperator → `x < SLIP_MAX_G`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:238:7` ConditionalExpression → `false`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:238:7` EqualityOperator → `targetCents >= max`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:239:31` ArithmeticOperator → `max - 1`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:240:13` UnaryOperator → `+1`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:245:7` ConditionalExpression → `false`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:245:29` UnaryOperator → `+2`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:277:9` EqualityOperator → `r.next() <= 0.25`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:335:7` ConditionalExpression → `false`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:357:72` ArrayDeclaration → `["Stryker was here"]`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:397:20` ArrayDeclaration → `["Stryker was here"]`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:398:20` StringLiteral → `""`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:430:20` ArrayDeclaration → `["Stryker was here"]`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:434:27` EqualityOperator → `a.memberNo <= b.memberNo`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:464:7` ConditionalExpression → `false`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:473:25` MethodExpression → `drafts`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:473:46` ConditionalExpression → `true`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:490:13` ConditionalExpression → `true`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:490:13` ConditionalExpression → `false`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:490:13` EqualityOperator → `x.copy !== "WHITE_ORIGINAL"`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:490:24` StringLiteral → `""`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:490:42` CallExpression → `;`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:490:62` ObjectLiteral → `{}`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:499:7` ConditionalExpression → `false`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:500:19` EqualityOperator → `p <= 54`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:504:7` CallExpression → `;`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:504:27` ObjectLiteral → `{}`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:534:49` EqualityOperator → `serialN < REPLAY_LAST`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:539:38` EqualityOperator → `netG >= 55_000`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:553:55` StringLiteral → `""`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:606:7` ConditionalExpression → `false`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:630:9` ConditionalExpression → `false`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:630:9` LogicalOperator → `!manifestSha256 && !/^[0-9a-f]{64}$/.test(manifest`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:630:29` Regex → `/[0-9a-f]{64}$/`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:630:29` Regex → `/^[0-9a-f]{64}/`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:715:20` ConditionalExpression → `true`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:715:20` LogicalOperator → `!pending || s.serial === BY_HAND_SERIAL`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/world.ts:715:32` ConditionalExpression → `true`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:38:59` (no coverage) StringLiteral → `''`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:58:19` (no coverage) StringLiteral → `""`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:124:30` (no coverage) UnaryOperator → `+1`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:130:33` (no coverage) StringLiteral → `''`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:131:61` (no coverage) BlockStatement → `{}`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:132:27` (no coverage) StringLiteral → `''`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:136:41` (no coverage) AssignmentOperator → `total -= p - lr.roundUps + 1`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:136:50` (no coverage) ArithmeticOperator → `p - lr.roundUps - 1`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:136:50` (no coverage) ArithmeticOperator → `p + lr.roundUps`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:151:52` (no coverage) BooleanLiteral → `true`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:171:39` (no coverage) UpdateOperator → `guard--`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:175:9` (no coverage) ConditionalExpression → `true`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:175:9` (no coverage) ConditionalExpression → `false`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:175:9` (no coverage) EqualityOperator → `hi > 0`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:175:9` (no coverage) EqualityOperator → `hi < 0`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:175:18` (no coverage) BlockStatement → `{}`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:176:30` (no coverage) ArrowFunction → `() => undefined`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:176:37` (no coverage) ConditionalExpression → `true`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:176:37` (no coverage) ConditionalExpression → `false`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:176:37` (no coverage) EqualityOperator → `v <= KG_MAX_D - 50`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:176:37` (no coverage) EqualityOperator → `v >= KG_MAX_D - 50`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:176:41` (no coverage) ArithmeticOperator → `KG_MAX_D + 50`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:177:16` (no coverage) ArithmeticOperator → `(kg[hi] as number) + 50`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:178:15` (no coverage) ArithmeticOperator → `(kg[j] as number) - 50`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:180:9` (no coverage) ConditionalExpression → `true`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:180:9` (no coverage) ConditionalExpression → `false`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:180:9` (no coverage) EqualityOperator → `lo > 0`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:180:9` (no coverage) EqualityOperator → `lo < 0`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:180:18` (no coverage) BlockStatement → `{}`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:181:30` (no coverage) ArrowFunction → `() => undefined`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:181:37` (no coverage) ConditionalExpression → `true`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:181:37` (no coverage) ConditionalExpression → `false`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:181:37` (no coverage) EqualityOperator → `v >= KG_MIN_D + 400`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:181:37` (no coverage) EqualityOperator → `v <= KG_MIN_D + 400`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:181:41` (no coverage) ArithmeticOperator → `KG_MIN_D - 400`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:182:16` (no coverage) ArithmeticOperator → `(kg[lo] as number) - 50`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:183:15` (no coverage) ArithmeticOperator → `(kg[j] as number) + 50`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:196:55` (no coverage) StringLiteral → `''`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:222:74` (no coverage) UpdateOperator → `attempt--`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:227:13` (no coverage) BlockStatement → `{}`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:241:49` (no coverage) ConditionalExpression → `true`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:241:49` (no coverage) EqualityOperator → `r.next() <= 0.5`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:241:49` (no coverage) EqualityOperator → `r.next() >= 0.5`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:243:20` (no coverage) BlockStatement → `{}`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:244:9` (no coverage) AssignmentOperator → `a.g2D += d`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:245:9` (no coverage) AssignmentOperator → `b.g2D -= d`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:250:35` (no coverage) BlockStatement → `{}`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:251:9` (no coverage) CallExpression → `;`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:252:9` (no coverage) CallExpression → `;`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:264:19` (no coverage) StringLiteral → `""`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:38:9` ConditionalExpression → `false`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:38:9` LogicalOperator → `kg % DKG !== 0 && g1 % DKG !== 0`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:38:9` ConditionalExpression → `false`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:38:27` ConditionalExpression → `false`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:69:25` ArrayDeclaration → `["Stryker was here"]`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:71:14` ObjectLiteral → `{}`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:71:32` StringLiteral → `""`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:71:53` StringLiteral → `""`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:74:12` ObjectLiteral → `{}`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:76:11` StringLiteral → `""`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:77:15` StringLiteral → `""`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:80:12` ObjectLiteral → `{}`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:82:11` StringLiteral → `""`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:83:15` StringLiteral → `""`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:123:13` ConditionalExpression → `true`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:123:49` EqualityOperator → `a.remainder >= b.remainder`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:124:16` ConditionalExpression → `true`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:124:16` ConditionalExpression → `false`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:124:16` EqualityOperator → `a.id <= b.id`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:124:16` EqualityOperator → `a.id >= b.id`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:130:13` ConditionalExpression → `false`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:131:13` ConditionalExpression → `false`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:136:13` ConditionalExpression → `false`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:136:23` EqualityOperator → `p > lr.roundUps`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:137:24` EqualityOperator → `p <= lr.roundUps`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:151:7` ConditionalExpression → `false`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:151:7` LogicalOperator → `b.kgD < KG_MIN_D && b.kgD > KG_MAX_D`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:151:7` ConditionalExpression → `false`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:151:7` EqualityOperator → `b.kgD <= KG_MIN_D`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:151:27` ConditionalExpression → `false`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:151:27` EqualityOperator → `b.kgD >= KG_MAX_D`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:152:7` ConditionalExpression → `true`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:153:10` ConditionalExpression → `true`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:153:10` LogicalOperator → `b.g2D >= G2_MIN_D && b.g2D <= G2_MAX_D || b.kgD - `: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:153:10` ConditionalExpression → `true`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:153:10` LogicalOperator → `b.g2D >= G2_MIN_D || b.g2D <= G2_MAX_D`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:153:10` ConditionalExpression → `true`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:153:10` EqualityOperator → `b.g2D > G2_MIN_D`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:153:31` ConditionalExpression → `true`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:153:31` EqualityOperator → `b.g2D < G2_MAX_D`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:153:52` ConditionalExpression → `true`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:153:52` EqualityOperator → `b.kgD - b.g2D > G1_MIN_D`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:153:52` ArithmeticOperator → `b.kgD + b.g2D`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:160:56` StringLiteral → `""`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:171:23` ConditionalExpression → `false`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:171:23` EqualityOperator → `guard <= 10_000`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:171:23` EqualityOperator → `guard >= 10_000`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:172:29` ArrowFunction → `() => undefined`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:172:36` ConditionalExpression → `false`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:172:36` EqualityOperator → `v >= KG_MAX_D`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:173:29` ArrowFunction → `() => undefined`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:173:36` ConditionalExpression → `false`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:173:36` EqualityOperator → `v <= KG_MIN_D`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:174:9` ConditionalExpression → `true`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:174:9` ConditionalExpression → `true`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:174:9` LogicalOperator → `hi < 0 || lo < 0`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:174:9` EqualityOperator → `hi <= 0`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:174:19` ConditionalExpression → `true`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:174:19` EqualityOperator → `lo <= 0`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:186:56` EqualityOperator → `kg[i] as number > 1_000`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:196:28` ConditionalExpression → `false`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:222:36` EqualityOperator → `attempt <= firstAttempt + maxAttempts`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:233:25` ConditionalExpression → `true`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:233:25` EqualityOperator → `steps <= maxSteps`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:234:7` UpdateOperator → `steps--`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:238:11` ConditionalExpression → `false`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:241:23` ConditionalExpression → `false`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:241:23` ConditionalExpression → `true`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:241:23` EqualityOperator → `a.g2D >= 0`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:241:23` EqualityOperator → `a.g2D <= 0`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:243:11` ConditionalExpression → `false`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:250:11` ConditionalExpression → `false`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:250:11` LogicalOperator → `!valid(a) && !valid(b)`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/background.ts:262:9` ConditionalExpression → `true`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/ratecard.ts:217:51` (no coverage) StringLiteral → `"Stryker was here!"`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/ratecard.ts:218:43` (no coverage) StringLiteral → `"Stryker was here!"`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/ratecard.ts:187:56` StringLiteral → `""`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/ratecard.ts:213:39` EqualityOperator → `a.ruleId + a.pool <= b.ruleId + b.pool`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/ratecard.ts:217:32` OptionalChaining → `secretary.name`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/ratecard.ts:218:28` OptionalChaining → `chair.name`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)
+- `src/prng.ts:23:69` ArithmeticOperator → `hi + lo`: equivalent for the committed season: the snapshot test pins the generator's whole output, and this mutant leaves it unchanged (a search branch the season never takes, a guard on data that is present, ordering of unique keys)

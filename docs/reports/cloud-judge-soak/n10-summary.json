@@ -1,0 +1,126 @@
+{
+  "label": "n10",
+  "judges": 10,
+  "stepS": 900,
+  "rounds": 1,
+  "minutes": null,
+  "sharedIp": false,
+  "startedAt": "2026-11-04T22:10:56.127Z",
+  "wallS": 1435,
+  "loadAtStart": [26.93, 24.09, 18.73],
+  "loadAtEnd": [16.04, 19.11, 22.54],
+  "loadMax1": 49.03,
+  "judgesRun": 10,
+  "outcomes": "settled:10",
+  "failedAt": "",
+  "railAtPress": "live:10",
+  "railAtPayout": "live:10",
+  "proofStatus": "live:sample:10",
+  "pressToPostingS": {
+    "n": 10,
+    "p50": 900.093,
+    "p95": 1103.19,
+    "max": 1103.19
+  },
+  "pressToPostingLiveS": {
+    "n": 10,
+    "p50": 900.093,
+    "p95": 1103.19,
+    "max": 1103.19
+  },
+  "pressToPostingReplayS": {
+    "n": 0,
+    "p50": null,
+    "p95": null,
+    "max": null
+  },
+  "pressToPostedS": {
+    "n": 10,
+    "p50": 900.301,
+    "p95": 1103.25,
+    "max": 1103.25
+  },
+  "pressToInReviewS": {
+    "n": 10,
+    "p50": 537.899,
+    "p95": 741.355,
+    "max": 741.355
+  },
+  "pressToSettledS": {
+    "n": 10,
+    "p50": 1229.33,
+    "p95": 1431.846,
+    "max": 1431.846
+  },
+  "pressAnswerMs": {
+    "n": 17,
+    "p50": 252,
+    "p95": 3581,
+    "p99": 3581,
+    "max": 3581,
+    "mean": 635.7647058823529
+  },
+  "resetMs": {
+    "n": 10,
+    "p50": 13,
+    "p95": 43,
+    "p99": 43,
+    "max": 43,
+    "mean": 20.6
+  },
+  "within60s": 0,
+  "markPaidQueued": 14,
+  "cashPaced": "503 CIRCUIT_OPEN:10",
+  "fanout": {
+    "events": 14620,
+    "bursts": 496,
+    "burstTailMs": {
+      "n": 496,
+      "p50": 16,
+      "p95": 79,
+      "p99": 155,
+      "max": 629,
+      "mean": 27.151209677419356
+    },
+    "writeToArrivalMs": {
+      "n": 14620,
+      "p50": 42,
+      "p95": 155,
+      "p99": 471,
+      "max": 728,
+      "mean": 60.97954856361149
+    },
+    "spreadMs": {
+      "n": 14620,
+      "p50": 1,
+      "p95": 13,
+      "p99": 49,
+      "max": 62,
+      "mean": 3.2238714090287277
+    }
+  },
+  "requests": 2026,
+  "r429": 21,
+  "r4xxOther": 0,
+  "r5xx": 10,
+  "netErrors": 0,
+  "streamRefusals": 0,
+  "streamReconnects": 0,
+  "labelViolations": 0,
+  "labelNotes": "",
+  "server": {
+    "rssMbStart": 333.65625,
+    "rssMbEnd": 207.98046875,
+    "rssMbMax": 370.87109375,
+    "fdsStart": 27,
+    "fdsEnd": 36,
+    "fdsMax": 66,
+    "dbConnsMax": 14,
+    "dbConnsEnd": 13,
+    "outboxStuckMax": 0,
+    "outboxDeadEnd": 0,
+    "paypalWindowMax": 12,
+    "paypal429h": 0,
+    "stuckRows": ""
+  }
+}
