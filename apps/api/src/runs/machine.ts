@@ -141,7 +141,7 @@ export async function moveLine(tx: DbOrTx, scope: WorkspaceScope, m: LineMove): 
   const t = schema.memberLines;
   const [row] = await tx
     .update(t)
-    .set({ ...(m.patch ?? {}), state: m.to, version: sql`${t.version} + 1` })
+    .set({ ...(m.patch ?? {}), state: m.to, provenance: m.provenance, version: sql`${t.version} + 1` })
     .where(
       and(
         eq(t.workspaceId, scope.workspaceId),

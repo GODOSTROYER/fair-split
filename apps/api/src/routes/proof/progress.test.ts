@@ -182,7 +182,18 @@ describe("GET /v1/proof/:runSlug/events (public, aggregates only)", () => {
     expect(progress).toEqual({
       runSlug: w.runSlug,
       runState: "CLOSED",
-      items: { total: 8, sent: 0, confirmed: 7, held: 0, parked: 0, returned: 1, failed: 0, reversed: 0 },
+      provenance: "seeded",
+      items: {
+        total: 8,
+        replayed: 0,
+        sent: 0,
+        confirmed: 7,
+        held: 0,
+        parked: 0,
+        returned: 1,
+        failed: 0,
+        reversed: 0,
+      },
       display: "7 of 8 confirmed",
     });
     expect(m.data).not.toMatch(/M-\d{3}|r37-|@/);

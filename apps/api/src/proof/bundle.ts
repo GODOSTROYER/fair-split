@@ -235,6 +235,7 @@ export interface LineFact {
 }
 
 export interface ItemFact {
+  provenance: Provenance;
   senderItemId: string;
   memberNo: string | null;
   amountCents: number;
@@ -896,6 +897,7 @@ async function readItems(
       ...(replayed ? { provenance: "replay" as const } : {}),
     });
     facts.push({
+      provenance: replayed ? "replay" : (r.provenance as Provenance),
       senderItemId: r.senderItemId,
       memberNo: /-(M-\d{3})$/.exec(r.senderItemId)?.[1] ?? null,
       amountCents: Number(r.amountCents),

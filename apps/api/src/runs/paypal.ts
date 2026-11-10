@@ -10,6 +10,7 @@ import type { CommandHandler } from "../lib/command.js";
 import { ApiProblem, problem } from "../lib/problem.js";
 import { advanceRun } from "../money/settle.js";
 import { allow, CAN } from "./access.js";
+import { provenanceOf } from "./codes.js";
 import { lineDto } from "./dto.js";
 import { factLedger } from "./events.js";
 import { assertNotKilled } from "./flags.js";
@@ -92,7 +93,7 @@ export const markPaidHandler: CommandHandler<"markPaid"> = async (ctx) => {
     invoiceId: invoice.paypalInvoiceId,
     invoiceStatus: invoice.status === "NEW" ? "DRAFT" : invoice.status,
     runState: run.state as PayRunState,
-    provenance: "simulated_rail",
+    provenance: provenanceOf(invoice.provenance),
   };
 };
 

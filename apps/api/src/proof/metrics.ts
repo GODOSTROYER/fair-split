@@ -4,8 +4,8 @@
 //
 //   1 Lines explained         lines whose canonical content re-hashes to the stored line hash
 //   2 Premium allocated       Σ line premium against the quoted premium pool (R0: premium is never deducted)
-//   3 Paid, three tiers       PayPal-verified (SUCCESS resting on a verified event) · cash attested (a receipt on
-//                             file) · due (everything payable that is neither)
+//   3 Paid, labelled tiers       PayPal-verified (SUCCESS resting on a verified event) · cash attested (a receipt on
+//                             file) · replayed PayPal · due (everything payable outside those tiers)
 //   4 Holds caught, kept      duplicate, yield, no-rule, rate and injection holds; credits returned plus what a
 //                             duplicate counted once gave back to the other members
 //   5 PayPal against cash     members paid through PayPal vs in cash, and PayPal's share of the value
@@ -45,6 +45,8 @@ export const ProofMetrics = z.strictObject({
   }),
   paid: z.strictObject({
     paypalVerified: Tier,
+    /** Successful replayed PayPal lines, never a verified payment, cash or due. */
+    paypalReplayed: Tier,
     cashAttested: Tier.extend({ ofMembers: Count }),
     due: Tier,
     /** Lines held or excluded: reserved, carried over, never redistributed. */
@@ -58,6 +60,7 @@ export const ProofMetrics = z.strictObject({
   }),
   rails: z.strictObject({
     paypalMembers: Count,
+    paypalReplayedMembers: Count,
     cashMembers: Count,
     paypalValueBp: Count,
     display: z.string(),
@@ -94,9 +97,12 @@ export async function proofMetrics(db: DbOrTx, facts: ProofFacts): Promise<Proof
   const allocated = lines.reduce((s, l) => s + l.premiumCents, 0);
   const explained = lines.filter((l) => l.explained).length;
 
-  // 3 · paid in three tiers
-  const verified = items.filter((i) => i.status === "SUCCESS" && i.eventId !== null);
-  const verifiedLines = new Set(verified.map((i) => i.lineId));
+  // 3 · paid in labelled tiers
+  const verified = items.filter(
+    (i) => i.status === "SUCCESS" && i.eventId !== null && i.provenance !== "replay",
+  );
+  const replayed = items.filter((i) => i.status === "SUCCESS" && i.provenance === "replay");
+  const paypalLines = new Set([...verified, ...replayed].map((i) => i.lineId));
   const lineIds = lines.map((l) => l.lineId);
   const receipts =
     lineIds.length === 0
@@ -106,21 +112,23 @@ export async function proofMetrics(db: DbOrTx, facts: ProofFacts): Promise<Proof
           .from(schema.cashReceipts)
           .where(and(eq(schema.cashReceipts.workspaceId, ws), inArray(schema.cashReceipts.lineId, lineIds)));
   const attested = new Map(receipts.map((r) => [r.lineId, Number(r.amountCents)]));
-  const cashLines = lines.filter((l) => !verifiedLines.has(l.lineId) && attested.has(l.lineId));
+  const cashLines = lines.filter((l) => !paypalLines.has(l.lineId) && attested.has(l.lineId));
   const reserved = lines.filter((l) => RESERVED_STATES.includes(l.state as MemberLineState));
   const due = lines.filter(
     (l) =>
-      !verifiedLines.has(l.lineId) &&
+      !paypalLines.has(l.lineId) &&
       !attested.has(l.lineId) &&
       !RESERVED_STATES.includes(l.state as MemberLineState),
   );
   const sum = (xs: readonly { netCents: number }[]) => xs.reduce((s, x) => s + x.netCents, 0);
   const verifiedCents = verified.reduce((s, i) => s + i.amountCents, 0);
+  const replayedCents = replayed.reduce((s, i) => s + i.amountCents, 0);
+  const paypalCents = verifiedCents + replayedCents;
   const cashCents = [...attested.entries()]
-    .filter(([lineId]) => !verifiedLines.has(lineId))
+    .filter(([lineId]) => !paypalLines.has(lineId))
     .reduce((s, [, c]) => s + c, 0);
   const cashOf = lines.filter(
-    (l) => !verifiedLines.has(l.lineId) && !RESERVED_STATES.includes(l.state as MemberLineState),
+    (l) => !paypalLines.has(l.lineId) && !RESERVED_STATES.includes(l.state as MemberLineState),
   ).length;
 
   // 4 · holds caught and what they kept for members
@@ -147,7 +155,7 @@ export async function proofMetrics(db: DbOrTx, facts: ProofFacts): Promise<Proof
 
   // 5 · PayPal against cash (how members were actually paid, or are due to be)
   const netAll = sum(lines.filter((l) => !RESERVED_STATES.includes(l.state as MemberLineState)));
-  const paypalMembers = verified.length;
+  const paypalMembers = verified.length + replayed.length;
   const cashMembers = Math.max(0, cashOf);
 
   // 6 · timing, from the chain: the invoice record to the last verified item event
@@ -170,6 +178,11 @@ export async function proofMetrics(db: DbOrTx, facts: ProofFacts): Promise<Proof
         members: verified.length,
         cents: verifiedCents,
         display: `${verified.length} members, ${format.money(verifiedCents)}`,
+      },
+      paypalReplayed: {
+        members: replayed.length,
+        cents: replayedCents,
+        display: `Replayed (labelled): ${replayed.length} members, ${format.money(replayedCents)} · Simulated PayPal sandbox`,
       },
       cashAttested: {
         members: cashLines.length,
@@ -196,15 +209,18 @@ export async function proofMetrics(db: DbOrTx, facts: ProofFacts): Promise<Proof
     },
     rails: {
       paypalMembers,
+      paypalReplayedMembers: replayed.length,
       cashMembers,
-      paypalValueBp: bp(verifiedCents, netAll),
-      display: `${paypalMembers} of ${lines.length} members on PayPal, ${format.percentBp(bp(verifiedCents, netAll), 1)} of value`,
+      paypalValueBp: bp(paypalCents, netAll),
+      display: `${paypalMembers} of ${lines.length} members on PayPal, ${format.percentBp(bp(paypalCents, netAll), 1)} of value${replayed.length ? ` · Replayed (labelled): ${replayed.length} PayPal members · Simulated PayPal sandbox` : ""}`,
     },
     timing,
     progress: progressOf(
       run.runSlug,
       run.state,
       items.map((i) => i.status),
+      items.map((i) => i.provenance),
+      facts.provenance,
     ),
   };
 }

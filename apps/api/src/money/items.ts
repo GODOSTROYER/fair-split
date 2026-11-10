@@ -64,6 +64,7 @@ export async function applyItem(
     .update(t)
     .set({
       status: a.status,
+      provenance: a.provenance,
       statusRank: PAYOUT_ITEM_RANK[a.status],
       ...(a.payoutItemId ? { payoutItemId: a.payoutItemId } : {}),
       ...(a.transactionStatus !== undefined ? { transactionStatus: a.transactionStatus } : {}),
