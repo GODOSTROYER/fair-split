@@ -32,6 +32,7 @@
 // open, nothing written) is its own place, never a reason to replay it.
 // Outside judge workspaces (showcase, real) nothing here applies: the step is live, with no lane and no
 // quota, and the run slice's own guards (kill switch, limiter, circuit) stand.
+import { createLimiter } from "@fairsplit/db";
 import type { BatchOutcome } from "@fairsplit/paypal-payouts";
 import { sql } from "drizzle-orm";
 import { sessionOfWorkspace } from "../credentials/issue/tokens.js";
@@ -306,6 +307,17 @@ export async function beginLiveStep(deps: AppDeps, o: LiveStepInput): Promise<Li
   let reservation: LivePostReservation | null = null;
   let answered: PostAnswered | null = null;
   try {
+    if (!o.resume) {
+      // Require headroom for the documented six-call invoice burst before any fresh live effect.
+      // This intentionally replays conservatively even if old calls may expire shortly: a judge
+      // must not get partway through a burst then wait for the shared 40/min window. The actual
+      // limiter still governs every call, and a batch already written live always bypasses this replay.
+      const window = await createLimiter(deps.db).state();
+      if (window.inWindow + 6 > window.limits.perWindow) {
+        await free();
+        return { kind: "replay", decision: replayDecision("lane_full", rail, peek.quota) };
+      }
+    }
     if (o.step === "post") {
       const runId = o.runId as string;
       const r = await reserveLivePost(deps, {
