@@ -178,6 +178,8 @@ export const TIMING = {
   pairStagger: 120,
   /** Exits run 20% faster than entrances. */
   exitFactor: 0.8,
+  /** The stage's one toast (UI gate round 3): the newest live event shows this long, then the Log keeps it. */
+  toast: 3000,
 } as const;
 
 /** Concurrent flight limits (design §3, rule 6). */

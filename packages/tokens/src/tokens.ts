@@ -23,11 +23,11 @@
 // wears the same indigo face, because green is only money the simulated PayPal confirmed. One numeral voice:
 // money, figures and hashes are FS Sans semi-condensed, and there is no outline face any more.
 //
-// UI gate round 3: three numeral roles (NUMERAL_ROLES). Money and every other quantity are the grotesk (FS Sans,
-// plain lining figures); ids, hashes and times are the id role (FS Sans's code-like tabular set: the slashed zero,
-// the serifed one); one hero count per screen is the dot-matrix instrument (ui-web's DotMatrix, no font). The
-// stencil face is retired: the season and lot marks are the id role at 13 px. Secondary words are 13 px or more
-// on the console (caption), ids 12 px or more (micro). Dashed outlines mean simulated, and nothing else.
+// UI gate round 3 (the owner's "one family + mono", DESIGN.md): FS Sans sets every heading, label, body line and
+// number, numbers in tabular figures (one money style); one monospace sets hashes, IDs and timestamps, nothing
+// else. No dot-matrix, stencil, outline or condensed display face, and no Atkinson: a member's statement is FS Sans
+// too. Five size steps (TYPE_STEPS): id 12 (the mono), label 14, body 16, title 24, hero 56; the phone sets
+// 13 / 15 / 17 / 24 / 48 sp. Dashed lines mean simulated, and nothing else.
 
 import { DEPTH, EASE, SPRINGS, TWEENS } from "@fairsplit/motion/presets";
 import type { Oklch } from "./color.js";
@@ -428,37 +428,40 @@ export const CONTRAST_RULES: readonly ContrastRule[] = [
 
 // ------------------------------------------------------------------------------------------- typography
 
-export type FontFamilyRole = "ui" | "statement" | "mark" | "hollow";
+export type FontFamilyRole = "ui" | "mono" | "statement" | "mark" | "hollow";
 
 /**
- * CSS stacks: two voices. FS Sans for the interface and every numeral (money, figures, ids, hashes), Atkinson for
- * a member's statement. Money is always FS Sans, even inside Atkinson prose. No monospace font: ids use FS Sans's
- * code-like tabular figures. The outline face is retired (UI gate round 2) and so is the stencil (round 3):
- * `hollow` and `mark` stay as slots so consumers compile, and resolve to FS Sans.
+ * CSS stacks: one family and one mono (UI gate round 3). FS Sans sets the interface, a member's statement and every
+ * number; the mono sets hashes, IDs and timestamps only (no font file: the platform's own mono, so nothing new
+ * downloads). `statement` and `hollow` stay as slots so consumers compile, and resolve to FS Sans; `mark` (the
+ * season and lot ids) resolves to the mono.
  */
 export const FONT_STACKS: Readonly<Record<FontFamilyRole, string>> = {
   ui: '"FS Sans", system-ui, sans-serif',
-  statement: '"Atkinson Hyperlegible Next", "FS Sans", system-ui, sans-serif',
-  mark: '"FS Sans", system-ui, sans-serif',
+  mono: 'ui-monospace, "Cascadia Mono", "SF Mono", "Roboto Mono", Menlo, Consolas, monospace',
+  statement: '"FS Sans", system-ui, sans-serif',
+  mark: 'ui-monospace, "Cascadia Mono", "SF Mono", "Roboto Mono", Menlo, Consolas, monospace',
   hollow: '"FS Sans", system-ui, sans-serif',
 };
 
 /**
- * The three numeral roles (UI gate round 3), and the type roles that set each. A screen never mixes in a fourth.
- * - money: every amount, the by-hand entry included, and every other quantity (kg, counts, percents): the grotesk,
- *   plain lining figures. FS Sans has no plain tabular set (its tabular zero is slashed), so a money column aligns
- *   on its decimal point instead (ui-web's `MoneyFigure align="decimal"`).
- * - id: ids, hashes and times: the code-like tabular set (slashed zero, serifed one), 12 px or more.
- * - instrument: exactly one hero count per screen, drawn as a dot matrix (ui-web's `DotMatrix`), never money.
+ * The five size steps (UI gate round 3). Every type role sits on one of them, with weight doing the rest of the
+ * work (430 reading text, 520 labels, 600 titles and headings, 500 numerals). `id` is the mono's step: hashes, IDs
+ * and timestamps, never words. The phone (sp) sets the three small steps one larger, for daylight on budget phones.
  */
-export const NUMERAL_ROLES = {
-  money: ["amount-hero", "amount-l", "figure", "slab"],
-  id: ["micro", "hash", "mark"],
-  instrument: [],
-} as const satisfies Record<string, readonly string[]>;
+export const TYPE_STEPS = {
+  web: { id: 12, label: 14, body: 16, title: 24, hero: 56 },
+  app: { id: 13, label: 15, body: 17, title: 24, hero: 48 },
+} as const;
 
-/** Text-size floors on the console at 1280 px and wider (UI gate round 3): secondary words 13, ids 12. */
-export const TEXT_FLOORS = { secondary: 13, id: 12 } as const;
+/** The roles set in the mono (hashes, IDs, timestamps); every other role is FS Sans with tabular figures. */
+export const MONO_ROLES = ["id", "hash", "mark"] as const;
+
+/**
+ * Text-size floors (UI gate round 3): secondary words 13 px or more on the console (they sit on the label step,
+ * 14), ids 12 or more (the mono), and body text and a member's statement 16 or more.
+ */
+export const TEXT_FLOORS = { secondary: 13, id: 12, body: 16 } as const;
 
 /** Native static cuts (React Native cannot drive font axes). File name = PostScript name. */
 export const NATIVE_FONTS = {
@@ -466,220 +469,180 @@ export const NATIVE_FONTS = {
   semiCondMedium: "FSSans-SemiCondMedium",
   regular: "FSSans-Regular",
   semiExpBold: "FSSans-SemiExpBold",
-  statement: "AtkinsonNext-Regular",
-  statementBold: "AtkinsonNext-Bold",
 } as const;
 
-export type NativeFont = (typeof NATIVE_FONTS)[keyof typeof NATIVE_FONTS];
+/** The phone's mono: the platform's own (Android's monospace, the web export's generic), no file to embed. */
+export const NATIVE_MONO = "monospace";
+
+export type NativeFont = (typeof NATIVE_FONTS)[keyof typeof NATIVE_FONTS] | typeof NATIVE_MONO;
 
 /**
- * How a role sets its figures (ADR-0016, decision.md §7). Mona Sans's tabular figures are a code-like set (a
- * slashed zero, a serifed one); its proportional lining figures are plain. Amounts read as money in proportional
- * figures; only grid columns that must align on the decimal use tabular; hashes keep the slashed zero on purpose.
+ * How a role sets its figures. Every FS Sans role sets tabular lining figures (one money style, UI gate round 3):
+ * Mona Sans's tabular zero carries a slash, which is the one numeral look on every surface (the phone's static cuts
+ * have it frozen in). The mono roles need no setting.
  */
-export type Numerals = "proportional" | "tabular" | "hash";
+export type Numerals = "tabular";
 
 export interface TypeRole {
   readonly family: FontFamilyRole;
-  /** font-stretch, percent. */
+  /** font-stretch, percent (FS Sans only; the mono has one width). */
   readonly stretch: number;
   readonly weight: number;
+  /** px on the console and Proof: always one of TYPE_STEPS.web. */
   readonly size: number;
   readonly line: number;
-  /** Letter spacing in em (the wide headlines tighten a little). */
+  /** Letter spacing in em (the large steps tighten a little). */
   readonly tracking?: number;
-  /**
-   * Proportional for amounts and slabs, tabular for aligned grid columns, hash for hashes. A role without one
-   * keeps what it inherits (the face's default is proportional lining figures).
-   */
+  /** Every FS Sans role sets tabular figures; the mono roles leave it unset. */
   readonly numerals?: Numerals;
   readonly native: NativeFont | null;
-  /** App (sp) size where it differs from the console. */
-  readonly app?: { readonly size: number; readonly line: number; readonly maxFontSizeMultiplier?: number };
+  /** App (sp) size: always one of TYPE_STEPS.app. */
+  readonly app: { readonly size: number; readonly line: number; readonly maxFontSizeMultiplier?: number };
   readonly proof?: { readonly size: number; readonly line: number; readonly stretch?: number };
   readonly use: string;
 }
 
+// The six roles on the five steps. Every other role below is an alias that keeps a name consumers already use.
+const HERO = {
+  family: "ui",
+  stretch: 87.5,
+  weight: 500,
+  size: TYPE_STEPS.web.hero,
+  line: 60,
+  tracking: -0.02,
+  numerals: "tabular",
+  native: NATIVE_FONTS.semiCondMedium,
+  app: { size: TYPE_STEPS.app.hero, line: 52, maxFontSizeMultiplier: 1.5 },
+} as const;
+const TITLE = {
+  family: "ui",
+  stretch: 100,
+  weight: 600,
+  size: TYPE_STEPS.web.title,
+  line: 30,
+  tracking: -0.015,
+  numerals: "tabular",
+  native: NATIVE_FONTS.semiExpBold,
+  app: { size: TYPE_STEPS.app.title, line: 30 },
+} as const;
+const HEADING = {
+  family: "ui",
+  stretch: 100,
+  weight: 600,
+  size: TYPE_STEPS.web.body,
+  line: 24,
+  numerals: "tabular",
+  native: NATIVE_FONTS.semiExpBold,
+  app: { size: TYPE_STEPS.app.body, line: 24 },
+} as const;
+const BODY = {
+  family: "ui",
+  stretch: 100,
+  weight: 430,
+  size: TYPE_STEPS.web.body,
+  line: 24,
+  numerals: "tabular",
+  native: NATIVE_FONTS.regular,
+  app: { size: TYPE_STEPS.app.body, line: 24 },
+} as const;
+const SECONDARY = {
+  family: "ui",
+  stretch: 100,
+  weight: 430,
+  size: TYPE_STEPS.web.label,
+  line: 20,
+  numerals: "tabular",
+  native: NATIVE_FONTS.regular,
+  app: { size: TYPE_STEPS.app.label, line: 20 },
+} as const;
+const ID = {
+  family: "mono",
+  stretch: 100,
+  weight: 400,
+  size: TYPE_STEPS.web.id,
+  line: 16,
+  native: NATIVE_MONO,
+  app: { size: TYPE_STEPS.app.id, line: 18 },
+} as const;
+
 export const TYPE_ROLES = {
-  display: {
-    family: "ui",
-    stretch: 112.5,
-    weight: 600,
-    size: 40,
-    line: 44,
-    tracking: -0.02,
-    native: NATIVE_FONTS.semiExpBold,
-    use: "Stage, Proof and film headlines (34/37 below 1600 px)",
+  hero: {
+    ...HERO,
+    use: "The one hero numeral a screen: a money hero, or the one hero count (48/48, 7/8, 6/6); US$ small and raised",
   },
-  "amount-hero": {
-    family: "ui",
-    stretch: 87.5,
-    weight: 500,
-    size: 72,
-    line: 72,
-    tracking: -0.02,
-    numerals: "proportional",
-    native: NATIVE_FONTS.semiCondMedium,
-    app: { size: 48, line: 52, maxFontSizeMultiplier: 1.5 },
-    use: "The one hero numeral for every money hero, in ink, never bold; US$ small and raised",
-  },
-  "amount-l": {
-    family: "ui",
-    stretch: 87.5,
-    weight: 500,
-    size: 32,
-    line: 36,
-    tracking: -0.01,
-    numerals: "proportional",
-    native: NATIVE_FONTS.semiCondMedium,
-    use: "Inspector and drawer effects: the hero numeral, smaller",
-  },
-  "title-1": {
-    family: "ui",
-    stretch: 100,
-    weight: 560,
-    size: 26,
-    line: 32,
-    tracking: -0.015,
-    native: NATIVE_FONTS.semiExpBold,
-    use: "Screen titles",
-  },
-  "title-2": {
-    family: "ui",
-    stretch: 100,
-    weight: 560,
-    size: 20,
-    line: 24,
-    tracking: -0.01,
-    native: NATIVE_FONTS.semiExpBold,
-    use: "Drawer and section titles",
-  },
-  lede: {
-    family: "ui",
-    stretch: 100,
-    weight: 430,
-    size: 16,
-    line: 24,
-    native: NATIVE_FONTS.regular,
-    use: "The panel's one line of prose",
-  },
-  body: {
-    family: "ui",
-    stretch: 100,
-    weight: 430,
-    size: 14,
-    line: 20,
-    native: NATIVE_FONTS.regular,
-    use: "UI text",
-  },
-  figure: {
-    family: "ui",
-    stretch: 87.5,
-    weight: 500,
-    size: 14,
-    line: 20,
-    numerals: "proportional",
-    native: NATIVE_FONTS.semiCondMedium,
-    use: "Grid and list amounts and quantities: the money grotesk, plain figures (a column aligns on the decimal)",
-  },
-  micro: {
-    family: "ui",
-    stretch: 87.5,
-    weight: 500,
-    size: 12,
-    line: 16,
-    tracking: 0.01,
-    numerals: "tabular",
-    native: NATIVE_FONTS.semiCondMedium,
-    use: "The id role: ids, times and short data joined by a middle dot (the 12 px floor for ids)",
-  },
+  title: { ...TITLE, use: "Screen, sheet and drawer titles; the stage and Proof headlines" },
+  heading: { ...HEADING, use: "A heading inside a screen or drawer: the body step at title weight" },
+  body: { ...BODY, use: "Body text and the panel's one line of prose (the 16 px floor)" },
   label: {
     family: "ui",
     stretch: 100,
     weight: 520,
-    size: 13,
-    line: 16,
-    native: NATIVE_FONTS.regular,
-    use: "Control labels",
+    size: TYPE_STEPS.web.label,
+    line: 20,
+    numerals: "tabular",
+    native: NATIVE_FONTS.semiCondMedium,
+    app: { size: TYPE_STEPS.app.label, line: 20 },
+    use: "Control labels, column headers and status words",
   },
-  caption: {
-    family: "ui",
-    stretch: 100,
-    weight: 500,
-    size: 13,
-    line: 18,
-    native: NATIVE_FONTS.regular,
-    app: { size: 12, line: 16 },
-    use: "Secondary words: the 13 px floor on the console (12 in the app); ids use micro",
+  id: { ...ID, use: "Hashes, IDs and timestamps: the mono, never words, never money" },
+  // Aliases: the names the surfaces already use, each on one of the five steps.
+  display: { ...TITLE, use: "The stage headline: the title step (alias)" },
+  "amount-hero": { ...HERO, use: "A money hero: the hero step (alias)" },
+  "amount-l": {
+    ...HERO,
+    size: TYPE_STEPS.web.title,
+    line: 30,
+    tracking: -0.01,
+    app: { size: TYPE_STEPS.app.title, line: 30 },
+    use: "An amount at the title step: inspector, drawer and receipt totals",
   },
-  hash: {
-    family: "ui",
+  "title-1": { ...TITLE, use: "Screen titles (alias of title)" },
+  "title-2": { ...HEADING, use: "Section and drawer headings (alias of heading)" },
+  lede: { ...BODY, use: "The panel's one line of prose (alias of body)" },
+  figure: {
+    ...SECONDARY,
     stretch: 87.5,
     weight: 500,
-    size: 13,
-    line: 16,
-    numerals: "hash",
     native: NATIVE_FONTS.semiCondMedium,
-    use: "Hashes and item IDs, in groups of four (the figure face; the only deliberate slashed zero)",
+    use: "Amounts and quantities in grids and lists: the label step in the numeral's width and weight",
   },
+  micro: {
+    ...SECONDARY,
+    use: "Short data joined by ' · ' and secondary words (the label step; ids inside use id)",
+  },
+  caption: { ...SECONDARY, use: "Secondary words (the 13 px floor; they sit on the label step)" },
+  hash: { ...ID, use: "Hashes in groups of four (alias of id)" },
   slab: {
     family: "ui",
     stretch: 100,
     weight: 600,
-    size: 16,
+    size: TYPE_STEPS.web.body,
     line: 20,
-    numerals: "proportional",
+    numerals: "tabular",
     native: NATIVE_FONTS.semiExpBold,
+    app: { size: TYPE_STEPS.app.body, line: 20 },
     proof: { size: 16, line: 20, stretch: 100 },
-    use: "Button labels: the one primary and the one secondary",
+    use: "Button labels: the one primary and the one secondary (the body step)",
   },
   stamp: {
     family: "ui",
     stretch: 112.5,
     weight: 700,
-    size: 10,
-    line: 10,
+    size: TYPE_STEPS.web.id,
+    line: 12,
     native: NATIVE_FONTS.semiExpBold,
-    use: "Initials inside a 20 px indigo stamp",
+    app: { size: TYPE_STEPS.app.id, line: 13 },
+    use: "Initials inside a 22 px indigo stamp (the id step's size; never words)",
   },
-  "statement-lead": {
-    family: "statement",
-    stretch: 100,
-    weight: 400,
-    size: 22,
-    line: 30,
-    native: NATIVE_FONTS.statement,
-    use: "The greeting on a statement",
-  },
-  "statement-body": {
-    family: "statement",
-    stretch: 100,
-    weight: 400,
-    size: 19,
-    line: 28,
-    native: NATIVE_FONTS.statement,
-    use: "Statement prose, never below 18",
-  },
+  "statement-lead": { ...TITLE, use: "The member's name heading her statement (the title step)" },
+  "statement-body": { ...BODY, use: "Statement prose: FS Sans on the body step, never below 16" },
   "statement-status": {
-    family: "statement",
-    stretch: 100,
-    weight: 700,
-    size: 18,
+    ...HEADING,
     line: 22,
-    native: NATIVE_FONTS.statementBold,
-    use: "Bayad na and Gisusi pa inside their pills",
+    app: { size: TYPE_STEPS.app.body, line: 22 },
+    use: "Bayad na and Gisusi pa inside their pills (the body step at title weight)",
   },
-  mark: {
-    family: "ui",
-    stretch: 87.5,
-    weight: 500,
-    size: 13,
-    line: 16,
-    numerals: "hash",
-    native: NATIVE_FONTS.semiCondMedium,
-    proof: { size: 13, line: 16 },
-    use: "Season and lot ids (2026-A, LB-PH-2026-03): the id role at 13 px; the stencil face is retired",
-  },
+  mark: { ...ID, use: "Season and lot ids (2026-A, LB-PH-2026-03): the mono (alias of id)" },
 } as const satisfies Record<string, TypeRole>;
 
 export type TypeRoleName = keyof typeof TYPE_ROLES;
@@ -692,8 +655,11 @@ export const HOLLOW = { minSize: 28, stroke: 1.25 } as const;
 
 // ------------------------------------------------------------------------------- space, radii, depth
 
-/** A 4-based scale. Names are the pixel values. */
-export const SPACE = [2, 4, 8, 12, 16, 24, 32, 48, 64, 96] as const;
+/**
+ * A 4-based scale. Names are the pixel values. 20 is a panel's padding (round 3); 2 and 6 live only inside
+ * components 24 px tall or smaller (pills, tags).
+ */
+export const SPACE = [2, 4, 8, 12, 16, 20, 24, 32, 48, 64, 96] as const;
 
 /**
  * One radius scale on the 4 px grid (UI gate round 2). 0: evidence paper and slip thumbnails. 2: hairline plates.
@@ -739,14 +705,13 @@ export const SHADOWS: Readonly<Record<ThemeName, ShadowSet>> = {
 };
 
 /**
- * The one wash per theme (decision.md §8), only behind a hero (the stage, Proof, the member panel, film frames),
- * never behind data, text or a control, and never animated. Hayag: morning light. Gabii: the film's night glows.
+ * The wash per theme. Hayag has none (UI gate round 3: no decorative colour on a product surface; jade means money
+ * the simulated PayPal confirmed and nothing else). Gabii keeps the film's night glows for its cards.
  */
 export const WASH: Readonly<Record<ThemeName, string>> = {
   tablea:
     "radial-gradient(36% 150% at 0% 100%, rgb(61 230 174 / 0.2), transparent 70%), radial-gradient(34% 140% at 52% 0%, rgb(91 67 234 / 0.3), transparent 72%)",
-  adlaw:
-    "radial-gradient(52% 70% at 0% 0%, rgb(20 204 144 / 0.16), transparent 72%), radial-gradient(42% 58% at 62% 0%, rgb(74 47 214 / 0.1), transparent 72%)",
+  adlaw: "none",
 };
 
 /**
@@ -780,9 +745,25 @@ export const LAYERS = {
   flight: 70,
 } as const;
 
+/**
+ * Layout constants. phoneRail: the stage's folded phone (56 px); toast: the stage's one event toast (40 px tall);
+ * seal: the seal on Approve and on the Chair's phone (180 px, the same drawing on both).
+ */
 export const LAYOUT = {
-  console: { columns: 12, gutter: 24, rail: 220, drawer: 560, approve: 640, row: 40, header: 36, dock: 420 },
-  app: { gutter: 16, rhythm: 8, section: 24, target: 48, primary: 56, hero: 64 },
+  console: {
+    columns: 12,
+    gutter: 24,
+    rail: 220,
+    drawer: 560,
+    approve: 640,
+    row: 40,
+    header: 36,
+    dock: 420,
+    phoneRail: 56,
+    toast: 40,
+    seal: 180,
+  },
+  app: { gutter: 16, rhythm: 8, section: 24, target: 48, primary: 56, hero: 64, seal: 180 },
   proof: { column: 680, measure: 72, gutter: 16 },
 } as const;
 
@@ -791,12 +772,13 @@ export const MATERIALS = {
   hatch: { angle: -45, line: 1.5, gap: 6 },
   steel: { angle: -45, line: 1.5, gap: 4, boltSize: 4, boltInset: 6 },
   focus: { width: 2, offset: 2 },
-  stamp: { size: 20 },
+  /** The initials stamp: 22 px, its initials on the id step (12 px), so nothing on the stage reads under 12. */
+  stamp: { size: 22 },
   youCell: { outline: 1.5 },
   /** Noise is gone (ADR-0016); the key stays so consumers compile. */
   noise: { size: 128, opacity: 0 },
-  /** Statement copy: Atkinson never drops below 18 px. */
-  statementMin: 18,
+  /** A member's statement never drops below the body step's 16 px (FS Sans; UI gate round 3). */
+  statementMin: 16,
 } as const;
 
 // ------------------------------------------------------------------------------------------- motion

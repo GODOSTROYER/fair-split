@@ -270,6 +270,7 @@ export const space = {
   s8: 8,
   s12: 12,
   s16: 16,
+  s20: 20,
   s24: 24,
   s32: 32,
   s48: 48,
@@ -299,105 +300,151 @@ export const fonts = {
   semiCondMedium: "FSSans-SemiCondMedium",
   regular: "FSSans-Regular",
   semiExpBold: "FSSans-SemiExpBold",
-  statement: "AtkinsonNext-Regular",
-  statementBold: "AtkinsonNext-Bold",
+} as const;
+
+/** The mono (hashes, IDs and timestamps only): the platform's own, so nothing to embed. */
+export const monoFamily = "monospace";
+
+/** The five size steps in sp (UI gate round 3): every role in `type` sits on one. */
+export const typeSteps = {
+  id: 13,
+  label: 15,
+  body: 17,
+  title: 24,
+  hero: 48,
 } as const;
 
 /** App sizes in sp. Only the hero amount caps font scaling (at 1.5×); everything else scales to 2.0. */
 export const type = {
+  hero: {
+    fontFamily: "FSSans-SemiCondMedium",
+    fontSize: 48,
+    lineHeight: 52,
+    maxFontSizeMultiplier: 1.5,
+    tabular: true,
+  },
+  title: {
+    fontFamily: "FSSans-SemiExpBold",
+    fontSize: 24,
+    lineHeight: 30,
+    tabular: true,
+  },
+  heading: {
+    fontFamily: "FSSans-SemiExpBold",
+    fontSize: 17,
+    lineHeight: 24,
+    tabular: true,
+  },
+  body: {
+    fontFamily: "FSSans-Regular",
+    fontSize: 17,
+    lineHeight: 24,
+    tabular: true,
+  },
+  label: {
+    fontFamily: "FSSans-SemiCondMedium",
+    fontSize: 15,
+    lineHeight: 20,
+    tabular: true,
+  },
+  id: {
+    fontFamily: "monospace",
+    fontSize: 13,
+    lineHeight: 18,
+  },
   display: {
     fontFamily: "FSSans-SemiExpBold",
-    fontSize: 40,
-    lineHeight: 44,
+    fontSize: 24,
+    lineHeight: 30,
+    tabular: true,
   },
   amountHero: {
     fontFamily: "FSSans-SemiCondMedium",
     fontSize: 48,
     lineHeight: 52,
     maxFontSizeMultiplier: 1.5,
+    tabular: true,
   },
   amountL: {
     fontFamily: "FSSans-SemiCondMedium",
-    fontSize: 32,
-    lineHeight: 36,
+    fontSize: 24,
+    lineHeight: 30,
+    tabular: true,
   },
   title1: {
     fontFamily: "FSSans-SemiExpBold",
-    fontSize: 26,
-    lineHeight: 32,
+    fontSize: 24,
+    lineHeight: 30,
+    tabular: true,
   },
   title2: {
     fontFamily: "FSSans-SemiExpBold",
-    fontSize: 20,
+    fontSize: 17,
     lineHeight: 24,
+    tabular: true,
   },
   lede: {
     fontFamily: "FSSans-Regular",
-    fontSize: 16,
+    fontSize: 17,
     lineHeight: 24,
-  },
-  body: {
-    fontFamily: "FSSans-Regular",
-    fontSize: 14,
-    lineHeight: 20,
+    tabular: true,
   },
   figure: {
     fontFamily: "FSSans-SemiCondMedium",
-    fontSize: 14,
+    fontSize: 15,
     lineHeight: 20,
-  },
-  micro: {
-    fontFamily: "FSSans-SemiCondMedium",
-    fontSize: 12,
-    lineHeight: 16,
     tabular: true,
   },
-  label: {
+  micro: {
     fontFamily: "FSSans-Regular",
-    fontSize: 13,
-    lineHeight: 16,
+    fontSize: 15,
+    lineHeight: 20,
+    tabular: true,
   },
   caption: {
     fontFamily: "FSSans-Regular",
-    fontSize: 12,
-    lineHeight: 16,
+    fontSize: 15,
+    lineHeight: 20,
+    tabular: true,
   },
   hash: {
-    fontFamily: "FSSans-SemiCondMedium",
+    fontFamily: "monospace",
     fontSize: 13,
-    lineHeight: 16,
-    tabular: true,
+    lineHeight: 18,
   },
   slab: {
     fontFamily: "FSSans-SemiExpBold",
-    fontSize: 16,
+    fontSize: 17,
     lineHeight: 20,
+    tabular: true,
   },
   stamp: {
     fontFamily: "FSSans-SemiExpBold",
-    fontSize: 10,
-    lineHeight: 10,
+    fontSize: 13,
+    lineHeight: 13,
   },
   statementLead: {
-    fontFamily: "AtkinsonNext-Regular",
-    fontSize: 22,
+    fontFamily: "FSSans-SemiExpBold",
+    fontSize: 24,
     lineHeight: 30,
+    tabular: true,
   },
   statementBody: {
-    fontFamily: "AtkinsonNext-Regular",
-    fontSize: 19,
-    lineHeight: 28,
+    fontFamily: "FSSans-Regular",
+    fontSize: 17,
+    lineHeight: 24,
+    tabular: true,
   },
   statementStatus: {
-    fontFamily: "AtkinsonNext-Bold",
-    fontSize: 18,
+    fontFamily: "FSSans-SemiExpBold",
+    fontSize: 17,
     lineHeight: 22,
+    tabular: true,
   },
   mark: {
-    fontFamily: "FSSans-SemiCondMedium",
+    fontFamily: "monospace",
     fontSize: 13,
-    lineHeight: 16,
-    tabular: true,
+    lineHeight: 18,
   },
 } as const;
 
@@ -408,6 +455,7 @@ export const layout = {
   target: 48,
   primary: 56,
   hero: 64,
+  seal: 180,
 } as const;
 
 export const hatch = {

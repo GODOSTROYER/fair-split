@@ -10,7 +10,9 @@ import {
   LAYOUT,
   M3_ROLES,
   MATERIALS,
-  NUMERAL_ROLES,
+  MONO_ROLES,
+  NATIVE_FONTS,
+  NATIVE_MONO,
   RADII,
   SHADOWS,
   SPACE,
@@ -18,6 +20,7 @@ import {
   THEME_INFO,
   THEMES,
   TYPE_ROLES,
+  TYPE_STEPS,
   type TypeRole,
   WASH,
 } from "../src/tokens.js";
@@ -200,98 +203,112 @@ describe("colour source", () => {
 });
 
 describe("type, space and layout", () => {
-  it("three numeral roles (round 3): money is the plain grotesk, ids the code-like tabular set, one instrument", () => {
-    for (const role of NUMERAL_ROLES.money) {
-      expect(TYPE_ROLES[role].numerals, role).toBe("proportional");
-    }
-    for (const role of NUMERAL_ROLES.id) {
-      expect(["tabular", "hash"], role).toContain(TYPE_ROLES[role].numerals);
-      expect(TYPE_ROLES[role].size, role).toBeGreaterThanOrEqual(TEXT_FLOORS.id);
-    }
-    expect(NUMERAL_ROLES.instrument).toEqual([]);
-    const roled = new Set<string>([...NUMERAL_ROLES.money, ...NUMERAL_ROLES.id]);
+  it("five size steps (UI gate round 3): every role sits on one, on the console and on the phone", () => {
+    expect(TYPE_STEPS.web).toEqual({ id: 12, label: 14, body: 16, title: 24, hero: 56 });
+    expect(TYPE_STEPS.app).toEqual({ id: 13, label: 15, body: 17, title: 24, hero: 48 });
+    const web = new Set<number>(Object.values(TYPE_STEPS.web));
+    const app = new Set<number>(Object.values(TYPE_STEPS.app));
     for (const [name, role] of Object.entries(TYPE_ROLES) as [string, TypeRole][]) {
-      if (role.numerals) expect(roled.has(name), name).toBe(true);
+      expect(web.has(role.size), `${name} ${role.size}`).toBe(true);
+      expect(app.has(role.app.size), `${name} app ${role.app.size}`).toBe(true);
+      expect(role.line, name).toBeGreaterThanOrEqual(role.size);
     }
+    expect(new Set(Object.values(TYPE_ROLES).map((r) => r.size)).size).toBeLessThanOrEqual(5);
   });
 
-  it("secondary words are 13 px or more on the console, ids 12 px or more (round 3)", () => {
-    expect(TEXT_FLOORS).toEqual({ secondary: 13, id: 12 });
-    for (const role of ["caption", "label", "body"] as const) {
+  it("one family + mono: FS Sans with tabular figures for every role; the mono only for ids, hashes and marks", () => {
+    for (const [name, role] of Object.entries(TYPE_ROLES) as [string, TypeRole][]) {
+      const mono = (MONO_ROLES as readonly string[]).includes(name);
+      expect(role.family, name).toBe(mono ? "mono" : "ui");
+      if (mono) {
+        expect(role.size, name).toBe(TYPE_STEPS.web.id);
+        expect(role.native, name).toBe(NATIVE_MONO);
+      } else if (name !== "stamp") {
+        expect(role.numerals, name).toBe("tabular");
+      }
+    }
+    expect(FONT_STACKS.ui).toMatch(/^"FS Sans"/);
+    expect(FONT_STACKS.mono).toMatch(/monospace$/);
+    expect(FONT_STACKS.mark).toBe(FONT_STACKS.mono);
+    expect(FONT_STACKS.statement).toBe(FONT_STACKS.ui);
+    expect(FONT_STACKS.hollow).toBe(FONT_STACKS.ui);
+  });
+
+  it("no Atkinson, stencil, outline or dot-matrix face anywhere in the product's tokens", () => {
+    const named = [...Object.values(FONT_STACKS), ...Object.values(NATIVE_FONTS)].join(" ");
+    expect(named).not.toMatch(/Atkinson|Stencil|Hollow|Matrix/i);
+    expect(Object.values(TYPE_ROLES).every((r) => r.native !== null)).toBe(true);
+  });
+
+  it("text floors (round 3): secondary words 13 px or more, ids 12, body text and statements 16", () => {
+    expect(TEXT_FLOORS).toEqual({ secondary: 13, id: 12, body: 16 });
+    for (const role of ["caption", "label", "micro", "figure"] as const) {
       expect(TYPE_ROLES[role].size, role).toBeGreaterThanOrEqual(TEXT_FLOORS.secondary);
     }
-    expect(TYPE_ROLES.micro.size).toBeGreaterThanOrEqual(TEXT_FLOORS.id);
+    for (const role of MONO_ROLES) expect(TYPE_ROLES[role].size, role).toBeGreaterThanOrEqual(TEXT_FLOORS.id);
+    for (const role of ["body", "lede", "statement-body"] as const) {
+      expect(TYPE_ROLES[role].size, role).toBeGreaterThanOrEqual(TEXT_FLOORS.body);
+      expect(TYPE_ROLES[role].app.size, role).toBeGreaterThanOrEqual(TEXT_FLOORS.body);
+    }
+    expect(MATERIALS.statementMin).toBe(TEXT_FLOORS.body);
   });
 
-  it("one numeral voice: every money hero, figure, micro label and hash is FS Sans 87.5 at 500 (round 2)", () => {
-    for (const role of ["amount-hero", "amount-l", "figure", "micro", "hash"] as const) {
+  it("one money style: every money hero and figure is FS Sans 87.5 at 500, the phone's semi-condensed cut", () => {
+    for (const role of ["hero", "amount-hero", "amount-l", "figure"] as const) {
       expect(TYPE_ROLES[role], role).toMatchObject({ family: "ui", stretch: 87.5, weight: 500 });
       expect(TYPE_ROLES[role].native, role).toBe("FSSans-SemiCondMedium");
     }
+    expect(TYPE_ROLES["amount-hero"]).toMatchObject({ size: 56, line: 60 });
+    expect(TYPE_ROLES["amount-hero"].app).toMatchObject({ size: 48, line: 52, maxFontSizeMultiplier: 1.5 });
   });
 
-  it("two type voices: FS Sans and Atkinson for statements; no outline face and no stencil (round 3)", () => {
-    const families = new Set(Object.values(TYPE_ROLES).map((r) => r.family));
-    expect([...families].sort()).toEqual(["statement", "ui"]);
-    expect(FONT_STACKS.hollow).toBe(FONT_STACKS.ui);
-    expect(FONT_STACKS.mark).toBe(FONT_STACKS.ui);
-  });
-
-  it("money is never bold, and only headers, buttons, statement status, stamps and the mark reach 600", () => {
+  it("money is never bold, and only titles, headings, buttons, statement status and stamps reach 600", () => {
+    const heavy = new Set([
+      "title",
+      "heading",
+      "display",
+      "title-1",
+      "title-2",
+      "slab",
+      "stamp",
+      "statement-lead",
+      "statement-status",
+    ]);
     for (const [name, role] of Object.entries(TYPE_ROLES)) {
-      if (name.startsWith("amount")) expect(role.weight, name).toBeLessThanOrEqual(500);
-      const heavy = ["display", "slab", "stamp", "mark", "statement-status"].includes(name);
-      if (!heavy) expect(role.weight, name).toBeLessThan(600);
+      if (name.startsWith("amount") || name === "hero") expect(role.weight, name).toBeLessThanOrEqual(500);
+      if (heavy.has(name)) expect(role.weight, name).toBeGreaterThanOrEqual(600);
+      else expect(role.weight, name).toBeLessThan(600);
     }
   });
 
-  it("adds the v2 roles: display, lede and statement-status (decision.md §7)", () => {
-    expect(TYPE_ROLES.display).toMatchObject({ stretch: 112.5, weight: 600, size: 40, line: 44 });
-    expect(TYPE_ROLES.lede).toMatchObject({ stretch: 100, weight: 430, size: 16, line: 24 });
-    expect(TYPE_ROLES["statement-status"]).toMatchObject({
-      family: "statement",
-      weight: 700,
-      size: 18,
-      line: 22,
-    });
-    expect(TYPE_ROLES["title-1"]).toMatchObject({ stretch: 100, weight: 560, size: 26, line: 32 });
-    expect(TYPE_ROLES["title-2"]).toMatchObject({ stretch: 100, weight: 560, size: 20, line: 24 });
-    expect(TYPE_ROLES.figure.weight).toBe(500);
-    expect(TYPE_ROLES.label.weight).toBe(520);
-    expect(TYPE_ROLES.caption).toMatchObject({ weight: 500, size: 13, app: { size: 12 } });
+  it("the aliases keep their names on the five steps", () => {
+    expect(TYPE_ROLES.display).toMatchObject({ size: 24, weight: 600 });
+    expect(TYPE_ROLES["title-1"]).toMatchObject({ size: 24, line: 30, weight: 600 });
+    expect(TYPE_ROLES["title-2"]).toMatchObject({ size: 16, line: 24, weight: 600 });
+    expect(TYPE_ROLES.lede).toMatchObject({ size: 16, line: 24, weight: 430 });
+    expect(TYPE_ROLES.caption).toMatchObject({ size: 14, line: 20, app: { size: 15 } });
+    expect(TYPE_ROLES.hash).toMatchObject({ family: "mono", size: 12 });
+    expect(TYPE_ROLES.mark).toMatchObject({ family: "mono", size: 12 });
   });
 
-  it("statement prose never drops below 18 px, and the hero amount caps app font scaling at 1.5×", () => {
-    expect(TYPE_ROLES["statement-body"].size).toBeGreaterThanOrEqual(18);
-    expect(TYPE_ROLES["amount-hero"].app.maxFontSizeMultiplier).toBe(1.5);
-  });
-
-  it("hollow amounts start at 28 px with a 1.25 px stroke", () => {
+  it("the outline face stays retired: HOLLOW is kept only so consumers compile", () => {
     expect(HOLLOW).toEqual({ minSize: 28, stroke: 1.25 });
-    expect(TYPE_ROLES["amount-hero"].size).toBeGreaterThanOrEqual(HOLLOW.minSize);
-    expect(TYPE_ROLES["amount-l"].size).toBeGreaterThanOrEqual(HOLLOW.minSize);
-  });
-
-  it("the season and lot marks are the id role at 13 px: the stencil face is retired (round 3)", () => {
-    expect(TYPE_ROLES.mark).toMatchObject({ family: "ui", stretch: 87.5, weight: 500, size: 13 });
-    expect(TYPE_ROLES.mark.numerals).toBe("hash");
-    expect(TYPE_ROLES.mark.proof).toMatchObject({ size: 13 });
-    for (const role of Object.values(TYPE_ROLES)) expect(role.family).not.toBe("mark");
   });
 
   it("uses the 4-based space scale and one radius scale (0, 2, cell 6, control 12, card 16, panel 24, pill)", () => {
-    expect([...SPACE]).toEqual([2, 4, 8, 12, 16, 24, 32, 48, 64, 96]);
+    expect([...SPACE]).toEqual([2, 4, 8, 12, 16, 20, 24, 32, 48, 64, 96]);
     expect(RADII).toEqual({ 0: 0, 2: 2, cell: 6, control: 12, card: 16, panel: 24, pill: 999 });
   });
 
-  it("has e1 to e3, paper and the halo in both themes, one wash each, and no noise (decision.md §8)", () => {
+  it("has e1 to e3, paper and the halo in both themes; no wash on Hayag and no noise (round 3)", () => {
     for (const theme of THEMES) {
       expect(Object.keys(SHADOWS[theme]).sort()).toEqual(["e1", "e2", "e3", "halo", "paper"]);
-      expect(WASH[theme]).toMatch(/^radial-gradient\(/);
     }
+    expect(WASH.adlaw).toBe("none");
+    expect(WASH.tablea).toMatch(/^radial-gradient\(/);
     expect(SHADOWS.adlaw.halo).toBe("0 0 0 6px rgb(20 204 144 / 0.16)");
     expect(MATERIALS.noise.opacity).toBe(0);
-    expect(MATERIALS.stamp.size).toBe(20);
+    expect(MATERIALS.stamp.size).toBe(22);
   });
 
   it("names both slots for v2: Hayag (day) is adlaw, Gabii (night) is tablea", () => {
@@ -299,9 +316,11 @@ describe("type, space and layout", () => {
     expect(THEME_INFO.tablea).toMatchObject({ scheme: "dark", display: "Gabii (night)" });
   });
 
-  it("meets the app's touch-target floors", () => {
+  it("meets the app's touch-target floors; the phone rail, the toast and the seal have one size each", () => {
     expect(LAYOUT.app.target).toBeGreaterThanOrEqual(48);
     expect(LAYOUT.app.primary).toBe(56);
     expect(LAYOUT.app.hero).toBe(64);
+    expect(LAYOUT.console).toMatchObject({ phoneRail: 56, toast: 40, seal: 180 });
+    expect(LAYOUT.app.seal).toBe(LAYOUT.console.seal);
   });
 });

@@ -1,8 +1,8 @@
-// Money on screen (design §2.3, §2.5; ADR-0016; UI gate round 2). Every money hero is the one hero numeral: FS
-// Sans semi-condensed at 500, solid ink, proportional lining figures (a plain zero, a plain one), the "US$" prefix
-// small and raised; the accessible text keeps the whole string. Approved but not yet in the member's hands, an
+// Money on screen (design §2.3, §2.5; ADR-0016; UI gate round 3). Every money hero is the one hero numeral: FS
+// Sans semi-condensed at 500, solid ink, tabular lining figures (one money style, the phone's too), the "US$"
+// prefix small and raised; the accessible text keeps the whole string. Approved but not yet in the member's hands, an
 // amount keeps its state ("hollow") for meaning, but is never drawn in outline: its pill says where the money is.
-// A peso figure is always an estimate. The status capsule is a pill: dashed jade in flight, flush jade with an ink
+// A peso figure is always an estimate. The status capsule is a pill: a steel ring in flight, flush jade with an ink
 // check (and one beat of halo) once the simulated PayPal confirms (MM-1).
 
 import type { ReactNode } from "react";
@@ -40,8 +40,8 @@ export interface MoneyFigureProps {
   /** "US$4,273.50", "4,273.50", "₱270,844". */
   readonly display: string;
   /**
-   * decimal: a money column aligns on its decimal point (round 3). FS Sans's only tabular set is the id role's
-   * code-like figures, so money keeps the plain grotesk and its cents sit in a fixed slot instead.
+   * decimal: a money column aligns on its decimal point (round 3): tabular figures line the digits up, and the
+   * cents sit in a fixed slot so a missing decimal never shifts a row.
    */
   readonly align?: "decimal";
   /** Small raised "US$" (a hero or a total); a column states its currency in the header and leaves this off. */
@@ -51,7 +51,7 @@ export interface MoneyFigureProps {
 }
 
 /**
- * Money in the one money role (UI gate round 3): the grotesk, plain lining figures, every amount on every screen,
+ * Money in the one money role (UI gate round 3): FS Sans, tabular lining figures, every amount on every screen,
  * the by-hand entry included. The text content is the whole string ("US$64.45"), so a copy or a test reads it.
  */
 export function MoneyFigure({ display, align, raisedPrefix = false, className, testId }: MoneyFigureProps) {

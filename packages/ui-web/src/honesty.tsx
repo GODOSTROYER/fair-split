@@ -1,6 +1,6 @@
 // Honesty marks with a budget (UI gate round 3). The meaning survives; the pills go.
 // - One quiet indicator in the top bar: the honesty tag with `quiet` ("Simulated PayPal sandbox", no outline).
-// - One micro-tag, MicroTag: a 12 px dashed circle and the word "Sandbox" at 11 px, 18 px tall, only on PayPal money
+// - One micro-tag, MicroTag: a 12 px dashed circle and the word "Sandbox" at 12 px, 18 px tall, only on PayPal money
 //   values, at most two a screen. A screen reader hears the whole label ("Simulated PayPal sandbox").
 // - Every other provenance pill ("Seed stand-in", "Seeded sample", "Synthetic sample", "Demo key", "Demo data")
 //   becomes a bare LegendGlyph: a hatched square for synthetic, a dashed circle for simulated, a solid square for
@@ -187,7 +187,7 @@ export interface MicroTagProps {
 }
 
 /**
- * The micro-tag beside a PayPal money value: a 12 px dashed circle and "Sandbox" at 11 px, 18 px tall, in ink-3.
+ * The micro-tag beside a PayPal money value: a 12 px dashed circle and "Sandbox" at 12 px, 18 px tall, in ink-3.
  * At most two a screen (TAG_BUDGET); the screen reader hears the whole label, never just "Sandbox".
  */
 export function MicroTag({
@@ -234,12 +234,13 @@ export function HonestyLegend({ lines, testId, className }: HonestyLegendProps) 
   );
 }
 
-export type StateDotKind = "pending" | "waiting" | "done" | "held" | "failed";
+export type StateDotKind = "pending" | "waiting" | "done" | "paid" | "held" | "failed";
 
 export interface StateDotProps {
   /**
    * pending: a hollow neutral dot beside a pending amount (its figure in --fs-pending). waiting: a hollow circle for
-   * a signer not yet signed. done: the solid green dot of a signed or confirmed row. held: marigold. failed: red.
+   * a signer not yet signed. done: a solid ink dot (signed, checked). paid: the jade dot, only for money the
+   * simulated PayPal confirmed. held: marigold (a person must decide). failed: red (PayPal said no).
    */
   readonly kind: StateDotKind;
   readonly testId?: string;

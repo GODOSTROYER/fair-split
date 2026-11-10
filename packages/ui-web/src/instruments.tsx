@@ -20,7 +20,7 @@ export interface MassBalanceDialProps {
   /** Swing the needle on the needle spring when the value changes (MM-3). */
   readonly animateNeedle?: boolean;
   /**
-   * An old reading to keep as a dashed marigold ghost needle. Without one, a live change (animateNeedle) leaves
+   * An old reading to keep as a half-strength marigold ghost needle. Without one, a live change (animateNeedle) leaves
    * the previous reading as the ghost for 1.2 s (decision.md §9).
    */
   readonly ghost?: number;
@@ -168,7 +168,7 @@ export interface RailBarProps {
   readonly paypalText: string;
   readonly cashText: string;
   readonly cashWord: string;
-  /** Jade only once PayPal confirmed; before that the PayPal part is drawn in pencil. */
+  /** Jade only once PayPal confirmed; before that the PayPal part is a neutral steel outline. */
   readonly confirmed?: boolean;
   readonly testId?: string;
 }

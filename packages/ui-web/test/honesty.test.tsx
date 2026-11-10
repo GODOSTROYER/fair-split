@@ -1,19 +1,17 @@
-// UI gate round 3: honesty marks with a budget, the shared instrument numeral, state dots and the money role.
+// UI gate round 3: honesty marks with a budget, the shared numeral (no dot-matrix), state dots and the money role.
 
 import { render, screen } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { describe, expect, it } from "vitest";
+import * as uiWeb from "../src/index.js";
 import {
-  DOT_MATRIX_UNLIT,
-  DotMatrix,
-  dotsOf,
-  drawable,
   HONESTY,
   HonestyLegend,
   HonestyTag,
   LegendGlyph,
   MicroTag,
   MoneyFigure,
+  Numeral,
   Paper,
   StateDot,
   TAG_BUDGET,
@@ -143,19 +141,21 @@ describe("honesty marks (round 3)", () => {
 });
 
 describe("state dots and money (round 3)", () => {
-  it("pending is a hollow dot, a waiting signer a hollow circle, signed a solid green dot", () => {
+  it("pending is a hollow dot, a waiting signer a hollow circle, signed an ink dot, paid the jade dot", () => {
     render(
       wrap(
         <>
           <StateDot kind="pending" testId="p" />
           <StateDot kind="waiting" testId="w" />
           <StateDot kind="done" testId="d" />
+          <StateDot kind="paid" testId="paid" />
         </>,
       ),
     );
     expect(screen.getByTestId("p").dataset.kind).toBe("pending");
     expect(screen.getByTestId("w").dataset.kind).toBe("waiting");
     expect(screen.getByTestId("d").getAttribute("aria-hidden")).toBe("true");
+    expect(screen.getByTestId("paid").dataset.kind).toBe("paid");
   });
 
   it("money keeps its whole string; a column sets its cents in a fixed slot", () => {
@@ -169,20 +169,28 @@ describe("state dots and money (round 3)", () => {
   });
 });
 
-describe("DotMatrix, the shared instrument numeral", () => {
-  it("draws 5 × 7 dots a digit and never money; unlit dots are 5%", () => {
-    expect(DOT_MATRIX_UNLIT).toBe(0.05);
-    expect(drawable("US$4,333.50")).toBe("4333.50");
-    const { dots, height } = dotsOf("7/8", 9);
-    expect(dots).toHaveLength(15 * 7);
-    expect(height).toBe(63);
+describe("Numeral, a count in FS Sans (round 3: the dot-matrix is gone)", () => {
+  it("no dot-matrix is left to import", () => {
+    expect(Object.keys(uiWeb).filter((name) => /dot ?matrix|dotsOf|drawable/i.test(name))).toEqual([]);
   });
 
-  it("is an image named by its spoken value, with a tone for a dim or over-limit reading", () => {
-    render(wrap(<DotMatrix value="7/8" label="7 of 8 confirmed" tone="over" testId="dm" />));
-    const svg = screen.getByRole("img", { name: "7 of 8 confirmed" });
-    expect(svg.dataset.tone).toBe("over");
-    expect(svg.dataset.value).toBe("7/8");
-    expect(svg.querySelectorAll("[data-on]").length).toBeGreaterThan(0);
+  it("is text on a type step, named by its spoken value, ink once checked and dim before", () => {
+    render(wrap(<Numeral value="7/8" label="7 of 8 confirmed" testId="n" />));
+    const count = screen.getByRole("img", { name: "7 of 8 confirmed" });
+    expect(count).toBe(screen.getByTestId("n"));
+    expect(count.textContent).toBe("7/8");
+    expect(count.dataset.value).toBe("7/8");
+    expect(count.dataset.tone).toBe("ink");
+    expect(count.classList.contains("fs-t-hero")).toBe(true);
+    expect(count.querySelector("svg")).toBeNull();
+  });
+
+  it("sits on a smaller step when asked, and hides itself when the words beside it say it", () => {
+    render(wrap(<Numeral value="0/6" size="title" tone="dim" decorative testId="d" />));
+    const count = screen.getByTestId("d");
+    expect(count.classList.contains("fs-t-title")).toBe(true);
+    expect(count.dataset.tone).toBe("dim");
+    expect(count.getAttribute("aria-hidden")).toBe("true");
+    expect(count.getAttribute("role")).toBeNull();
   });
 });

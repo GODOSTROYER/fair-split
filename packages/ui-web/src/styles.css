@@ -4,7 +4,8 @@
    e3, and paper keeps the strongest shadow. UI gate round 2: one flat primary button (the slab: indigo, radius 12,
    48 px, no lip, no glow) and one outline secondary (.fs-flat); no bolts or corner dots; money is never drawn in
    outline. The one glow is the jade halo, one beat after the simulated PayPal confirms. No glass, no gradient
-   text, no noise. */
+   text, no noise. UI gate round 3 (DESIGN.md): one family and one mono, every number in tabular figures; a surface
+   is lifted by a border or by a shadow, never both; jade only on money the simulated PayPal confirmed. */
 
 :root {
   /* Round 3's neutral states, as aliases of existing tokens: a pending amount (neutral-500), an unsigned seal ring
@@ -12,6 +13,33 @@
   --fs-pending: var(--fs-ink-3);
   --fs-unsigned: var(--fs-steel-line);
   --fs-cash-route: var(--fs-hatch);
+}
+
+/* The browser's own surfaces, themed (round 3): every number in tabular figures, the caret and native controls in
+   the action indigo, a selection in the pod wash, thin scrollbars in the rule colour, links underlined clear of
+   their descenders. In the base layer, so a component's own rule still wins. */
+@layer base {
+  :root {
+    font-variant-numeric: tabular-nums lining-nums;
+    caret-color: var(--fs-pod);
+    accent-color: var(--fs-pod);
+    text-underline-offset: 3px;
+  }
+
+  ::selection {
+    background: var(--fs-pod-wash);
+    color: var(--fs-ink);
+  }
+
+  * {
+    scrollbar-color: var(--fs-rule-strong) transparent;
+    scrollbar-width: thin;
+  }
+
+  :where(code, samp) {
+    font-family: var(--fs-font-mono);
+    font-size: 0.75rem;
+  }
 }
 
 @layer components {
@@ -196,7 +224,7 @@
     font-weight: 600;
     font-size: 1rem;
     line-height: 1.25rem;
-    font-variant-numeric: lining-nums proportional-nums;
+    font-variant-numeric: tabular-nums lining-nums;
     transition: background-color var(--fs-dur-press) var(--fs-ease-out);
     cursor: pointer;
     /* A long press must stay a hold (S2 §2.7): no panning, text selection, callout or tap flash. */
@@ -257,8 +285,8 @@
   .fs-slab__detail {
     font-stretch: 100%;
     font-weight: 500;
-    font-size: 0.75rem;
-    line-height: 1rem;
+    font-size: 0.875rem;
+    line-height: 1.125rem;
   }
 
   .fs-slab__trailing {
@@ -313,9 +341,9 @@
     background: var(--fs-plate);
   }
 
-  /* A committed money slab is signed, not paid: flush jade belongs only to what the simulated PayPal confirmed, so
-     the pressed face turns plate with a solid jade hairline (money on its way) and an ink label. Dashed lines mean
-     simulated and nothing else (round 3). */
+  /* A committed money slab is signed, not paid: jade belongs only to what the simulated PayPal confirmed, so the
+     pressed face turns plate with a neutral hairline and an ink label (round 3). Dashed lines mean simulated and
+     nothing else. */
   .fs-slab[data-tone="jade"][data-state="committed"] .fs-slab__face {
     background: var(--fs-plate);
     box-shadow: none;
@@ -328,7 +356,7 @@
     content: "";
     position: absolute;
     inset: 0;
-    border: 1.5px solid var(--fs-jade-flush-border);
+    border: 1px solid var(--fs-rule-strong);
     border-radius: inherit;
     pointer-events: none;
   }
@@ -358,8 +386,8 @@
   .fs-slab__reason {
     margin: 0;
     color: var(--fs-ink-2);
-    font-size: 0.75rem;
-    line-height: 1rem;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
   }
 
   .fs-slab__reason {
@@ -389,9 +417,8 @@
 
   .fs-slab__steps-text {
     color: var(--fs-ink-2);
-    font-size: 0.75rem;
-    line-height: 1rem;
-    font-variant-numeric: tabular-nums;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
   }
 
   /* ------------------------------------------------------------------ print */
@@ -456,7 +483,7 @@
     color: var(--fs-on-canary);
     font-stretch: 100%;
     font-weight: 600;
-    font-size: 0.6875rem;
+    font-size: 0.75rem;
     line-height: 1rem;
   }
 
@@ -467,18 +494,15 @@
     overflow: visible;
   }
 
+  /* An unsigned ring: a 1 px neutral circle that reads at 3:1 (round 3; the old rule-grey hairline vanished). */
   .fs-seal__band {
-    stroke: var(--fs-rule);
+    stroke: var(--fs-unsigned);
   }
 
-  /* The seal's linework is a person's hand and a checked fact: ballpoint and ink rings, never jade. */
+  /* A signed ring is a person's key: indigo, every ring the same. Key 1 fills the inner half, key 2 the outer
+     half; never jade, never ink (round 3: the console and the phone draw the same seal). */
   .fs-seal__ring {
     stroke: var(--fs-pod);
-  }
-
-  .fs-seal > :nth-child(even) .fs-seal__ring,
-  .fs-seal > .fs-seal__ring:nth-child(even) {
-    stroke: var(--fs-ink);
   }
 
   .fs-seal-figure {
@@ -610,9 +634,10 @@
       grid-column: 1 / -1;
     }
 
+    /* Money is never bold: the net is the numeral's width and weight on the body step. */
     .fs-receipt__item[data-kind="net"] .fs-receipt__value {
       font-stretch: 87.5%;
-      font-weight: 700;
+      font-weight: 500;
       font-size: 1rem;
       line-height: 1.25rem;
     }
@@ -632,6 +657,7 @@
 
   .fs-rule-chip__id {
     color: var(--fs-ink-2);
+    font-family: var(--fs-font-mono);
     font-size: 0.75rem;
   }
 
@@ -678,8 +704,8 @@
     animation: fs-halo var(--fs-dur-halo) var(--fs-ease-out) both;
   }
 
-  /* In flight: a solid neutral ring on a transparent face, the glyph in jade text: not yet money anyone holds. Dashed
-     lines mean simulated only (round 3). */
+  /* In flight: a solid neutral ring on a transparent face, a neutral glyph: not yet money anyone holds, so no jade
+     (round 3: jade is only money the simulated PayPal confirmed). Dashed lines mean simulated only. */
   .fs-chip[data-tone="flight"] {
     border: 1px solid var(--fs-rule-strong);
     background: transparent;
@@ -687,7 +713,7 @@
   }
 
   .fs-chip[data-tone="flight"] .fs-glyph {
-    color: var(--fs-jade-text);
+    color: var(--fs-ink-2);
   }
 
   /* Cash at the bodega: a hatch swatch and the word, in ink-2. Never red, never greyed. */
@@ -709,9 +735,9 @@
     color: var(--fs-red);
   }
 
-  /* The honesty tag, one design (unslop spec §2.2): 20 px tall, a 1 px dashed steel outline (not real, or not
-     yet), a 10 px dashed circle, and the words at 12/16 in ink-3. Never bold, never wrapped, never inside a
-     sentence; one per container that holds PayPal-derived values. */
+  /* The honesty tag (unslop spec §2.2): 20 px tall, a 1 px dashed steel outline (simulated), a 10 px dashed circle,
+     and the words at 12/16 in ink-3. Never bold, never wrapped, never inside a sentence. Round 3 keeps it for the top
+     bar's one quiet indicator only; a PayPal money value takes the MicroTag, anything else a LegendGlyph. */
   .fs-honesty {
     display: inline-flex;
     flex: none;
@@ -723,6 +749,9 @@
     border-radius: var(--fs-radius-pill);
     background: transparent;
     color: var(--fs-ink-3);
+    font-family: var(--fs-font-ui);
+    font-size: 0.75rem;
+    line-height: 1rem;
     white-space: nowrap;
     vertical-align: middle;
   }
@@ -732,17 +761,19 @@
     color: var(--fs-steel-line);
   }
 
-  /* The top bar's one quiet indicator (round 3): the dashed circle and the words, no outline. */
+  /* The top bar's one quiet indicator (round 3): the dashed circle and the words on the label step, no outline. */
   .fs-honesty[data-quiet] {
     height: auto;
     padding: 0;
     border: 0;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
   }
 
   /* ------------------------------------------------------------------ honesty marks with a budget (round 3) */
 
-  /* The micro-tag beside a PayPal money value: a 12 px dashed circle and "Sandbox" at 11 px, 18 px tall, ink-3. No
-     pill around it: the dashed circle is the mark. */
+  /* The micro-tag beside a PayPal money value: a 12 px dashed circle and "Sandbox" at 12 px (the id step's size,
+     the 12 px floor), 18 px tall, ink-3. No pill around it: the dashed circle is the mark. */
   .fs-microtag {
     display: inline-flex;
     flex: none;
@@ -752,11 +783,10 @@
     padding: 0;
     color: var(--fs-ink-3);
     font-family: var(--fs-font-ui);
-    font-stretch: 87.5%;
-    font-weight: 520;
-    font-size: 0.6875rem;
+    font-stretch: 100%;
+    font-weight: 500;
+    font-size: 0.75rem;
     line-height: 1rem;
-    letter-spacing: 0.01em;
     white-space: nowrap;
     vertical-align: middle;
   }
@@ -813,7 +843,8 @@
   }
 
   /* State dots (round 3): pending is a hollow neutral dot (its amount in --fs-pending), a waiting signer a hollow
-     grey circle, a signed or confirmed row a solid green dot. Colour lives in the dot; the word says the state. */
+     grey circle, a signed or checked row a solid ink dot, money the simulated PayPal confirmed the jade dot. Colour
+     lives in the dot; the word beside it says the state. */
   .fs-state-dot {
     display: inline-block;
     flex: none;
@@ -834,6 +865,10 @@
   }
 
   .fs-state-dot[data-kind="done"] {
+    background: var(--fs-ink);
+  }
+
+  .fs-state-dot[data-kind="paid"] {
     background: var(--fs-jade);
     box-shadow: inset 0 0 0 1px var(--fs-jade-flush-border);
   }
@@ -863,47 +898,25 @@
     background: var(--fs-plate);
   }
 
-  /* ------------------------------------------------------------------ the instrument numeral */
+  /* ------------------------------------------------------------------ numerals (round 3: no dot-matrix) */
 
-  .fs-dm {
-    display: block;
+  /* A count or a reading: FS Sans tabular figures on its step (the class beside it), ink once checked, ink-3 before.
+     Its size and the words beside it do the work; no colour, no dots. */
+  .fs-numeral {
+    display: inline-block;
     flex: none;
-    overflow: visible;
     color: var(--fs-ink);
+    white-space: nowrap;
   }
 
-  .fs-dm[data-tone="dim"] {
+  .fs-numeral[data-tone="dim"] {
     color: var(--fs-ink-3);
-  }
-
-  .fs-dm[data-tone="over"] {
-    color: var(--fs-canary-border);
-  }
-
-  .fs-dm__dot {
-    fill: currentColor;
-    fill-opacity: 0.05;
-    transition: fill-opacity 120ms var(--fs-ease-out);
-  }
-
-  .fs-dm__dot[data-on] {
-    fill-opacity: 1;
-  }
-
-  [data-motion="reduced"] .fs-dm__dot {
-    transition: none;
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .fs-dm__dot {
-      transition: none;
-    }
   }
 
   /* ------------------------------------------------------------------ money (one money role) */
 
   .fs-money {
-    font-variant-numeric: lining-nums proportional-nums;
+    font-variant-numeric: tabular-nums lining-nums;
     white-space: nowrap;
   }
 
@@ -1161,7 +1174,7 @@
   }
 
   /* One hero numeral (round 2): every amount is solid ink in the same face, whatever its state; the state is
-     said by its pill (dashed in flight, flush jade once confirmed), never by an outline or a grey. The first
+     said by its pill (a neutral ring in flight, flush jade once confirmed), never by an outline or a grey. The first
      layer only holds the box; the second paints. */
   .fs-amount__hollow {
     visibility: hidden;
@@ -1232,8 +1245,9 @@
     display: none;
   }
 
+  /* Sent, not yet confirmed: a neutral steel ring; jade arrives only with the simulated PayPal's confirmation. */
   .fs-capsule[data-state="sent"] .fs-capsule__face {
-    border: 1.5px solid var(--fs-jade-flush-border);
+    border: 1px solid var(--fs-steel-line);
     background: transparent;
   }
 
@@ -1309,11 +1323,12 @@
     stroke-linecap: round;
   }
 
+  /* The old reading for its 1.2 s: a solid amber tick at half strength (dashed lines mean simulated only). */
   .fs-dial__ghost {
     stroke: var(--fs-canary-border);
     stroke-width: 2;
-    stroke-dasharray: 3 3;
     stroke-linecap: round;
+    opacity: 0.5;
   }
 
   .fs-dial__hatch-line {
@@ -1330,14 +1345,24 @@
     stroke-width: 2;
   }
 
+  /* The needle reads the machine's figure: ink inside the limit, amber over it (a person must decide). Indigo is
+     action and focus only (round 3). */
   .fs-dial__needle {
-    stroke: var(--fs-pod);
+    stroke: var(--fs-ink);
     stroke-width: 2.5;
     stroke-linecap: round;
   }
 
   .fs-dial__hub {
-    fill: var(--fs-pod);
+    fill: var(--fs-ink);
+  }
+
+  .fs-dial[data-over] .fs-dial__needle {
+    stroke: var(--fs-canary-border);
+  }
+
+  .fs-dial[data-over] .fs-dial__hub {
+    fill: var(--fs-canary-border);
   }
 
   .fs-dial__caption {
@@ -1396,9 +1421,10 @@
     border-radius: var(--fs-radius-pill);
   }
 
+  /* The PayPal share before it lands: a neutral steel outline; it floods jade once the simulated PayPal confirms. */
   .fs-railbar__paypal {
     flex: none;
-    border: 1.5px solid var(--fs-jade-flush-border);
+    border: 1px solid var(--fs-steel-line);
     border-radius: var(--fs-radius-pill) 0 0 var(--fs-radius-pill);
   }
 
@@ -1483,12 +1509,9 @@
     z-index: calc(var(--fs-z-dialog) + 1);
     width: min(520px, calc(100vw - 32px));
     padding: 28px;
-    border: 1px solid var(--fs-rule);
     border-radius: var(--fs-radius-panel);
     background: var(--fs-plate);
-    box-shadow:
-      inset 0 1px 0 var(--fs-drawer-highlight),
-      var(--fs-shadow-e3);
+    box-shadow: var(--fs-shadow-e3);
     color: var(--fs-ink);
     transform: translate(-50%, -50%);
     transition: opacity var(--fs-dur-popover) var(--fs-ease-out);

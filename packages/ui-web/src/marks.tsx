@@ -14,23 +14,25 @@ export interface InkStampProps {
   readonly testId?: string;
 }
 
-/** A 20 px indigo stamp (radius 6) with the person's initials in white; the time shows on hover or focus. */
+/**
+ * A 22 px indigo stamp (radius 6) with the person's initials in white; the time shows on hover. It is an image
+ * named in full ("Analyn R. Sumalinog, 10:31"): an <abbr> allows no name (axe aria-prohibited-attr), so some readers
+ * said only the initials.
+ */
 export function InkStamp({ stamp, testId }: InkStampProps) {
+  const full = `${stamp.name}, ${stamp.at}`;
   return (
-    <abbr
-      className="fs-stamp"
-      title={`${stamp.name}, ${stamp.at}`}
-      data-testid={testId}
-      aria-label={`${stamp.name}, ${stamp.at}`}
-    >
-      <span className="fs-t-stamp">{stamp.initials}</span>
-    </abbr>
+    <span className="fs-stamp" role="img" title={full} data-testid={testId} aria-label={full}>
+      <span className="fs-t-stamp" aria-hidden>
+        {stamp.initials}
+      </span>
+    </span>
   );
 }
 
 /**
  * How a status reads: a tone (which material is true now), a glyph and the register's word. "flight" is money on
- * its way: a dashed jade outline that floods to the flush jade face only when the simulated PayPal confirms.
+ * its way: a neutral outline, which turns to the flush jade face only when the simulated PayPal confirms.
  */
 export type ChipTone = "neutral" | "pencil" | "canary" | "flight" | "jade" | "hatch" | "red";
 
@@ -114,16 +116,15 @@ export interface HonestyChipProps {
 }
 
 /**
- * The honesty tag (I8; unslop spec §2.2): every simulated or seeded thing carries this one design. A 20 px pill
- * in a dashed steel outline ("not real, or not yet", decision.md §4), a 10 px dashed circle, the words at 12/16
- * in ink-3. Its words are the label, word for word ("Simulated PayPal sandbox"); it never sits inside a sentence,
- * and one tag covers the smallest container that holds PayPal-derived values. It counts against the screen's tag
- * budget (TAG_BUDGET: three at most, honesty.tsx).
+ * The honesty tag (I8; unslop spec §2.2): a 20 px pill in a dashed steel outline (simulated), a 10 px dashed
+ * circle, the words at 12/16 in ink-3; `quiet`, the words at 14/20 with no outline. Round 3 keeps it for the top
+ * bar's one quiet indicator: a PayPal money value takes MicroTag, any other provenance a LegendGlyph. It counts
+ * against the screen's tag budget (TAG_BUDGET: three at most, honesty.tsx).
  */
 export function HonestyChip({ children, testId, className, quiet = false }: HonestyChipProps) {
   return (
     <span
-      className={["fs-honesty fs-t-micro", className].filter(Boolean).join(" ")}
+      className={["fs-honesty", className].filter(Boolean).join(" ")}
       data-testid={testId}
       data-fs-tag={quiet ? "bar" : "tag"}
       data-quiet={quiet ? "" : undefined}

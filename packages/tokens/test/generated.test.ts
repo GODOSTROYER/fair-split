@@ -38,21 +38,27 @@ describe("generated files", () => {
     expect(css).toContain("--fs-radius-card: 16px;");
     expect(css).toContain("--fs-radius-control: 12px;");
     expect(css).toContain("--fs-radius-pill: 999px;");
-    expect(css).toContain(".fs-amount {\n  font-variant-numeric: lining-nums proportional-nums;");
+    expect(css).toContain(".fs-figures,\n.fs-amount {\n  font-variant-numeric: tabular-nums lining-nums;");
     expect(css).toContain(".fs-cur {");
-    expect(css).toMatch(/\.fs-t-amount-hero \{[^}]*proportional-nums/);
-    expect(css).toMatch(/\.fs-t-hash \{[^}]*"tnum" 1/);
-    // Round 3: the money grotesk has plain figures in columns too; only the id role keeps the code-like tabular set.
-    expect(css).toMatch(/\.fs-t-figure \{[^}]*proportional-nums/);
-    expect(css).toMatch(/\.fs-t-micro \{[^}]*"tnum" 1/);
-    expect(css).not.toMatch(/FS Stencil/);
+    // Round 3: one family + mono. Every FS Sans role sets tabular figures; ids, hashes and marks are the mono.
+    expect(css).toMatch(/\.fs-t-amount-hero \{[^}]*tabular-nums/);
+    expect(css).toMatch(/\.fs-t-figure \{[^}]*tabular-nums/);
+    expect(css).toMatch(/\.fs-t-micro \{\n {2}font-family: var\(--fs-font-ui\);[^}]*tabular-nums/);
+    for (const role of ["id", "hash", "mark"]) {
+      expect(css).toMatch(new RegExp(`\\.fs-t-${role} \\{\\n {2}font-family: var\\(--fs-font-mono\\);`));
+    }
+    expect(css).not.toMatch(/proportional-nums/);
+    expect(css).not.toMatch(/FS Stencil|Atkinson/);
     for (const name of COLOUR_NAMES) {
       const count = css.split(`--fs-${name}:`).length - 1;
       expect(count, name).toBe(4);
     }
     expect(css).toContain("@media (prefers-reduced-motion: reduce)");
     expect(css).toContain("--fs-spring-land: linear(");
-    expect(css).not.toMatch(/monospace/);
+    // The mono is the platform's own, named only in its two stacks (no font file).
+    expect(css.match(/, monospace;/g)?.length).toBe(2);
+    expect(css).toContain("--fs-console-phone-rail: 56px;");
+    expect(css).toContain("--fs-console-seal: 180px;");
   });
 
   it("tokens.native.ts exports both themes in hex with camelCase keys", () => {
@@ -69,13 +75,16 @@ describe("generated files", () => {
       fontSize: 48,
       lineHeight: 52,
     });
+    expect(native.type.hash).toMatchObject({ fontFamily: native.monoFamily, fontSize: 13 });
+    expect(native.type.statementBody).toMatchObject({ fontFamily: "FSSans-Regular", fontSize: 17 });
+    expect(native.typeSteps).toEqual({ id: 13, label: 15, body: 17, title: 24, hero: 48 });
   });
 
   it("every font file the CSS and the native module name exists in assets/fonts", () => {
     const css = `${files["fonts.css"]}${files["fonts-proof.css"]}`;
     const urls = [...css.matchAll(/url\("([^"]+)"\)/g)].map((m) => m[1] ?? "");
-    // FS Sans, the peso face and Atkinson on the console; FS Sans Proof and the peso face on Proof (no stencil).
-    expect(urls.length).toBe(5);
+    // FS Sans and the peso face on the console; FS Sans Proof and the peso face on Proof (round 3: no Atkinson).
+    expect(urls.length).toBe(4);
     for (const url of urls) expect(existsSync(resolve(GENERATED_DIR, url)), url).toBe(true);
     for (const font of Object.values(native.fonts)) {
       expect(existsSync(resolve(here, "../../../assets/fonts/native", `${font}.ttf`)), font).toBe(true);

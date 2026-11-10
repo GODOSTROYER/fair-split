@@ -90,9 +90,10 @@ describe("the stylesheet after the review", () => {
         expect(d["outline-offset"], selector).toBeUndefined();
       }
     }
-    // Round 3: dashed means simulated only, so money on its way is a solid jade hairline.
+    // Round 3: dashed means simulated only, and jade is only money the simulated PayPal confirmed, so a signed batch
+    // on its way is a solid neutral hairline.
     const line = declared('.fs-slab[data-tone="jade"][data-state="committed"] .fs-slab__face::after');
-    expect(line.map((d) => d.border)).toContain("1.5px solid var(--fs-jade-flush-border)");
+    expect(line.map((d) => d.border)).toContain("1px solid var(--fs-rule-strong)");
     const ring = declared(":where(*):focus-visible")[0];
     expect(ring?.outline).toBe("var(--fs-focus-width) solid var(--fs-pod)");
     expect(ring?.["outline-offset"]).toBe("var(--fs-focus-offset)");
@@ -213,5 +214,57 @@ describe("the dial's reading", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("the stylesheet after round 3 (DESIGN.md)", () => {
+  it("jade is only money the simulated PayPal confirmed: a paid chip, capsule, dot or rail share", () => {
+    for (const r of rules) {
+      const jade = Object.values(r.decls).some((v) => /--fs-jade(?!-halo)/.test(v));
+      if (jade) expect(r.selector, r.selector).toMatch(/jade|paid|confirmed|capsule__flood/);
+    }
+  });
+
+  it("every number is set in tabular figures: nothing asks for proportional ones", () => {
+    for (const r of rules)
+      expect(r.decls["font-variant-numeric"] ?? "", r.selector).not.toMatch(/proportional/);
+    expect(declared(":root").some((d) => d["font-variant-numeric"] === "tabular-nums lining-nums")).toBe(
+      true,
+    );
+  });
+
+  it("themes the browser's own surfaces: selection, caret, native controls and scrollbars", () => {
+    expect(declared("::selection")[0]).toMatchObject({
+      background: "var(--fs-pod-wash)",
+      color: "var(--fs-ink)",
+    });
+    const root = declared(":root").find((d) => d["caret-color"]);
+    expect(root).toMatchObject({ "caret-color": "var(--fs-pod)", "accent-color": "var(--fs-pod)" });
+    expect(declared("*")[0]).toMatchObject({ "scrollbar-width": "thin" });
+  });
+
+  it("a surface is lifted by a border or by a shadow, never both", () => {
+    for (const r of rules) {
+      const shadow = /--fs-shadow-e\d/.test(r.decls["box-shadow"] ?? "");
+      const border = r.decls.border ?? "";
+      if (shadow) expect(border === "" || /^(0|none)$/.test(border), r.selector).toBe(true);
+    }
+  });
+
+  it("the seal: unsigned rings a 1 px neutral circle, every signed ring indigo (key 1 the inner half)", () => {
+    expect(declared(".fs-seal__band")[0]?.stroke).toBe("var(--fs-unsigned)");
+    expect(declared(".fs-seal__ring")[0]?.stroke).toBe("var(--fs-pod)");
+    for (const r of rules) {
+      if (/fs-seal__ring/.test(r.selector)) expect(r.decls.stroke ?? "", r.selector).not.toMatch(/--fs-ink/);
+    }
+  });
+
+  it("the dial's needle reads in ink and turns amber over the limit; indigo stays action and focus", () => {
+    expect(declared(".fs-dial__needle")[0]?.stroke).toBe("var(--fs-ink)");
+    expect(declared(".fs-dial[data-over] .fs-dial__needle")[0]?.stroke).toBe("var(--fs-canary-border)");
+  });
+
+  it("no dot-matrix rules are left", () => {
+    for (const r of rules) expect(r.selector, r.selector).not.toMatch(/fs-dm\b|fs-dm__/);
   });
 });

@@ -490,7 +490,7 @@ describe("status words and money", () => {
     expect(screen.getByTestId("inline").textContent).toBe("US$368.39");
   });
 
-  it("status pills: in flight is the dashed jade tone, confirmed is flush jade, cash is hatch, held is marigold", () => {
+  it("status pills: in flight is the neutral flight tone, confirmed is flush jade, cash is hatch, held is marigold", () => {
     render(
       wrap(
         <>
@@ -518,7 +518,7 @@ describe("status words and money", () => {
     const chip = screen.getByTestId("hc");
     expect(chip.textContent).toBe("Simulated PayPal sandbox");
     expect(chip.classList.contains("fs-honesty")).toBe(true);
-    expect(chip.classList.contains("fs-t-micro")).toBe(true);
+    expect(chip.classList.contains("fs-t-micro")).toBe(false);
     expect(chip.querySelector("svg")?.getAttribute("aria-hidden")).toBe("true");
     expect(chip.querySelector("svg circle")?.getAttribute("stroke-dasharray")).toBe("2 1.6");
     expect(HonestyTag).toBe(HonestyChip);

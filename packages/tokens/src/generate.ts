@@ -22,6 +22,7 @@ import {
   M3_ROLES,
   MATERIALS,
   NATIVE_FONTS,
+  NATIVE_MONO,
   PAPER_DROP,
   RADII,
   SHADOWS,
@@ -29,6 +30,7 @@ import {
   THEME_INFO,
   type ThemeName,
   TYPE_ROLES,
+  TYPE_STEPS,
   type TypeRole,
   WASH,
 } from "./tokens.js";
@@ -101,18 +103,16 @@ const SELECTOR: Readonly<Record<ThemeName, string>> = {
 };
 const CSS_ORDER: readonly ThemeName[] = ["adlaw", "tablea"];
 
-/** font-variant-numeric per numerals mode. Mona's tnum zero is the slashed zero.tf, kept for hashes on purpose. */
+/** font-variant-numeric per numerals mode: every FS Sans role sets tabular lining figures (UI gate round 3). */
 const NUMERALS_CSS = {
-  proportional: ["  font-variant-numeric: lining-nums proportional-nums;"],
-  tabular: ["  font-variant-numeric: tabular-nums lining-nums;", '  font-feature-settings: "tnum" 1;'],
-  hash: ["  font-variant-numeric: tabular-nums lining-nums;", '  font-feature-settings: "tnum" 1;'],
+  tabular: ["  font-variant-numeric: tabular-nums lining-nums;"],
 } as const;
 
 function typeRoleCss(name: string, role: TypeRole): string {
   const lines = [
     `.fs-t-${name} {`,
     `  font-family: var(--fs-font-${role.family === "hollow" ? "ui" : role.family});`,
-    `  font-stretch: ${role.stretch}%;`,
+    ...(role.family === "mono" ? [] : [`  font-stretch: ${role.stretch}%;`]),
     `  font-weight: ${role.weight};`,
     `  font-size: ${rem(role.size)};`,
     `  line-height: ${rem(role.line)};`,
@@ -191,14 +191,10 @@ export function renderThemeCss(): string {
   for (const [name, role] of Object.entries(TYPE_ROLES)) out.push(`${typeRoleCss(name, role)}\n`);
   out.push(
     [
-      "/* Aligned columns: tabular figures (decision.md §7). */",
-      ".fs-figures {",
-      "  font-variant-numeric: tabular-nums lining-nums;",
-      "}",
-      "",
-      "/* Money reads as money: proportional lining figures, a plain zero and a plain one. */",
+      "/* Every number is FS Sans in tabular lining figures: one money style (UI gate round 3). */",
+      ".fs-figures,",
       ".fs-amount {",
-      "  font-variant-numeric: lining-nums proportional-nums;",
+      "  font-variant-numeric: tabular-nums lining-nums;",
       "}",
       "",
       "/* The US$ prefix of a money hero: small, raised to the figures' cap line, in ink-3, never bold and never",
@@ -247,7 +243,10 @@ function fontFace(family: string, file: string, descriptors: string[]): string {
   ].join("\n");
 }
 
-/** Console and stage: the full variable FS Sans, the peso face and Atkinson (lazy); the stencil is retired. */
+/**
+ * Console and stage: the full variable FS Sans and the peso face, nothing else (UI gate round 3: one family; the
+ * mono is the platform's own; no stencil, no outline face, no Atkinson).
+ */
 export function renderFontsCss(): string {
   const ui = ["font-weight: 200 900;", "font-stretch: 75% 125%;"];
   return `${CSS_HEADER}
@@ -255,8 +254,6 @@ ${[
   fontFace("FS Sans", "FSSans-VF.woff2", ui),
   "/* Mona Sans has no peso sign: Noto's joins the family with identical descriptors (assets/fonts/README.md). */",
   fontFace("FS Sans", "FSSansPeso.woff2", [...ui, "unicode-range: U+20B1;"]),
-  "/* Downloaded only when statement prose renders. */",
-  fontFace("Atkinson Hyperlegible Next", "AtkinsonNext-VF.woff2", ["font-weight: 400 700;"]),
 ].join("\n\n")}\n`;
 }
 
@@ -347,7 +344,7 @@ function nativeType() {
     const line = role.app?.line ?? role.line;
     const entry: Record<string, unknown> = { fontFamily: role.native, fontSize: size, lineHeight: line };
     if (role.app?.maxFontSizeMultiplier) entry.maxFontSizeMultiplier = role.app.maxFontSizeMultiplier;
-    if (role.numerals === "tabular" || role.numerals === "hash") entry.tabular = true;
+    if (role.numerals === "tabular") entry.tabular = true;
     out[camel(name)] = entry;
   }
   return out;
@@ -414,6 +411,12 @@ export const depth = ${toTs(DEPTH)} as const;
 /** The static cuts' file names, which are also their family names on Android and iOS. */
 export const fonts = ${toTs(NATIVE_FONTS)} as const;
 
+/** The mono (hashes, IDs and timestamps only): the platform's own, so nothing to embed. */
+export const monoFamily = ${quote(NATIVE_MONO)};
+
+/** The five size steps in sp (UI gate round 3): every role in \`type\` sits on one. */
+export const typeSteps = ${toTs(TYPE_STEPS.app)} as const;
+
 /** App sizes in sp. Only the hero amount caps font scaling (at 1.5×); everything else scales to 2.0. */
 export const type = ${toTs(nativeType())} as const;
 
@@ -438,7 +441,7 @@ export function renderAgGridTs(): string {
     fontFamily: '"FS Sans", system-ui',
     fontSize: 14,
     dataFontSize: 14,
-    headerFontSize: 13,
+    headerFontSize: 14,
     headerFontWeight: 620,
     rowHeight: LAYOUT.console.row,
     headerHeight: LAYOUT.console.header,

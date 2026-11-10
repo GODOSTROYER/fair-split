@@ -6,7 +6,7 @@ export const fsGridParams = {
   fontFamily: '"FS Sans", system-ui',
   fontSize: 14,
   dataFontSize: 14,
-  headerFontSize: 13,
+  headerFontSize: 14,
   headerFontWeight: 620,
   rowHeight: 40,
   headerHeight: 36,

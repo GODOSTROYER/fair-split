@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { cubicBezier, overshoot, springLinearEasing, springResponse } from "../src/curves.js";
 import { makeTween, spring as nativeSpring, tweenParams } from "../src/native.js";
-import { EASE, SPRING_NAMES, SPRING_SPECS, SPRINGS, TWEEN_NAMES, TWEENS } from "../src/presets.js";
+import { EASE, SPRING_NAMES, SPRING_SPECS, SPRINGS, TIMING, TWEEN_NAMES, TWEENS } from "../src/presets.js";
 import { spring as webSpring, tween as webTween } from "../src/web.js";
 
 // S2 §2.8, the table every renderer must reproduce.
@@ -123,5 +123,11 @@ describe("curves", () => {
       const early = cubicBezier(curve, 0.2);
       expect(early, name).toBeGreaterThanOrEqual(0.2);
     }
+  });
+});
+
+describe("fixed timings", () => {
+  it("the stage's one toast shows the newest event for 3 s (UI gate round 3)", () => {
+    expect(TIMING.toast).toBe(3000);
   });
 });
