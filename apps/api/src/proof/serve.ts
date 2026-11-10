@@ -45,9 +45,9 @@ type Deps = Pick<AppDeps, "db" | "env" | "credentials" | "clock" | "rateLimits">
 const CACHE_TTL_MS = 2_000;
 // Above the complete e2e session crowd (about 20). Completed LRU eviction never drops an in-flight build.
 const MAX_PENDING_BUILDS = 32;
-const CACHE_BYTES = 16 * 1024 * 1024;
+const CACHE_BYTES = 4 * 1024 * 1024;
 // Tier JSON has its own byte budget: rotating receivers can evict serialized variants, never the shared build.
-const VARIANT_BYTES = 16 * 1024 * 1024;
+const VARIANT_BYTES = 4 * 1024 * 1024;
 interface CachedBuild {
   retained: boolean;
   built: BuiltProof;

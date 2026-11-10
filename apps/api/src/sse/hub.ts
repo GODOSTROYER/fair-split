@@ -45,6 +45,8 @@ export const SSE_MAX_AGE_MS = 30 * 60_000;
 /** Client reconnect hint sent once per stream (the api-client backs off 0.5–8 s on its own). */
 export const SSE_RETRY_MS = 1_000;
 const MAX_QUEUE = 2_000;
+/** 300 streams retain at most 75 MiB of queued wire data, regardless of event size. */
+export const SSE_QUEUE_BYTES = 256 * 1024;
 
 /** One SSE message; `data` is JSON-encoded. */
 export interface SseOut {
@@ -149,13 +151,24 @@ export function createSseHub(o: SseHubOptions): SseHub {
         const done = new Promise<void>((resolve) => {
           finish = resolve;
         });
-        const queue: SseOut[] = [];
+        const queue: { message: SseOut & { data: string }; bytes: number }[] = [];
+        let queueBytes = 0;
+        let ended = false;
+        let draining = false;
+        let drainTimeout: ReturnType<typeof setTimeout> | undefined;
         let pumping = false;
         // Subscribe before the preamble is written (a client that has not read yet must not lose events);
         // nothing is written until the preamble is out.
         let ready = false;
 
-        const end = () => finish();
+        const end = () => {
+          if (ended) return;
+          ended = true;
+          queue.length = 0;
+          queueBytes = 0;
+          stream.abort(); // Release a blocked writer as well as queued event references.
+          finish();
+        };
         closers.add(end);
         stream.onAbort(end);
 
@@ -164,13 +177,16 @@ export function createSseHub(o: SseHubOptions): SseHub {
           pumping = true;
           try {
             while (queue.length > 0 && !stream.aborted && !stream.closed) {
-              const m = queue.shift() as SseOut;
-              await stream.writeSSE({ id: m.id, event: m.event, data: JSON.stringify(m.data) });
+              const next = queue.shift();
+              if (!next) break;
+              queueBytes -= next.bytes;
+              await stream.writeSSE(next.message);
             }
           } catch {
             end();
           } finally {
             pumping = false;
+            if (draining && queue.length === 0) end();
           }
         };
 
@@ -178,14 +194,24 @@ export function createSseHub(o: SseHubOptions): SseHub {
           unsubscribe = await o.bus.subscribe(
             req.scope,
             (e) => {
+              if (ended || draining) return;
               const m = project(e);
               if (!m) return;
-              if (queue.length >= MAX_QUEUE) {
+              const message = { ...m, data: JSON.stringify(m.data) };
+              const bytes =
+                Buffer.byteLength(message.data) + Buffer.byteLength(m.id) + Buffer.byteLength(m.event) + 24;
+              if (queue.length >= MAX_QUEUE || queueBytes + bytes > SSE_QUEUE_BYTES) {
                 log.warn({ label: req.label }, "sse client too slow; ending stream so it replays");
-                end();
+                // Deliver this bounded prefix before EOF, including during the initial backlog. Aborting
+                // synchronously here would reconnect forever at the same Last-Event-ID for a large batch.
+                draining = true;
+                drainTimeout = setTimeout(end, 500);
+                drainTimeout.unref?.();
+                void pump();
                 return;
               }
-              queue.push(m);
+              queue.push({ message, bytes });
+              queueBytes += bytes;
               void pump();
             },
             {
@@ -229,6 +255,8 @@ export function createSseHub(o: SseHubOptions): SseHub {
           ping.unref?.();
           await done;
         } finally {
+          if (drainTimeout) clearTimeout(drainTimeout);
+          queue.length = 0;
           closers.delete(end);
           if (ping) clearInterval(ping);
           unsubscribe?.();

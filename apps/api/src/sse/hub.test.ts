@@ -64,6 +64,60 @@ describe("SSE envelope", () => {
 });
 
 describe("SSE hub and the workspace stream", () => {
+  it("HD6 F5: a slow reader cannot retain more than the stream byte budget", async () => {
+    const { ws, bus } = await setup();
+    t.app.app.get("/test-byte-pressure", (c) =>
+      t.deps.sse.open(c, {
+        scope: { workspaceId: ws },
+        caps: [],
+        label: "run",
+        project: (e) => ({ id: String(e.id), event: e.type, data: "x".repeat(64 * 1024) }),
+      }),
+    );
+    const response = await t.request("/test-byte-pressure");
+    const reader = response.body!.getReader();
+    try {
+      await reader.read(); // Read the preamble, then stop consuming the event body.
+      for (let i = 0; i < 20; i++) publish(bus, ws);
+      await new Promise((resolve) => setTimeout(resolve, 550));
+      expect(t.deps.sse.stats().open).toBe(0);
+      expect(bus.subscribers).toBe(0);
+    } finally {
+      await reader.cancel();
+    }
+  });
+  it("HD6 F5: a backlog above the byte cap advances Last-Event-ID across bounded reconnects", async () => {
+    const { ws, bus } = await setup();
+    t.app.app.get("/test-byte-replay", (c) =>
+      t.deps.sse.open(c, {
+        scope: { workspaceId: ws },
+        caps: [],
+        lastEventId: Number(c.req.header("last-event-id") ?? 0),
+        label: "run",
+        project: (e) => ({ id: String(e.id), event: e.type, data: "x".repeat(64 * 1024) }),
+      }),
+    );
+    for (let i = 0; i < 20; i++) publish(bus, ws);
+    const delivered: number[] = [];
+    while (delivered.length < 20) {
+      const cursor = delivered.at(-1) ?? 0;
+      const stream = await t.sse("/test-byte-replay", { headers: { "last-event-id": String(cursor) } });
+      try {
+        while (delivered.length < 20) {
+          try {
+            delivered.push(Number((await stream.reader.next(1_000)).id));
+          } catch (err) {
+            expect(String(err)).toMatch(/stream ended/);
+            break;
+          }
+        }
+      } finally {
+        await stream.reader.close();
+      }
+      expect(delivered.at(-1)).toBeGreaterThan(cursor);
+    }
+    expect(delivered).toEqual(Array.from({ length: 20 }, (_, i) => i + 1));
+  });
   it("HD6-4 counts the three anonymous network slots separately from credentialed streams", async () => {
     const { ws } = await setup();
     t.app.app.get("/test-public-mixed", (c) =>
