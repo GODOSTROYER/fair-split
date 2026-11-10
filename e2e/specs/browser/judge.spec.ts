@@ -156,7 +156,7 @@ test("the first press starts a judge session on the simulated rail and funds the
   const started = page.waitForResponse(sessionStarted);
   await firstPress(page).click();
   expect((await started).status()).toBe(201);
-  await expect(page.getByRole("heading", { name: /Season 2026-A is funded/ })).toBeVisible({
+  await expect(page.getByRole("heading", { level: 1, name: /Pool funded\./ })).toBeVisible({
     timeout: 60_000,
   });
   const session = await sessionOf(page);
@@ -171,7 +171,7 @@ test("Reset brings the first view back within 10 s and a second press works", as
   await roomFor(2 * PRESS_LIVE_CALLS);
   await page.goto("/judge");
   await firstPress(page).click();
-  await expect(page.getByRole("heading", { name: /Season 2026-A is funded/ })).toBeVisible({
+  await expect(page.getByRole("heading", { level: 1, name: /Pool funded\./ })).toBeVisible({
     timeout: 60_000,
   });
   const first = await sessionOf(page);
@@ -179,7 +179,9 @@ test("Reset brings the first view back within 10 s and a second press works", as
   const pressedAt = Date.now();
   await page.getByRole("banner").getByRole("button", { name: "Reset" }).click();
   await expect(firstPress(page)).toBeEnabled({ timeout: 10_000 });
-  await expect(page.getByRole("heading", { name: /Season 2026-A is ready to pay/ })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { level: 1, name: /Invoice sent\. Awaiting payment\./ }),
+  ).toBeVisible();
   const resetMs = Date.now() - pressedAt;
   test.info().annotations.push({ type: "reset", description: `first view back ${resetMs} ms after Reset` });
   expect(resetMs).toBeLessThanOrEqual(10_000);
@@ -187,7 +189,7 @@ test("Reset brings the first view back within 10 s and a second press works", as
   const again = page.waitForResponse(sessionStarted);
   await firstPress(page).click();
   expect((await again).status()).toBe(201);
-  await expect(page.getByRole("heading", { name: /Season 2026-A is funded/ })).toBeVisible({
+  await expect(page.getByRole("heading", { level: 1, name: /Pool funded\./ })).toBeVisible({
     timeout: 60_000,
   });
   const second = await sessionOf(page);
@@ -332,7 +334,9 @@ test("Try to break it: all four controls refuse attacks and the changed payout v
       );
       await page.getByTestId(`W-JG-01.tamper.${kind}`).click();
       expect((await answer).status()).toBe(200);
-      await expect(page.getByTestId("W-JG-01.tamper.result")).toContainText("DENY");
+      const refused = page.getByTestId("W-JG-01.tamper.result");
+      await expect(refused).toHaveAttribute("data-verdict", "DENY");
+      await expect(refused).toContainText("Refused");
     }
     await page.getByTestId("W-JG-01.tamper.change_payout").click();
     const result = page.getByTestId("W-JG-01.tamper.result");

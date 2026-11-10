@@ -21,7 +21,9 @@ test("DR-0 / E-01 / E-15: logged-out judge, real moment phases, Proof, Reset and
   };
   page.on("request", beforePress);
   await page.goto("/judge");
-  await expect(page.getByRole("heading", { name: /Season 2026-A is ready to pay/ })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { level: 1, name: /Invoice sent\. Awaiting payment\./ }),
+  ).toBeVisible();
   await page.waitForTimeout(3_000);
   expect(v1).toEqual([]);
   page.off("request", beforePress);
@@ -131,7 +133,7 @@ test("DR-0 / E-01 / E-15: logged-out judge, real moment phases, Proof, Reset and
     const response = await started;
     expect(response.status()).toBe(201);
     expect((await response.json()).workspaceId).not.toBe(s.workspaceId);
-    await expect(page.getByRole("heading", { name: /Season 2026-A is funded/ })).toBeVisible({
+    await expect(page.getByRole("heading", { level: 1, name: /Pool funded\./ })).toBeVisible({
       timeout: 60_000,
     });
     await page.getByRole("banner").getByRole("button", { name: "Reset" }).click();
