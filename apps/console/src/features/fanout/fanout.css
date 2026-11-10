@@ -1,7 +1,8 @@
-/* W-TR-08 Run (UI gate round 2): the run's instrument over the fan, the fan full width as the hero, Rhea's
-   decision as one strip beneath it, the money bar with its one tag, then the last five events and the latency
-   dots. In flight is a jade outline, jade is PayPal-confirmed money, marigold is a person's decision, red only a
-   PayPal failure, hatch is cash with its word. Tokens only; durations from @fairsplit/motion's CSS variables. */
+/* W-TR-08 Run (UI gate round 3): the run's instrument (a dot-matrix "7/8") sits right over the 180-unit seal at the
+   fan's top left, the fan full width as the hero, Rhea's decision as one strip beneath it, the money bar with its
+   one micro-tag, then the last five events and the latency dots. In flight is a solid jade hairline, jade is
+   PayPal-confirmed money, marigold is a person's decision, red only a PayPal failure, the hatch is cash with its
+   word. Dashed lines mean simulated, nothing else. Tokens only; durations from @fairsplit/motion's CSS variables. */
 
 .fsr-fanout {
   display: grid;
@@ -16,12 +17,25 @@
 }
 
 .fsr-fanout__head {
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: var(--fs-space-8) var(--fs-space-24);
   min-height: 36px;
+}
+
+/* The instrument (49 px of dot matrix) rides on the fan's empty top left, just above the seal: the count and the
+   seal read as one. Only while the fan is drawn and wide enough for the seal to clear it (Data mode shows the table,
+   and the instrument sits above it in the flow). */
+@container (min-width: 1000px) {
+  .fsr-fanout:has(> .fsr-fanout__figure:not([data-datamode])) > .fsr-fanout__head[data-instrument] {
+    height: 49px;
+    min-height: 0;
+    margin-bottom: calc(-49px - var(--fs-space-16));
+  }
 }
 
 .fsr-fanout__status {
@@ -32,6 +46,7 @@
   margin: 0;
 }
 
+/* The dot matrix's lit dots are ink; its words sit beside it in type. */
 .fsr-fanout__count {
   color: var(--fs-ink);
 }
@@ -42,6 +57,17 @@
 
 .fsr-fanout__micro {
   color: var(--fs-ink-3);
+}
+
+/* Cash still due once PayPal is complete: a hatch swatch and the count in neutral-500, distinct from the confirmed
+   count beside it. */
+.fsr-fanout__due {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--fs-space-8);
+  padding-left: var(--fs-space-12);
+  border-left: 1px solid var(--fs-rule);
+  color: var(--fs-pending);
 }
 
 .fsr-fanout__line {
@@ -69,11 +95,12 @@
 }
 
 .fsr-fanout__swatch {
+  flex: none;
   width: 10px;
   height: 10px;
   border-radius: 3px;
   background:
-    repeating-linear-gradient(-45deg, var(--fs-hatch) 0 1.5px, transparent 1.5px 4px), var(--fs-plate);
+    repeating-linear-gradient(-45deg, var(--fs-cash-route) 0 1.5px, transparent 1.5px 4px), var(--fs-plate);
   box-shadow: inset 0 0 0 1px var(--fs-rule-strong);
 }
 
@@ -97,13 +124,14 @@
   overflow: visible;
 }
 
-/* The Run's seal is the same seal as Approve's and Proof's: ink rings, every other one in ballpoint indigo. */
+/* The Run's seal is Approve's: each key's rings in indigo (a person's hand), a ring not signed yet at 1 px in
+   neutral-400. The same on the Chair's phone. */
 .fsr-fan .fs-seal__ring {
-  stroke: var(--fs-ink-2);
+  stroke: var(--fs-pod);
 }
 
-.fsr-fan .fs-seal__ring:nth-of-type(even) {
-  stroke: var(--fs-pod);
+.fsr-fan__ring-unsigned {
+  stroke: var(--fs-unsigned);
 }
 
 .fsr-fan__bar {
@@ -111,13 +139,19 @@
 }
 
 .fsr-fan__hatch-line {
-  fill: var(--fs-hatch);
+  fill: var(--fs-cash-route);
 }
 
-/* The cash band: every member's share in one calm tone, meeting its neighbours, still. Never jade. */
+/* The ribbon's mask stripes: white shows (a mask is luminance, not a colour); copy-white is #ffffff in both themes. */
+.fsr-fan__mask-line {
+  fill: var(--fs-copy-white);
+}
+
+/* The cash route: every member's share in neutral-300, meeting its neighbours as one 6-unit ribbon that shows
+   through the hatch mask. Still, never jade. */
 .fsr-fan__cash-line {
   fill: none;
-  stroke: var(--fs-rule);
+  stroke: var(--fs-cash-route);
   stroke-linecap: butt;
 }
 
@@ -126,9 +160,9 @@
   stroke: var(--fs-ink-3);
 }
 
-/* A line moved to cash: one dashed hatch-coloured line from its own thread's slot to the block. */
+/* A line moved to cash: one thin solid line in the cash route's colour, from its own thread's slot to the block. */
 .fsr-fan__cash-line[data-moved] {
-  stroke: var(--fs-hatch);
+  stroke: var(--fs-cash-route);
 }
 
 /* The cash block: one hatch swatch with its words beside it; ink once every member's cash is attested. */
@@ -181,8 +215,15 @@
   stroke: var(--fs-jade);
 }
 
+/* PayPal parked it: a person decides. The path runs on to her own marker as a fine marigold line. */
+.fsr-fan__item[data-tone="parked"] .fsr-fan__thread {
+  stroke: var(--fs-canary-border);
+  stroke-width: 1.5px;
+}
+
 .fsr-fan__item[data-tone="failed"] .fsr-fan__thread {
   stroke: var(--fs-red);
+  stroke-width: 1.5px;
 }
 
 /* Live only: sent threads draw to 70% (500 ms, staggered 40 ms); a confirmation runs on to 100% (300 ms) and
@@ -204,30 +245,17 @@
   transition: stroke-dashoffset var(--fs-dur-thread-complete) var(--fs-ease-out) var(--fsr-delay, 0ms);
 }
 
-.fsr-fan__cap[data-tone="parked"] {
-  fill: var(--fs-canary);
-  stroke: var(--fs-canary-border);
-}
-
-.fsr-fan__cap[data-tone="failed"] {
-  fill: var(--fs-red);
-}
-
-/* The member stub: an outline while the payment is in flight; PayPal's confirmation floods it jade. */
+/* The member marker: an outline while the payment is to send or in flight (solid: dashed means simulated);
+   PayPal's confirmation floods it jade, a parked item fills it marigold (the dot on her marker), a failure red. */
 .fsr-fan__stub-face {
   fill: var(--fs-plate);
   stroke: var(--fs-ink-3);
   stroke-width: 1;
 }
 
-.fsr-fan__item[data-tone="unsent"] .fsr-fan__stub-face {
-  stroke-dasharray: 2 2;
-}
-
 .fsr-fan__item[data-tone="sent"] .fsr-fan__stub-face {
   stroke: var(--fs-jade-flush-border);
   stroke-width: 1.5;
-  stroke-dasharray: 3 2;
 }
 
 .fsr-fan__item[data-tone="landed"] .fsr-fan__stub-face {
@@ -236,8 +264,13 @@
 }
 
 .fsr-fan__item[data-tone="parked"] .fsr-fan__stub-face {
+  fill: var(--fs-canary);
   stroke: var(--fs-canary-border);
-  stroke-width: 1.5;
+}
+
+.fsr-fan__item[data-tone="failed"] .fsr-fan__stub-face {
+  fill: var(--fs-red);
+  stroke: var(--fs-red);
 }
 
 .fsr-fan__item[data-tone="moved"] .fsr-fan__stub-face {
@@ -313,8 +346,13 @@
   color: var(--fs-ink);
 }
 
-/* The amount grammar, inline (S2.2.1): pencil before the keys, ink after, in flight underlined dashed. */
+/* The amount grammar, inline (S2.2.1; round 3): pencil before the keys, ink after; pending (in flight, cash still
+   due) in neutral-500 with a hollow dot, never a dashed underline. */
 .fsr-fan__amount {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
   color: var(--fs-ink);
   white-space: nowrap;
 }
@@ -324,23 +362,7 @@
 }
 
 .fsr-fan__amount[data-amount-state="hollow"] {
-  color: var(--fs-ink);
-  text-decoration: underline dashed 1.5px var(--fs-ink-3);
-  text-underline-offset: 4px;
-}
-
-/* PayPal parked it: a person decides (marigold), never red. */
-.fsr-fan__chip {
-  position: absolute;
-  top: var(--fsr-y);
-  left: var(--fsr-x);
-  padding: 1px var(--fs-space-8);
-  border-radius: var(--fs-radius-pill);
-  background: var(--fs-plate);
-  box-shadow: inset 0 0 0 1px var(--fs-canary-border);
-  color: var(--fs-ink);
-  white-space: nowrap;
-  transform: translateY(-50%);
+  color: var(--fs-pending);
 }
 
 /* ------------------------------------------------------------------ the parked decision (Rhea) */
@@ -442,7 +464,6 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
   gap: var(--fs-space-8);
 }
 

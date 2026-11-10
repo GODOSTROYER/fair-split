@@ -5,6 +5,7 @@
 
 import type { RunEvent } from "@fairsplit/contracts";
 import { webRoutes } from "@fairsplit/contracts";
+import { tagBudget } from "@fairsplit/ui-web";
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { HttpResponse, http } from "msw";
 import { describe, expect, it } from "vitest";
@@ -90,7 +91,20 @@ describe("W-TR-08 run: the honest fan-out", () => {
       expect(celing.textContent).toBe("Consolacion BacusUS$64.45");
       expect(celing.querySelector(".fsr-fan__name")?.textContent).toBe("Consolacion Bacus");
       expect(celing.querySelector(".fs-t-figure")?.getAttribute("data-amount-state")).toBe("landed");
-      expect(screen.getByTestId("W-TR-08.chip.M-031").textContent).toBe("Parked");
+      // Rhea's path runs on to her own marker, which turns marigold: nothing floats in mid-air (round 3).
+      expect(screen.queryByTestId("W-TR-08.chip.M-031")).toBeNull();
+      const rheaThread = screen.getByTestId("W-TR-08.thread.M-031");
+      expect(
+        rheaThread.querySelector<SVGPathElement>(".fsr-fan__thread")?.style.getPropertyValue("--fsr-p"),
+      ).toBe("1");
+      expect(rheaThread.querySelector("circle")).toBeNull();
+      // The cash route is one hatched ribbon: the 56 shares draw under one hatch mask.
+      const ribbon = screen.getByTestId("W-TR-08.ribbon");
+      expect(ribbon.getAttribute("mask")).toMatch(/^url\(#/);
+      expect(ribbon.querySelectorAll("path.fsr-fan__cash-line")).toHaveLength(56);
+      // The run's one dot-matrix count, and the one micro-tag on its money: the top bar's indicator is the third.
+      expect(screen.getByTestId("W-TR-08.count").getAttribute("data-value")).toBe("7/8");
+      expect(tagBudget(screen.getByTestId("W-TR-08"))).toMatchObject({ tags: 1, micro: 1, ok: true });
       const run = view.runtime.client.getQueryData<RunView>(queryKeys.run(RUN));
       if (!run) throw new Error("fixture has no run");
       const cashDay = format.dateShort(cashDayForRun(seedSnapshot(), run));
@@ -155,15 +169,23 @@ describe("W-TR-08 run: the honest fan-out", () => {
         `Cash at the bodega57due ${cashDay}US$3,876.43`,
         "Kept for membersUS$21.14",
       ]);
-      // Settled routing, not settled cash: seven confirmed on PayPal, the cash still due on its day.
+      // Settled routing, not settled cash: seven of eight confirmed on PayPal, and apart from them, in neutral with
+      // its hatch, the 57 members' cash still due on its day.
       expect(screen.getByTestId("W-TR-08.status").textContent).toBe(
-        `7confirmed on PayPal57 cash due ${cashDay}`,
+        `7/8confirmed on PayPal57 cash due ${cashDay}`,
       );
+      expect(screen.getByTestId("W-TR-08.cashDue").textContent).toBe(`57 cash due ${cashDay}`);
       expect(screen.getByTestId("W-TR-08.rerouted").textContent).toBe(
         `Rhea Jumawan → cash at the bodegadue ${cashDay}`,
       );
       await waitFor(() => expect(tracedPhases("MM-6").slice(-1)[0]).toBe("settled"), WAIT);
       expect(tracedPhases("MM-6")).toEqual(expect.arrayContaining(["parked", "rerouted", "settled"]));
+      // The log never says "Settled" while the 57 members' cash is due: PayPal is complete, the cash is not.
+      const log = screen.getByTestId("W-TR-08.log");
+      await waitFor(() =>
+        expect(within(log).getAllByText("PayPal complete · cash due").length).toBeGreaterThan(0),
+      );
+      expect(within(log).queryAllByText("Settled")).toHaveLength(0);
       expect(view.world.line("M-031")?.state).toBe("OFF_RAIL_DUE");
     },
     SLOW,

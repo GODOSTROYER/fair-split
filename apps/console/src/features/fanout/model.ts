@@ -1,52 +1,47 @@
-// W-TR-08's model: the split fan (S2.7 SplitFan, design §1 signature 6: one seal, 64 lines; UI gate round 2) and
+// W-TR-08's model: the split fan (S2.7 SplitFan, design §1 signature 6: one seal, 64 lines; UI gate round 3) and
 // the run's honest state, as pure functions of the IC-03 snapshot and the live RunView. The fan is the run's hero:
-// every line leaves the seal's hub. The eight PayPal threads fan out to one row each (a name and an amount), at
-// one even stroke, so seven confirmations read at a glance. The cash lines run together as one calm band into one
-// compact block, each member's share of the band as tall as their share of the cash. The money bar under the fan
-// carries the proportions. A thread's look follows the item's actual PayPal status, never a test value: in flight
-// to 70% when sent, jade only on a verified SUCCESS of this run (a replayed one stays in flight), a marigold cap
-// for UNCLAIMED (a decision, never red), red only for a PayPal failure, neutral for our own return, retracted once
-// moved to cash, when its own dashed cash line leaves from the same slot.
+// every line leaves the hub beside the 180-unit seal. The eight PayPal threads fan out to one row each (a name and
+// an amount), at one even stroke, so seven confirmations read at a glance. The cash lines run together as one
+// 6-unit hatched ribbon into one compact block, each member's share of the ribbon as tall as their share of the
+// cash. The money bar under the fan carries the proportions. A thread's look follows the item's actual PayPal
+// status, never a test value: in flight to 70% when sent, jade only on a verified SUCCESS of this run (a replayed
+// one stays in flight), marigold to the member's own marker for UNCLAIMED (a decision, never red), red only for a
+// PayPal failure, neutral for our own return, retracted once moved to cash, when its own thin cash line leaves from
+// the same slot.
 
 import type { MemberLineState, PayoutItemStatus, SeasonSnapshot } from "@fairsplit/contracts";
 import type { LogRow } from "../../data/describe.js";
 import { currentPayoutItem, payoutStatus } from "../../data/payout-replay.js";
 import { atLeast, type RunItem, type RunView } from "../../data/run-view.js";
 import { format } from "../../lib/format.js";
-import { liveApprovals } from "../approve/model.js";
+import { liveApprovals, sealKeys } from "../approve/model.js";
 import { engineOutput, splitBasis } from "../split/model.js";
 
 export const FAN = {
   width: 1200,
   height: 376,
-  seal: { cx: 68, cy: 186, size: 120 },
-  /** The hub beside the seal: every line leaves it. */
-  bar: { x0: 140, x1: 144, y0: 150, y1: 252 },
+  /** The seal the two keys completed, 180 units across (round 3), its top clear of the run's instrument above it. */
+  seal: { cx: 90, cy: 160, size: 180 },
+  /** The hub beside the seal, level with its centre: every line leaves it. */
+  bar: { x0: 196, x1: 200, y0: 138, y1: 192 },
   /** The eight threads leave the hub this far apart, the largest payment on top, so the bundle opens as a fan. */
   threadGap: 5,
   /** One even stroke for every thread: the amount beside each row says how much. */
   thread: 2.5,
   /** Every line ends on this x: the eight PayPal stubs on top, the cash block beneath them. */
-  endX: 780,
+  endX: 740,
   /** The PayPal stubs, one row each, far enough apart for a name and an amount at the narrowest stage. */
   stub: { y0: 14, step: 36, w: 16, h: 12 },
-  /** The cash band: 44 px tall from the hub (below the threads) to one compact block at the end. */
-  band: { y0: 204, h: 44 },
-  cash: { y0: 314, w: 20 },
+  /** The cash route: one 6-unit hatched ribbon from the hub (below the threads) to one compact block at the end. */
+  band: { y0: 184, h: 6 },
+  cash: { y0: 314, w: 16 },
   /** Where the labels begin (they are HTML over the picture, so text keeps its type size at any width). */
-  labelX: 812,
-  /** A moved line's dash and gap along its length (pathLength 1). */
-  dash: { on: 0.012, off: 0.012 },
+  labelX: 772,
   /** A sent thread stops here until PayPal confirms it (design §1: "sent, not paid"). */
   sentAt: 0.7,
   /** Control points sit 45% of the run in from each end. */
   pull: 0.45,
-  /** The parked or failed end cap. */
-  cap: 8,
 } as const;
-
-/** A moved line's dash pattern, as the SVG attribute takes it. */
-export const CASH_DASHARRAY = `${FAN.dash.on} ${FAN.dash.off}`;
 
 export type ThreadTone = "unsent" | "sent" | "landed" | "parked" | "returned" | "failed" | "moved";
 
@@ -59,13 +54,14 @@ export interface FanThread {
   readonly replayed: boolean;
   readonly statusWord: string;
   readonly tone: ThreadTone;
-  /** How much of the path is drawn: 0, the 70% "sent" mark, or 1 once PayPal confirmed it. */
+  /**
+   * How much of the path is drawn: 0, the 70% "sent" mark, or 1 once PayPal answered for it: confirmed (jade), or
+   * parked or failed, whose path ends at its own marker in the state's colour (round 3: no cap in mid-air).
+   */
   readonly progress: number;
   /** The thread's stroke: one even width for all eight. */
   readonly width: number;
   readonly d: string;
-  /** Where the cap sits (the 70% point along the path). */
-  readonly capAt: { readonly x: number; readonly y: number };
   /** Its slot's centre on the bar: a line moved to cash leaves from here too. */
   readonly barY: number;
   readonly stubY: number;
@@ -84,9 +80,9 @@ export interface CashLine {
   readonly name: string;
   readonly cents: number;
   readonly d: string;
-  /** Its share of the band's height (k × cents); 0 for a line moved to cash, which draws as a dashed line. */
+  /** Its share of the ribbon's height (k × cents); 0 for a line moved to cash, which draws as its own thin line. */
   readonly h: number;
-  /** The stroke: its share of the band (a hair more, so neighbours meet as one band), or a moved line's dash. */
+  /** The stroke: its share of the ribbon (a hair more, so neighbours meet as one ribbon), or a moved line's. */
   readonly stroke: number;
   /** The top of its share in the cash block. */
   readonly endY: number;
@@ -115,6 +111,8 @@ export interface FanView {
   };
   readonly members: number;
   readonly sealHash: string | null;
+  /** How many keys signed the batch the seal grows from: its rings fill in indigo per key, as on Approve. */
+  readonly sealKeys: 0 | 1 | 2;
 }
 
 const MOVED_LINE_STATES: readonly MemberLineState[] = ["OFF_RAIL_DUE", "OFF_RAIL_PAID", "REROUTED"];
@@ -152,7 +150,10 @@ export function progressOf(tone: ThreadTone): number {
     case "unsent":
     case "moved":
       return 0;
+    // PayPal answered: the path ends at the member's own marker, whose colour says the answer.
     case "landed":
+    case "parked":
+    case "failed":
       return 1;
     default:
       return FAN.sentAt;
@@ -267,7 +268,6 @@ export function fanView(snapshot: SeasonSnapshot, view: RunView): FanView {
       progress: replayed ? FAN.sentAt : progressOf(tone),
       width: FAN.thread,
       d: curve(FAN.bar.x1, y0, FAN.endX, y1),
-      capAt: pointAtLength(FAN.bar.x1, y0, FAN.endX, y1, FAN.sentAt),
       barY: y0,
       stubY,
       index: i,
@@ -332,6 +332,8 @@ export function fanView(snapshot: SeasonSnapshot, view: RunView): FanView {
   const paypalCents = onRail.reduce((s, t) => s + t.cents, 0);
   const cashCents = cashLines.reduce((s, c) => s + c.cents, 0);
   const allAttested = cashLines.length > 0 && cashLines.every((c) => c.attested);
+  const signed = liveApprovals(view);
+  const showcaseSeal = view.origin === "showcase" ? snapshot.run.batchSha256 : null;
   return {
     k,
     netCents,
@@ -350,10 +352,9 @@ export function fanView(snapshot: SeasonSnapshot, view: RunView): FanView {
       amountState: allAttested ? "attested" : approved ? "hollow" : "pencil",
     },
     members: output.lines.length,
-    sealHash:
-      liveApprovals(view).treasurer?.batchSha256 ??
-      liveApprovals(view).chair?.batchSha256 ??
-      (view.origin === "showcase" ? snapshot.run.batchSha256 : null),
+    sealHash: signed.treasurer?.batchSha256 ?? signed.chair?.batchSha256 ?? showcaseSeal,
+    // The showcase's seeded batch carries both seeded keys; a live run's seal fills per signature.
+    sealKeys: signed.treasurer || signed.chair ? sealKeys(view) : showcaseSeal ? 2 : 0,
   };
 }
 

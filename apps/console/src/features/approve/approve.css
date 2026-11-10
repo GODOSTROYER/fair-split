@@ -1,11 +1,19 @@
-/* W-TR-07 Approve (UI gate round 2): two columns once the screen is 860 px wide. The batch on the left (the seal,
-   "PayPal batch · 8 payouts" over the amount in ink, the money bar, Details), the decision on the right in one
-   neutral card (four checks, the one slab, the two keys, the co-sign card). One column below that width, the
-   decision first after the amount. Tokens only; spacing on the 4 px scale; radii from the one scale. */
+/* W-TR-07 Approve (UI gate round 3): two columns once the screen is 860 px wide, ending at the same height. The
+   batch on the left as one composition (the seal at 180 px; beside it "PayPal batch · 8 payouts" over the amount
+   and the two named signers), then the money bar and Details; the decision on the right in one neutral card that
+   stretches to the batch's height (four checks, the one slab until a key signs, the co-sign card). One column below
+   that width. Tokens only; spacing on the 4 px scale; radii from the one scale. */
 
+/* The title at the top, the composition centred in the height left below it: a hero moment, not a form. */
 .fsr-approve-screen {
   justify-items: stretch;
   container: fsr-approve / inline-size;
+  min-height: 100%;
+  grid-template-rows: auto 1fr;
+}
+
+.fsr-approve-screen > .fsr-approve {
+  align-self: center;
 }
 
 .fsr-approve {
@@ -31,7 +39,8 @@
   .fsr-approve {
     grid-template-columns: minmax(0, 1fr) minmax(340px, 400px);
     column-gap: var(--fs-space-48);
-    align-items: start;
+    /* Both columns end at the same height: the decision card stretches to the batch's. */
+    align-items: stretch;
   }
 
   .fsr-approve > .fsr-banner {
@@ -43,7 +52,32 @@
 
 .fsr-approve__batch {
   display: grid;
-  justify-items: center;
+  align-content: start;
+  gap: var(--fs-space-24);
+  min-width: 0;
+}
+
+/* One composition: the seal, and beside it the amount over the two signers. Stacked when the column is narrow. */
+.fsr-approve__batch {
+  container: fsr-approve-hero / inline-size;
+}
+
+.fsr-approve__hero {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: var(--fs-space-32);
+}
+
+@container fsr-approve-hero (max-width: 559px) {
+  .fsr-approve__hero {
+    gap: var(--fs-space-24);
+  }
+}
+
+.fsr-approve__side {
+  display: grid;
+  align-content: start;
   gap: var(--fs-space-24);
   min-width: 0;
 }
@@ -57,9 +91,11 @@
   display: grid;
   justify-items: center;
   gap: var(--fs-space-12);
+  border-radius: var(--fs-radius-card);
 }
 
-/* The batch's own pattern in pencil, a quarter strength, under the Seal: each key engraves its rings in ink. */
+/* The batch's own pattern under the Seal: every ring at 1 px in neutral-400, unsigned. Each key fills its rings
+   in indigo over it (round 3), the same as the Chair's phone draws them. */
 .fsr-seal-stack {
   position: relative;
   display: block;
@@ -73,16 +109,20 @@
   position: absolute;
   inset: 0;
   overflow: visible;
-  stroke: var(--fs-pencil);
-  opacity: 0.25;
+  stroke: var(--fs-unsigned);
 }
 
 .fsr-seal-stack .fs-seal__band {
   display: none;
 }
 
+/* A signed ring is a person's hand: indigo, every ring alike (no ink alternation on Approve). */
+.fsr-seal-stack .fs-seal .fs-seal__ring {
+  stroke: var(--fs-pod);
+}
+
 .fsr-seal--empty .fs-seal__band {
-  stroke-dasharray: 2 4;
+  stroke: var(--fs-unsigned);
 }
 
 .fsr-approve__seal-caption {
@@ -91,18 +131,14 @@
   text-align: center;
 }
 
-.fsr-approve__keys-count {
-  color: var(--fs-ink);
-}
-
 .fsr-approve__amount {
   display: grid;
-  justify-items: center;
+  justify-items: start;
   gap: var(--fs-space-8);
 }
 
 .fsr-approve__amount .fs-amount {
-  justify-items: center;
+  justify-items: start;
 }
 
 .fsr-approve__amount[data-animate] .fs-amount__solid {
@@ -113,10 +149,45 @@
   display: inline-flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: center;
   gap: var(--fs-space-8);
   margin: 0;
   color: var(--fs-ink);
+}
+
+@container fsr-approve-hero (max-width: 459px) {
+  .fsr-approve__hero {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: center;
+  }
+
+  .fsr-approve__side {
+    width: 100%;
+  }
+}
+
+/* ------------------------------------------------------------------ the two signers */
+
+.fsr-signers {
+  display: grid;
+  gap: var(--fs-space-8);
+  min-width: 0;
+}
+
+.fsr-signers__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--fs-space-8);
+}
+
+.fsr-signers__title {
+  margin: 0;
+  color: var(--fs-ink);
+}
+
+.fsr-signers__count {
+  color: var(--fs-ink-2);
 }
 
 /* Details: the fees, what both keys sign, and the engine's provenance, one click away. */
@@ -332,13 +403,6 @@
   max-width: 100%;
 }
 
-.fsr-approve__record {
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--fs-space-8);
-}
-
 .fsr-approve__killed {
   display: inline-flex;
   align-items: center;
@@ -374,12 +438,14 @@
 
 /* ------------------------------------------------------------------ the two keys */
 
+/* One row per signer. Waiting: a hollow circle and "Waiting" in neutral-500. Signed: a solid 1 px row with a green
+   dot and "Signed 19:03" in ink (fs-solid-row, round 3); never a dashed box. */
 .fsr-keys {
   display: grid;
+  gap: var(--fs-space-8);
   margin: 0;
   padding: 0;
   list-style: none;
-  border-top: 1px solid var(--fs-rule);
 }
 
 .fsr-key {
@@ -387,12 +453,23 @@
   grid-template-columns: 24px minmax(0, 1fr) auto;
   align-items: center;
   gap: var(--fs-space-12);
-  padding: var(--fs-space-12) 0;
-  border-bottom: 1px solid var(--fs-rule);
+  min-height: 48px;
+  padding: var(--fs-space-8);
+  border: 1px solid transparent;
+  border-bottom-color: var(--fs-rule);
+  border-radius: 0;
 }
 
 .fsr-key:last-child {
-  border-bottom: 0;
+  border-bottom-color: transparent;
+}
+
+.fsr-key.fs-solid-row,
+.fsr-key.fs-solid-row:last-child {
+  display: grid;
+  border-color: var(--fs-rule);
+  border-radius: var(--fs-radius-control);
+  background: var(--fs-plate);
 }
 
 .fsr-key__slot {
@@ -400,13 +477,7 @@
   place-items: center;
   width: 24px;
   height: 24px;
-  border: 1px dashed var(--fs-steel-line);
-  border-radius: var(--fs-radius-cell);
   color: var(--fs-ink-3);
-}
-
-.fsr-key[data-state="signed"] .fsr-key__slot {
-  border: 0;
 }
 
 .fsr-key__text {
@@ -423,7 +494,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--fs-space-4) var(--fs-space-8);
+  gap: var(--fs-space-4) 6px;
   min-width: 0;
 }
 
@@ -433,8 +504,13 @@
   overflow-wrap: anywhere;
 }
 
-.fsr-key__status {
+.fsr-key__why {
   color: var(--fs-ink-2);
+}
+
+/* Waiting is a pending state: neutral-500, never a colour. */
+.fsr-key__status {
+  color: var(--fs-pending);
   white-space: nowrap;
 }
 

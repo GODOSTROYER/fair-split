@@ -1,15 +1,17 @@
 // The run log (design §5 "Webhook and live timeline"; UI gate round 2): the last five events in plain words, one
 // line each (a time, a lane and what happened), then "All N events" opens the three lanes (Machine, People,
 // PayPal), newest first, where each row adds its event name, IDs, source and signature result in micro type. One
-// honesty tag at the log's head covers every PayPal row. A repeated PayPal delivery logs one quiet row and changes
-// nothing. Latency dots sit beside it at the true receipt times, funding to each confirmed payment.
+// bare legend glyph at the log's head covers every PayPal row (round 3: the run's one micro-tag sits on its money,
+// so the log carries no second tag); its words are its tooltip and its accessible name. A repeated PayPal delivery
+// logs one quiet row and changes nothing. Latency dots sit beside it at the true receipt times, funding to each
+// confirmed payment.
 
-import { Glyph, HonestyTag } from "@fairsplit/ui-web";
+import { Glyph, HONESTY, LegendGlyph } from "@fairsplit/ui-web";
 import { Fragment, type ReactNode } from "react";
 import { ScrollRegion } from "../../chrome/ScrollRegion.js";
 import { type LogRow, rowTime } from "../../data/describe.js";
 import { format } from "../../lib/format.js";
-import { FANOUT } from "../split/shared/copy.js";
+import { en, FANOUT } from "../split/shared/copy.js";
 import { byLane, LANES, type Latency } from "./model.js";
 
 /** How many events the log shows before "All N events". */
@@ -21,10 +23,15 @@ export interface RunLogProps {
   readonly isLive: (id: string) => boolean;
   /** Seeded history, labelled as such (the showcase run has no event stream). */
   readonly seeded: boolean;
-  /** The honesty tag's words for the PayPal rows; the simulator's by default. */
+  /** The honesty glyph's words for the PayPal rows; the simulator's by default. */
   readonly tag?: string;
   /** Said at the foot of the full log (the fee note). */
   readonly footer?: ReactNode;
+  /**
+   * The words for the run's SETTLED row while cash is still due at the bodega ("PayPal complete · cash due"): the
+   * log never says "Settled" while members still wait for their cash (round 3).
+   */
+  readonly settledAs?: string;
 }
 
 /** A PayPal notice in plain words; its event code stays in the row's detail. */
@@ -40,14 +47,18 @@ const NOTICE_WORDS: Readonly<Record<string, string>> = {
   "PAYMENT.PAYOUTS-ITEM.FAILED": "Payment failed",
 };
 
+/** The run state's own word for SETTLED, as the log row prints it. */
+const SETTLED_WORD = en("run.SETTLED");
+
 /**
  * A row's words for people: a PayPal notice by what it means ("Batch accepted", never PAYMENT.PAYOUTSBATCH.SUCCESS),
  * and a paid row without its rail in brackets, since the log's one tag says the rail. Replayed rows keep their
  * words whole: each says what it replayed.
  */
-export function plainWords(row: LogRow): string {
+export function plainWords(row: LogRow, settledAs?: string): string {
   const notice = /^PayPal notice: ([A-Z][A-Z.\-_]+)$/.exec(row.words);
   if (notice?.[1]) return NOTICE_WORDS[notice[1]] ?? row.words;
+  if (settledAs && row.lane === "MACHINE" && row.words === SETTLED_WORD) return settledAs;
   return row.words.replace(/ \(Simulated PayPal sandbox\)$/, "");
 }
 
@@ -89,7 +100,14 @@ function EventDetail({ row }: { readonly row: LogRow }) {
   );
 }
 
-export function RunLog({ rows, isLive, seeded, tag = "Simulated PayPal sandbox", footer }: RunLogProps) {
+export function RunLog({
+  rows,
+  isLive,
+  seeded,
+  tag = HONESTY.simulatedSandbox.label,
+  footer,
+  settledAs,
+}: RunLogProps) {
   const lanes = byLane(rows);
   const latest = rows.slice(-LATEST).reverse();
   // A replayed payout's long note is the log's, said once here; each replayed row names only what it replayed.
@@ -100,11 +118,11 @@ export function RunLog({ rows, isLive, seeded, tag = "Simulated PayPal sandbox",
         <h2 id="W-TR-08-log" className="fs-t-title-2">
           {FANOUT.log}
         </h2>
-        <HonestyTag>{tag}</HonestyTag>
+        <LegendGlyph kind={HONESTY.simulatedSandbox.kind} label={tag} testId="W-TR-08.log.mark" />
       </div>
-      {seeded && <p className="fsr-log__note fs-t-micro">{FANOUT.seededLog}</p>}
+      {seeded && <p className="fsr-log__note fs-t-caption">{FANOUT.seededLog}</p>}
       {replayNote && (
-        <p className="fsr-log__note fs-t-micro" data-testid="W-TR-08.log.replayNote">
+        <p className="fsr-log__note fs-t-caption" data-testid="W-TR-08.log.replayNote">
           {replayNote}
         </p>
       )}
@@ -124,13 +142,13 @@ export function RunLog({ rows, isLive, seeded, tag = "Simulated PayPal sandbox",
               <time className="fsr-log__time fs-t-micro" dateTime={row.at ?? undefined}>
                 {rowTime(row.at)}
               </time>
-              <span className="fsr-log__lane-name fs-t-micro">
+              <span className="fsr-log__lane-name fs-t-caption">
                 <span className="fsr-log__dot" data-lane={row.lane} aria-hidden />
                 {FANOUT.lane[row.lane]}
               </span>
               <span className="fsr-log__words fs-t-label">
                 {row.duplicate && <Glyph name="ms:restart-alt" size={14} />}
-                <AmountWords words={plainWords(row)} />
+                <AmountWords words={plainWords(row, settledAs)} />
               </span>
             </li>
           ))}
@@ -170,7 +188,7 @@ export function RunLog({ rows, isLive, seeded, tag = "Simulated PayPal sandbox",
                         >
                           <p className="fsr-log__words fs-t-label">
                             {row.duplicate && <Glyph name="ms:restart-alt" size={14} />}
-                            <AmountWords words={plainWords(row)} />
+                            <AmountWords words={plainWords(row, settledAs)} />
                           </p>
                           <EventDetail row={row} />
                           <time className="fsr-log__time fs-t-micro" dateTime={row.at ?? undefined}>

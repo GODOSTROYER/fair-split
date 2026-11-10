@@ -1,7 +1,9 @@
-// W-TR-07 Approve (S1.7, design §6 C7; UI gate round 2): two columns at a laptop's width. On the left the batch:
-// the seal grown from the batch hash, "PayPal batch · 8 payouts" with its tag and the amount in ink, the money bar,
-// and the fees and hashes behind Details. On the right the decision: four checks, then the one slab on the
-// console, then the two keys. Hold Space (or the pointer) for 1.6 s until it clicks and reads "Release to sign",
+// W-TR-07 Approve (S1.7, design §6 C7; UI gate round 3): two columns at a laptop's width that end at the same
+// height. On the left one tight composition: the seal at 180 px grown from the batch hash, and beside it "PayPal
+// batch · 8 payouts" with its one micro-tag, the amount, and the two named signers ("Two officers sign this
+// batch"); then the money bar, and the fees and hashes behind Details. On the right the decision: four checks, then
+// the one slab on the console while no key has signed (after key 1 "Waiting" lives only in Ernesto's row), then the
+// co-sign card. Hold Space (or the pointer) for 1.6 s until it clicks and reads "Release to sign",
 // then let go inside, and this browser signs the canonical batch with its own key (MM-5, key 1; S2.7: arm on hold,
 // act on release). The Chair's key arrives as
 // an `approval.signed` event; the outer rings engrave, the seal lands and the batch turns to ink. The signature
@@ -13,7 +15,16 @@
 
 import { webRoutes } from "@fairsplit/contracts";
 import { TIMING } from "@fairsplit/motion";
-import { AmountDisplay, Glyph, type HoldChange, HonestyTag, Slab } from "@fairsplit/ui-web";
+import {
+  AmountDisplay,
+  Glyph,
+  HONESTY,
+  type HoldChange,
+  type HonestyMark,
+  LegendGlyph,
+  MicroTag,
+  Slab,
+} from "@fairsplit/ui-web";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -73,14 +84,18 @@ import {
   type CheckRow,
   ConfirmBody,
   CosignCard,
+  KEY_MARKS,
   KeySlot,
+  SEAL_SIZE,
   SealBlock,
+  Signers,
 } from "../../features/approve/parts.js";
 import { APPROVE, en } from "../../features/split/shared/copy.js";
 import { officer, stampFor } from "../../features/split/shared/people.js";
 import { cashDayForRun, useLiveEvents, useRunData } from "../../features/split/shared/run-data.js";
 import { useMomentScript, usePhaseSync } from "../../features/split/shared/script.js";
-import { registerScreenControl } from "../../lib/focus.js";
+import { runLabel } from "../../lib/display.js";
+import { focusIsLost, registerScreenControl } from "../../lib/focus.js";
 import { format } from "../../lib/format.js";
 import { utf8 } from "../../lib/jcs.js";
 import { useMoment } from "../../lib/moment.js";
@@ -193,9 +208,14 @@ export function Screen({ runSlug }: RunScreenProps) {
     if (signedKeys < keysBefore.current) setSlabKey((k) => k + 1);
     keysBefore.current = signedKeys;
   }, [signedKeys]);
-  // Focus leaves the spent slab for the step's next control without scrolling: the seal stays the thing in view.
+  // The slab goes once a key signs (round 3: no status box, "Waiting" lives in Ernesto's row). Focus that went with
+  // it moves on to the step's next control in the same commit, without scrolling: the seal stays the thing in view.
+  // Only when a key just landed and focus was lost; a control the person chose keeps it.
+  const focusKeys = useRef(signedKeys);
   useLayoutEffect(() => {
-    if (signedKeys === 0 || !slabRef.current?.contains(document.activeElement)) return;
+    const before = focusKeys.current;
+    focusKeys.current = signedKeys;
+    if (signedKeys <= before || !focusIsLost()) return;
     const next =
       document.querySelector<HTMLElement>(
         signedKeys === 1 ? '[data-testid="W-JG-01.runPill.next"]' : '[data-testid="W-TR-07.fanout"]',
@@ -383,7 +403,7 @@ export function Screen({ runSlug }: RunScreenProps) {
       <h1 id="W-TR-07-title" className="fs-t-title-1">
         {en("W-TR-07.title")}
       </h1>
-      <p className="fsr-screen__slug fs-t-hash">{runSlug}</p>
+      <p className="fsr-screen__slug fs-t-hash">{runLabel(runSlug).text}</p>
     </header>
   );
 
@@ -411,7 +431,7 @@ export function Screen({ runSlug }: RunScreenProps) {
       >
         {title}
         <div className="fsr-approve fsr-approve--beds" aria-hidden data-testid="W-TR-07.loading">
-          <PrintBed shape="seal" width={184} height={184} />
+          <PrintBed shape="seal" width={SEAL_SIZE} height={SEAL_SIZE} />
           <PrintBed shape="block" width={320} height={72} />
           <PrintBed shape="line" count={3} />
           <PrintBed shape="slab" width={420} height={48} />
@@ -460,13 +480,14 @@ export function Screen({ runSlug }: RunScreenProps) {
   }
 
   // The key's kind comes from its ID's shape (C-13): a judge's demo key never reads as an officer's own key. A key
-  // made for the demo wears its honesty tag; an officer's own key names its kind in the micro line.
-  const keyKindOf = (id: string): { readonly tag?: string; readonly suffix?: string } => {
+  // made for the demo wears its honesty glyph (its words its name); an officer's own key names its kind in the
+  // micro line.
+  const keyKindOf = (id: string): { readonly mark?: HonestyMark; readonly suffix?: string } => {
     switch (keyKind(id)) {
       case "seeded":
-        return { tag: APPROVE.tagSampleKey };
+        return { mark: KEY_MARKS.sample };
       case "demo":
-        return { tag: APPROVE.tagDemoKey };
+        return { mark: KEY_MARKS.demo };
       case "web":
         return { suffix: APPROVE.keyBrowser };
       default:
@@ -476,7 +497,8 @@ export function Screen({ runSlug }: RunScreenProps) {
   const metaOf = (id: string) => [id, keyKindOf(id).suffix].filter(Boolean).join(" · ");
   const treasurerKeyId = treasurerApproval?.keyId ?? key?.keyId ?? null;
   // Until fs-api has registered this browser's key the row names the kind of key that will sign, not an ID.
-  const treasurerTag = treasurerKeyId ? keyKindOf(treasurerKeyId).tag : APPROVE.tagDemoKey;
+  const treasurerMark = treasurerKeyId ? keyKindOf(treasurerKeyId).mark : KEY_MARKS.demo;
+  const chairMark = chairApproval ? keyKindOf(chairApproval.keyId).mark : undefined;
   const treasurerNote =
     !treasurerApproval || keyKind(treasurerApproval.keyId) === "demo"
       ? key?.kind === "webcrypto"
@@ -497,13 +519,12 @@ export function Screen({ runSlug }: RunScreenProps) {
     : voidedAt
       ? stampFor(snapshot, "board:ernesto", voidedAt)
       : null;
-  const recordText = keys === 2 ? APPROVE.recordApproved : APPROVE.recordKey1(treasurerStamp?.at ?? "");
-
+  // Ernesto's presence, only when he is there: "Waiting" is his row's word, never said twice (round 3).
   const presenceText = presence
     ? presence.holdId
       ? APPROVE.presence(holdNumber(view.holds[presence.holdId]?.label ?? presence.holdId))
       : APPROVE.presenceApproval
-    : APPROVE.waitingChair;
+    : null;
 
   // Four checks above the slab (spec §3.9): a ✓ in ink for a checked fact, a marigold dot for one still open.
   const checks: CheckRow[] = [
@@ -576,28 +597,96 @@ export function Screen({ runSlug }: RunScreenProps) {
           </p>
         )}
 
-        {/* The batch: the seal grown from its hash, the amount PayPal is asked to move, the bar of where the
-            rest goes, and the details a person opens to compare by eye. */}
+        {/* The batch: one composition of the seal grown from its hash, the amount PayPal is asked to move and
+            the two people who sign it; then the bar of where the rest goes, and the details a person opens to
+            compare by eye. */}
         <div className="fsr-approve__batch">
-          <div ref={sealRef} className="fsr-approve__seal-wrap">
-            <SealBlock batchSha256={batchSha256} keys={keys} engrave={engrave} />
-          </div>
+          <div className="fsr-approve__hero">
+            <div ref={sealRef} className="fsr-approve__seal-wrap">
+              <SealBlock batchSha256={batchSha256} keys={keys} engrave={engrave} />
+            </div>
 
-          <div
-            className="fsr-approve__amount"
-            data-amount-state={amountState}
-            data-animate={script.busy ? "" : undefined}
-          >
-            <p className="fsr-approve__hero-label">
-              <span className="fs-t-label">{APPROVE.heroLabel(batch.itemCount)}</span>
-              <HonestyTag>{railTag(rail)}</HonestyTag>
-            </p>
-            <AmountDisplay
-              amount={amount}
-              pencil={amountState === "pencil"}
-              hollow={amountState === "hollow"}
-              testId="W-TR-07.amount"
-            />
+            <div className="fsr-approve__side">
+              <div
+                className="fsr-approve__amount"
+                data-amount-state={amountState}
+                data-animate={script.busy ? "" : undefined}
+              >
+                <p className="fsr-approve__hero-label">
+                  <span className="fs-t-label">{APPROVE.heroLabel(batch.itemCount)}</span>
+                  <MicroTag label={railTag(rail)} testId="W-TR-07.tag" />
+                </p>
+                <AmountDisplay
+                  amount={amount}
+                  pencil={amountState === "pencil"}
+                  hollow={amountState === "hollow"}
+                  testId="W-TR-07.amount"
+                />
+              </div>
+
+              <Signers
+                keys={keys}
+                officers={chair.required ? 2 : 1}
+                rows={
+                  <>
+                    <KeySlot
+                      name={APPROVE.keyName.treasurer}
+                      {...(treasurerKeyId ? { meta: metaOf(treasurerKeyId) } : {})}
+                      {...(treasurerNote ? { metaTitle: treasurerNote } : {})}
+                      {...(treasurerMark ? { mark: treasurerMark } : {})}
+                      status={
+                        treasurerApproval && treasurerStamp
+                          ? en("W-TR-07.key.signed", { time: treasurerStamp.at })
+                          : voidedTime
+                            ? APPROVE.voidedKey(voidedTime)
+                            : signing
+                              ? APPROVE.signing
+                              : APPROVE.waitingKey
+                      }
+                      voided={voidedAt !== null}
+                      signed={treasurerApproval !== null}
+                      stamp={treasurerStamp}
+                      testId="W-TR-07.key.treasurer"
+                    />
+                    {chair.required && (
+                      <KeySlot
+                        name={APPROVE.keyName.chair}
+                        {...(chairApproval
+                          ? { meta: metaOf(chairApproval.keyId) }
+                          : { why: APPROVE.chairWhy(chair.threshold, chair.ruleId) })}
+                        {...(chairApproval && keyKind(chairApproval.keyId) === "demo"
+                          ? { metaTitle: APPROVE.keyDemoChair }
+                          : {})}
+                        {...(chairMark ? { mark: chairMark } : {})}
+                        status={
+                          chairApproval && chairStamp
+                            ? en("W-TR-07.key.signed", { time: chairStamp.at })
+                            : voidedTime
+                              ? APPROVE.voidedKey(voidedTime)
+                              : APPROVE.waitingKey
+                        }
+                        voided={voidedAt !== null}
+                        signed={chairApproval !== null}
+                        stamp={chairStamp}
+                        testId="W-TR-07.key.chair"
+                      />
+                    )}
+                  </>
+                }
+                after={
+                  state === "key1" && presenceText ? (
+                    <p
+                      className="fsr-presence fs-t-caption"
+                      data-in={moment.phase === "waiting-2" ? "" : undefined}
+                      data-testid="W-TR-07.presence"
+                    >
+                      <Glyph name="ms:visibility" size={16} />
+                      {presenceText}
+                    </p>
+                  ) : null
+                }
+              />
+            </div>
           </div>
 
           <MoneyBar
@@ -653,7 +742,7 @@ export function Screen({ runSlug }: RunScreenProps) {
           </details>
         </div>
 
-        {/* The decision: the checks, the one slab, the two keys. */}
+        {/* The decision: the checks, the one slab while no key has signed, the co-sign card. */}
         <div className="fsr-approve__decide">
           {batch.final ? (
             <CheckList rows={checks} testId="W-TR-07.safe" />
@@ -661,45 +750,45 @@ export function Screen({ runSlug }: RunScreenProps) {
             <BlockedList reasons={reasons} />
           )}
 
-          <div ref={slabRef} className="fsr-approve__slab">
-            <Slab
-              key={slabKey}
-              label={label}
-              record={<span className="fsr-approve__record">{recordText}</span>}
-              srLabel={signedNow ? recordText : APPROVE.srApprove(label, amount.spoken)}
-              depth="d3"
-              tone="jade"
-              hold={TIMING.holdConsole}
-              size="l"
-              width="100%"
-              glyph="seal"
-              confirm={{
-                title: APPROVE.confirmTitle(batch.itemCount),
-                body: (
-                  <ConfirmBody
-                    amount={amount.display}
-                    count={batch.itemCount}
-                    recipients={rows}
-                    batchSha256={batchSha256}
-                  />
-                ),
-              }}
-              {...(unavailable !== undefined ? { unavailableReason: unavailable } : {})}
-              {...(onReason ? { onReasonClick: onReason } : {})}
-              bolted={state === "killed"}
-              {...(signedNow ? { frame: { state: "committed" as const, travel: 8, fill: 1 } } : {})}
-              hint={!signedNow}
-              testId="W-TR-07.approve"
-              onHoldChange={onHoldChange}
-              onCommit={approve}
-            />
-            {state === "killed" && (
-              <p className="fsr-approve__killed fs-t-label" data-testid="W-TR-07.killed">
-                <Glyph name="ms:pause" size={16} />
-                {APPROVE.killed}
-              </p>
-            )}
-          </div>
+          {(!signedNow || state === "killed") && (
+            <div ref={slabRef} className="fsr-approve__slab">
+              <Slab
+                key={slabKey}
+                label={label}
+                srLabel={APPROVE.srApprove(label, amount.spoken)}
+                depth="d3"
+                tone="jade"
+                hold={TIMING.holdConsole}
+                size="l"
+                width="100%"
+                glyph="seal"
+                confirm={{
+                  title: APPROVE.confirmTitle(batch.itemCount),
+                  body: (
+                    <ConfirmBody
+                      amount={amount.display}
+                      count={batch.itemCount}
+                      recipients={rows}
+                      batchSha256={batchSha256}
+                    />
+                  ),
+                }}
+                {...(unavailable !== undefined ? { unavailableReason: unavailable } : {})}
+                {...(onReason ? { onReasonClick: onReason } : {})}
+                bolted={state === "killed"}
+                hint={!signedNow}
+                testId="W-TR-07.approve"
+                onHoldChange={onHoldChange}
+                onCommit={approve}
+              />
+            </div>
+          )}
+          {state === "killed" && (
+            <p className="fsr-approve__killed fs-t-label" data-testid="W-TR-07.killed">
+              <Glyph name="ms:pause" size={16} />
+              {APPROVE.killed}
+            </p>
+          )}
 
           {done && (
             <div className="fsr-approve__done" data-testid="W-TR-07.approved">
@@ -712,7 +801,7 @@ export function Screen({ runSlug }: RunScreenProps) {
               {isPosted(view) && (
                 <p className="fsr-approve__posted">
                   <span className="fs-t-label">{APPROVE.posted}</span>
-                  <HonestyTag>{railTag(rail)}</HonestyTag>
+                  <LegendGlyph kind={HONESTY.simulatedSandbox.kind} label={railTag(rail)} />
                 </p>
               )}
             </div>
@@ -738,73 +827,11 @@ export function Screen({ runSlug }: RunScreenProps) {
             />
           )}
           {submit.queuedMs !== null && (
-            <p role="status" className="fs-t-micro" data-testid="W-TR-07.queued">
+            <p role="status" className="fs-t-caption" data-testid="W-TR-07.queued">
               You're next, about {Math.ceil(submit.queuedMs / 1000)} s
             </p>
           )}
           {failure !== null && <CommandNotice error={failure} testId="W-TR-07.error" onRetry={reload} />}
-
-          <ul className="fsr-keys" aria-label="Keys" data-testid="W-TR-07.keys">
-            <KeySlot
-              name={APPROVE.keyName.treasurer}
-              {...(treasurerKeyId ? { meta: metaOf(treasurerKeyId) } : {})}
-              {...(treasurerNote ? { metaTitle: treasurerNote } : {})}
-              {...(treasurerTag ? { tag: treasurerTag } : {})}
-              status={
-                treasurerApproval && treasurerStamp
-                  ? en("W-TR-07.key.signed", { time: treasurerStamp.at })
-                  : voidedTime
-                    ? APPROVE.voidedKey(voidedTime)
-                    : signing
-                      ? APPROVE.signing
-                      : APPROVE.waitingKey
-              }
-              voided={voidedAt !== null}
-              signed={treasurerApproval !== null}
-              stamp={treasurerStamp}
-              testId="W-TR-07.key.treasurer"
-            />
-            {chair.required && (
-              <KeySlot
-                name={APPROVE.keyName.chair}
-                meta={
-                  chairApproval
-                    ? metaOf(chairApproval.keyId)
-                    : APPROVE.chairWhy(chair.threshold, chair.ruleId)
-                }
-                {...(chairApproval && keyKind(chairApproval.keyId) === "demo"
-                  ? { metaTitle: APPROVE.keyDemoChair }
-                  : {})}
-                {...(chairApproval && keyKindOf(chairApproval.keyId).tag
-                  ? { tag: keyKindOf(chairApproval.keyId).tag }
-                  : {})}
-                status={
-                  chairApproval && chairStamp
-                    ? en("W-TR-07.key.signed", { time: chairStamp.at })
-                    : voidedTime
-                      ? APPROVE.voidedKey(voidedTime)
-                      : treasurerApproval
-                        ? APPROVE.waitingChair
-                        : APPROVE.waitingKey
-                }
-                voided={voidedAt !== null}
-                signed={chairApproval !== null}
-                stamp={chairStamp}
-                testId="W-TR-07.key.chair"
-              />
-            )}
-          </ul>
-
-          {state === "key1" && (
-            <p
-              className="fsr-presence fs-t-label"
-              data-in={moment.phase === "waiting-2" ? "" : undefined}
-              data-testid="W-TR-07.presence"
-            >
-              <Glyph name="ms:visibility" size={16} />
-              {presenceText}
-            </p>
-          )}
 
           {inJudgeMode &&
             (state === "key1" || state === "ready" || state === "declined") &&

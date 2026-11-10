@@ -202,15 +202,15 @@ export const APPROVE = {
   blockedWaiting: "Approval waits for",
   blockedLink: (label: string) => `Open ${label}`,
   signing: "Signing",
-  /** The seal's micro line (unslop spec §3.9): "0/2 signed". */
+  /** The signers' count beside their title (unslop spec §3.9): "0/2 signed". */
   signedCount: (n: number) => `${n}/2 signed`,
+  /** The two named signers beside the seal (UI gate round 3). */
+  signersTitle: (officers: number) =>
+    officers === 2 ? "Two officers sign this batch" : "One officer signs this batch",
   batchHashLabel: "Batch hash",
   /** The hero's label: what the amount is, before the tag says where it runs. */
   heroLabel: (count: number) => `PayPal batch · ${count === 1 ? "1 payout" : `${count} payouts`}`,
   railLabel: "The batch and the cash, by value",
-  /** The committed slab's record: the stamps and times are on the key rows beneath it. */
-  recordApproved: "Approved by Analyn and Ernesto",
-  recordKey1: (time: string) => `Signed by Analyn, ${time}. Waiting for Ernesto.`,
   legendPaypal: "PayPal",
   legendCash: "Cash at the bodega",
   checksLabel: "Checks before signing",
@@ -234,7 +234,6 @@ export const APPROVE = {
   keyNoble: "Held in this page's memory for this session; it never leaves the browser.",
   keyDemoChair: "Made in the Chair's phone frame.",
   waitingKey: en("W-TR-07.key.waiting"),
-  waitingChair: en("W-TR-07.waiting"),
   presence: (hold: string) => en("W-TR-07.presence", { hold }),
   presenceApproval: "Ernesto is reviewing the batch",
   sameOnPhone: "Same seal on Ernesto's phone",
@@ -294,6 +293,7 @@ export const FANOUT = {
   postedSeeded: "posted · confirming",
   needsYou: (n: number) => `${n} needs you`,
   cashDue: (n: number, date: string) => `${n} cash due ${date}`,
+  cashPaid: (n: number) => `${n} paid in cash`,
   dueOn: (date: string) => `due ${date}`,
   replayedStatus: "Payout statuses replayed (labelled) from an earlier simulated PayPal sandbox run.",
   denied: "The simulated PayPal sandbox declined the batch. No money moved.",

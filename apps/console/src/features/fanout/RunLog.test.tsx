@@ -64,6 +64,10 @@ it("names a PayPal notice by what it means, its code kept for the details; the t
   // A replayed row keeps its words whole: it says what it replayed.
   const replay = "Replayed (labelled): Rhea Jumawan parked";
   expect(plainWords({ ...base, id: "d", at: null, words: replay })).toBe(replay);
+  // While cash is still due the run's SETTLED row never says "Settled" (round 3); once it is handed over it may.
+  const settled = { ...base, id: "e", at: null, lane: "MACHINE" as const, words: "Settled" };
+  expect(plainWords(settled, "PayPal complete · cash due")).toBe("PayPal complete · cash due");
+  expect(plainWords(settled)).toBe("Settled");
 });
 
 it("shows the last five events in plain words, newest first, and keeps every row in the lanes behind All", () => {
@@ -79,5 +83,11 @@ it("shows the last five events in plain words, newest first, and keeps every row
   expect(latest[0]?.getAttribute("title")).toContain("PAYMENT.PAYOUTSBATCH.SUCCESS");
   expect(view.container.querySelector(".fsr-log__all summary")?.textContent).toBe("All 8 events");
   expect(view.container.querySelectorAll(".fsr-log__row")).toHaveLength(8);
-  expect(view.container.querySelectorAll(".fs-honesty")).toHaveLength(1);
+  // The rail is said once, as a bare glyph (round 3: the run's one micro-tag is on its money, not on the log): no
+  // tag here, and a screen reader still hears what the PayPal rows are.
+  expect(view.container.querySelectorAll("[data-fs-tag]")).toHaveLength(0);
+  const mark = view.container.querySelectorAll("[data-fs-glyph]");
+  expect(mark).toHaveLength(1);
+  expect(mark[0]?.textContent).toBe("Simulated PayPal sandbox");
+  expect(mark[0]?.getAttribute("data-kind")).toBe("simulated");
 });

@@ -1,38 +1,32 @@
-// W-TR-07's pieces: the seal (or its empty bands while the batch is not final) with one micro line under it, the
-// checks above the slab, the two key rows, the details a person opens to compare hashes, the dialog route's body
-// and the co-sign card. Machines print; people press (the one slab lives in the screen); a signature is ink under
-// its initials stamp. Words are few: each piece is a title, a figure and a micro line (unslop spec §3.9).
+// W-TR-07's pieces (UI gate round 3): the seal at 180 px (or its empty bands while the batch is not final) with its
+// hash under it, the two named signers beside it ("Two officers sign this batch"), the checks above the slab, the
+// details a person opens to compare hashes, the dialog route's body and the co-sign card. Unsigned rings are the
+// batch's own pattern at 1 px in neutral-400; each key fills its rings in indigo, the same on the Chair's phone. A
+// waiting signer is a hollow circle and "Waiting"; a signed one a solid row with a green dot and "Signed 19:03".
+// Words are few: each piece is a title, a figure and a micro line (unslop spec §3.9).
 
 import { bandCircle, type RingIndex, seal, sealHash } from "@fairsplit/seal";
-import { Glyph, HonestyTag, Seal, type StampView } from "@fairsplit/ui-web";
-import { type ReactNode, useMemo, useSyncExternalStore } from "react";
+import {
+  Glyph,
+  HONESTY,
+  type HonestyMark,
+  LegendGlyph,
+  Seal,
+  type StampView,
+  StateDot,
+} from "@fairsplit/ui-web";
+import { type ReactNode, useMemo } from "react";
 import { Stamp } from "../../chrome/Stamp.js";
 import { format } from "../../lib/format.js";
 import { APPROVE, en } from "../split/shared/copy.js";
 
-/** On a short screen (a 13-inch laptop's 956 px, or 1280 × 800) the seal draws at 144 px. */
-const SHORT_SCREEN = "(max-height: 1000px)";
-
-function subscribeShort(listener: () => void): () => void {
-  if (typeof window === "undefined" || !window.matchMedia) return () => undefined;
-  const query = window.matchMedia(SHORT_SCREEN);
-  query.addEventListener("change", listener);
-  return () => query.removeEventListener("change", listener);
-}
-
-function readShort(): boolean {
-  return typeof window !== "undefined" && window.matchMedia ? window.matchMedia(SHORT_SCREEN).matches : false;
-}
-
-/** The seal's size on Approve: 184 px (design §6 C7), 144 px on a short screen. */
-export function useSealSize(): number {
-  return useSyncExternalStore(subscribeShort, readShort, () => false) ? 144 : 184;
-}
+/** The seal's size on Approve (round 3): 180 px at every width, the hero of the screen. */
+export const SEAL_SIZE = 180;
 
 /**
- * The batch's own pattern before anyone signs: every ring the hash grows, in pencil at a quarter strength, so
- * the seal reads as this batch's guilloché, waiting for ink, never as empty circles. Each key's rings engrave
- * over it in ink (ui-web's Seal, on top). Decorative: the Seal above carries the name and the key count.
+ * The batch's own pattern before anyone signs: every ring the hash grows, at 1 px in neutral-400, so the seal reads
+ * as this batch's guilloché waiting for ink, never as empty circles. Each key's rings fill over it in indigo
+ * (ui-web's Seal, on top). Decorative: the Seal above carries the name and the key count.
  */
 function SealGhost({ batchSha256, size }: { readonly batchSha256: string; readonly size: number }) {
   const geometry = useMemo(() => seal(batchSha256, size), [batchSha256, size]);
@@ -47,7 +41,7 @@ function SealGhost({ batchSha256, size }: { readonly batchSha256: string; readon
       data-testid="W-TR-07.sealGhost"
     >
       {geometry.rings.map((r) => (
-        <path key={r.index} d={r.d} fill="none" strokeWidth={geometry.strokeWidth} strokeLinejoin="round" />
+        <path key={r.index} d={r.d} fill="none" strokeWidth={1} strokeLinejoin="round" />
       ))}
     </svg>
   );
@@ -55,7 +49,7 @@ function SealGhost({ batchSha256, size }: { readonly batchSha256: string; readon
 
 const RINGS: readonly RingIndex[] = [0, 1, 2, 3, 4];
 
-/** The seal's five bands before there is a batch hash to grow it from: 1 px rule circles, nothing invented. */
+/** The seal's five bands before there is a batch hash to grow it from: 1 px circles, nothing invented. */
 export function UnsealedRings({ size, testId }: { readonly size: number; readonly testId: string }) {
   return (
     <svg
@@ -86,10 +80,8 @@ export interface SealBlockProps {
   readonly size?: number;
 }
 
-/** The seal, then one micro line: "1/2 signed · 5e66 5ac5 … 0811 8b75". The full hash is in the details. */
-export function SealBlock({ batchSha256, keys, engrave, size: fixed }: SealBlockProps) {
-  const responsive = useSealSize();
-  const size = fixed ?? responsive;
+/** The seal at 180 px, then its hash in one micro line: "5e66 5ac5 … 0811 8b75". The full hash is in Details. */
+export function SealBlock({ batchSha256, keys, engrave, size = SEAL_SIZE }: SealBlockProps) {
   return (
     <div className="fsr-approve__seal" data-keys={keys} data-testid="W-TR-07.sealBlock" tabIndex={-1}>
       {batchSha256 ? (
@@ -101,16 +93,46 @@ export function SealBlock({ batchSha256, keys, engrave, size: fixed }: SealBlock
         <UnsealedRings size={size} testId="W-TR-07.seal" />
       )}
       <p className="fsr-approve__seal-caption fs-t-micro">
-        <span className="fsr-approve__keys-count" data-testid="W-TR-07.keysCount">
-          {APPROVE.signedCount(keys)}
-        </span>
-        <span aria-hidden="true"> · </span>
         <span className="fs-sr">{APPROVE.batchHashLabel} </span>
         <span data-testid="W-TR-07.batchHash" title={batchSha256 ?? undefined}>
           {batchSha256 ? sealHash(batchSha256) : APPROVE.batchPending}
         </span>
       </p>
     </div>
+  );
+}
+
+/**
+ * The two named signers beside the seal: "Two officers sign this batch" and the count, then one row per key. Its
+ * rows are KeySlots; anything after them (Ernesto's presence) sits under the list.
+ */
+export function Signers({
+  keys,
+  officers,
+  rows,
+  after,
+}: {
+  readonly keys: 0 | 1 | 2;
+  /** How many officers this batch needs: two over the Chair's threshold. */
+  readonly officers: 1 | 2;
+  readonly rows: ReactNode;
+  readonly after?: ReactNode;
+}) {
+  return (
+    <section className="fsr-signers" aria-labelledby="W-TR-07-signers">
+      <header className="fsr-signers__head">
+        <h2 id="W-TR-07-signers" className="fsr-signers__title fs-t-label">
+          {APPROVE.signersTitle(officers)}
+        </h2>
+        <span className="fsr-signers__count fs-t-caption" data-testid="W-TR-07.keysCount">
+          {APPROVE.signedCount(keys)}
+        </span>
+      </header>
+      <ul className="fsr-keys" aria-labelledby="W-TR-07-signers" data-testid="W-TR-07.keys">
+        {rows}
+      </ul>
+      {after}
+    </section>
   );
 }
 
@@ -134,7 +156,7 @@ export function CheckList({ rows, testId }: { readonly rows: readonly CheckRow[]
             <span className="fsr-check__dot" role="img" aria-label={APPROVE.checkOpen} />
           )}
           <span className="fsr-check__label fs-t-label">{r.label}</span>
-          <span className="fsr-check__value fs-t-micro">{r.value}</span>
+          <span className="fsr-check__value fs-t-caption">{r.value}</span>
         </li>
       ))}
     </ul>
@@ -166,20 +188,20 @@ export function BatchLedger({
   return (
     <dl className="fsr-ledger" data-testid="W-TR-07.ledger">
       <div className="fsr-ledger__row">
-        <dt className="fs-t-micro">{APPROVE.batchLabel}</dt>
+        <dt className="fs-t-caption">{APPROVE.batchLabel}</dt>
         <dd className="fs-t-hash" data-testid="W-TR-07.batch">
           {senderBatchId}
         </dd>
       </div>
       {batchSha256 && (
         <div className="fsr-ledger__row">
-          <dt className="fs-t-micro">{APPROVE.batchHashLabel}</dt>
+          <dt className="fs-t-caption">{APPROVE.batchHashLabel}</dt>
           <dd className="fs-t-hash">{format.hashGroups(batchSha256, 4)}</dd>
         </div>
       )}
       {signedLinesDigest && (
         <div className="fsr-ledger__row">
-          <dt className="fs-t-micro">{APPROVE.linesDigest}</dt>
+          <dt className="fs-t-caption">{APPROVE.linesDigest}</dt>
           <dd className="fs-t-hash" data-testid="W-TR-07.linesDigest" title={signedLinesDigest}>
             {format.hashGroups(signedLinesDigest, 4)}
             <span className="fsr-ledger__note fs-t-micro"> {APPROVE.linesNote(lines, cashLines)}</span>
@@ -187,7 +209,7 @@ export function BatchLedger({
         </div>
       )}
       <div className="fsr-ledger__row">
-        <dt className="fs-t-micro">{APPROVE.rateCard}</dt>
+        <dt className="fs-t-caption">{APPROVE.rateCard}</dt>
         <dd className="fs-t-hash">{format.hashGroups(rateCardSha256)}</dd>
       </div>
     </dl>
@@ -197,12 +219,14 @@ export function BatchLedger({
 export interface KeySlotProps {
   /** "Analyn · Treasurer" */
   readonly name: string;
-  /** A micro line: the key's ID ("fs-analyn-demo-f4ew6o") or why this key is needed ("> US$300 · R5"). */
+  /** The key's ID in the id role ("fs-analyn-demo-f4ew6o"). */
   readonly meta?: string;
+  /** Why this key is needed, in words ("> US$300 · R5"), when there is no key yet. */
+  readonly why?: string;
   /** Said on hover: how the key was made. */
   readonly metaTitle?: string;
-  /** The honesty tag for a key made for the demo ("Demo key", "Sample key"). */
-  readonly tag?: string;
+  /** The honesty glyph for a key made for the demo ("Demo key", "Sample key"): a bare glyph, its words its name. */
+  readonly mark?: HonestyMark;
   readonly status: string;
   readonly signed: boolean;
   readonly stamp: StampView | null;
@@ -210,11 +234,16 @@ export interface KeySlotProps {
   readonly testId: string;
 }
 
+/**
+ * One signer: a hollow circle and "Waiting" until the key signs, then a solid row with a green dot and "Signed
+ * 19:03". A voided signature keeps its struck-through stamp: a person's ink, voided, never erased.
+ */
 export function KeySlot({
   name,
   meta,
+  why,
   metaTitle,
-  tag,
+  mark,
   status,
   signed,
   stamp,
@@ -223,36 +252,43 @@ export function KeySlot({
 }: KeySlotProps) {
   return (
     <li
-      className="fsr-key"
+      className={["fsr-key", signed && !voided ? "fs-solid-row" : null].filter(Boolean).join(" ")}
       data-state={voided ? "voided" : signed ? "signed" : "waiting"}
       data-testid={testId}
     >
-      <span className="fsr-key__slot" aria-hidden={stamp ? undefined : true}>
-        {(signed || voided) && stamp ? (
+      <span className="fsr-key__slot" aria-hidden={voided && stamp ? undefined : true}>
+        {voided && stamp ? (
           <Stamp stamp={stamp} testId={`${testId}.stamp`} />
         ) : (
-          <Glyph name="seal" size={16} />
+          <StateDot kind={signed ? "done" : "waiting"} />
         )}
       </span>
       <span className="fsr-key__text">
         <span className="fsr-key__name fs-t-label">{name}</span>
-        {(meta || tag) && (
+        {(meta || why || mark) && (
           <span className="fsr-key__meta">
             {meta && (
               <span className="fsr-key__id fs-t-micro" title={metaTitle}>
                 {meta}
               </span>
             )}
-            {tag && <HonestyTag>{tag}</HonestyTag>}
+            {why && <span className="fsr-key__why fs-t-caption">{why}</span>}
+            {mark && <LegendGlyph kind={mark.kind} label={mark.label} />}
           </span>
         )}
       </span>
-      <span className="fsr-key__status fs-t-micro" data-testid={`${testId}.status`}>
+      <span className="fsr-key__status fs-t-caption" data-testid={`${testId}.status`}>
         {status}
       </span>
     </li>
   );
 }
+
+/** A key made in this browser for the demo, and a seeded showcase key: each a glyph, its words its name. */
+export const KEY_MARKS = {
+  demo: HONESTY.demoKey,
+  sample: { kind: "synthetic", label: APPROVE.tagSampleKey },
+} as const satisfies Record<string, HonestyMark>;
 
 export interface ConfirmBodyProps {
   readonly amount: string;
@@ -313,7 +349,7 @@ export function CosignCard({ code, busy, onMake, onChairFrame, error }: CosignCa
         <h2 id="W-TR-07-cosign" className="fs-t-label">
           {APPROVE.cosignTitle}
         </h2>
-        <HonestyTag>{APPROVE.tagDemoKey}</HonestyTag>
+        <LegendGlyph {...KEY_MARKS.demo} />
       </div>
       {code ? (
         <div className="fsr-cosign__code" data-testid="W-TR-07.cosign.code">
@@ -321,7 +357,7 @@ export function CosignCard({ code, busy, onMake, onChairFrame, error }: CosignCa
             <span aria-hidden>{codeGroups(code.code6)}</span>
             <span className="fs-sr">{code.code6.split("").join(" ")}</span>
           </p>
-          <p className="fs-t-micro fsr-muted">
+          <p className="fs-t-caption fsr-muted">
             {APPROVE.cosignCode} · {APPROVE.cosignExpires(format.time(code.expiresAt).slice(0, 5))}
           </p>
           <a className="fs-link fs-t-label" href={code.url} target="_blank" rel="noreferrer noopener">

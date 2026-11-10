@@ -10,6 +10,7 @@
 import { urlPattern } from "@fairsplit/api-client/msw";
 import { API_COMMANDS, webRoutes } from "@fairsplit/contracts";
 import { sealHash } from "@fairsplit/seal";
+import { tagBudget } from "@fairsplit/ui-web";
 import { ed25519 } from "@noble/curves/ed25519.js";
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { HttpResponse, http, type RequestHandler } from "msw";
@@ -179,9 +180,23 @@ describe("W-TR-07 approve", () => {
         "Rate card unchangedsince 14 Mar",
       ]);
       expect(screen.getByTestId("W-TR-07.safe").querySelectorAll("[data-done]")).toHaveLength(4);
-      // The hero says what the amount is, with the one tag for the batch it heads.
+      // The hero says what the amount is, with the one micro-tag for the batch it heads ("Sandbox" on screen, the
+      // whole label for a screen reader). Every other honesty mark is a bare glyph: the screen holds one tag, the
+      // top bar's indicator the second (round 3's budget is three).
       const hero = screen.getByTestId("W-TR-07.amount").parentElement as HTMLElement;
-      expect(hero.textContent).toMatch(/^PayPal batch · 8 payoutsSimulated PayPal sandbox/);
+      expect(hero.textContent).toMatch(/^PayPal batch · 8 payouts.*Simulated PayPal sandbox/);
+      expect(screen.getByTestId("W-TR-07.tag").textContent).toContain("Sandbox");
+      expect(tagBudget(root)).toMatchObject({ tags: 1, micro: 1, ok: true });
+      // The seal is the screen's hero at 180 px, beside "Two officers sign this batch" and its two named signers,
+      // each waiting on a hollow circle.
+      expect(screen.getByTestId("W-TR-07.seal").getAttribute("width")).toBe("180");
+      expect(screen.getByRole("heading", { name: "Two officers sign this batch" })).toBeTruthy();
+      expect(screen.getByTestId("W-TR-07.keysCount").textContent).toBe("0/2 signed");
+      for (const officer of ["treasurer", "chair"]) {
+        const row = screen.getByTestId(`W-TR-07.key.${officer}`);
+        expect(row.querySelector('.fs-state-dot[data-kind="waiting"]')).toBeTruthy();
+        expect(screen.getByTestId(`W-TR-07.key.${officer}.status`).textContent).toBe("Waiting");
+      }
       expect(
         [...screen.getByTestId("W-TR-07.rail").querySelectorAll(".fsr-money__row")].map((r) => r.textContent),
       ).toEqual(["PayPal8US$368.39", expect.stringMatching(/^Cash at the bodega56.+US\$3,849\.78$/)]);
@@ -191,17 +206,17 @@ describe("W-TR-07 approve", () => {
       const root64 = linesRoot(workspaceLines(view.world));
       expect(root64).not.toBe(linesRoot(seedSnapshot().checkpoints.resolved.lines));
       expect(screen.getByTestId("W-TR-07.linesDigest").getAttribute("title")).toBe(root64);
-      // The batch first (seal, amount, the money bar, the fees and what both keys sign behind Details), then the
-      // decision (the four checks, the slab, the keys).
+      // The batch first (the seal, the amount and the two signers as one composition, the money bar, the fees and
+      // what both keys sign behind Details), then the decision (the four checks, the slab).
       const order = [
         "W-TR-07.seal",
         "W-TR-07.amount",
+        "W-TR-07.keys",
         "W-TR-07.rail",
         "W-TR-07.fees",
         "W-TR-07.ledger",
         "W-TR-07.safe",
         "W-TR-07.approve",
-        "W-TR-07.keys",
       ].map((id) => screen.getByTestId(id));
       expect(screen.getByTestId("W-TR-07.ledger").closest("details")?.open).toBe(false);
       for (let i = 1; i < order.length; i++) {
@@ -226,10 +241,16 @@ describe("W-TR-07 approve", () => {
       fireEvent.keyDown(face("W-TR-07.approve.dialog.confirm"), { key: "Enter" });
 
       await waitFor(() => expect(root.dataset.state).toBe("key1"), { timeout: 10_000 });
-      expect(screen.getByTestId("W-TR-07.approve").textContent).toMatch(
-        /Signed by Analyn, .*Waiting for Ernesto/,
-      );
-      expect(document.activeElement).not.toBe(face("W-TR-07.approve"));
+      // The spent slab goes with no status box in its place: "Waiting" lives in Ernesto's row alone, and Analyn's
+      // row is a solid row with a green dot and her time.
+      expect(screen.queryByTestId("W-TR-07.approve")).toBeNull();
+      expect(screen.getByTestId("W-TR-07.key.chair.status").textContent).toBe("Waiting");
+      expect(screen.getByTestId("W-TR-07.key.treasurer.status").textContent).toMatch(/^Signed \d\d:\d\d$/);
+      const signedRow = screen.getByTestId("W-TR-07.key.treasurer");
+      expect(signedRow.classList.contains("fs-solid-row")).toBe(true);
+      expect(signedRow.querySelector('.fs-state-dot[data-kind="done"]')).toBeTruthy();
+      expect(screen.getByTestId("W-TR-07.keysCount").textContent).toBe("1/2 signed");
+      expect(screen.getByTestId("W-TR-07").textContent).not.toMatch(/Waiting for Ernesto/);
       // Focus moves on to the run pill's next step, which never scrolls the seal away.
       await waitFor(() =>
         expect(document.activeElement?.getAttribute("data-testid")).toBe("W-JG-01.runPill.next"),
@@ -255,7 +276,8 @@ describe("W-TR-07 approve", () => {
       );
 
       await waitFor(() => expect(tracedPhases("MM-5")).toContain("waiting-2"), { timeout: 5_000 });
-      expect(screen.getByTestId("W-TR-07.presence").textContent).toBe("Waiting for Ernesto");
+      // Ernesto is not here yet: nothing says so twice (his presence line shows only once he is).
+      expect(screen.queryByTestId("W-TR-07.presence")).toBeNull();
 
       act(() => {
         view.world.cosign();
@@ -268,7 +290,8 @@ describe("W-TR-07 approve", () => {
         expect.arrayContaining(["ready", "signed-1", "waiting-2", "signed-2", "sealed", "inked"]),
       );
       expect(root.dataset.state).toMatch(/approved|posting/);
-      expect(screen.getByTestId("W-TR-07.approve").textContent).toMatch(/Approved by Analyn and Ernesto/);
+      expect(screen.queryByTestId("W-TR-07.approve")).toBeNull();
+      expect(screen.getByTestId("W-TR-07.keysCount").textContent).toBe("2/2 signed");
       expect(
         screen
           .getByTestId("W-TR-07.amount")

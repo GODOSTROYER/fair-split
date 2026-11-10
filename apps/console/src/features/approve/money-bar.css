@@ -29,12 +29,11 @@
   box-shadow: inset 0 0 0 1px var(--fs-jade-flush-border);
 }
 
+/* In flight: a solid jade hairline on a clear face. Dashed means simulated, nothing else (round 3). */
 .fsr-money__seg[data-tone="flight"],
 .fsr-money__swatch[data-tone="flight"] {
-  box-shadow: none;
   background: transparent;
-  outline: 1.5px dashed var(--fs-jade-flush-border);
-  outline-offset: -1.5px;
+  box-shadow: inset 0 0 0 1.5px var(--fs-jade-flush-border);
 }
 
 .fsr-money__seg[data-tone="held"],
@@ -53,7 +52,7 @@
 .fsr-money__seg[data-tone="cash"],
 .fsr-money__swatch[data-tone="cash"] {
   background:
-    repeating-linear-gradient(-45deg, var(--fs-hatch) 0 1.5px, transparent 1.5px 5px), var(--fs-plate);
+    repeating-linear-gradient(-45deg, var(--fs-cash-route) 0 1.5px, transparent 1.5px 5px), var(--fs-plate);
   box-shadow: inset 0 0 0 1px var(--fs-rule-strong);
 }
 

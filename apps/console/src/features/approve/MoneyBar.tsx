@@ -1,8 +1,8 @@
 // The money bar (unslop spec §1.9) for Approve and Run: one stacked bar, each segment as wide as its money, and a
-// legend row per segment (swatch, name, count, a micro note, the amount). Colour is only meaning: jade is money the
-// simulated PayPal confirmed, a dashed jade outline is money in flight, marigold waits on a person, hatch is cash,
-// ink-3 is kept for members, and an ink-3 outline is a batch not sent yet. The bar is decoration for the legend,
-// which carries every figure in words.
+// legend row per segment (swatch, name, count, a note, the amount). Colour is only meaning: jade is money the
+// simulated PayPal confirmed, a solid jade outline is money in flight (dashed lines mean simulated, nothing else),
+// marigold waits on a person, hatch is cash, ink-3 is kept for members, and an ink-3 outline is a batch not sent
+// yet. The bar is decoration for the legend, which carries every figure in words.
 
 import type { CSSProperties, ReactNode } from "react";
 import "./money-bar.css";
@@ -63,8 +63,8 @@ export function MoneyBar({ segments, title, tag, footnote, label, testId, classN
           <li key={s.key} className="fsr-money__row" data-tone={s.tone}>
             <span className="fsr-money__swatch" data-tone={s.tone} aria-hidden />
             <span className="fsr-money__name fs-t-label">{s.label}</span>
-            {s.count !== undefined && <span className="fsr-money__count fs-t-micro">{s.count}</span>}
-            {s.note && <span className="fsr-money__note fs-t-micro">{s.note}</span>}
+            {s.count !== undefined && <span className="fsr-money__count fs-t-caption">{s.count}</span>}
+            {s.note && <span className="fsr-money__note fs-t-caption">{s.note}</span>}
             <span className="fsr-money__amount fs-t-figure">{s.amount}</span>
           </li>
         ))}
