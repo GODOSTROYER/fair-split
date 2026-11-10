@@ -10,7 +10,7 @@
 
 import { TIMING } from "@fairsplit/motion";
 import { isRingSigned, seal } from "@fairsplit/seal";
-import { StateDot } from "@fairsplit/ui-web";
+import { MoneyFigure, StateDot } from "@fairsplit/ui-web";
 import { type CSSProperties, useId, useMemo } from "react";
 import { format } from "../../lib/format.js";
 import { FANOUT } from "../split/shared/copy.js";
@@ -70,7 +70,7 @@ function Amount({ cents, state }: { readonly cents: number; readonly state: stri
   return (
     <span className="fsr-fan__amount fs-t-figure" data-amount-state={state}>
       {state === "hollow" && <StateDot kind="pending" className="fsr-fan__pending" />}
-      {format.money(cents)}
+      <MoneyFigure display={format.money(cents)} />
     </span>
   );
 }

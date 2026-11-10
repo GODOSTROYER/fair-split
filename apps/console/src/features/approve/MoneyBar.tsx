@@ -1,9 +1,10 @@
 // The money bar (unslop spec §1.9) for Approve and Run: one stacked bar, each segment as wide as its money, and a
-// legend row per segment (swatch, name, count, a note, the amount). Colour is only meaning: jade is money the
-// simulated PayPal confirmed, a solid jade outline is money in flight (dashed lines mean simulated, nothing else),
-// marigold waits on a person, hatch is cash, ink-3 is kept for members, and an ink-3 outline is a batch not sent
-// yet. The bar is decoration for the legend, which carries every figure in words.
+// legend row per segment (swatch, name, count, a note, the amount). Colour is only meaning (UI gate round 3): jade
+// is only money the simulated PayPal confirmed; a hollow ink-3 outline is money not confirmed yet, to send or in
+// flight (never dashed: dashed lines mean simulated); marigold waits on a person, hatch is cash, solid ink-3 is
+// kept for members. The bar is decoration for the legend, which carries every figure in words.
 
+import { MoneyFigure } from "@fairsplit/ui-web";
 import type { CSSProperties, ReactNode } from "react";
 import "./money-bar.css";
 
@@ -65,11 +66,11 @@ export function MoneyBar({ segments, title, tag, footnote, label, testId, classN
             <span className="fsr-money__name fs-t-label">{s.label}</span>
             {s.count !== undefined && <span className="fsr-money__count fs-t-caption">{s.count}</span>}
             {s.note && <span className="fsr-money__note fs-t-caption">{s.note}</span>}
-            <span className="fsr-money__amount fs-t-figure">{s.amount}</span>
+            <MoneyFigure display={s.amount} className="fsr-money__amount fs-t-figure" />
           </li>
         ))}
       </ul>
-      {footnote && <p className="fsr-money__foot fs-t-micro">{footnote}</p>}
+      {footnote && <p className="fsr-money__foot fs-t-caption">{footnote}</p>}
     </figure>
   );
 }

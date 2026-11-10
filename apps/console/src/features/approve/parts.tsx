@@ -2,8 +2,9 @@
 // hash under it, the two named signers beside it ("Two officers sign this batch"), the checks above the slab, the
 // details a person opens to compare hashes, the dialog route's body and the co-sign card. Unsigned rings are the
 // batch's own pattern at 1 px in neutral-400; each key fills its rings in indigo, the same on the Chair's phone. A
-// waiting signer is a hollow circle and "Waiting"; a signed one a solid row with a green dot and "Signed 19:03".
-// Words are few: each piece is a title, a figure and a micro line (unslop spec §3.9).
+// waiting signer is a hollow circle and "Waiting"; a signed one a solid row with an ink dot and "Signed 19:03".
+// Hashes and key IDs are the mono id role; everything else is FS Sans. Words are few: each piece is a title, a
+// figure and one line (unslop spec §3.9).
 
 import { bandCircle, type RingIndex, seal, sealHash } from "@fairsplit/seal";
 import {
@@ -92,7 +93,7 @@ export function SealBlock({ batchSha256, keys, engrave, size = SEAL_SIZE }: Seal
       ) : (
         <UnsealedRings size={size} testId="W-TR-07.seal" />
       )}
-      <p className="fsr-approve__seal-caption fs-t-micro">
+      <p className="fsr-approve__seal-caption fs-t-id">
         <span className="fs-sr">{APPROVE.batchHashLabel} </span>
         <span data-testid="W-TR-07.batchHash" title={batchSha256 ?? undefined}>
           {batchSha256 ? sealHash(batchSha256) : APPROVE.batchPending}
@@ -189,28 +190,28 @@ export function BatchLedger({
     <dl className="fsr-ledger" data-testid="W-TR-07.ledger">
       <div className="fsr-ledger__row">
         <dt className="fs-t-caption">{APPROVE.batchLabel}</dt>
-        <dd className="fs-t-hash" data-testid="W-TR-07.batch">
+        <dd className="fs-t-id" data-testid="W-TR-07.batch">
           {senderBatchId}
         </dd>
       </div>
       {batchSha256 && (
         <div className="fsr-ledger__row">
           <dt className="fs-t-caption">{APPROVE.batchHashLabel}</dt>
-          <dd className="fs-t-hash">{format.hashGroups(batchSha256, 4)}</dd>
+          <dd className="fs-t-id">{format.hashGroups(batchSha256, 4)}</dd>
         </div>
       )}
       {signedLinesDigest && (
         <div className="fsr-ledger__row">
           <dt className="fs-t-caption">{APPROVE.linesDigest}</dt>
-          <dd className="fs-t-hash" data-testid="W-TR-07.linesDigest" title={signedLinesDigest}>
+          <dd className="fs-t-id" data-testid="W-TR-07.linesDigest" title={signedLinesDigest}>
             {format.hashGroups(signedLinesDigest, 4)}
-            <span className="fsr-ledger__note fs-t-micro"> {APPROVE.linesNote(lines, cashLines)}</span>
+            <span className="fsr-ledger__note fs-t-caption"> {APPROVE.linesNote(lines, cashLines)}</span>
           </dd>
         </div>
       )}
       <div className="fsr-ledger__row">
         <dt className="fs-t-caption">{APPROVE.rateCard}</dt>
-        <dd className="fs-t-hash">{format.hashGroups(rateCardSha256)}</dd>
+        <dd className="fs-t-id">{format.hashGroups(rateCardSha256)}</dd>
       </div>
     </dl>
   );
@@ -221,7 +222,7 @@ export interface KeySlotProps {
   readonly name: string;
   /** The key's ID in the id role ("fs-analyn-demo-f4ew6o"). */
   readonly meta?: string;
-  /** Why this key is needed, in words ("> US$300 · R5"), when there is no key yet. */
+  /** Words beside it: why this key is needed ("> US$300 · R5") before there is one, or its kind ("browser key"). */
   readonly why?: string;
   /** Said on hover: how the key was made. */
   readonly metaTitle?: string;
@@ -235,8 +236,9 @@ export interface KeySlotProps {
 }
 
 /**
- * One signer: a hollow circle and "Waiting" until the key signs, then a solid row with a green dot and "Signed
- * 19:03". A voided signature keeps its struck-through stamp: a person's ink, voided, never erased.
+ * One signer: a hollow circle and "Waiting" until the key signs, then a solid 1 px row with an ink dot and "Signed
+ * 19:03" (jade is only money PayPal confirmed, never a signature). A voided signature keeps its struck-through
+ * stamp: a person's ink, voided, never erased.
  */
 export function KeySlot({
   name,
@@ -268,7 +270,7 @@ export function KeySlot({
         {(meta || why || mark) && (
           <span className="fsr-key__meta">
             {meta && (
-              <span className="fsr-key__id fs-t-micro" title={metaTitle}>
+              <span className="fsr-key__id fs-t-id" title={metaTitle}>
                 {meta}
               </span>
             )}
@@ -318,7 +320,7 @@ export function ConfirmBody({ amount, count, recipients, batchSha256 }: ConfirmB
       {batchSha256 && (
         <figure className="fsr-confirm__seal">
           <Seal batchSha256={batchSha256} size={96} keys={0} />
-          <figcaption className="fs-t-hash">{sealHash(batchSha256)}</figcaption>
+          <figcaption className="fs-t-id">{sealHash(batchSha256)}</figcaption>
         </figure>
       )}
     </div>

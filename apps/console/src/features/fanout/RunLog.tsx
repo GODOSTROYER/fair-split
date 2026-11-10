@@ -1,6 +1,8 @@
-// The run log (design §5 "Webhook and live timeline"; UI gate round 2): the last five events in plain words, one
+// The run log (design §5 "Webhook and live timeline"; UI gate round 3): the last five events in plain words, one
 // line each (a time, a lane and what happened), then "All N events" opens the three lanes (Machine, People,
-// PayPal), newest first, where each row adds its event name, IDs, source and signature result in micro type. One
+// PayPal), newest first, where each row adds its event name (the mono id role, as are the times), IDs, source and
+// signature result. While the members' cash is still due the run's SETTLED row reads "PayPal complete · cash due".
+// One
 // bare legend glyph at the log's head covers every PayPal row (round 3: the run's one micro-tag sits on its money,
 // so the log carries no second tag); its words are its tooltip and its accessible name. A repeated PayPal delivery
 // logs one quiet row and changes nothing. Latency dots sit beside it at the true receipt times, funding to each
@@ -52,14 +54,16 @@ const SETTLED_WORD = en("run.SETTLED");
 
 /**
  * A row's words for people: a PayPal notice by what it means ("Batch accepted", never PAYMENT.PAYOUTSBATCH.SUCCESS),
- * and a paid row without its rail in brackets, since the log's one tag says the rail. Replayed rows keep their
- * words whole: each says what it replayed.
+ * and a paid row without its rail in brackets ("Paid: Arnel Sumampao US$55.96", wherever the brackets stood), since
+ * the glyph at the log's head names the rail once. Replayed rows keep their words whole: each says what it
+ * replayed.
  */
 export function plainWords(row: LogRow, settledAs?: string): string {
   const notice = /^PayPal notice: ([A-Z][A-Z.\-_]+)$/.exec(row.words);
   if (notice?.[1]) return NOTICE_WORDS[notice[1]] ?? row.words;
   if (settledAs && row.lane === "MACHINE" && row.words === SETTLED_WORD) return settledAs;
-  return row.words.replace(/ \(Simulated PayPal sandbox\)$/, "");
+  if (/^Replayed/.test(row.words)) return row.words;
+  return row.words.replaceAll(" (Simulated PayPal sandbox)", "");
 }
 
 function AmountWords({ words }: { readonly words: string }) {
@@ -91,11 +95,11 @@ function EventDetail({ row }: { readonly row: LogRow }) {
   return (
     <>
       {name && (
-        <p className="fsr-log__event fs-t-micro">
+        <p className="fsr-log__event fs-t-id">
           <EventName name={name} />
         </p>
       )}
-      {detail && <p className="fsr-log__detail fs-t-micro">{detail}</p>}
+      {detail && <p className="fsr-log__detail fs-t-caption">{detail}</p>}
     </>
   );
 }
@@ -115,7 +119,7 @@ export function RunLog({
   return (
     <section className="fsr-log" data-testid="W-TR-08.log">
       <div className="fsr-log__head">
-        <h2 id="W-TR-08-log" className="fs-t-title-2">
+        <h2 id="W-TR-08-log" className="fs-t-heading">
           {FANOUT.log}
         </h2>
         <LegendGlyph kind={HONESTY.simulatedSandbox.kind} label={tag} testId="W-TR-08.log.mark" />
@@ -139,7 +143,7 @@ export function RunLog({
               data-live={isLive(row.id) ? "" : undefined}
               title={row.detail || undefined}
             >
-              <time className="fsr-log__time fs-t-micro" dateTime={row.at ?? undefined}>
+              <time className="fsr-log__time fs-t-id" dateTime={row.at ?? undefined}>
                 {rowTime(row.at)}
               </time>
               <span className="fsr-log__lane-name fs-t-caption">
@@ -191,7 +195,7 @@ export function RunLog({
                             <AmountWords words={plainWords(row, settledAs)} />
                           </p>
                           <EventDetail row={row} />
-                          <time className="fsr-log__time fs-t-micro" dateTime={row.at ?? undefined}>
+                          <time className="fsr-log__time fs-t-id" dateTime={row.at ?? undefined}>
                             {rowTime(row.at)}
                           </time>
                         </li>
@@ -215,7 +219,14 @@ export function latencyScale(ms: readonly number[]): { readonly lo: number; read
   return { lo: Math.max(0, Math.min(...ms) - 5000), hi: Math.max(...ms) + 5000 };
 }
 
-export function LatencyDots({ latency }: { readonly latency: Latency }) {
+export function LatencyDots({
+  latency,
+  emptyText = FANOUT.latencyEmpty,
+}: {
+  readonly latency: Latency;
+  /** What the empty track says: "No confirmations yet", or that seeded history carries no timings. */
+  readonly emptyText?: string;
+}) {
   const max = latency.max ?? 0;
   const { lo, hi } = latencyScale(latency.dots.map((d) => d.ms));
   const at = (ms: number) => `${hi > lo ? ((ms - lo) / (hi - lo)) * 100 : 0}%`;
@@ -223,7 +234,7 @@ export function LatencyDots({ latency }: { readonly latency: Latency }) {
     <figure className="fsr-latency" data-testid="W-TR-08.latency">
       <figcaption className="fs-t-label">{FANOUT.latency}</figcaption>
       {latency.dots.length === 0 ? (
-        <p className="fs-t-micro fsr-muted">{FANOUT.latencyEmpty}</p>
+        <p className="fs-t-caption fsr-muted">{emptyText}</p>
       ) : (
         <>
           <div className="fsr-latency__track" aria-hidden>
@@ -238,14 +249,14 @@ export function LatencyDots({ latency }: { readonly latency: Latency }) {
             {latency.p50 !== null && max > 0 && (
               <span className="fsr-latency__p50" style={{ left: at(latency.p50) }} />
             )}
-            <span className="fsr-latency__tick fs-t-micro" data-end="start">
+            <span className="fsr-latency__tick fs-t-caption" data-end="start">
               {format.elapsedWords(lo)}
             </span>
-            <span className="fsr-latency__tick fs-t-micro" data-end="end">
+            <span className="fsr-latency__tick fs-t-caption" data-end="end">
               {format.elapsedWords(hi)}
             </span>
           </div>
-          <p className="fsr-latency__summary fs-t-micro" data-testid="W-TR-08.latency.summary">
+          <p className="fsr-latency__summary fs-t-caption" data-testid="W-TR-08.latency.summary">
             {FANOUT.latencySummary(format.elapsedWords(latency.p50 ?? 0), format.elapsedWords(max))}
           </p>
           <ul className="fs-sr">

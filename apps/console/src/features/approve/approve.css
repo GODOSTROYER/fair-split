@@ -1,8 +1,9 @@
 /* W-TR-07 Approve (UI gate round 3): two columns once the screen is 860 px wide, ending at the same height. The
    batch on the left as one composition (the seal at 180 px; beside it "PayPal batch · 8 payouts" over the amount
-   and the two named signers), then the money bar and Details; the decision on the right in one neutral card that
-   stretches to the batch's height (four checks, the one slab until a key signs, the co-sign card). One column below
-   that width. Tokens only; spacing on the 4 px scale; radii from the one scale. */
+   and the two named signers), then the money bar, and Details on the column's foot; the decision on the right in
+   one neutral card that stretches to the batch's height (four checks, the one slab until a key signs, the co-sign
+   card). One column below that width. Tokens only; spacing on the 4 px scale; radii from the one scale; one
+   elevation each (a 1 px ring, no glow); one focus ring (ui-web), none declared here. */
 
 /* The title at the top, the composition centred in the height left below it: a hero moment, not a form. */
 .fsr-approve-screen {
@@ -12,10 +13,6 @@
   grid-template-rows: auto 1fr;
 }
 
-.fsr-approve-screen > .fsr-approve {
-  align-self: center;
-}
-
 .fsr-approve {
   display: grid;
   gap: var(--fs-space-24);
@@ -23,6 +20,10 @@
   max-width: 1080px;
   margin-inline: auto;
   padding-bottom: var(--fs-space-48);
+}
+
+.fsr-approve-screen > .fsr-approve {
+  align-self: center;
 }
 
 .fsr-approve--beds {
@@ -50,29 +51,23 @@
 
 /* ------------------------------------------------------------------ the batch (left) */
 
+/* The hero composition, the money bar, then Details on the column's foot: the batch ends where the card does. */
 .fsr-approve__batch {
+  container: fsr-approve-hero / inline-size;
   display: grid;
-  align-content: start;
+  grid-template-rows: auto auto 1fr;
   gap: var(--fs-space-24);
   min-width: 0;
 }
 
-/* One composition: the seal, and beside it the amount over the two signers. Stacked when the column is narrow. */
-.fsr-approve__batch {
-  container: fsr-approve-hero / inline-size;
-}
-
+/* One composition: the seal, and beside it the amount over the two signers. On a narrower column the signers run
+   the full width under the seal and the amount (so a key's ID stays on one line); on the narrowest, all three
+   stack. */
 .fsr-approve__hero {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   align-items: start;
-  gap: var(--fs-space-32);
-}
-
-@container fsr-approve-hero (max-width: 559px) {
-  .fsr-approve__hero {
-    gap: var(--fs-space-24);
-  }
+  gap: var(--fs-space-24) var(--fs-space-32);
 }
 
 .fsr-approve__side {
@@ -87,6 +82,27 @@
   justify-items: center;
 }
 
+/* Seal and amount side by side, the signers on their own row under both. */
+@container fsr-approve-hero (max-width: 599px) {
+  .fsr-approve__hero {
+    align-items: center;
+    column-gap: var(--fs-space-24);
+  }
+
+  .fsr-approve__side {
+    display: contents;
+  }
+
+  .fsr-signers {
+    grid-column: 1 / -1;
+  }
+}
+
+@container fsr-approve-hero (max-width: 419px) {
+  .fsr-approve__hero {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
 .fsr-approve__seal {
   display: grid;
   justify-items: center;
@@ -112,17 +128,9 @@
   stroke: var(--fs-unsigned);
 }
 
+/* The ghost draws every ring's own pattern; the Seal on top adds only the signed rings, in ui-web's indigo. */
 .fsr-seal-stack .fs-seal__band {
   display: none;
-}
-
-/* A signed ring is a person's hand: indigo, every ring alike (no ink alternation on Approve). */
-.fsr-seal-stack .fs-seal .fs-seal__ring {
-  stroke: var(--fs-pod);
-}
-
-.fsr-seal--empty .fs-seal__band {
-  stroke: var(--fs-unsigned);
 }
 
 .fsr-approve__seal-caption {
@@ -154,17 +162,6 @@
   color: var(--fs-ink);
 }
 
-@container fsr-approve-hero (max-width: 459px) {
-  .fsr-approve__hero {
-    grid-template-columns: minmax(0, 1fr);
-    justify-items: center;
-  }
-
-  .fsr-approve__side {
-    width: 100%;
-  }
-}
-
 /* ------------------------------------------------------------------ the two signers */
 
 .fsr-signers {
@@ -190,8 +187,9 @@
   color: var(--fs-ink-2);
 }
 
-/* Details: the fees, what both keys sign, and the engine's provenance, one click away. */
+/* Details: the fees, what both keys sign, and the engine's provenance, one click away, on the batch column's foot. */
 .fsr-approve__details {
+  align-self: end;
   width: 100%;
   padding-top: var(--fs-space-12);
   border-top: 1px solid var(--fs-rule);
@@ -213,11 +211,6 @@
 
 .fsr-approve__summary:hover {
   color: var(--fs-ink);
-}
-
-.fsr-approve__summary:focus-visible {
-  outline: var(--fs-focus-width) solid var(--fs-pod);
-  outline-offset: var(--fs-focus-offset);
 }
 
 .fsr-approve__summary .fs-glyph {
@@ -284,41 +277,17 @@
 
 /* ------------------------------------------------------------------ the decision (right) */
 
-/* One neutral card: the checks, the slab, the keys. While it waits for a person's key, an indigo glow rises at
-   its base (unslop spec §1.2), never under the words. */
+/* One neutral card: the checks, the slab, the co-sign card. Flat: a 1 px rule is its only edge (no glow, no
+   wash: the slab's indigo face is the screen's one colour of action). */
 .fsr-approve__decide {
-  position: relative;
-  isolation: isolate;
   display: grid;
   align-content: start;
   gap: var(--fs-space-16);
   min-width: 0;
-  padding: calc(var(--fs-space-16) + var(--fs-space-4));
-  overflow: hidden;
+  padding: var(--fs-space-20);
+  border: 1px solid var(--fs-rule);
   border-radius: var(--fs-radius-card);
   background: var(--fs-plate-2);
-  box-shadow: inset 0 0 0 1px var(--fs-rule);
-}
-
-.fsr-approve__decide::after {
-  content: "";
-  position: absolute;
-  inset: auto 0 0;
-  z-index: -1;
-  height: 48%;
-  background: radial-gradient(
-    75% 100% at 50% 100%,
-    color-mix(in srgb, var(--fs-pod) 10%, transparent),
-    color-mix(in srgb, var(--fs-pod) 3%, transparent) 55%,
-    transparent 80%
-  );
-  opacity: 0;
-  transition: opacity var(--fs-dur-crossfade) var(--fs-ease-out);
-  pointer-events: none;
-}
-
-.fsr-approve-screen:is([data-state="ready"], [data-state="key1"]) .fsr-approve__decide::after {
-  opacity: 1;
 }
 
 .fsr-checks {
@@ -438,8 +407,8 @@
 
 /* ------------------------------------------------------------------ the two keys */
 
-/* One row per signer. Waiting: a hollow circle and "Waiting" in neutral-500. Signed: a solid 1 px row with a green
-   dot and "Signed 19:03" in ink (fs-solid-row, round 3); never a dashed box. */
+/* One row per signer. Waiting: a hollow circle and "Waiting" in neutral. Signed: a solid 1 px row with an ink dot
+   and "Signed 19:03" in ink (fs-solid-row, round 3); never a dashed box, never jade. */
 .fsr-keys {
   display: grid;
   gap: var(--fs-space-8);
@@ -571,11 +540,11 @@
   border-top: 1px solid var(--fs-rule);
 }
 
+/* The title and its demo-key glyph read together: the glyph sits beside the words it qualifies. */
 .fsr-cosign__head {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
   gap: var(--fs-space-8);
   width: 100%;
 }

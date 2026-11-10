@@ -1,15 +1,16 @@
 // W-TR-08 Run (S1.7, design §6 C8; UI gate round 3): the fan is the hero, full width (MM-6, "Honest fan-out"):
 // the 180-unit seal, eight threads to eight named rows, and the cash as one hatched ribbon into one labelled block.
-// The run's instrument, a dot-matrix "7/8" and "confirmed", sits right above the seal; beneath the fan Rhea's
+// The run's one hero count, "7/8" in FS Sans and "confirmed", sits right above the seal; beneath the fan Rhea's
 // decision when she is parked, then the money bar with its one micro-tag; then the last five events and the latency
-// dots. PayPal's 201 draws eight threads to 70%: sent, not paid. Each verified SUCCESS finishes its thread and
-// floods its marker jade, one scale note each, landings at least 250 ms apart. Rhea's item parks: her path runs on
-// to her own marker in marigold, never red, and a slab moves her to cash. Once PayPal is complete the 57 members'
-// cash still due reads apart from the 7 confirmed. A repeated delivery logs one quiet row and moves nothing.
-// History is drawn in place; only live events animate.
+// dots. PayPal's 201 draws eight threads to 70% in neutral: sent, not paid. Each verified SUCCESS finishes its
+// thread and floods its marker jade, one scale note each, landings at least 250 ms apart. Rhea's item parks: her
+// path runs on to her own marker in marigold, never red, and a slab moves her to cash. Once PayPal is complete the
+// 57 members' cash still due reads apart from the 7 confirmed (a jade dot against the hatch), with "Review cash
+// handover" until it is attested. A repeated delivery logs one quiet row and moves nothing. History is drawn in
+// place; only live events animate.
 
 import { webRoutes } from "@fairsplit/contracts";
-import { Chip, DotMatrix, feedback, Glyph, MicroTag, Slab } from "@fairsplit/ui-web";
+import { Chip, feedback, Glyph, MicroTag, Numeral, Slab, StateDot } from "@fairsplit/ui-web";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppLink } from "../../chrome/AppLink.js";
 import { CommandNotice } from "../../chrome/CommandNotice.js";
@@ -173,10 +174,10 @@ export function Screen({ runSlug }: RunScreenProps) {
 
   const title = (
     <header className="fsr-screen__head">
-      <h1 id="W-TR-08-title" className="fs-t-title-1">
+      <h1 id="W-TR-08-title" className="fs-t-title">
         {FANOUT.title}
       </h1>
-      <p className="fsr-screen__slug fs-t-hash">{runLabel(runSlug).text}</p>
+      <p className="fsr-screen__slug fs-t-id">{runLabel(runSlug).text}</p>
     </header>
   );
 
@@ -224,9 +225,11 @@ export function Screen({ runSlug }: RunScreenProps) {
   const lat = latency(view, fan);
   const tag = railTag(rail);
 
-  // The status row: the run's instrument (confirmed of sent, in dot matrix), then one micro fact or one pill. Never a
-  // sentence about the rail: the tag says it once. Once PayPal is complete and cash is still due, the cash reads
-  // apart, in neutral with its hatch: PayPal complete, cash due, never "done".
+  // The status: the run's one hero count (confirmed of sent), then one fact or one pill beneath it. Never a sentence
+  // about the rail: the tag says it once. Once PayPal is complete, its confirmed payments wear the jade dot and the
+  // cash still due reads apart in neutral with its hatch, with "Review cash handover" until it is attested: PayPal
+  // complete, cash due, never "done".
+  const cashDue = fan.cash.members > 0 && fan.cash.amountState !== "attested";
   const status = (() => {
     if (state === "denied") return null;
     if (!isPosted) return { text: FANOUT.notPosted, link: true } as const;
@@ -236,10 +239,8 @@ export function Screen({ runSlug }: RunScreenProps) {
       return {
         count,
         unit: FANOUT.confirmedOnPaypal,
-        due:
-          fan.cash.amountState === "attested"
-            ? FANOUT.cashPaid(summary.cash)
-            : FANOUT.cashDue(summary.cash, cashDay),
+        paid: true,
+        due: cashDue ? FANOUT.cashDue(summary.cash, cashDay) : FANOUT.cashPaid(summary.cash),
       } as const;
     if (state === "parked")
       return {
@@ -343,31 +344,39 @@ export function Screen({ runSlug }: RunScreenProps) {
             >
               {status.count ? (
                 <>
-                  {/* The screen's one dot-matrix count; its words are the hidden text beside it. */}
-                  <span className="fs-sr">{status.count}</span>
-                  <DotMatrix
-                    value={status.count}
-                    pitch={7}
-                    label={status.count}
-                    decorative
-                    className="fsr-fanout__count"
-                    testId="W-TR-08.count"
-                  />
-                  <span className="fsr-fanout__unit fs-t-label">{status.unit}</span>
-                  {"micro" in status && status.micro && (
-                    <span className="fsr-fanout__micro fs-t-micro">{status.micro}</span>
-                  )}
-                  {"pill" in status && status.pill && (
-                    <Chip tone="canary" glyph="ms:pause">
-                      {status.pill}
-                    </Chip>
-                  )}
-                  {"due" in status && status.due && (
-                    <span className="fsr-fanout__due fs-t-caption" data-testid="W-TR-08.cashDue">
-                      <span className="fsr-fanout__swatch" aria-hidden />
-                      {status.due}
+                  {/* The screen's one hero count, in FS Sans tabular figures, read with its words. */}
+                  <span className="fsr-fanout__instrument">
+                    <Numeral value={status.count} className="fsr-fanout__count" testId="W-TR-08.count" />
+                    <span className="fsr-fanout__unit fs-t-label">
+                      {"paid" in status && <StateDot kind="paid" />}
+                      {status.unit}
                     </span>
-                  )}
+                  </span>
+                  <span className="fsr-fanout__facts">
+                    {"micro" in status && status.micro && (
+                      <span className="fsr-fanout__micro fs-t-caption">{status.micro}</span>
+                    )}
+                    {"pill" in status && status.pill && (
+                      <Chip tone="canary" glyph="ms:pause">
+                        {status.pill}
+                      </Chip>
+                    )}
+                    {"due" in status && status.due && (
+                      <span className="fsr-fanout__due fs-t-label" data-testid="W-TR-08.cashDue">
+                        <span className="fsr-fanout__swatch" aria-hidden />
+                        {status.due}
+                      </span>
+                    )}
+                    {"due" in status && cashDue && (
+                      <AppLink
+                        href={webRoutes.proof(view.runSlug)}
+                        className="fs-link fs-t-label"
+                        data-testid="W-TR-08.cashReview"
+                      >
+                        {FANOUT.reviewCash}
+                      </AppLink>
+                    )}
+                  </span>
                 </>
               ) : (
                 <span className="fsr-fanout__line fs-t-body">
@@ -430,7 +439,7 @@ export function Screen({ runSlug }: RunScreenProps) {
           <section className="fsr-parked" aria-labelledby="W-TR-08-parked" data-testid="W-TR-08.parked">
             <div className="fsr-parked__who">
               <h3 id="W-TR-08-parked" className="fsr-parked__title">
-                <span className="fsr-parked__dot" aria-hidden />
+                <StateDot kind="held" />
                 <span className="fs-t-label">{replayed ? "Replayed" : FANOUT.parkedChip}</span>
                 <span className="fsr-parked__name fs-t-label">{parked.name}</span>
                 <span className="fsr-parked__amount fs-t-figure">{format.money(parked.cents)}</span>
@@ -511,24 +520,23 @@ export function Screen({ runSlug }: RunScreenProps) {
           isLive={(id) => live.isLive(id)}
           seeded={view.events.length === 0 && view.origin === "showcase"}
           tag={tag}
-          {...(fan.cash.members > 0 && fan.cash.amountState !== "attested"
-            ? { settledAs: en("W-JG-01.pill.stateCashDue") }
-            : {})}
+          {...(cashDue ? { settledAs: en("W-JG-01.pill.stateCashDue") } : {})}
           footer={
             <p className="fsr-fanout__fees fs-t-caption" data-testid="W-TR-08.fees">
-              {replayed
-                ? "Payout fees belong to the earlier simulated PayPal sandbox run; this is a labelled replay."
-                : FANOUT.feesSoFar}
+              {replayed ? FANOUT.feesReplayed : FANOUT.feesSoFar}
             </p>
           }
         />
         <aside className="fsr-fanout__side">
           {replayed ? (
-            <p className="fs-t-caption fsr-muted">
-              Timing is replayed from an earlier simulated PayPal sandbox run.
-            </p>
+            <p className="fs-t-caption fsr-muted">{FANOUT.timingReplayed}</p>
           ) : (
-            <LatencyDots latency={lat} />
+            <LatencyDots
+              latency={lat}
+              {...(counts.confirmed > 0 && view.events.length === 0
+                ? { emptyText: FANOUT.latencySeeded }
+                : {})}
+            />
           )}
         </aside>
       </div>

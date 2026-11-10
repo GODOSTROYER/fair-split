@@ -29,11 +29,12 @@
   box-shadow: inset 0 0 0 1px var(--fs-jade-flush-border);
 }
 
-/* In flight: a solid jade hairline on a clear face. Dashed means simulated, nothing else (round 3). */
+/* In flight (sent, not confirmed): hollow and neutral like any pending amount; it floods jade only when PayPal
+   confirms it. Never dashed (dashed means simulated) and never jade before then (round 3). */
 .fsr-money__seg[data-tone="flight"],
 .fsr-money__swatch[data-tone="flight"] {
-  background: transparent;
-  box-shadow: inset 0 0 0 1.5px var(--fs-jade-flush-border);
+  background: var(--fs-plate);
+  box-shadow: inset 0 0 0 1.5px var(--fs-pending);
 }
 
 .fsr-money__seg[data-tone="held"],

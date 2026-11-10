@@ -102,8 +102,10 @@ describe("W-TR-08 run: the honest fan-out", () => {
       const ribbon = screen.getByTestId("W-TR-08.ribbon");
       expect(ribbon.getAttribute("mask")).toMatch(/^url\(#/);
       expect(ribbon.querySelectorAll("path.fsr-fan__cash-line")).toHaveLength(56);
-      // The run's one dot-matrix count, and the one micro-tag on its money: the top bar's indicator is the third.
+      // The run's one hero count in FS Sans, and the one micro-tag on its money: the top bar's indicator is the third.
       expect(screen.getByTestId("W-TR-08.count").getAttribute("data-value")).toBe("7/8");
+      expect(screen.getByTestId("W-TR-08.count").classList.contains("fs-t-hero")).toBe(true);
+      expect(screen.getByTestId("W-TR-08").querySelector(".fs-dm, [data-dot-matrix]")).toBeNull();
       expect(tagBudget(screen.getByTestId("W-TR-08"))).toMatchObject({ tags: 1, micro: 1, ok: true });
       const run = view.runtime.client.getQueryData<RunView>(queryKeys.run(RUN));
       if (!run) throw new Error("fixture has no run");
@@ -146,7 +148,7 @@ describe("W-TR-08 run: the honest fan-out", () => {
       expect(toneOf("M-031")).toBe("moved");
       // The slab went with the parked card: focus is on the line that says where her cash is, never on <body>.
       await waitFor(() => expect(document.activeElement).toBe(screen.getByTestId("W-TR-08.rerouted")), WAIT);
-      // Her thread retracts and her own dashed cash line draws in from the same slot (live, so it animates).
+      // Her thread retracts and her own thin cash line draws in from the same slot (live, so it animates).
       const line = screen.getByTestId("W-TR-08.cash.M-031");
       expect(line.dataset.moved).toBe("");
       expect(line.closest(".fsr-fan__moved")?.hasAttribute("data-animate")).toBe(true);
@@ -169,12 +171,15 @@ describe("W-TR-08 run: the honest fan-out", () => {
         `Cash at the bodega57due ${cashDay}US$3,876.43`,
         "Kept for membersUS$21.14",
       ]);
-      // Settled routing, not settled cash: seven of eight confirmed on PayPal, and apart from them, in neutral with
-      // its hatch, the 57 members' cash still due on its day.
-      expect(screen.getByTestId("W-TR-08.status").textContent).toBe(
-        `7/8confirmed on PayPal57 cash due ${cashDay}`,
-      );
+      // Settled routing, not settled cash: seven of eight confirmed on PayPal (the jade dot), and apart from them,
+      // in neutral with its hatch, the 57 members' cash still due on its day, with the run's remaining action.
+      const status = screen.getByTestId("W-TR-08.status");
+      expect(status.textContent).toBe(`7/8confirmed on PayPal57 cash due ${cashDay}Review cash handover`);
+      expect(status.querySelectorAll('.fs-state-dot[data-kind="paid"]')).toHaveLength(1);
+      expect(screen.getByTestId("W-TR-08.cashDue").querySelector(".fs-state-dot")).toBeNull();
       expect(screen.getByTestId("W-TR-08.cashDue").textContent).toBe(`57 cash due ${cashDay}`);
+      expect(screen.getByTestId("W-TR-08.cashReview").getAttribute("href")).toBe(webRoutes.proof(RUN));
+      expect(status.textContent).not.toMatch(/Settled|Done/);
       expect(screen.getByTestId("W-TR-08.rerouted").textContent).toBe(
         `Rhea Jumawan → cash at the bodegadue ${cashDay}`,
       );

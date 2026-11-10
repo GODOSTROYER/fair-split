@@ -316,8 +316,11 @@ export const FANOUT = {
   cashBandMembers: (n: number) => `${n} members · cash at the bodega`,
   movedToCash: (name: string) => `${name} → cash`,
   title: "Run",
-  feesSoFar:
-    "The simulated PayPal sandbox reports each modelled fee with its item; none has arrived in this run's notices.",
+  feesSoFar: "Simulated PayPal fees: none in this run's notices yet.",
+  feesReplayed: "Fees belong to the earlier simulated run (labelled replay).",
+  timingReplayed: "Timing replayed (labelled) from an earlier simulated run.",
+  /** The run's remaining action while cash is due at the bodega: the run pill's words, said where the cash is. */
+  reviewCash: en("W-JG-01.pill.cashDue"),
   railCash: "Cash",
   statusWaiting: "Sent, waiting for simulated PayPal",
   parkedChip: "Parked",
@@ -336,6 +339,7 @@ export const FANOUT = {
   latency: "Funding to confirmation",
   latencySummary: (p50: string, max: string) => `median ${p50} · slowest ${max}`,
   latencyEmpty: "No confirmations yet",
+  latencySeeded: "Timed only on a live run",
   rheaLine: "No PayPal account · unclaimed",
   rheaReplayed: "Unclaimed in the earlier simulated PayPal sandbox run · a labelled replay",
   returns: "returns to the co-op in 30 days",

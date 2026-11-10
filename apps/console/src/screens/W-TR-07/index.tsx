@@ -400,10 +400,10 @@ export function Screen({ runSlug }: RunScreenProps) {
 
   const title = (
     <header className="fsr-screen__head">
-      <h1 id="W-TR-07-title" className="fs-t-title-1">
+      <h1 id="W-TR-07-title" className="fs-t-title">
         {en("W-TR-07.title")}
       </h1>
-      <p className="fsr-screen__slug fs-t-hash">{runLabel(runSlug).text}</p>
+      <p className="fsr-screen__slug fs-t-id">{runLabel(runSlug).text}</p>
     </header>
   );
 
@@ -494,7 +494,11 @@ export function Screen({ runSlug }: RunScreenProps) {
         return { suffix: APPROVE.keyDevice };
     }
   };
-  const metaOf = (id: string) => [id, keyKindOf(id).suffix].filter(Boolean).join(" · ");
+  // The key's ID in the mono id role; its kind ("browser key") in words beside it.
+  const metaOf = (id: string) => {
+    const suffix = keyKindOf(id).suffix;
+    return { meta: id, ...(suffix ? { why: suffix } : {}) };
+  };
   const treasurerKeyId = treasurerApproval?.keyId ?? key?.keyId ?? null;
   // Until fs-api has registered this browser's key the row names the kind of key that will sign, not an ID.
   const treasurerMark = treasurerKeyId ? keyKindOf(treasurerKeyId).mark : KEY_MARKS.demo;
@@ -631,7 +635,7 @@ export function Screen({ runSlug }: RunScreenProps) {
                   <>
                     <KeySlot
                       name={APPROVE.keyName.treasurer}
-                      {...(treasurerKeyId ? { meta: metaOf(treasurerKeyId) } : {})}
+                      {...(treasurerKeyId ? metaOf(treasurerKeyId) : {})}
                       {...(treasurerNote ? { metaTitle: treasurerNote } : {})}
                       {...(treasurerMark ? { mark: treasurerMark } : {})}
                       status={
@@ -652,7 +656,7 @@ export function Screen({ runSlug }: RunScreenProps) {
                       <KeySlot
                         name={APPROVE.keyName.chair}
                         {...(chairApproval
-                          ? { meta: metaOf(chairApproval.keyId) }
+                          ? metaOf(chairApproval.keyId)
                           : { why: APPROVE.chairWhy(chair.threshold, chair.ruleId) })}
                         {...(chairApproval && keyKind(chairApproval.keyId) === "demo"
                           ? { metaTitle: APPROVE.keyDemoChair }
@@ -735,7 +739,7 @@ export function Screen({ runSlug }: RunScreenProps) {
                   rateCardSha256={snapshot.rateCard.sha256}
                 />
               </section>
-              <p className="fsr-approve__provenance fs-t-micro">
+              <p className="fsr-approve__provenance fs-t-caption">
                 {provenanceFooter({ kind: "engine", rateCardSha256: snapshot.rateCard.sha256 })}
               </p>
             </div>
@@ -794,7 +798,7 @@ export function Screen({ runSlug }: RunScreenProps) {
             <div className="fsr-approve__done" data-testid="W-TR-07.approved">
               <span className="fs-sr">{APPROVE.approved}</span>
               {state === "posting" && (
-                <p className="fsr-approve__posting fs-t-micro" data-testid="W-TR-07.posting">
+                <p className="fsr-approve__posting fs-t-caption" data-testid="W-TR-07.posting">
                   {APPROVE.posting(batchId)}
                 </p>
               )}
