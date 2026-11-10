@@ -1,395 +1,503 @@
+/* Fair Split film: fonts, the Hayag day / Gabii night tokens and the capture-slot language (video/proto/STYLE.md).
+   The opening and the parts carry their own styles; this sheet styles the generated capture-slot beats. */
 @font-face {
   font-family: "FS Sans";
   src: url("assets/fonts/FSSans-VF.woff2") format("woff2");
   font-weight: 200 900;
+  font-stretch: 75% 125%;
 }
 @font-face {
   font-family: "FS Sans";
   src: url("assets/fonts/FSSansPeso.woff2") format("woff2");
+  font-weight: 200 900;
+  font-stretch: 75% 125%;
   unicode-range: U+20B1;
 }
-@font-face {
-  font-family: "Atkinson Next";
-  src: url("assets/fonts/AtkinsonNext-VF.woff2") format("woff2");
-  font-weight: 200 800;
-}
-@font-face {
-  font-family: "FS Stencil";
-  src: url("assets/fonts/FSStencil.woff2") format("woff2");
-  font-weight: 100 900;
+:root {
+  /* Hayag day (research/theme-1104/final/tokens.json) */
+  --ground: #f3f5f8;
+  --plate: #ffffff;
+  --rule: #e3e7ee;
+  --ink: #0b1220;
+  --ink-2: #3a4456;
+  --ink-3: #5a6476;
+  --pod: #4a2fd6;
+  --jade: #14cc90;
+  --steel-line: #7e8898;
+  /* Gabii night: the film's dark fields */
+  --n-ground: #090d18;
+  --n-ink: #f4f6fa;
+  --n-ink-3: #8e98ae;
 }
 * {
   box-sizing: border-box;
 }
+html,
 body {
+  width: 100%;
+  height: 100%;
   margin: 0;
-  background: #201712;
-  color: #f4ede4;
-  font-family: "FS Sans", sans-serif;
-  font-variant-numeric: tabular-nums;
-  font-feature-settings: "tnum" 1;
+  overflow: hidden;
+  background: #04060c;
 }
-#root {
+body {
+  font-family: "FS Sans", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  font-kerning: normal;
+  font-variant-numeric: lining-nums proportional-nums;
+}
+body > #root {
   position: relative;
   width: 100%;
   height: 100%;
   overflow: hidden;
+  background: #04060c;
 }
 .clip {
   position: absolute;
   inset: 0;
 }
-.scene {
+
+/* seams (plan.mjs SEAMS, none at present): a plate over a composition cut. The film no longer dips to navy. */
+.seam {
+  z-index: 5;
+  background: var(--ground);
+  opacity: 0;
+}
+
+/* ---------------------------------------------------------------- the day field (STYLE §1) */
+.pf-day {
   position: absolute;
   inset: 0;
-  background: #201712;
-  padding: 54px 96px 240px;
+  overflow: hidden;
+}
+.pf-field {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: var(--ground);
+}
+.pf-wash {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(
+      56% 74% at 0% 0%,
+      rgb(20 204 144 / 0.15),
+      rgb(20 204 144 / 0.1) 20%,
+      rgb(20 204 144 / 0.055) 42%,
+      rgb(20 204 144 / 0.02) 66%,
+      transparent 90%
+    ),
+    radial-gradient(
+      44% 60% at 64% 0%,
+      rgb(74 47 214 / 0.09),
+      rgb(74 47 214 / 0.06) 22%,
+      rgb(74 47 214 / 0.03) 46%,
+      rgb(74 47 214 / 0.01) 70%,
+      transparent 92%
+    );
+}
+.pf-light {
+  position: absolute;
+  left: 0;
+  top: 0;
+  border-radius: 50%;
+  will-change: transform;
+}
+.pf-lightA {
+  width: 1900px;
+  height: 1500px;
+  background: radial-gradient(
+    closest-side,
+    rgb(20 204 144 / 0.16),
+    rgb(20 204 144 / 0.11) 25%,
+    rgb(20 204 144 / 0.06) 50%,
+    rgb(20 204 144 / 0.02) 75%,
+    transparent
+  );
+}
+.pf-lightB {
+  width: 1700px;
+  height: 1300px;
+  background: radial-gradient(
+    closest-side,
+    rgb(255 255 255 / 0.92),
+    rgb(255 255 255 / 0.62) 30%,
+    rgb(255 255 255 / 0.28) 60%,
+    rgb(255 255 255 / 0.07) 84%,
+    transparent
+  );
+}
+.pf-lightC {
+  width: 1800px;
+  height: 1500px;
+  background: radial-gradient(
+    closest-side,
+    rgb(74 47 214 / 0.09),
+    rgb(74 47 214 / 0.06) 30%,
+    rgb(74 47 214 / 0.025) 62%,
+    transparent
+  );
+}
+/* the leaf shadows and their mirror image tile along x, so the run's camera can pan across the whole world;
+   film-slots.js moves the tile with the camera through background-position */
+.pf-dapple {
+  position: absolute;
+  inset: 0;
+  opacity: 0.85;
+  background: url("proto/assets/dapple-tile.png") 0 0 / 6400px 1800px repeat-x;
+}
+.pf-grain {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 1920px;
+  height: 1080px;
+  pointer-events: none;
+  mix-blend-mode: overlay;
+  opacity: 0.2;
+}
+
+/* ---------------------------------------------------------------- floating windows (STYLE §4) */
+.pf-world {
+  position: absolute;
+  inset: 0;
+}
+.pf-win {
+  position: absolute;
+  left: 0;
+  top: 0;
+  opacity: 0;
+  transform-origin: 50% 50%;
+  will-change: transform, filter, opacity;
+}
+.pf-win--landscape {
+  width: 1000px;
+  height: 562.5px;
+  margin: -281.25px 0 0 -500px;
+}
+.pf-win--phone {
+  width: 330px;
+  height: 715px;
+  margin: -357.5px 0 0 -165px;
+}
+.pf-in {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: var(--plate);
+  box-shadow:
+    0 2px 6px rgb(11 18 32 / 0.06),
+    0 50px 90px -34px rgb(11 18 32 / 0.42),
+    0 0 0 1px rgb(11 18 32 / 0.05);
+}
+.pf-win--landscape .pf-in {
+  border-radius: 22px;
+}
+.pf-win--phone .pf-in {
+  border-radius: 48px;
+  box-shadow:
+    0 0 0 9px #0b1220,
+    0 50px 90px -30px rgb(11 18 32 / 0.55);
+}
+.pf-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+/* the placeholder: a calm plate with crop marks, "capture pending:" and the slot id */
+.pf-pending {
+  position: absolute;
+  inset: 0;
   display: flex;
   flex-direction: column;
-  gap: 24px;
-}
-.header {
-  display: flex;
-  justify-content: space-between;
   align-items: center;
-  border-bottom: 2px solid #4a392d;
-  padding-bottom: 20px;
-  font-size: 28px;
-  color: #bdb1a4;
-}
-.season {
-  font-family: "FS Stencil", sans-serif;
-  font-weight: 800;
-  font-size: 32px;
-}
-.content {
-  flex: 1;
-  min-height: 0;
-  position: relative;
-  display: flex;
-  flex-direction: column;
   justify-content: center;
-  gap: 24px;
-}
-.pending {
-  border: 2px solid #bdb1a4;
-  background: #2a1f18;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  padding: 56px;
-  gap: 22px;
-}
-.pending h2 {
-  font-size: 52px;
-  font-weight: 660;
-  line-height: 1.12;
-  margin: 0;
-  max-width: 1400px;
-}
-.pending p {
-  font-size: 28px;
-  color: #bdb1a4;
-  margin: 0;
-  max-width: 1420px;
-}
-.pending .brief {
-  font-size: 30px;
-  line-height: 1.35;
-  color: #f4ede4;
-}
-.editorial {
-  font-size: 28px;
-  color: #bdb1a4;
-}
-.headline {
-  font-size: 104px;
-  line-height: 1.02;
-  font-weight: 800;
-  font-stretch: 75%;
-  max-width: 1320px;
-  margin: 0;
-}
-.tagline {
-  font-size: 48px;
-  margin: 0;
-  line-height: 1.15;
-  max-width: 1450px;
-}
-.evidence {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px 28px;
-  font-size: 26px;
-  line-height: 1.25;
-  max-width: 1728px;
-}
-.evidence p {
-  margin: 0;
-}
-.persona {
-  position: absolute;
-  top: auto;
-  right: auto;
-  left: 96px;
-  bottom: 14px;
-  padding: 12px 20px;
-  background: #201712;
-  color: #f4ede4;
-  border: 2px solid #bdb1a4;
-  font-size: 28px;
-}
-.simulation {
-  position: absolute;
-  right: 96px;
-  top: 126px;
-  background: #201712;
-  border: 2px solid #bdb1a4;
-  padding: 10px 18px;
-  font-size: 28px;
-  color: #f4ede4;
-}
-.disclosure {
-  position: absolute;
-  left: 96px;
-  right: 96px;
-  bottom: 170px;
-  font-size: 25px;
-  color: #f4ede4;
-  background: #201712;
-  padding: 12px 0;
-  line-height: 1.2;
-}
-.caption {
-  position: absolute;
-  top: auto;
-  left: 192px;
-  right: 192px;
-  bottom: 62px;
-  height: 98px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 20;
-  margin: 0;
-}
-.caption {
-  background: #201712;
-  color: #f4ede4;
+  gap: 10px;
   text-align: center;
-  font-size: 44px;
-  line-height: 1.12;
-  font-weight: 560;
-  padding: 8px 20px;
+  background:
+    radial-gradient(70% 70% at 50% 40%, rgb(243 245 248 / 0), rgb(243 245 248 / 0.9)),
+    linear-gradient(180deg, #ffffff, #f6f8fb);
+}
+.pf-crop {
+  position: absolute;
+  width: 42px;
+  height: 42px;
+  border: 0 solid rgb(126 136 152 / 0.55);
+}
+.pf-crop--tl {
+  left: 26px;
+  top: 26px;
+  border-left-width: 3px;
+  border-top-width: 3px;
+}
+.pf-crop--tr {
+  right: 26px;
+  top: 26px;
+  border-right-width: 3px;
+  border-top-width: 3px;
+}
+.pf-crop--bl {
+  left: 26px;
+  bottom: 26px;
+  border-left-width: 3px;
+  border-bottom-width: 3px;
+}
+.pf-crop--br {
+  right: 26px;
+  bottom: 26px;
+  border-right-width: 3px;
+  border-bottom-width: 3px;
+}
+.pf-rec {
+  position: relative;
+  width: 46px;
+  height: 46px;
+  margin-bottom: 8px;
+  border: 3px solid var(--steel-line);
+  border-radius: 50%;
+}
+.pf-rec::after {
+  content: "";
+  position: absolute;
+  inset: 11px;
+  border-radius: 50%;
+  background: var(--steel-line);
+}
+.pf-p1 {
   margin: 0;
+  font-stretch: 100%;
+  font-weight: 560;
+  font-size: 36px;
+  line-height: 44px;
+  color: var(--ink-3);
+  letter-spacing: 0.01em;
 }
-.footage {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  background: #201712;
+.pf-p2 {
+  margin: 0;
+  font-stretch: 112.5%;
+  font-weight: 680;
+  letter-spacing: -0.02em;
+  color: var(--ink);
+  white-space: nowrap;
 }
-.media-slot {
+.pf-p3 {
+  margin: 6px 0 0;
+  font-stretch: 100%;
+  font-weight: 520;
+  font-size: 28px;
+  line-height: 34px;
+  color: var(--ink-3);
+}
+.pf-win--phone .pf-p1 {
+  font-size: 30px;
+  line-height: 38px;
+}
+.pf-win--phone .pf-p3 {
+  font-size: 23px;
+  line-height: 30px;
+}
+.pf-speed {
+  position: absolute;
+  right: 18px;
+  top: 18px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.92);
+  font-weight: 600;
+  font-size: 24px;
+  color: var(--ink-2);
+}
+
+/* ---------------------------------------------------------------- words (STYLE §2) */
+.pf-kw {
+  position: absolute;
+  left: 140px;
+  overflow: hidden;
+  padding: 0 20px 26px 10px;
+}
+/* one anchor for every keyword in the film (plan.mjs KEYWORD_ANCHOR, the opening's "checked." and "paid.") */
+.pf-kw--landscape,
+.pf-kw--phone {
+  top: 150px;
+}
+.pf-kw span {
+  display: block;
+  font-stretch: 112.5%;
+  font-weight: 700;
+  letter-spacing: -0.035em;
+  color: var(--ink);
+  white-space: nowrap;
+}
+.pf-veil {
   position: absolute;
   inset: 0;
+  opacity: 0;
+  background:
+    radial-gradient(52% 70% at 0% 0%, rgb(20 204 144 / 0.14), rgb(20 204 144 / 0.07) 35%, transparent 90%),
+    radial-gradient(42% 58% at 62% 0%, rgb(74 47 214 / 0.09), rgb(74 47 214 / 0.04) 40%, transparent 85%),
+    var(--ground);
 }
-.phone .footage {
-  object-fit: contain;
-}
-.architecture {
-  width: 100%;
-  height: 610px;
-  display: block;
-}
-.limits-list {
+.pf-endline {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 474px;
   display: flex;
-  flex-direction: column;
+  justify-content: center;
+  white-space: nowrap;
+  font-stretch: 112.5%;
+  font-weight: 690;
+  font-size: 118px;
+  line-height: 132px;
+  letter-spacing: -0.028em;
+  color: var(--ink);
+}
+.pf-endline .w {
+  display: inline-block;
+  margin-right: 0.24em;
+  opacity: 0;
+}
+.pf-endline .w:last-child {
+  margin-right: 0;
+}
+
+/* ---------------------------------------------------------------- the one honesty tag (STYLE §7) */
+/* 32 px words in a 64 px pill (review v3 item 7: about 11 px at 640 wide), its bottom 56 px off the frame edge;
+   plan.mjs TAG keeps every window out of its corner (x > 1335, y > 960) */
+.pf-tag {
+  position: absolute;
+  right: 64px;
+  top: 960px;
+  display: inline-flex;
+  align-items: center;
   gap: 14px;
-  font-size: 36px;
-  line-height: 1.2;
-  margin: 0;
-  max-width: 1550px;
+  height: 64px;
+  padding: 0 28px 0 23px;
+  border-radius: 999px;
+  border: 2px dashed var(--steel-line);
+  background: rgb(255 255 255 / 0.9);
+  color: var(--ink-2);
+  font-stretch: 100%;
+  font-weight: 600;
+  font-size: 32px;
+  line-height: 1;
+  white-space: nowrap;
+  opacity: 0;
 }
-.limits-list p {
-  margin: 0;
+.pf-tag--nodot {
+  padding-left: 28px;
 }
-.statement {
-  font-family: "Atkinson Next", sans-serif;
-  font-size: 34px;
+.pf-tag svg {
+  width: 30px;
+  height: 30px;
+  flex: none;
+  color: var(--ink-3);
 }
-.figure {
-  font-family: "FS Sans", sans-serif;
-}
-.speed {
+
+/* ---------------------------------------------------------------- the night insert (plan.mjs ACCENTS "night") */
+/* Gabii navy and the film-card glows (indigo from the top, a little jade from the lower left), as in the opening */
+.pf-night {
   position: absolute;
-  top: auto;
-  left: auto;
-  right: 96px;
-  bottom: 14px;
-  background: #201712;
-  padding: 12px 20px;
-  font-size: 28px;
-  border: 2px solid #bdb1a4;
+  inset: 0;
+  opacity: 0;
+  background: var(--n-ground);
 }
-.title-layout {
-  display: grid;
-  grid-template-columns: 1fr 660px;
-  gap: 48px;
-  flex: 1;
-  min-height: 0;
+.pf-night-glow {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(
+      42% 150% at 0% 100%,
+      rgb(61 230 174 / 0.1),
+      rgb(61 230 174 / 0.07) 15%,
+      rgb(61 230 174 / 0.046) 30%,
+      rgb(61 230 174 / 0.027) 45%,
+      rgb(61 230 174 / 0.013) 60%,
+      rgb(61 230 174 / 0.005) 75%,
+      rgb(61 230 174 / 0.001) 90%,
+      transparent
+    ),
+    radial-gradient(
+      46% 150% at 52% 0%,
+      rgb(91 67 234 / 0.22),
+      rgb(91 67 234 / 0.154) 15%,
+      rgb(91 67 234 / 0.101) 30%,
+      rgb(91 67 234 / 0.059) 45%,
+      rgb(91 67 234 / 0.029) 60%,
+      rgb(91 67 234 / 0.01) 75%,
+      rgb(91 67 234 / 0.0013) 90%,
+      transparent
+    );
 }
-.title-layout .pending {
-  padding: 32px;
+/* the lit window: a soft cool light round it while the night is on */
+.pf-lit {
+  position: absolute;
+  inset: 0;
+  border-radius: 22px;
+  pointer-events: none;
+  opacity: 0;
+  box-shadow:
+    0 0 0 1px rgb(244 246 250 / 0.16),
+    0 0 70px 6px rgb(156 140 255 / 0.2),
+    0 0 160px 30px rgb(244 246 250 / 0.06);
 }
-.title-layout .pending h2 {
+
+/* ---------------------------------------------------------------- placeholder accent beats (plan.mjs ACCENTS) */
+.pf-defs {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+/* a label on a window (review v5 item 3): the honesty tag's dashed steel pill, 38 px so it reads at least 36 px on
+   screen (verify v5-r1) */
+.pf-chip {
+  position: absolute;
+  box-sizing: border-box;
+  padding: 12px 22px;
+  border: 2px dashed rgb(126 136 152 / 0.9);
+  border-radius: 24px;
+  background: rgb(255 255 255 / 0.94);
+  color: #0b1220;
+  font-stretch: 100%;
+  font-weight: 600;
   font-size: 38px;
+  line-height: 46px;
+  text-align: center;
+  opacity: 0;
+  box-shadow: 0 18px 40px -22px rgb(11 18 32 / 0.45);
 }
-.title-layout .pending .brief {
-  font-size: 26px;
-}
-.title-layout .pending p {
-  font-size: 24px;
-}
-.title-copy {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 32px;
-}
-/* Script v4: original cards, the animated architecture and the highlight-reel labels. Layout only: every
-   colour here is one this file already uses or currentColor, so a new look restyles them in one place. */
-.card {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 26px;
-}
-.card-heading {
-  font-size: 84px;
-  line-height: 1.02;
-  font-weight: 800;
-  font-stretch: 75%;
-  margin: 0;
-}
-.kicker {
-  font-size: 40px;
-  line-height: 1.2;
-  margin: 0;
-}
-.card-items {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
-  counter-reset: step;
-}
-.card-item.clip {
-  position: relative;
-  inset: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding-left: 26px;
-  border-left: 6px solid currentColor;
-}
-.card-item .line {
-  font-size: 46px;
-  line-height: 1.12;
-  font-weight: 640;
-}
-.card-item .detail {
-  font-size: 30px;
-  line-height: 1.2;
-  font-weight: 420;
-  color: #bdb1a4;
-}
-.card-solution .card-items,
-.card-facts .card-items {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 26px 56px;
-}
-.card-solution .card-item {
-  counter-increment: step;
-}
-.card-solution .card-item .line::before {
-  content: counter(step) "  ";
-  font-weight: 800;
-}
-.card-facts .card-item .line {
-  font-size: 40px;
-}
-.card-limits .card-items {
-  gap: 12px;
-}
-.card-limits .card-item .line {
-  font-size: 34px;
-  font-weight: 560;
-}
-.card-architecture {
-  gap: 12px;
-}
-.card-architecture .card-heading {
-  font-size: 56px;
-}
-.card-architecture .kicker {
-  font-size: 30px;
-}
-.card-architecture .architecture {
-  position: relative;
-  flex: 1;
-  height: auto;
-  min-height: 0;
-}
-.architecture-layer svg {
-  width: 100%;
-  height: 100%;
-  display: block;
-}
-.card-end .kicker {
-  font-size: 48px;
-}
-.reel-label {
+.pf-acc {
   position: absolute;
-  inset: auto;
-  left: 96px;
-  top: 126px;
-  max-width: 1300px;
-  background: #201712;
-  border: 2px solid currentColor;
-  padding: 10px 20px;
-  font-size: 40px;
-  font-weight: 700;
-  line-height: 1.15;
-  z-index: 10;
+  pointer-events: none;
+  opacity: 0;
 }
-/* Review round: evidence lines timed to one clip, and the part bumper. Layout only: no new colour (the bumper
-   inherits the scene's background), so a new look restyles them with the scene. */
-.evidence-timed {
-  position: relative;
-  min-height: 104px;
+.pf-acc--ring {
+  border: 5px solid var(--pod);
 }
-.slot-evidence.clip {
-  display: flex;
-  flex-wrap: wrap;
-  align-content: flex-start;
-  gap: 12px 28px;
+.pf-acc--lit {
+  border-radius: 20px;
+  border: 3px solid var(--jade);
+  background: rgb(20 204 144 / 0.12);
+  box-shadow: 0 0 26px rgb(20 204 144 / 0.35);
 }
-.part-bumper {
-  inset: auto;
-  left: 96px;
-  top: 126px;
-  max-width: 1500px;
-  background: inherit;
-  border: 2px solid currentColor;
-  padding: 18px 28px;
-  font-size: 56px;
-  font-weight: 760;
-  line-height: 1.1;
-  z-index: 12;
+.pf-acc--svg {
+  overflow: visible;
+}
+.pf-acc--glow {
+  opacity: 1;
+  filter: drop-shadow(0 0 7px rgb(74 47 214 / 0.5));
+}
+.pf-acc--jade {
+  filter: drop-shadow(0 0 8px rgb(20 204 144 / 0.8));
+}
+.pf-acc--slip {
+  border-radius: 3px;
+  background: #fff center / cover no-repeat;
+  box-shadow:
+    0 2px 3px rgb(11 18 32 / 0.1),
+    0 22px 40px -18px rgb(11 18 32 / 0.4),
+    0 0 0 1px rgb(11 18 32 / 0.06);
 }

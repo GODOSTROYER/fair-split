@@ -1,0 +1,109 @@
+{
+  "voice": "Charon",
+  "model": "gemini-3.8-flash-tts",
+  "style": "calm, warm and credible documentary narrator for a short product film; clear, quietly confident, never rushed; <the beat's pace>",
+  "note": "One Gemini TTS request per narrated beat (5 Nov 2026, free tier, the repo's KeyPool and synthesize(), counted on the shared ledger). Takes 2 and 3 retook lines read over 140 wpm or misheard (round 2, review v5: reading, limits and funding again, for 'Analyn', the phrasing of the limits and 'on a simulated sandbox'; round r2: the architecture's new line, why PayPal, take 3 kept over take 4, which both transcribers heard as 'funds in'); `pauses` edit a sentence pause at [seconds into the raw take, seconds]: a positive value inserts that much silence (a beat stays at or under 140 wpm without retiming the voice), a negative one cuts it out of the pause (highlights: the list's pauses are tightened so each reel clip keeps about 1.8 s and the phone clip 2.3 s, and the pause before 'Try to break it' grows so it lands on the reel's night cut at 55 s).",
+  "target": {
+    "lufs": -16,
+    "truePeak": -1.5,
+    "rate": 48000
+  },
+  "beats": {
+    "problem": {
+      "take": 1,
+      "requests": 1,
+      "pace": "steady pace, about 125 words a minute; a short pause at each full stop",
+      "pauses": [[11.255, 0.4]]
+    },
+    "solution": {
+      "take": 1,
+      "requests": 1,
+      "pace": "brisk but clear, about 140 words a minute; very short pauses at full stops; say 'Fair Split' as a name",
+      "pauses": []
+    },
+    "architecture": {
+      "take": 3,
+      "requests": 4,
+      "pace": "steady, about 130 words a minute; a short pause at each semicolon and at the full stop",
+      "pauses": [[1.65, -0.22], [3.72, -0.3], [5.705, -0.2], [7.995, -0.4], [11.235, -0.14]]
+    },
+    "highlights": {
+      "take": 2,
+      "requests": 2,
+      "pace": "steady, about 125 words a minute; a short pause at each semicolon",
+      "pauses": [[3.645, -0.36], [5.72, -0.27], [7.71, -0.19], [9.535, -0.04], [11.365, 0.36]]
+    },
+    "paper": {
+      "take": 2,
+      "requests": 2,
+      "pace": "steady and unhurried, about 120 words a minute; a short pause at the full stop",
+      "pauses": [[2.97, 0.35]]
+    },
+    "funding": {
+      "take": 3,
+      "requests": 3,
+      "pace": "steady and unhurried, about 120 words a minute; say 'on a simulated sandbox' clearly, with the word 'on' given its full length",
+      "pauses": []
+    },
+    "reading": {
+      "take": 3,
+      "requests": 3,
+      "pace": "steady and unhurried, about 115 words a minute; give the name Analyn its full length, and a short pause at the semicolon",
+      "pauses": []
+    },
+    "count-once": {
+      "take": 2,
+      "requests": 2,
+      "pace": "steady, about 125 words a minute",
+      "pauses": []
+    },
+    "holds": {
+      "take": 3,
+      "requests": 3,
+      "pace": "steady and unhurried, about 120 words a minute; a short beat after 'Refused'",
+      "pauses": []
+    },
+    "signing": {
+      "take": 3,
+      "requests": 3,
+      "pace": "steady and unhurried, about 120 words a minute; a short pause at the colon and at the semicolon",
+      "pauses": []
+    },
+    "payouts": {
+      "take": 1,
+      "requests": 1,
+      "pace": "even, about 125 words a minute",
+      "pauses": []
+    },
+    "proof": {
+      "take": 2,
+      "requests": 2,
+      "pace": "steady and unhurried, about 120 words a minute",
+      "pauses": [[4.03, 0.12]]
+    },
+    "member": {
+      "take": 2,
+      "requests": 2,
+      "pace": "gentle and steady, about 125 words a minute; a short pause at the full stop",
+      "pauses": [[2.795, 0.1]]
+    },
+    "impressive": {
+      "take": 1,
+      "requests": 1,
+      "pace": "steady, about 125 words a minute; a short pause after 'switches'",
+      "pauses": []
+    },
+    "limits": {
+      "take": 2,
+      "requests": 2,
+      "pace": "plain and matter-of-fact, steady, about 130 words a minute; a short pause at each full stop and at the semicolon",
+      "pauses": []
+    },
+    "end": {
+      "take": 1,
+      "requests": 1,
+      "pace": "slower and warm, about 115 words a minute; let the last sentence land",
+      "pauses": []
+    }
+  }
+}

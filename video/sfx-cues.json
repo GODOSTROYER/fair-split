@@ -1,0 +1,440 @@
+{
+  "note": "The film's sound effects (owner, 5 Nov; ADR-0018). One real sound per cue, keyed to a timeline event (plan.mjs eventTime) plus an offset, so a cue follows any retiming. Method: the Barty-Bart motion-graphics sound-effects kit (cue list from the animation, one CC0 sound per cue; approach credited to Vox, @Voxyz_ai). The music has no kicks, so no beat grid. Product moments use Fair Split's own sounds (packages/motion recipes). Levels: a sound's loudest 400 ms sits 24 dB under the voice's loudest 400 ms around it while the voice speaks, and 16 dB under the voice's reference level (-13 LUFS: clips at -16 in each channel) in a gap, plus each cue's trim. Nothing plays during the member's own sentence.",
+  "voiceRef": -13,
+  "underVoice": -24,
+  "inGap": -16,
+  "sounds": {
+    "whoosh": {
+      "file": "assets/sfx/cc0-qubodup-whoosh.ogg",
+      "kit": "kit/whoosh.ogg",
+      "title": "Whoosh",
+      "author": "qubodup",
+      "source": "https://freesound.org/people/qubodup/sounds/60013/",
+      "licence": "CC0 1.0"
+    },
+    "whoosh-quiet": {
+      "file": "assets/sfx/cc0-sadiquecat-broomstick-whoosh-quiet.ogg",
+      "kit": "transition/fs-816262-broomstick-whoosh-3-quiet-okm1.ogg",
+      "title": "Broomstick whoosh 3 - Quiet - OKM1",
+      "author": "Sadiquecat",
+      "source": "https://freesound.org/people/Sadiquecat/sounds/816262/",
+      "licence": "CC0 1.0"
+    },
+    "whoosh-quick": {
+      "file": "assets/sfx/cc0-florianreichelt-quick-woosh.ogg",
+      "kit": "whoosh/fs-683101-quick-woosh.ogg",
+      "title": "quick woosh",
+      "author": "florianreichelt",
+      "source": "https://freesound.org/people/florianreichelt/sounds/683101/",
+      "licence": "CC0 1.0"
+    },
+    "click": {
+      "file": "assets/sfx/cc0-adh-dreaming-classic-click.ogg",
+      "kit": "kit/click.ogg",
+      "title": "Classic Click",
+      "author": "adh.dreaming",
+      "source": "https://freesound.org/people/adh.dreaming/sounds/671105/",
+      "licence": "CC0 1.0"
+    },
+    "riser": {
+      "file": "assets/sfx/cc0-beaconstudio-cinematic-riser-3-subtle.ogg",
+      "kit": "kit/riser.ogg",
+      "title": "Cinematic Riser #3 subtle",
+      "author": "BeaconStudio",
+      "source": "https://freesound.org/people/BeaconStudio/sounds/859482/",
+      "licence": "CC0 1.0"
+    },
+    "impact": {
+      "file": "assets/sfx/cc0-peoplearehappy-soft-impact3.ogg",
+      "kit": "kit/impact.ogg",
+      "title": "soft_impact3",
+      "author": "peoplearehappy",
+      "source": "https://freesound.org/people/peoplearehappy/sounds/841274/",
+      "licence": "CC0 1.0"
+    },
+    "impact-soft": {
+      "file": "assets/sfx/cc0-kenney-impactsoft-heavy-000.ogg",
+      "kit": "impact/kenney-impact-impactsoft-heavy-000.ogg",
+      "title": "impactSoft_heavy_000 (Impact Sounds)",
+      "author": "Kenney",
+      "source": "https://kenney.nl/assets/impact-sounds",
+      "licence": "CC0 1.0"
+    },
+    "ding": {
+      "file": "assets/sfx/cc0-legitcheese-soft-bell-ding.ogg",
+      "kit": "ding/fs-571513-soft-notifications-bell-ding-d.ogg",
+      "title": "Soft-Notifications - Bell - Ding-Dong",
+      "author": "LegitCheese",
+      "source": "https://freesound.org/people/LegitCheese/sounds/571513/",
+      "licence": "CC0 1.0"
+    },
+    "tick": {
+      "file": "assets/sfx/product-tick.wav",
+      "recipe": "tick",
+      "title": "row.printed",
+      "author": "Fair Split",
+      "licence": "MIT (this repo)"
+    },
+    "plunk": {
+      "file": "assets/sfx/product-plunk.wav",
+      "recipe": "plunk",
+      "title": "hold.bottom, slab.d2.commit",
+      "author": "Fair Split",
+      "licence": "MIT (this repo)"
+    },
+    "clack": {
+      "file": "assets/sfx/product-clack.wav",
+      "recipe": "clack",
+      "title": "bolted.refuse",
+      "author": "Fair Split",
+      "licence": "MIT (this repo)"
+    },
+    "chime": {
+      "file": "assets/sfx/product-chime.wav",
+      "recipe": "chime",
+      "title": "item.paid.member",
+      "author": "Fair Split",
+      "licence": "MIT (this repo)"
+    },
+    "root": {
+      "file": "assets/sfx/product-root.wav",
+      "recipe": "root",
+      "title": "invoice.paid",
+      "author": "Fair Split",
+      "licence": "MIT (this repo)"
+    },
+    "scale-0": {
+      "file": "assets/sfx/product-scale-0.wav",
+      "recipe": "scale-0",
+      "title": "item.paid.console (1st)",
+      "author": "Fair Split",
+      "licence": "MIT (this repo)"
+    },
+    "scale-1": {
+      "file": "assets/sfx/product-scale-1.wav",
+      "recipe": "scale-1",
+      "title": "item.paid.console (2nd)",
+      "author": "Fair Split",
+      "licence": "MIT (this repo)"
+    },
+    "scale-2": {
+      "file": "assets/sfx/product-scale-2.wav",
+      "recipe": "scale-2",
+      "title": "item.paid.console (3rd)",
+      "author": "Fair Split",
+      "licence": "MIT (this repo)"
+    },
+    "scale-3": {
+      "file": "assets/sfx/product-scale-3.wav",
+      "recipe": "scale-3",
+      "title": "item.paid.console (4th)",
+      "author": "Fair Split",
+      "licence": "MIT (this repo)"
+    },
+    "scale-4": {
+      "file": "assets/sfx/product-scale-4.wav",
+      "recipe": "scale-4",
+      "title": "item.paid.console (5th)",
+      "author": "Fair Split",
+      "licence": "MIT (this repo)"
+    },
+    "scale-5": {
+      "file": "assets/sfx/product-scale-5.wav",
+      "recipe": "scale-5",
+      "title": "item.paid.console (6th)",
+      "author": "Fair Split",
+      "licence": "MIT (this repo)"
+    },
+    "scale-6": {
+      "file": "assets/sfx/product-scale-6.wav",
+      "recipe": "scale-6",
+      "title": "item.paid.console (7th)",
+      "author": "Fair Split",
+      "licence": "MIT (this repo)"
+    }
+  },
+  "cues": [
+    {
+      "id": "c01",
+      "event": "opening.wave",
+      "offset": 0,
+      "sound": "whoosh-quiet",
+      "anchor": "start",
+      "trim": -2,
+      "picture": "the slip's sound wave fans into 64 threads"
+    },
+    {
+      "id": "c02",
+      "event": "opening.doubled.0",
+      "offset": 0,
+      "sound": "tick",
+      "repeat": [0, 0.09],
+      "anchor": "start",
+      "trim": 0,
+      "picture": "the pink copy: one slip, twice (the product's duplicate.found)"
+    },
+    {
+      "id": "c04",
+      "event": "opening.turn.0",
+      "offset": 0,
+      "sound": "riser",
+      "anchor": "end",
+      "trim": 2,
+      "picture": "the riser ends as the ring opens into daylight (the turn)"
+    },
+    {
+      "id": "c05",
+      "event": "opening.keywords.0",
+      "offset": 0,
+      "sound": "click",
+      "anchor": "start",
+      "trim": 0,
+      "picture": "read.: Claude's reading of slip 0403"
+    },
+    {
+      "id": "c06",
+      "event": "opening.jadePulse",
+      "offset": 0,
+      "sound": "chime",
+      "anchor": "start",
+      "trim": 2,
+      "picture": "the trace's jade pulse on her US$64.45 (item.paid.member)"
+    },
+    {
+      "id": "c07",
+      "event": "opening.endLine",
+      "offset": 0.05,
+      "sound": "impact-soft",
+      "anchor": "start",
+      "trim": -4,
+      "picture": "Every peso, traced. (the opening's end line)"
+    },
+    {
+      "id": "c08",
+      "event": "opening.glide.mid",
+      "offset": 0,
+      "sound": "whoosh",
+      "anchor": "centre",
+      "trim": -3,
+      "picture": "the glide off the end line onto the Slips disc"
+    },
+    {
+      "id": "c09",
+      "event": "word.architecture.retry",
+      "offset": 0,
+      "sound": "ding",
+      "anchor": "start",
+      "trim": 0,
+      "picture": "the retried PayPal call lands once: the architecture's jade pulse"
+    },
+    {
+      "id": "c10",
+      "event": "slot.hl-ratecard.glideMid",
+      "offset": 0,
+      "sound": "whoosh-quick",
+      "anchor": "centre",
+      "trim": -3,
+      "picture": "the reel glides to frozen."
+    },
+    {
+      "id": "c11",
+      "event": "slot.hl-keys.kwIn",
+      "offset": 0,
+      "sound": "plunk",
+      "anchor": "start",
+      "trim": 0,
+      "picture": "signed.: two keys on one hash"
+    },
+    {
+      "id": "c12",
+      "event": "slot.hl-member.glideMid",
+      "offset": 0,
+      "sound": "whoosh-quick",
+      "anchor": "centre",
+      "trim": -3,
+      "picture": "the reel glides to the member's phone (heard.)"
+    },
+    {
+      "id": "c13",
+      "event": "slot.hl-break.start",
+      "offset": 0,
+      "sound": "impact",
+      "anchor": "start",
+      "trim": 4,
+      "picture": "refused.: the lights go out on Try to break it (the reel's peak)"
+    },
+    {
+      "id": "c14",
+      "event": "slot.paper-photos.glideMid",
+      "offset": 0,
+      "sound": "whoosh",
+      "anchor": "centre",
+      "trim": -4,
+      "picture": "the deep dive's first glide, under the bumper's veil"
+    },
+    {
+      "id": "c15",
+      "event": "slot.paper-carbon.kwIn",
+      "offset": 0,
+      "sound": "tick",
+      "repeat": [0, 0.09],
+      "anchor": "start",
+      "trim": 0,
+      "picture": "twice.: the white original beside its pink duplicate (duplicate.found)"
+    },
+    {
+      "id": "c16",
+      "event": "slot.funding-console.accent",
+      "offset": 0,
+      "sound": "root",
+      "anchor": "start",
+      "trim": 2,
+      "picture": "funded.: the invoice paid into the pool (invoice.paid, the season's root note)"
+    },
+    {
+      "id": "c17",
+      "event": "slot.reading-console.accent",
+      "offset": 0,
+      "sound": "click",
+      "anchor": "start",
+      "trim": 0,
+      "picture": "read.: the box round the figure Claude read"
+    },
+    {
+      "id": "c18",
+      "event": "slot.reading-byhand.accent",
+      "offset": 0,
+      "sound": "tick",
+      "anchor": "start",
+      "trim": 0,
+      "picture": "typed.: the digit Analyn typed (row.printed)"
+    },
+    {
+      "id": "c19",
+      "event": "slot.count-console.accent",
+      "offset": 0,
+      "sound": "plunk",
+      "anchor": "start",
+      "trim": 0,
+      "picture": "once.: the Count it once button (slab.d2.commit)"
+    },
+    {
+      "id": "c20",
+      "event": "word.holds.refused",
+      "offset": 0,
+      "sound": "clack",
+      "anchor": "start",
+      "trim": 2,
+      "picture": "locked.: the bolted rate card refuses the deduction (bolted.refuse)"
+    },
+    {
+      "id": "c21",
+      "event": "slot.signing-console.accent",
+      "offset": 0,
+      "sound": "plunk",
+      "anchor": "start",
+      "trim": 2,
+      "picture": "signed.: the first key (hold.bottom)"
+    },
+    {
+      "id": "c22",
+      "event": "slot.signing-phone.accent",
+      "offset": 0,
+      "sound": "plunk",
+      "anchor": "start",
+      "trim": 2,
+      "picture": "co-signed.: the Chair's key (hold.bottom)"
+    },
+    {
+      "id": "c23",
+      "event": "slot.payouts-console.kwIn",
+      "offset": 0,
+      "sound": "whoosh-quiet",
+      "anchor": "start",
+      "trim": -2,
+      "picture": "sent.: the batch goes out, its items hollow (sent is not paid)"
+    },
+    {
+      "id": "c24",
+      "event": "slot.payouts-console.accent",
+      "offset": 0,
+      "sound": ["scale-0", "scale-1", "scale-2", "scale-3", "scale-4", "scale-5", "scale-6"],
+      "step": 0.14,
+      "anchor": "start",
+      "trim": -4,
+      "picture": "seven items confirm: seven jade fills, one note of the scale each (item.paid.console)"
+    },
+    {
+      "id": "c25",
+      "event": "slot.proof-browser.accent",
+      "offset": 0,
+      "sound": "click",
+      "anchor": "start",
+      "trim": 0,
+      "picture": "re-checked.: six of six in the buyer's browser"
+    },
+    {
+      "id": "c26",
+      "event": "slot.member-phone.landed",
+      "offset": 0,
+      "sound": "chime",
+      "anchor": "start",
+      "trim": 2,
+      "picture": "traced.: four slips into her net pay, its jade pulse (item.paid.member)"
+    },
+    {
+      "id": "c27",
+      "event": "close.figures.1",
+      "offset": 0,
+      "sound": "click",
+      "anchor": "start",
+      "trim": 0,
+      "picture": "3: three kill switches"
+    },
+    {
+      "id": "c28",
+      "event": "close.hand",
+      "offset": 0,
+      "sound": "click",
+      "anchor": "start",
+      "trim": 0,
+      "picture": "the hand's box closes round the handwritten 38.45"
+    },
+    {
+      "id": "c29",
+      "event": "close.glides.2.mid",
+      "offset": 0,
+      "sound": "whoosh",
+      "anchor": "centre",
+      "trim": -4,
+      "picture": "the pull-out from the slip to the first limit"
+    },
+    {
+      "id": "c30",
+      "event": "close.glides.6.mid",
+      "offset": 0,
+      "sound": "whoosh",
+      "anchor": "centre",
+      "trim": -4,
+      "picture": "the glide into the overview: slip and phone on one line"
+    },
+    {
+      "id": "c31",
+      "event": "close.jadePulse",
+      "offset": 0,
+      "sound": "chime",
+      "anchor": "start",
+      "trim": 2,
+      "picture": "the trace's jade pulse on her pay, as the buyer traces its premium"
+    },
+    {
+      "id": "c32",
+      "event": "close.endLine",
+      "offset": 0.05,
+      "sound": "impact-soft",
+      "anchor": "start",
+      "trim": -2,
+      "picture": "Every peso, traced. (the close's end line)"
+    }
+  ]
+}

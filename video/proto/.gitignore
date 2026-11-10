@@ -1,0 +1,4 @@
+# Renders, snapshots and the local GSAP copy (see README: "GSAP") stay out of git.
+.hyperframes/
+snapshots/
+assets/vendor/

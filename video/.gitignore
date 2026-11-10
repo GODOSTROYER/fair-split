@@ -2,3 +2,7 @@ captures/
 out/
 .hyperframes/
 node_modules/
+# third-party music is never committed (CC BY 4.0, credited in LICENSES.md and CREDITS.txt): fetch-music.mjs keeps it
+# in a cache outside the repo, and build-music-bed.mjs writes the bed to out/music-bed.wav
+out/music-bed.wav
+*.mp3
