@@ -285,6 +285,12 @@ export const radius = { none: 0, plate: 2, cell: 6, control: 12, card: 16, panel
 /** App targets (design §2.4): ≥48 dp, primary 56 dp, Paminawa and Pirmahi 64 dp, play/pause 72 dp. */
 export const target = { min: 48, primary: 56, hero: 64, play: 72 } as const;
 
+/** The generated `layout.seal` (UI gate round 3): the seal is 180 on the Chair's phone, as on the console's Approve. */
+export const layout = { seal: 180 } as const;
+
+/** The generated `typeSteps` (UI gate round 3, DESIGN.md §1): the phone's five size steps in sp. */
+export const typeSteps = { id: 13, label: 15, body: 17, title: 24, hero: 48 } as const;
+
 /** Slab lip depth in px (depth equals consequence): d1 reversible, d2 changes a line, d3 moves money or signs. */
 export const slabDepth = { d1: 3, d2: 5, d3: 8 } as const;
 

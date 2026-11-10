@@ -91,7 +91,8 @@ export function SlipPaper({
         <View style={styles.thumb}>
           <Txt
             maxFontSizeMultiplier={1}
-            style={{ color: t.color.red, fontFamily: fontFamily.figure, fontSize: 9, lineHeight: 11 }}
+            // The printed serial at the id floor (12 px; round 3: no caption under 12 on the phone).
+            style={{ color: t.color.red, fontFamily: fontFamily.figure, fontSize: 12, lineHeight: 14 }}
           >
             {tr("M-MB-02.formNo", { serial: slip.serial })}
           </Txt>

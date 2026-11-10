@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { cashDayIso, resolvedHolds } from "../_shims/seed";
+import { themes } from "../_shims/tokens.native";
 import { buildDemoStatement } from "../services/demo-fixtures";
+import { browserSurfacesCss } from "./browser-surfaces";
 import { dayGap, followingDay, seasonLabel } from "./display";
 import { hatchLines, MARK_KIND, MICRO_WORD, ringDash, TAG_BUDGET } from "./honesty";
 
@@ -68,5 +70,24 @@ describe("UI gate round 3 on the phone: honesty marks with a budget", () => {
     const [dash, gap] = ringDash(12);
     expect(dash).toBeGreaterThan(gap);
     expect(ringDash(4)[0]).toBe(1.4);
+  });
+});
+
+describe("UI gate round 3 on the phone: the web frames' browser surfaces", () => {
+  it("draws one focus ring, 2 px indigo at a 2 px offset, for keyboard focus only", () => {
+    const c = themes.adlaw.color;
+    const css = browserSurfacesCss(c);
+    expect(css).toContain(`:focus-visible{outline:2px solid ${c.pod};outline-offset:2px}`);
+    expect(css).toContain(":focus:not(:focus-visible){outline:none}");
+    expect(css.match(/outline:2px/g)).toHaveLength(1);
+  });
+
+  it("themes the caret, the selection, the scrollbars and the figures from the palette", () => {
+    const c = themes.adlaw.color;
+    const css = browserSurfacesCss(c);
+    expect(css).toContain(`caret-color:${c.pod}`);
+    expect(css).toContain(`::selection{background:${c.podWash}`);
+    expect(css).toContain(`scrollbar-color:${c.ruleStrong} transparent`);
+    expect(css).toContain("font-variant-numeric:tabular-nums lining-nums");
   });
 });

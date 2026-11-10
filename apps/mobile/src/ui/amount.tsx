@@ -35,7 +35,7 @@ import {
 } from "./amount-fit";
 import { Txt, useT } from "./text";
 
-/** `hero` 48 sp and `l` 32 are large (one SVG figure); `m` 22 (a receipt's total) and `figure` 16 are inline. */
+/** `hero` 48 sp and `l` 24 are large (one SVG figure); `m` 24 (a receipt's total) and `figure` 15 are inline. */
 export type AmountSize = "hero" | "l" | "m" | "figure";
 
 export interface AmountDisplayProps {
@@ -72,8 +72,11 @@ function spoken(srLabel: string | undefined) {
       } as const);
 }
 
-/** The hero amount's "US$" at half size, raised (ADR-0016); the text and its spoken label stay whole. */
-const CUR = { size: 0.5, rise: 0.36 } as const;
+/**
+ * The hero amount's "US$" small and raised, as the console's `.fs-cur` (0.42 em, DESIGN.md §1); the text and its
+ * spoken label stay whole.
+ */
+const CUR = { size: 0.42, rise: 0.38 } as const;
 
 /** "US$64.45" → ["US$", "64.45"]; text with no dollar prefix comes back whole. */
 export function currencyParts(text: string): readonly [prefix: string, figure: string] {
@@ -141,8 +144,8 @@ function LargeAmount({
     fontSize: box.fontSize,
     // The role's face (round 2: the figure cut, 87.5/500), so the drawn figure is the measured one.
     fontFamily: typeScale[role].fontFamily,
-    // Amounts read as money: proportional lining figures (ADR-0016).
-    fontFeatureSettings: "'pnum' 1, 'lnum' 1",
+    // Round 3: one money style, tabular lining figures everywhere (DESIGN.md §1).
+    fontFeatureSettings: "'tnum' 1, 'lnum' 1",
   } as const;
   const raise = size === "hero";
   const layer = { width: box.width, height: box.height };

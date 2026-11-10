@@ -98,7 +98,8 @@ export function BoardBayadScreen() {
           {run.items.map((i) => (
             <View key={i.senderItemId} style={styles.item}>
               <Txt
-                kind="figure"
+                kind="hash"
+                color="ink2"
                 style={styles.flex}
                 importantForAccessibility="no"
                 accessibilityElementsHidden

@@ -10,14 +10,13 @@ import { StyleSheet, TextInput, View } from "react-native";
 import type { StatementDTO } from "../../_shims/api-client";
 import type { Lang } from "../../_shims/contracts";
 import { format } from "../../_shims/domain";
-import { fontFamily } from "../../_shims/fonts";
 import { radius, space } from "../../_shims/tokens.native";
 import { uuidv7 } from "../../lib/uuidv7";
 import { prefs } from "../../platform/kv";
 import { randomBytes } from "../../platform/random";
 import { identityKey } from "../../services/session";
 import { useApp } from "../../state/app";
-import { useFs } from "../../theme/theme";
+import { typeScale, useFs } from "../../theme/theme";
 import { Banner, Chip, InkStamp } from "../../ui/primitives";
 import { Slab } from "../../ui/slab";
 import { Txt } from "../../ui/text";
@@ -122,7 +121,6 @@ export function ReviewFields({
               color: t.color.ink,
               borderColor: t.color.ink3,
               backgroundColor: t.color.plate,
-              fontFamily: fontFamily.statement,
             },
           ]}
         />
@@ -181,10 +179,10 @@ const styles = StyleSheet.create({
   note: {
     minHeight: 96,
     borderWidth: 1,
-    borderRadius: radius.plate,
+    borderRadius: radius.control,
     padding: space.s12,
-    fontSize: 18,
-    lineHeight: 26,
+    // Her words in FS Sans at the body step (round 3: one family; 17 sp, over the 16 floor).
+    ...typeScale.body,
     textAlignVertical: "top",
   },
   status: { flexDirection: "row", alignItems: "flex-start", gap: space.s12, paddingVertical: space.s4 },

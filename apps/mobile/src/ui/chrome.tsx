@@ -39,17 +39,7 @@ export function NavBar({ state, descriptors, emitter, navigateToTab }: BottomTab
       ]}
     >
       {/* The screen's content ends above the bar in a 12 px fade to the plate, never a hard cut (round 3). */}
-      <View pointerEvents="none" aria-hidden style={styles.fade}>
-        {navFadeBands().map((band) => (
-          <View
-            key={band.top}
-            style={[
-              styles.fadeBand,
-              { top: band.top, height: band.height, opacity: band.opacity, backgroundColor: t.color.plate },
-            ]}
-          />
-        ))}
-      </View>
+      <EdgeFade color={t.color.plate} />
       {state.routes.map((route, index) => {
         const desc = descriptors[route.key];
         if (!desc) return null;
@@ -86,6 +76,26 @@ export function NavBar({ state, descriptors, emitter, navigateToTab }: BottomTab
           </Pressable>
         );
       })}
+    </View>
+  );
+}
+
+/**
+ * The 12 px fade a scrolled column ends in above a fixed bar (UI gate round 3), in the bar's own colour: placed as
+ * the bar's first child, it sits just above the bar and never takes a touch.
+ */
+export function EdgeFade({ color }: { color: string }) {
+  return (
+    <View pointerEvents="none" aria-hidden style={styles.fade}>
+      {navFadeBands().map((band) => (
+        <View
+          key={band.top}
+          style={[
+            styles.fadeBand,
+            { top: band.top, height: band.height, opacity: band.opacity, backgroundColor: color },
+          ]}
+        />
+      ))}
     </View>
   );
 }

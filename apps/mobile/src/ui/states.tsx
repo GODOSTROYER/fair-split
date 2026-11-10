@@ -107,9 +107,9 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     gap: space.s12,
     padding: space.s24,
+    // A solid hairline (round 3: dashed lines mean simulated only).
     borderWidth: 1,
-    borderStyle: "dashed",
-    borderRadius: radius.plate,
+    borderRadius: radius.card,
   },
   skeleton: { gap: space.s12 },
   block: { borderRadius: radius.none },

@@ -7,7 +7,6 @@
  */
 import { Pressable, StyleSheet, View } from "react-native";
 import type { Lang } from "../../_shims/contracts";
-import { fontFamily } from "../../_shims/fonts";
 import { radius, space, target } from "../../_shims/tokens.native";
 import type { GlossPair } from "../../lib/statement";
 import { useApp } from "../../state/app";
@@ -100,13 +99,7 @@ export function GlossedSentence({
         underline={underline}
       />
       {gloss && pair.gloss ? (
-        <Txt
-          kind="body"
-          color="ink2"
-          lang="en"
-          style={styles.glossText}
-          testID={testID ? `${testID}.gloss` : undefined}
-        >
+        <Txt kind="body" color="ink2" lang="en" testID={testID ? `${testID}.gloss` : undefined}>
           {pair.gloss.display}
         </Txt>
       ) : null}
@@ -160,7 +153,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
   },
   glossed: { gap: space.s4 },
-  glossText: { fontFamily: fontFamily.statement },
-  stamps: { flexDirection: "row", gap: space.s4, width: 40, alignItems: "center" },
+  // Two 24 px stamps side by side: the column fits both, so a row's words always start at the same x.
+  stamps: { flexDirection: "row", gap: space.s4, width: 52, alignItems: "center" },
   square: { width: 12, height: 12, borderWidth: 1, overflow: "hidden", marginLeft: 3 },
 });

@@ -14,7 +14,7 @@ import { radius, space, target } from "../../_shims/tokens.native";
 import { STATUS_GLYPH, type StatusTone } from "../../lib/item-status";
 import { payoutStatus } from "../../lib/payout-status";
 import { useApp } from "../../state/app";
-import { useFs } from "../../theme/theme";
+import { typeScale, useFs } from "../../theme/theme";
 import { AmountDisplay } from "../../ui/amount";
 import { Glyph } from "../../ui/glyph";
 import { Banner, Button, Hatch, InkStamp, Rule, StatusDot } from "../../ui/primitives";
@@ -310,7 +310,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: radius.control,
   },
-  input: { flex: 1, minHeight: target.min, fontSize: 16 },
+  input: { flex: 1, minHeight: target.min, ...typeScale.body },
   row: {
     flexDirection: "row",
     alignItems: "center",

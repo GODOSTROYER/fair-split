@@ -9,11 +9,13 @@ import type { StatementDTO } from "../../_shims/api-client";
 import type { Lang } from "../../_shims/contracts";
 import { radius, space } from "../../_shims/tokens.native";
 import { slipFigures, slipTotal } from "../../lib/figures";
+import { MARK_KIND } from "../../lib/honesty";
 import { audioPlan, MONEY_SLOTS } from "../../lib/statement";
 import { useApp } from "../../state/app";
 import { useFs } from "../../theme/theme";
 import { Screen } from "../../ui/chrome";
 import { Glyph } from "../../ui/glyph";
+import { LegendGlyph } from "../../ui/honesty";
 import { MomentMarker, useMoment } from "../../ui/moment";
 import { Sheet } from "../../ui/overlay";
 import { Banner, Button, Rule } from "../../ui/primitives";
@@ -147,14 +149,20 @@ function Slips({ dto, lang }: { dto: StatementDTO; lang: Lang }) {
                     </View>
                     <View style={styles.rowText} importantForAccessibility="no-hide-descendants">
                       <Txt kind="bodyStrong">{tr("M-MB-02.slip", { serial: s.serial })}</Txt>
-                      <Txt kind="caption" color="ink2">
-                        {f.date}
-                      </Txt>
-                      {demo && f.provisional ? (
-                        <Txt kind="caption" color="statementInk2">
-                          {tr("M-MB-02.provisional")}
+                      {/* Round 3: a demo's sample kilos are the synthetic glyph beside the date (its words are
+                          its name), not a sentence repeated on every slip. */}
+                      <View style={styles.dateRow}>
+                        <Txt kind="caption" color="ink2">
+                          {f.date}
                         </Txt>
-                      ) : null}
+                        {demo && f.provisional ? (
+                          <LegendGlyph
+                            kind={MARK_KIND.seedStandIn}
+                            label={tr("M-MB-02.provisional")}
+                            testID={`M-MB-02.provisional.${s.serial}`}
+                          />
+                        ) : null}
+                      </View>
                     </View>
                     <Txt kind="figure" importantForAccessibility="no">
                       {f.kg}
@@ -244,9 +252,10 @@ function Slips({ dto, lang }: { dto: StatementDTO; lang: Lang }) {
 const styles = StyleSheet.create({
   fill: { flex: 1 },
   titles: { gap: space.s4 },
-  list: { borderRadius: radius.none },
+  list: { borderRadius: radius.card, overflow: "hidden" },
   row: { flexDirection: "row", alignItems: "center", gap: space.s12, padding: space.s12, minHeight: 80 },
   rowText: { flex: 1, gap: space.s2 },
+  dateRow: { flexDirection: "row", alignItems: "center", gap: space.s8 },
   total: { flexDirection: "row", alignItems: "center", padding: space.s12, borderTopWidth: 2 },
   start: { alignSelf: "flex-start" },
 });

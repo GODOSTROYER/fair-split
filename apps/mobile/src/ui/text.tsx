@@ -27,7 +27,7 @@ export interface TxtProps extends TextProps {
 
 /**
  * Sets every ₱ in string children in the face `pesoFace` names for the text's own face: FS Sans has its own ₱ (left
- * alone), Atkinson has none, so a peso in statement prose takes the figure face (S2.3: money is always FS Sans).
+ * alone), the platform mono may have none, so a peso in an id line takes the figure face (money is always FS Sans).
  * Other children pass through. The face is only looked up when a child carries a ₱.
  */
 function withPeso(children: ReactNode, face: () => string | null): ReactNode {

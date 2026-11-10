@@ -2,7 +2,7 @@
  * Honesty marks with a budget (UI gate round 3, the console's `@fairsplit/ui-web` honesty marks, drawn for the phone).
  * Pure, tested in Node; `ui/honesty.tsx` draws them.
  *
- * - One micro-tag, a 12 px dashed circle and the word "Sandbox" at 11 px, 18 px tall, only beside a PayPal money
+ * - One micro-tag, a 12 px dashed circle and the word "Sandbox" at 13 sp, 20 px tall, only beside a PayPal money
  *   value; a screen reader hears its whole label ("Simulated PayPal sandbox", or the replayed rail's words).
  * - Every other provenance pill becomes a bare legend glyph whose words are its accessible name: a hatched square for
  *   synthetic data, a dashed circle for a simulated system, a solid square for real code.

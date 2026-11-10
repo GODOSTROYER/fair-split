@@ -301,7 +301,7 @@ const styles = StyleSheet.create({
     paddingVertical: space.s12,
     borderTopWidth: StyleSheet.hairlineWidth,
   },
-  plate: { borderRadius: radius.plate, paddingHorizontal: space.s12 },
+  plate: { borderRadius: radius.card, paddingHorizontal: space.s12 },
   seeAll: { alignSelf: "flex-start", marginTop: space.s4 },
   stationCompact: { alignSelf: "flex-start", maxWidth: "100%" },
   line: { flexDirection: "row", alignItems: "center", gap: space.s8, minHeight: target.min },

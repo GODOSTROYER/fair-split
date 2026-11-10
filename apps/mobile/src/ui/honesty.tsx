@@ -3,7 +3,7 @@
  * react-native-svg so the Member, Chair and Clerk screens carry the same marks as the stage). The meaning survives;
  * the pills go (`lib/honesty.ts`):
  *
- * - `MicroTag`: a 12 px dashed circle and "Sandbox" at 11 px, 18 px tall, beside a PayPal money value only. A screen
+ * - `MicroTag`: a 12 px dashed circle and "Sandbox" at 13 sp, 20 px tall, beside a PayPal money value only. A screen
  *   reader hears the whole label, never the one word; the label is also in the tag's text for the judge's checks.
  * - `LegendGlyph`: a bare 12 px glyph in place of every other provenance pill (hatched square synthetic, dashed
  *   circle simulated, solid square real). Its words are its accessible name and its hidden text.
@@ -108,8 +108,9 @@ export interface MicroTagProps {
 }
 
 /**
- * The micro-tag beside a PayPal money value: a 12 px dashed circle and "Sandbox" at 11 px, 18 px tall, ink 3, no
- * outline. At most two a screen (TAG_BUDGET).
+ * The micro-tag beside a PayPal money value: a 12 px dashed circle and "Sandbox" at the phone's smallest step (13 sp,
+ * one over the console's 12 px), 20 px tall, ink 2 (it sits on a statement, where ink 3 never goes), no outline. At
+ * most two a screen (TAG_BUDGET).
  */
 export function MicroTag({ label, word = MICRO_WORD, testID, dataSet }: MicroTagProps) {
   const { t } = useFs();
@@ -125,7 +126,7 @@ export function MicroTag({ label, word = MICRO_WORD, testID, dataSet }: MicroTag
       <MarkShape kind="simulated" size={12} color={t.color.steelLine} />
       <Txt
         kind="micro"
-        color="ink3"
+        color="ink2"
         aria-hidden
         importantForAccessibility="no"
         maxFontSizeMultiplier={1.5}
@@ -172,8 +173,14 @@ export function MarkRow({ marks }: { marks: readonly LegendGlyphProps[] }) {
 const styles = StyleSheet.create({
   glyph: { alignItems: "center", justifyContent: "center" },
   hidden: { position: "absolute", width: 1, height: 1, overflow: "hidden", opacity: 0 },
-  micro: { flexDirection: "row", alignItems: "center", alignSelf: "flex-start", gap: space.s4, height: 18 },
-  microWord: { fontSize: 11, lineHeight: 16, letterSpacing: 0.11 },
+  micro: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    gap: space.s4,
+    minHeight: 20,
+  },
+  microWord: { fontSize: 13, lineHeight: 18 },
   // Top right, quiet, like a status mark: the screen's first content starts 8 px under it, not a section gap.
   row: {
     flexDirection: "row",

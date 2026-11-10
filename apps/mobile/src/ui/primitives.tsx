@@ -15,7 +15,6 @@ import {
 } from "react-native";
 import Svg, { Path } from "react-native-svg";
 import type { MemberStatus } from "../_shims/contracts";
-import { fontFamily } from "../_shims/fonts";
 import { pendingReview } from "../_shims/i18n";
 import { radius, space, target } from "../_shims/tokens.native";
 import { MARK_KIND } from "../lib/honesty";
@@ -144,7 +143,10 @@ export function Chip({
 
 /* ------------------------------------------------------------------ Ink stamp */
 
-/** A 20 px indigo stamp (radius 6) with a person's initials in white: every human decision carries one (ADR-0016). */
+/**
+ * A 24 px indigo stamp (radius 6) with a person's initials in white at the id step (13 sp, never the old 9): every
+ * human decision carries one (ADR-0016).
+ */
 export function InkStamp({ initials, label }: { initials: string; label?: string }) {
   const { t } = useFs();
   return (
@@ -153,7 +155,7 @@ export function InkStamp({ initials, label }: { initials: string; label?: string
       accessibilityLabel={label ?? initials}
       style={[styles.stamp, { backgroundColor: t.slab.chalk.face }]}
     >
-      <Txt kind="caption" style={[styles.stampText, { color: t.slab.chalk.label }]} maxFontSizeMultiplier={1}>
+      <Txt kind="stamp" style={{ color: t.slab.chalk.label }} maxFontSizeMultiplier={1}>
         {initials}
       </Txt>
     </View>
@@ -221,39 +223,10 @@ export function Banner({
 
 /* ------------------------------------------------------------------ labels */
 
-/** The tag's own glyph: a 10 px dashed circle, "not real, or not yet" (UI gate round 2, the console's tag). */
-function DashedRing() {
-  const { t } = useFs();
-  return <View style={[styles.ring, { borderColor: t.color.steelLine }]} />;
-}
-
-/**
- * The one honesty tag (UI gate round 2, the console's `HonestyTag`): 24 dp, a 1 px dashed steel outline with no
- * fill, a 10 px dashed circle (or the family's own glyph: key, translate, voice) and the words in the mono micro
- * role. "Simulated PayPal sandbox" and its kin (I8, ADR-0016), the same on the Member, Chair and Clerk screens. It
- * never sits inside a sentence and never wraps a sentence beside it.
+/*
+ * UI gate round 3 retires the honesty pill: the rail is one "Sandbox" micro-tag beside the PayPal value it covers
+ * (`ui/honesty.tsx` MicroTag) and every other provenance is a bare legend glyph whose words are its name.
  */
-export function HonestyPill({
-  children,
-  testID,
-  glyph,
-  dataSet,
-}: {
-  children: ReactNode;
-  testID?: string;
-  glyph?: GlyphName;
-  dataSet?: Record<string, string>;
-}) {
-  const fs = useFs();
-  return (
-    <View testID={testID} dataSet={dataSet} style={[styles.tag, { borderColor: fs.t.color.steelLine }]}>
-      {glyph ? <Glyph name={glyph} size={12} color={fs.t.color.ink3} /> : <DashedRing />}
-      <Txt kind="micro" color="ink2" style={styles.tagWords}>
-        {children}
-      </Txt>
-    </View>
-  );
-}
 
 /**
  * I8: anything not live says so. Shown on every screen while the app runs on local demo data. UI gate round 3: the
@@ -329,11 +302,12 @@ export function StatusChip({
 }) {
   const { t } = useFs();
   // UI gate round 2 (the console's pill): white with a 1 px rule, and the colour lives only in the dot. Confirmed
-  // money is the one filled pill (jade, ✓). Round 3: dashed means simulated only, so money in flight is a solid
-  // neutral ring with the hollow jade dot and its word in jade text.
+  // money is the one filled pill (jade, ✓). Round 3 (DESIGN.md §2, §4): jade is only money the simulated PayPal
+  // confirmed and dashed means simulated only, so money in flight is the neutral pill: a solid ring, the hollow
+  // pending dot and its word in ink.
   const look = {
     landed: { bg: t.color.jade, fg: t.color.onJade, border: t.color.jadeFlushBorder },
-    pending: { bg: "transparent", fg: t.color.jadeText, border: t.color.ruleStrong },
+    pending: { bg: t.color.plate, fg: t.color.ink, border: t.color.ruleStrong },
     decide: { bg: t.color.plate, fg: t.color.ink, border: t.color.ruleStrong },
     failure: { bg: t.color.plate, fg: t.color.red, border: t.color.ruleStrong },
     cash: { bg: t.color.plate, fg: t.color.ink, border: t.color.ruleStrong },
@@ -358,8 +332,9 @@ export function StatusChip({
 }
 
 /**
- * A status as a dot (UI gate round 2): marigold when a person decides, red only when PayPal failed, a hatch swatch
- * for cash, a hollow jade ring while the money is with PayPal, steel otherwise. Always beside its word.
+ * A status as a dot (the console's `StateDot`, DESIGN.md §4): amber when a person decides, red only when PayPal
+ * failed, jade only when PayPal confirmed, a hatch swatch for cash, a hollow ink-3 ring while the money is with
+ * PayPal (pending), a hollow steel ring otherwise (waiting). Always beside its word.
  */
 export function StatusDot({ tone, size = 8 }: { tone: StatusTone; size?: number }) {
   const { t } = useFs();
@@ -382,10 +357,15 @@ export function StatusDot({ tone, size = 8 }: { tone: StatusTone; size?: number 
         ? t.color.red
         : tone === "landed"
           ? t.color.jade
-          : tone === "pending"
-            ? "transparent"
-            : t.color.steelLine;
-  const ring = tone === "pending" || tone === "landed" ? t.color.jadeFlushBorder : fill;
+          : "transparent";
+  const ring =
+    tone === "landed"
+      ? t.color.jadeFlushBorder
+      : tone === "pending"
+        ? t.color.ink3
+        : tone === "neutral"
+          ? t.color.steelLine
+          : fill;
   return (
     <View
       style={[
@@ -498,8 +478,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     borderWidth: 1,
   },
-  stamp: { width: 20, height: 20, borderRadius: radius.cell, alignItems: "center", justifyContent: "center" },
-  stampText: { fontSize: 9, lineHeight: 11, fontFamily: fontFamily.strong },
+  stamp: { width: 24, height: 24, borderRadius: radius.cell, alignItems: "center", justifyContent: "center" },
   banner: {
     flexDirection: "row",
     alignItems: "flex-start",
@@ -533,24 +512,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: radius.cell,
   },
-  /** Not real, or not yet: the one honesty tag, a dashed steel outline on a transparent face (round 2). */
-  tag: {
-    flexDirection: "row",
-    alignItems: "center",
-    alignSelf: "flex-start",
-    maxWidth: "100%",
-    gap: space.s4 + 2,
-    minHeight: 24,
-    paddingLeft: space.s8 - 2,
-    paddingRight: space.s8 + 2,
-    borderWidth: 1,
-    borderStyle: "dashed",
-    // A pill at one line (24 dp tall); a long Cebuano label that wraps becomes a rounded box, never a lozenge.
-    borderRadius: radius.control,
-    backgroundColor: "transparent",
-  },
-  tagWords: { flexShrink: 1 },
-  ring: { width: 10, height: 10, borderRadius: 5, borderWidth: 1, borderStyle: "dashed" },
   textButton: { alignSelf: "flex-start" },
   link: { textDecorationLine: "underline" },
 });

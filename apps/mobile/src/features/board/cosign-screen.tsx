@@ -14,17 +14,16 @@ import { router, useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Platform, StyleSheet, TextInput, useWindowDimensions, View, type ViewInstance } from "react-native";
 import { format } from "../../_shims/domain";
-import { fontFamily } from "../../_shims/fonts";
 import { people } from "../../_shims/seed";
-import { radius, space, target } from "../../_shims/tokens.native";
+import { layout, radius, space, target } from "../../_shims/tokens.native";
 import { seasonLabel } from "../../lib/display";
 import { railLabel } from "../../lib/payout-status";
 import { feedback } from "../../platform/feedback";
 import { signHref } from "../../services/session";
 import { useApp } from "../../state/app";
-import { useFs } from "../../theme/theme";
+import { typeScale, useFs } from "../../theme/theme";
 import { focusFirst } from "../../ui/a11y";
-import { Screen } from "../../ui/chrome";
+import { EdgeFade, Screen } from "../../ui/chrome";
 import { MicroTag } from "../../ui/honesty";
 import { LanguagePicker } from "../../ui/language-picker";
 import { Sheet } from "../../ui/overlay";
@@ -161,7 +160,8 @@ export function CosignScreen() {
     ? { n: lines.count, cash: lines.cash.count, amount: format.usd(lines.cash.cents) }
     : null;
   const signed = c.status === "signed";
-  const sealSize = Math.min(208, width - 2 * space.s16 - 2 * space.s24);
+  // Round 3: the console's seal size (180), smaller only when the phone is narrower than the seal and its plate.
+  const sealSize = Math.min(layout.seal, width - 2 * space.s16 - 2 * space.s24);
   const showPush = Platform.OS === "web" && signable;
 
   const action = signable ? (
@@ -189,6 +189,7 @@ export function CosignScreen() {
   const footer =
     action && !compact ? (
       <View style={[styles.footer, { backgroundColor: t.color.ground, borderTopColor: t.color.rule }]}>
+        <EdgeFade color={t.color.ground} />
         {action}
       </View>
     ) : null;
@@ -199,7 +200,7 @@ export function CosignScreen() {
       <StatusBanner />
 
       <View ref={top} style={styles.lead} accessible={false}>
-        <Txt kind="title2" accessibilityRole="header">
+        <Txt kind="title1" accessibilityRole="header">
           {tr("M-BD-01.heading", { season: seasonLabel(dto.seasonCode) })}
         </Txt>
         <SignedAmount
@@ -516,9 +517,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderRadius: radius.control,
     padding: space.s12,
-    fontSize: 16,
-    lineHeight: 22,
-    fontFamily: fontFamily.ui,
+    ...typeScale.body,
   },
   sheetActions: {
     flexDirection: "row",

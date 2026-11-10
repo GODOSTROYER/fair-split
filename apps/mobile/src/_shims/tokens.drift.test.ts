@@ -6,7 +6,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { radius, type ThemeName, themes } from "./tokens.native";
+import { layout, radius, type ThemeName, themes, typeSteps } from "./tokens.native";
 
 const GENERATED = fileURLToPath(
   new URL("../../../../packages/tokens/src/generated/tokens.native.ts", import.meta.url),
@@ -72,5 +72,19 @@ describe("tokens shim against @fairsplit/tokens' generated native module", () =>
     expect(themes.adlaw.display).toBe("Hayag (day)");
     expect(themes.tablea.display).toBe("Gabii (night)");
     expect(themes.adlaw.dark).toBe(false);
+  });
+
+  it("draws the seal at the generated layout's size (round 3: 180 on the Chair's phone and on Approve)", () => {
+    const generated = Number(/export const layout = \{[^}]*\bseal: (\d+)/.exec(source)?.[1]);
+    expect(layout.seal).toBe(generated);
+    expect(layout.seal).toBe(180);
+  });
+
+  it("sets type on the generated five steps (round 3: id 13, label 15, body 17, title 24, hero 48)", () => {
+    const block = /export const typeSteps = \{([^}]+)\}/.exec(source)?.[1] ?? "";
+    const generated = Object.fromEntries(
+      [...block.matchAll(/(\w+): (\d+)/g)].map((m) => [m[1], Number(m[2])]),
+    );
+    expect(typeSteps).toEqual(generated);
   });
 });

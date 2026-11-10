@@ -15,7 +15,7 @@ import { Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { format } from "../../_shims/domain";
 import { people } from "../../_shims/seed";
-import { radius, space, target } from "../../_shims/tokens.native";
+import { layout, radius, space, target } from "../../_shims/tokens.native";
 import { seasonLabel } from "../../lib/display";
 import { MARK_KIND } from "../../lib/honesty";
 import { railLabel } from "../../lib/payout-status";
@@ -23,7 +23,7 @@ import { deviceKeyId } from "../../lib/signing";
 import { pirmaHref } from "../../services/session";
 import { useApp } from "../../state/app";
 import { useFs } from "../../theme/theme";
-import { Screen } from "../../ui/chrome";
+import { EdgeFade, Screen } from "../../ui/chrome";
 import { Glyph } from "../../ui/glyph";
 import { LegendGlyph, MicroTag } from "../../ui/honesty";
 import { MomentMarker } from "../../ui/moment";
@@ -102,10 +102,11 @@ export function SignScreen() {
   const ownHash = c.check?.recomputed?.batchSha256 ?? null;
   const done = phase === "signed" || phase === "sealed" || phase === "inked";
   const keys = sealKeys(phase, c.key1);
-  // The amount, the seal and the slab share one screen: the seal gives way on short phones (never below 132 dp).
+  // The amount, the seal and the slab share one screen: the seal is the console's 180 (round 3), and gives way on
+  // short phones (never below 132 dp).
   const sealSize = Math.max(
     132,
-    Math.min(232, width - 4 * space.s16, compact ? Number.POSITIVE_INFINITY : height - RESERVED_DP),
+    Math.min(layout.seal, width - 4 * space.s16, compact ? Number.POSITIVE_INFINITY : height - RESERVED_DP),
   );
   const demoKey = (key?.biometricClass ?? presence) === "none";
   const amount = dto ? format.usd(dto.totalCents) : "";
@@ -191,6 +192,7 @@ export function SignScreen() {
         compact ? styles.thumbInline : null,
       ]}
     >
+      {compact ? null : <EdgeFade color={t.color.ground} />}
       {done ? (
         <View style={styles.doneZone} testID="M-BD-02.signed" accessibilityLiveRegion="polite">
           <Txt kind="bodyStrong">{tr("M-BD-02.signed", { key: key?.keyId ?? nextKeyId })}</Txt>
@@ -289,11 +291,19 @@ export function SignScreen() {
               testID="M-BD-02.retry"
             />
           ) : null}
+          {/* The key: a demo key is its glyph and its id (the mono), or the words until it exists; a phone key says
+              where it lives. */}
           <View style={styles.keyRow} testID="M-BD-02.key" accessible accessibilityLabel={keyLine}>
             {demoKey ? <LegendGlyph kind={MARK_KIND.demoKey} label={tr("common.demoKey")} /> : null}
-            <Txt kind="micro" color="ink2" selectable>
-              {demoKey ? (key?.keyId ?? null) : keyLine}
-            </Txt>
+            {demoKey && key ? (
+              <Txt kind="hash" color="ink2" selectable>
+                {key.keyId}
+              </Txt>
+            ) : (
+              <Txt kind="micro" color="ink2" selectable>
+                {keyLine}
+              </Txt>
+            )}
           </View>
         </>
       )}
@@ -329,7 +339,7 @@ export function SignScreen() {
             >
               {`${format.hash(ownHash, 2)} … ${format.hash(ownHash.slice(-8))}`}
             </Txt>
-            <Txt kind="micro" color="ink2" align="center">
+            <Txt kind="caption" color="ink2" align="center">
               {tr("M-BD-02.compare")}
             </Txt>
           </View>

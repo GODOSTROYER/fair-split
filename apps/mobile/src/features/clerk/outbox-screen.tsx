@@ -188,5 +188,5 @@ function Section({
 
 const styles = StyleSheet.create({
   summary: { flexDirection: "row", alignItems: "center", gap: space.s12, flexWrap: "wrap" },
-  plate: { borderRadius: radius.plate, paddingHorizontal: space.s12 },
+  plate: { borderRadius: radius.card, paddingHorizontal: space.s12 },
 });

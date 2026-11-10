@@ -27,7 +27,6 @@ import Animated, {
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { Lang } from "../../_shims/contracts";
-import { fontFamily } from "../../_shims/fonts";
 import { translate } from "../../_shims/i18n";
 import { radius, space, target } from "../../_shims/tokens.native";
 import { MARK_KIND } from "../../lib/honesty";
@@ -35,7 +34,8 @@ import { type AudioPlan, audioPlan, glossPairs, MONEY_SLOTS } from "../../lib/st
 import type { VoiceChoice } from "../../platform/speech";
 import { stage } from "../../services/frame-bridge";
 import { useApp } from "../../state/app";
-import { useFs } from "../../theme/theme";
+import { typeScale, useFs } from "../../theme/theme";
+import { EdgeFade } from "../../ui/chrome";
 import { Glyph } from "../../ui/glyph";
 import { MarkShape, useMarkColor } from "../../ui/honesty";
 import { spring, TIMELINE } from "../../ui/motion";
@@ -274,6 +274,8 @@ export function PaminawaPanel({ onClose, auto = false }: { onClose(): void; auto
       <View
         style={[styles.controls, { paddingBottom: insets.bottom + space.s16, borderTopColor: t.color.rule }]}
       >
+        {/* The transcript ends above the controls in the 12 px fade, never a hard cut through a sentence. */}
+        <EdgeFade color={t.color.plate2} />
         {dto?.slips.length ? (
           <View style={styles.chips}>
             {dto.slips.map((s) => (
@@ -393,7 +395,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: radius.plate,
   },
-  chipText: { fontFamily: fontFamily.figure, fontSize: 14, lineHeight: 18 },
+  chipText: { ...typeScale.label },
   row: { flexDirection: "row", alignItems: "center", gap: space.s16 },
   play: {
     width: target.play,

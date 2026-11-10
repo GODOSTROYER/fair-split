@@ -20,7 +20,7 @@ import { fontFamily } from "../../_shims/fonts";
 import { radius, space, target, themes } from "../../_shims/tokens.native";
 import { CODE_LENGTH, normalizeCode } from "../../lib/pairing";
 import { pickVoiceLanguage } from "../../services/voice";
-import { useFs } from "../../theme/theme";
+import { TYPE_STEPS, useFs } from "../../theme/theme";
 import { Glyph } from "../../ui/glyph";
 import { reducedFade, spring, tween } from "../../ui/motion";
 import { Txt } from "../../ui/text";
@@ -112,26 +112,21 @@ export function Paper({
 /* ------------------------------------------------------------------ the season and lot marks */
 
 /**
- * "2026-A", "LB-PH-2026-03": the season and the lot as ids. UI gate round 3 retires the stencilled display face (the
- * condensed figures with bridged counters): a mark is the id role now, the figure cut's tabular set in mono, 13 px for
- * the lot and a step up for the season beside the product name. Read as one label by a screen reader. `ground` is
- * kept for callers (the stencil's bridges used it).
+ * "2026-A", "LB-PH-2026-03": the season and the lot as ids. UI gate round 3 (DESIGN.md §1) retires the stencilled
+ * display face (the condensed figures with bridged counters): a mark is the id role, the one mono at 13 sp, like every
+ * other id on the phone. Read as one label by a screen reader.
  */
-export function StencilMark({
+export function IdMark({
   text,
   label,
-  size = 20,
   color,
   testID,
 }: {
   text: string;
   label: string;
-  size?: number;
   color: string;
-  ground?: string;
   testID?: string;
 }) {
-  const fontSize = size >= 24 ? 17 : 13;
   return (
     <View
       accessible
@@ -146,7 +141,7 @@ export function StencilMark({
         importantForAccessibility="no"
         aria-hidden
         maxFontSizeMultiplier={1.5}
-        style={{ color, fontSize, lineHeight: Math.round(fontSize * 1.35) }}
+        style={{ color }}
       >
         {text}
       </Txt>
@@ -479,7 +474,8 @@ const styles = StyleSheet.create({
     borderRadius: radius.plate,
   },
   bigStampRim: { position: "absolute", top: 6, left: 6, right: 6, bottom: 6, borderWidth: 1.5 },
-  bigStampText: { fontFamily: fontFamily.strong, fontSize: 36, lineHeight: 40, letterSpacing: 1 },
+  // A person's initials on the pairing stamp: the strong face on the hero step (round 3: five steps, no tracking).
+  bigStampText: { fontFamily: fontFamily.strong, fontSize: TYPE_STEPS.hero, lineHeight: 52 },
   // The six boxes share the row they are given (a card on a 320 dp phone is 256 dp inside), up to 48 dp each.
   codeRow: { flexDirection: "row", alignItems: "center", gap: space.s8, alignSelf: "stretch" },
   box: {

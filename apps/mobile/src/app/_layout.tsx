@@ -14,6 +14,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { fontSources } from "../_shims/font-sources";
 import { fontFamily } from "../_shims/fonts";
 import { m3, themes } from "../_shims/tokens.native";
+import { applyBrowserSurfaces } from "../platform/browser-surfaces";
 import { feedback } from "../platform/feedback";
 import { AppProvider, useApp } from "../state/app";
 import { usePushRegistration } from "../state/use-push";
@@ -57,7 +58,7 @@ function Root() {
         regular: { fontFamily: fontFamily.ui, fontWeight: "400" as const },
         medium: { fontFamily: fontFamily.figure, fontWeight: "500" as const },
         bold: { fontFamily: fontFamily.strong, fontWeight: "700" as const },
-        heavy: { fontFamily: fontFamily.amount, fontWeight: "800" as const },
+        heavy: { fontFamily: fontFamily.strong, fontWeight: "700" as const },
       },
     }),
     [tokens.dark, roles],
@@ -73,6 +74,9 @@ function Root() {
   useEffect(() => {
     void SystemUI.setBackgroundColorAsync(tokens.color.ground).catch(() => {});
   }, [tokens.color.ground]);
+
+  // The web frames' focus ring, caret, selection and scrollbars, in the palette (round 3; a no-op on native).
+  useEffect(() => applyBrowserSurfaces(tokens.color), [tokens.color]);
 
   useEffect(() => {
     if (ready && fontsReady) {

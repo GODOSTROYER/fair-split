@@ -106,9 +106,10 @@ function Row({
         // The fees row is set apart by a solid hairline (round 3: dashed and dotted mean simulated only).
         dotted && { borderColor: t.color.rule, marginTop: space.s8 },
         !dotted && { borderColor: open ? t.color.pod : "transparent" },
-        // Open is a selection: a rounded card ringed in ballpoint indigo, on e1 (ADR-0016), never an ink box.
+        // Open is a selection: a rounded card ringed in ballpoint indigo, never an ink box. Round 3: the ring is its
+        // only edge (elevation is a border or a shadow, never both).
         dotted && open ? { borderColor: t.color.pod } : null,
-        open ? { backgroundColor: t.color.plate, boxShadow: t.shadow.e1 } : null,
+        open ? { backgroundColor: t.color.plate } : null,
       ]}
     >
       <Pressable
@@ -521,7 +522,8 @@ const styles = StyleSheet.create({
   rowText: { flexGrow: 1, flexShrink: 1, flexBasis: 128, gap: space.s2 },
   amount: { flexShrink: 0, marginLeft: "auto" },
   chevron: { width: 16, alignItems: "center" },
-  swatchSlot: { alignSelf: "flex-start", paddingTop: 5 },
+  // The swatch sits on the label's first line (body 17/24: 7 px above a 10 px square).
+  swatchSlot: { alignSelf: "flex-start", paddingTop: 7 },
   swatch: { width: 10, height: 10, borderRadius: 2, borderWidth: 1, overflow: "hidden" },
   chevronOpen: { transform: [{ rotate: "180deg" }] },
   labelRow: { flexDirection: "row", alignItems: "center", gap: space.s8, flexWrap: "wrap" },

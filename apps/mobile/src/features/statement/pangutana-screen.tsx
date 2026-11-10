@@ -130,7 +130,7 @@ export function PangutanaScreen() {
 }
 
 const styles = StyleSheet.create({
-  card: { padding: space.s16, gap: space.s12, borderRadius: radius.none },
+  card: { padding: space.s16, gap: space.s12, borderRadius: radius.card },
   who: { flexDirection: "row", alignItems: "center", gap: space.s12 },
   flex: { flex: 1 },
   rights: { flexDirection: "row", alignItems: "flex-start", gap: space.s12 },

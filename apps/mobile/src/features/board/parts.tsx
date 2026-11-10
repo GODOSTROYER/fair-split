@@ -75,10 +75,11 @@ export function Gloss({
 
 /* ------------------------------------------------------------------ the hash, to compare by eye */
 
+/** The batch hash in rows of four groups, in the mono (round 3: hashes and IDs are the one mono, never FS Sans). */
 export function HashRows({
   hex,
   testID,
-  kind = "figure",
+  kind = "hash",
 }: {
   hex: string;
   testID?: string;
@@ -96,7 +97,7 @@ export function HashRows({
       style={styles.hashRows}
     >
       {rows.map((r) => (
-        <Txt key={r.id} kind={kind} color="ink2" align="center" style={styles.hashRow} selectable>
+        <Txt key={r.id} kind={kind} color="ink2" align="center" selectable>
           {r.text}
         </Txt>
       ))}
@@ -156,7 +157,7 @@ export function HoldRow({
       </View>
       <View style={styles.holdText}>
         <View style={styles.holdHead}>
-          <Txt kind="figure" color="ink3">
+          <Txt kind="hash" color="ink2">
             {hold.id}
           </Txt>
           <Txt kind="bodyStrong" style={styles.flex}>
@@ -205,7 +206,8 @@ export function PayoutRows({
       {items.map((i) => (
         <View key={i.senderItemId} style={styles.itemRow}>
           <Txt
-            kind="figure"
+            kind="hash"
+            color="ink2"
             style={styles.flex}
             importantForAccessibility="no"
             accessibilityElementsHidden
@@ -417,7 +419,6 @@ const styles = StyleSheet.create({
   fit: { alignSelf: "stretch" },
   layers: { maxWidth: "100%" },
   hashRows: { alignItems: "center", gap: space.s2 },
-  hashRow: { letterSpacing: 0.6 },
   hold: {
     flexDirection: "row",
     alignItems: "flex-start",

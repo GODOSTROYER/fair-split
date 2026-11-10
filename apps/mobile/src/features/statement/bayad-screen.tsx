@@ -18,9 +18,10 @@
  * one mono line and the one honesty tag, one line of prose only when a person acts next, and Paminawa as one large
  * play button. The rail's sentence moves to the fine print at the foot.
  *
- * UI gate round 3: her name, the amount, her kilos and the payment state sit together, with Paminawa right below. The
- * rail is one micro-tag ("Sandbox") beside the PayPal status; her kilos and the expected pay date are one line each,
- * a 13 px label and a 15 px figure; the season reads "2026-A".
+ * UI gate round 3 (DESIGN.md): her name, the amount, her kilos and the payment state sit together as one group, with
+ * Paminawa right below; the language row follows the reading it changes. The rail is one micro-tag ("Sandbox")
+ * beside the PayPal status; her kilos and the expected pay date are one line each, a label and its figure on the
+ * label step; the season reads "2026-A"; the time PayPal confirmed is a timestamp in the mono.
  */
 import { type Href, router, useIsFocused } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -88,8 +89,8 @@ export function ownerOf(dto: StatementDTO): SlipOwner {
 }
 
 /**
- * One fact on one line (round 3): a 13 px label and a 15 px figure, the figure never split from itself. "Inyong gidala
- * 148.0 kg"; "Gilauman nga petsa sa bayad 6 Nob 2026".
+ * One fact on one line (round 3): a label in statement ink 2 and its figure in statement ink, both on the label step,
+ * the figure never split from itself. "Inyong gidala 148.0 kg"; "Gilauman nga petsa sa bayad 6 Nob 2026".
  */
 function Fact({ label, value, testID }: { label: string; value: string; testID?: string }) {
   return (
@@ -290,7 +291,6 @@ function Statement({
   return (
     <View style={styles.fill}>
       <Screen testID="M-MB-01" state={state} contentStyle={COLUMN} surface="plate">
-        <LangBar testID="M-MB-01" />
         {readOnlyUntil ? (
           <Banner icon="lock" testID="M-MB-01.readOnly">
             <Txt kind="body">{tr("M-MB-01.linkReadOnly", { date: format.date(readOnlyUntil, lang) })}</Txt>
@@ -309,120 +309,127 @@ function Statement({
         ) : null}
 
         <View style={styles.doc} testID="M-MB-01.card">
-          {/* 1. A factual header (round 2): her name as the registry addresses her, then one mono line. The
+          {/* Round 3: one group from her name to the payment state, Paminawa right below it. */}
+          <View style={styles.lead}>
+            <View style={styles.group}>
+              {/* 1. A factual header (round 2): her name as the registry addresses her, then one data line. The
               greeting itself is spoken in Paminawa. */}
-          <View style={styles.head} testID="M-MB-01.greeting">
-            <Txt kind="statementName" color="statementInk" accessibilityRole="header">
-              {dto.member.nameByLang[lang]}
-            </Txt>
-            <Txt kind="micro" color="statementInk2" testID="M-MB-01.season">
-              {tr("M-MB-01.headMeta", {
-                no: dto.member.memberNo,
-                season: seasonLabel(dto.season.code),
-                coop: dto.coop.name,
-              })}
-            </Txt>
-            {/* A cash line shows no PayPal value: the rail's tag covers the statement, under its header. */}
-            {paypalLine ? null : railTag}
-          </View>
-
-          {/* 2. Money first: one block for the screen reader, with the status and what happens next. */}
-          <View
-            ref={amountRef}
-            collapsable={false}
-            accessible
-            accessibilityRole="summary"
-            accessibilityLabel={amountLabel}
-            accessibilityLiveRegion="polite"
-            style={styles.amountBlock}
-            testID="M-MB-01.amountBlock"
-            dataSet={{ conserved: view.conserved ? "true" : "false" }}
-          >
-            <View
-              importantForAccessibility="no-hide-descendants"
-              accessibilityElementsHidden
-              style={styles.amountBlock}
-            >
-              {view.showAmount && view.hero ? (
-                <View style={styles.amount}>
-                  <AmountDisplay
-                    testID="M-MB-01.amount"
-                    text={view.hero.amount}
-                    srLabel={view.hero.spoken}
-                    state={view.amountState}
-                    fill={view.fillsOnPress ? mm1.fill : undefined}
-                  />
-                  {under ? (
-                    <Sentence
-                      kind={peso ? "figure" : "statementBody"}
-                      color="statementInk2"
-                      lang={lang}
-                      segments={figures(under)}
-                      testID="M-MB-01.under"
-                    />
-                  ) : null}
-                  {/* Round 3: her kilos beside her pay, not at the foot of the receipt. */}
-                  <Fact label={tr("M-MB-01.kilosLabel")} value={kilos} testID="M-MB-01.kilosFact" />
-                </View>
-              ) : (
-                <View style={styles.amount} testID="M-MB-01.kilos">
-                  <Txt kind="label" color="statementInk2">
-                    {tr("M-MB-01.kilosLabel")}
-                  </Txt>
-                  {/* Round 2: her own kilos are never faded to say "held"; the pill below says it. */}
-                  <Txt kind="amountL" color="statementInk">
-                    {kilos}
-                  </Txt>
-                  {dto.expectedDate ? (
-                    <Fact
-                      label={tr("M-MB-01.expectedLabel")}
-                      value={format.date(dto.expectedDate, lang)}
-                      testID="M-MB-01.expected"
-                    />
-                  ) : null}
-                </View>
-              )}
-              {/* 3. The status pill (MM-1 plays here), then one mono line and the tag that covers it. */}
-              <View style={styles.status}>
-                <View {...mm1.rootProps}>
-                  <StatusCapsule view={view} mm1={mm1} testID="M-MB-01.capsule" />
-                </View>
-                {when || paypalLine ? (
-                  <View style={styles.meta}>
-                    {when ? (
-                      <Txt kind="micro" color="statementInk2" testID="M-MB-01.when">
-                        {when}
-                      </Txt>
-                    ) : null}
-                    {paypalLine ? railTag : null}
-                  </View>
-                ) : null}
+              <View style={styles.head} testID="M-MB-01.greeting">
+                <Txt kind="statementName" color="statementInk" accessibilityRole="header">
+                  {dto.member.nameByLang[lang]}
+                </Txt>
+                <Txt kind="micro" color="statementInk2" testID="M-MB-01.season">
+                  {tr("M-MB-01.headMeta", {
+                    no: dto.member.memberNo,
+                    season: seasonLabel(dto.season.code),
+                    coop: dto.coop.name,
+                  })}
+                </Txt>
+                {/* A cash line shows no PayPal value: the rail's tag covers the statement, under its header. */}
+                {paypalLine ? null : railTag}
               </View>
-              {/* The one line of prose, only when a person acts next or something is not what it seems. */}
-              {detail && saysMore ? (
-                <Sentence
-                  kind="statementBody"
-                  color="statementInk"
-                  lang={lang}
-                  segments={figures(detail)}
-                  testID="M-MB-01.detail"
-                />
-              ) : null}
-            </View>
-          </View>
 
-          {/* Paminawa: the second focus, one large play button. */}
-          <View style={styles.listen}>
-            {/* The reading's length and its voice, as one mono line (unslop §3.11: "0:42 · synthetic voice"). */}
-            <ListenButton
-              testID="M-MB-01.paminawa"
-              label={tr("M-MB-01.paminawa")}
-              srLabel={`${tr("M-MB-01.paminawaHint")}. ${voiceLabel ?? ""}`}
-              meta={[length, voiceLabel].filter(Boolean).join(" · ") || null}
-              metaTestID="M-MB-01.voice"
-              onPress={() => (readOnly ? setListening(true) : router.push(HREF.paminawa))}
-              ring={<InviteRing mm1={mm1} round />}
-            />
+              {/* 2. Money first: one block for the screen reader, with the status and what happens next. */}
+              <View
+                ref={amountRef}
+                collapsable={false}
+                accessible
+                accessibilityRole="summary"
+                accessibilityLabel={amountLabel}
+                accessibilityLiveRegion="polite"
+                style={styles.amountBlock}
+                testID="M-MB-01.amountBlock"
+                dataSet={{ conserved: view.conserved ? "true" : "false" }}
+              >
+                <View
+                  importantForAccessibility="no-hide-descendants"
+                  accessibilityElementsHidden
+                  style={styles.amountBlock}
+                >
+                  {view.showAmount && view.hero ? (
+                    <View style={styles.amount}>
+                      <AmountDisplay
+                        testID="M-MB-01.amount"
+                        text={view.hero.amount}
+                        srLabel={view.hero.spoken}
+                        state={view.amountState}
+                        fill={view.fillsOnPress ? mm1.fill : undefined}
+                      />
+                      {under ? (
+                        <Sentence
+                          kind={peso ? "figure" : "statementBody"}
+                          color="statementInk2"
+                          lang={lang}
+                          segments={figures(under)}
+                          testID="M-MB-01.under"
+                        />
+                      ) : null}
+                      {/* Round 3: her kilos beside her pay, not at the foot of the receipt. */}
+                      <Fact label={tr("M-MB-01.kilosLabel")} value={kilos} testID="M-MB-01.kilosFact" />
+                    </View>
+                  ) : (
+                    <View style={styles.amount} testID="M-MB-01.kilos">
+                      <Txt kind="label" color="statementInk2">
+                        {tr("M-MB-01.kilosLabel")}
+                      </Txt>
+                      {/* Round 2: her own kilos are never faded to say "held"; the pill below says it. */}
+                      <Txt kind="amountL" color="statementInk">
+                        {kilos}
+                      </Txt>
+                      {dto.expectedDate ? (
+                        <Fact
+                          label={tr("M-MB-01.expectedLabel")}
+                          value={format.date(dto.expectedDate, lang)}
+                          testID="M-MB-01.expected"
+                        />
+                      ) : null}
+                    </View>
+                  )}
+                  {/* 3. The status pill (MM-1 plays here), then one mono line and the tag that covers it. */}
+                  <View style={styles.status}>
+                    <View {...mm1.rootProps}>
+                      <StatusCapsule view={view} mm1={mm1} testID="M-MB-01.capsule" />
+                    </View>
+                    {when || paypalLine ? (
+                      <View style={styles.meta}>
+                        {when ? (
+                          <Txt kind="hash" color="statementInk2" testID="M-MB-01.when">
+                            {when}
+                          </Txt>
+                        ) : null}
+                        {paypalLine ? railTag : null}
+                      </View>
+                    ) : null}
+                  </View>
+                  {/* The one line of prose, only when a person acts next or something is not what it seems. */}
+                  {detail && saysMore ? (
+                    <Sentence
+                      kind="statementBody"
+                      color="statementInk"
+                      lang={lang}
+                      segments={figures(detail)}
+                      testID="M-MB-01.detail"
+                    />
+                  ) : null}
+                </View>
+              </View>
+            </View>
+
+            {/* Paminawa: the second focus, one large play button. */}
+            <View style={styles.listen}>
+              {/* The reading's length and its voice, as one data line ("0:42 · synthetic voice"). */}
+              <ListenButton
+                testID="M-MB-01.paminawa"
+                label={tr("M-MB-01.paminawa")}
+                srLabel={`${tr("M-MB-01.paminawaHint")}. ${voiceLabel ?? ""}`}
+                meta={[length, voiceLabel].filter(Boolean).join(" · ") || null}
+                metaTestID="M-MB-01.voice"
+                onPress={() => (readOnly ? setListening(true) : router.push(HREF.paminawa))}
+                ring={<InviteRing mm1={mm1} round />}
+              />
+            </View>
+            {/* The language row follows the reading it changes (round 3: the statement opens on her name). */}
+            <LangBar testID="M-MB-01" />
           </View>
 
           {/* 4. The receipt; every amount traces to its source (MM-7). */}
@@ -597,6 +604,9 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   /** Full-bleed on the white screen (round 2): no card, no shadow; sections 32 apart. */
   doc: { gap: space.s32 },
+  /** Name, amount, kilos and state, then Paminawa and the language row: tight inside, 24 to the reading. */
+  lead: { gap: space.s24 },
+  group: { gap: space.s16 },
   head: { gap: space.s4 },
   amountBlock: { gap: space.s16 },
   amount: { gap: space.s4 },
@@ -607,7 +617,7 @@ const styles = StyleSheet.create({
   /** One fact on one line: the label shrinks first, the figure never splits. */
   fact: { flexDirection: "row", flexWrap: "wrap", alignItems: "baseline", columnGap: space.s8 },
   factLabel: { flexShrink: 1 },
-  factValue: { fontSize: 15, lineHeight: 20, flexShrink: 0 },
+  factValue: { flexShrink: 0 },
   history: { gap: space.s8 },
   historyRow: { flexDirection: "row", alignItems: "center", gap: space.s12, minHeight: 32 },
   footer: { flexDirection: "row", alignItems: "center", gap: space.s12 },

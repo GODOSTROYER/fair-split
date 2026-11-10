@@ -8,7 +8,7 @@ import { CameraView, useCameraPermissions } from "expo-camera";
 import { useEffect, useRef, useState } from "react";
 import { Linking, Modal, Pressable, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { space, target } from "../../_shims/tokens.native";
+import { radius, space, target } from "../../_shims/tokens.native";
 import { useFs } from "../../theme/theme";
 import { Glyph } from "../../ui/glyph";
 import { Button } from "../../ui/primitives";
@@ -177,7 +177,8 @@ const styles = StyleSheet.create({
     gap: space.s16,
     padding: space.s24,
   },
-  guide: { width: "72%", aspectRatio: A6, borderWidth: 3, borderStyle: "dashed" },
+  // A solid guide (round 3: dashed lines mean simulated only), the A6 slip's own shape.
+  guide: { width: "72%", aspectRatio: A6, borderWidth: 2, borderRadius: radius.cell },
   ask: { flex: 1, alignItems: "center", justifyContent: "center", gap: space.s16, padding: space.s24 },
   bottom: {
     flexDirection: "row",
