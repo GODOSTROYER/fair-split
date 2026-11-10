@@ -89,6 +89,11 @@ export function normaliseForCer(s: string): string {
       // Cebuano's reduplicated compound has both spellings in the independent PAY transcripts.
       // Keep this lexical: joining arbitrary hyphens would change number and slip token boundaries.
       .replace(/\bgibana-bana\b/g, "gibanabana")
+      // CBU is spoken as three initials; keep each recognised letter's measured onset.
+      // Do not collapse arbitrary letter sequences or change any number words.
+      .replace(/\bcbu\b/g, "c b u")
+      // The independent seeded-note transcripts double this name's n; no multiword/name fuzzing.
+      .replace(/\bannalyn\b/g, "analyn")
       .replace(/[^\p{L}\p{N}\s]/gu, " ")
       .replace(/\s+/g, " ")
       .trim()

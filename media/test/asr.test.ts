@@ -38,6 +38,21 @@ describe("listening proxy (ASR round trip)", () => {
     expect(cer("three porsiyento", "tres porsyento")).toBeGreaterThan(0.12);
   });
 
+  it("normalises only the spoken CBU initialism without joining arbitrary letters", () => {
+    expect(normaliseForCer("CBU, your capital build-up")).toBe("c b u your capital build up");
+    expect(cer("CBU, your capital build-up", "C B U your capital build up")).toBe(0);
+    expect(normaliseForCer("CBX")).toBe("cbx");
+    expect(normaliseForCer("C B X")).toBe("c b x");
+    expect(cer("forty-five cents", "forty-six cents")).toBeGreaterThan(0);
+  });
+
+  it("normalises the independently transcribed doubled n in Analyn, keeping other names distinct", () => {
+    expect(cer("Treasurer Analyn", "Treasurer Annalyn")).toBe(0);
+    expect(cer("Analyn", "Annalin")).toBeGreaterThan(0.12);
+    expect(cer("Analyn", "Ann Lynn")).toBeGreaterThan(0.12);
+    expect(normaliseForCer("Annabelle")).toBe("annabelle");
+  });
+
   it("preserves explicit leading zeros in slip identifiers digit by digit", () => {
     expect(spellNumerals("0403 0410 0000")).toBe(
       "zero four zero three zero four one zero zero zero zero zero",
