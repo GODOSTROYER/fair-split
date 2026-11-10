@@ -56,7 +56,7 @@ export const MarkPaidResponse = z.strictObject({
   invoiceId: z.string(),
   invoiceStatus: InvoiceStatus,
   runState: PayRunState,
-  provenance: z.literal("simulated_rail"),
+  provenance: Provenance,
 });
 
 // ---------------------------------------------------------------- holds and fields
