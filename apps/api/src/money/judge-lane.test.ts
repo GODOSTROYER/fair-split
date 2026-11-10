@@ -13,7 +13,8 @@ import { enqueue } from "@fairsplit/outbox";
 import { and, asc, eq, isNull } from "drizzle-orm";
 import { http } from "msw";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { beginLiveStep, reserveLivePost } from "../judge/index.js";
+import { beginLiveStep, LiveLane, reserveLivePost } from "../judge/index.js";
+import { judgeRuntime } from "../judge/runtime.js";
 import { armChangePayout } from "../judge/tamper.js";
 import { type RunsHarness, resolveAll, runQueued, signBoth, startRuns } from "../runs/test/app.js";
 import { paypalScript } from "../runs/test/paypal.js";
@@ -144,40 +145,50 @@ describe("Judge Mode obeys its rail decision at every PayPal step", () => {
   it("a live step waits its turn in the single-flight lane, sends nothing meanwhile, and runs once the burst ahead ends", async () => {
     const h = await world({ runState: "INVOICED" });
     const other = await world({ runState: "INVOICED" });
-    // another judge's burst holds the lane (in this process and, through its advisory lock, in every process)
-    const held = await beginLiveStep(h.t.deps, { workspaceId: other.world.workspaceId, step: "invoice" });
-    expect(held.kind).toBe("live");
-    if (held.kind !== "live") return;
-    const before = calls("record_payment");
-    await expect(
-      h.t.client(h.tokens.treasurer).markPaid({ params: { runSlug: h.world.runSlug } }),
-    ).rejects.toMatchObject({ code: "QUEUED" });
-    expect(calls("record_payment")).toBe(before);
-    expect(await runState(h)).toBe("INVOICED");
-    // the press waits as its next attempt row, never the outbox's retry budget
-    const rows = await h.t.deps.db
-      .select({ state: schema.taskOutbox.state })
-      .from(schema.taskOutbox)
-      .where(
-        and(
-          eq(schema.taskOutbox.workspaceId, h.world.workspaceId),
-          eq(schema.taskOutbox.name, "recordPayment"),
-        ),
-      )
-      .orderBy(asc(schema.taskOutbox.createdAt));
-    expect(rows.map((r) => r.state)).toEqual(["done", "queued"]);
+    const rt = judgeRuntime(h.t.deps);
+    const previousLane = rt.lane;
+    // Exercise a short visible wait; the normal 40-second ETA now switches straight to replay.
+    Object.assign(rt, { lane: new LiveLane(h.t.clock, { burstMs: 1_000 }) });
+    let held: Awaited<ReturnType<typeof beginLiveStep>> | undefined;
+    try {
+      // another judge's burst holds the lane (in this process and, through its advisory lock, in every process)
+      held = await beginLiveStep(h.t.deps, { workspaceId: other.world.workspaceId, step: "invoice" });
+      expect(held.kind).toBe("live");
+      if (held.kind !== "live") return;
+      const before = calls("record_payment");
+      await expect(
+        h.t.client(h.tokens.treasurer).markPaid({ params: { runSlug: h.world.runSlug } }),
+      ).rejects.toMatchObject({ code: "QUEUED" });
+      expect(calls("record_payment")).toBe(before);
+      expect(await runState(h)).toBe("INVOICED");
+      // the press waits as its next attempt row, never the outbox's retry budget
+      const rows = await h.t.deps.db
+        .select({ state: schema.taskOutbox.state })
+        .from(schema.taskOutbox)
+        .where(
+          and(
+            eq(schema.taskOutbox.workspaceId, h.world.workspaceId),
+            eq(schema.taskOutbox.name, "recordPayment"),
+          ),
+        )
+        .orderBy(asc(schema.taskOutbox.createdAt));
+      expect(rows.map((r) => r.state)).toEqual(["done", "queued"]);
 
-    await held.end();
-    await h.t.pg?.owner.db
-      .update(schema.taskOutbox)
-      .set({ runAfter: new Date(Date.now() - 1_000) })
-      .where(
-        and(eq(schema.taskOutbox.workspaceId, h.world.workspaceId), eq(schema.taskOutbox.state, "queued")),
-      );
-    await runQueued(h, "recordPayment");
-    expect(calls("record_payment")).toBe(before + 1);
-    expect(await runState(h)).toBe("EXTRACTING");
-    expect(await replayedSteps(h)).toEqual([]);
+      await held.end();
+      await h.t.pg?.owner.db
+        .update(schema.taskOutbox)
+        .set({ runAfter: new Date(Date.now() - 1_000) })
+        .where(
+          and(eq(schema.taskOutbox.workspaceId, h.world.workspaceId), eq(schema.taskOutbox.state, "queued")),
+        );
+      await runQueued(h, "recordPayment");
+      expect(calls("record_payment")).toBe(before + 1);
+      expect(await runState(h)).toBe("EXTRACTING");
+      expect(await replayedSteps(h)).toEqual([]);
+    } finally {
+      if (held?.kind === "live") await held.end();
+      Object.assign(rt, { lane: previousLane });
+    }
   });
 
   it("the armed one-cent tamper meets the real post: refused before PayPal, both approvals voided, the line restored", async () => {

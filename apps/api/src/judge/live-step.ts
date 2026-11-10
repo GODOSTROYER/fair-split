@@ -75,8 +75,8 @@ export const LANE_LOCK = "fs:judge-live-lane";
 const LANE_LOCK_GRACE_MS = 30_000;
 /** When another process holds the lane, ask again after this long. */
 export const ELSEWHERE_RETRY_MS = 3_000;
-/** A fresh judge step waits visibly for at most 20 s before labelled replay. Written live posts never replay. */
-export const LIVE_LANE_WAIT_MS = 20_000;
+/** Replay known waits over 5 s immediately; bound unknown waits to 5 s. Written live posts never replay. */
+export const LIVE_LANE_WAIT_MS = 5_000;
 /** A resumed post over a quota (daily, per cookie, public, the balance) asks again after this long. */
 export const RESUME_QUOTA_WAIT_MS = 15 * 60_000;
 
@@ -265,6 +265,10 @@ export async function beginLiveStep(deps: AppDeps, o: LiveStepInput): Promise<Li
     if (grant.position === null) {
       const full = replayDecision("lane_full", rail, peek.quota);
       return o.resume ? wait(full) : { kind: "replay", decision: full };
+    }
+    if (!o.resume && grant.etaMs > LIVE_LANE_WAIT_MS) {
+      lane.release(entry);
+      return { kind: "replay", decision: replayDecision("lane_full", rail, peek.quota) };
     }
     return {
       kind: "queued",

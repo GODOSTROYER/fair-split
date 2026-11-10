@@ -36,12 +36,6 @@ it("HD6 r5: 25 concurrent judges reach their payout POST within 60 s, with live 
     expect(held).toMatchObject({ kind: "live", decision: { mode: "live" } });
     const began = performance.now();
     await Promise.all(judges.slice(1).map((h) => runQueued(h, "postPayoutBatch")));
-    first.t.clock.advance(20_000);
-    await first.t.pg?.owner.db
-      .update(schema.taskOutbox)
-      .set({ runAfter: new Date(Date.now() - 1_000) })
-      .where(and(eq(schema.taskOutbox.name, "postPayoutBatch"), eq(schema.taskOutbox.state, "queued")));
-    await Promise.all(judges.slice(1).map((h) => runQueued(h, "postPayoutBatch")));
     if (held.kind === "live") await held.end();
     await runQueued(first, "postPayoutBatch");
     const batches = await first.t.deps.db
@@ -82,8 +76,8 @@ it("HD6 r5: 25 concurrent judges reach their payout POST within 60 s, with live 
     expect(labels).toHaveLength(24);
     expect(labels.every((l) => (l.payload as { reason: string }).reason === "lane_full")).toBe(true);
     expect(script.calls.filter((c) => c === "create_payout_batch")).toHaveLength(1);
-    // The fake clock accounts for the queue wait; measured work must also fit the judge's total bound.
-    const elapsedMs = 20_000 + performance.now() - began;
+    // Known over-bound waits switch immediately; measure actual concurrent payout processing.
+    const elapsedMs = performance.now() - began;
     console.info(`HD6 judge load: judges=25 live=1 replay=24 elapsedMs=${Math.round(elapsedMs)}`);
     expect(elapsedMs).toBeLessThan(60_000);
   } finally {

@@ -13,7 +13,7 @@ beforeAll(async () => {
 });
 afterAll(async () => h?.close());
 
-it("HD6 r5: a 20-second queue becomes labelled replay before approvals expire", async () => {
+it("HD6 r5: an over-bound queue immediately becomes labelled replay with approvals intact", async () => {
   await resolveAll(h);
   await signBoth(h);
   const lane = judgeRuntime(h.t.deps).lane;
@@ -34,17 +34,8 @@ it("HD6 r5: a 20-second queue becomes labelled replay before approvals expire", 
         eq(schema.taskOutbox.state, "queued"),
       ),
     );
-  expect(queued).toHaveLength(1);
-  const retry = queued[0];
-  if (!retry) throw new Error("missing lane retry");
-  expect(retry.runAfter.getTime() - Date.now()).toBeLessThanOrEqual(20_000);
-  h.t.clock.advance(20_000);
-  await h.t.pg?.owner.db
-    .update(schema.taskOutbox)
-    .set({ runAfter: new Date(Date.now() - 1_000) })
-    .where(eq(schema.taskOutbox.id, retry.id));
-  await runQueued(h, "postPayoutBatch");
-  expect(h.t.clock.nowMs() - start).toBe(20_000);
+  expect(queued).toHaveLength(0);
+  expect(h.t.clock.nowMs() - start).toBe(0);
   expect(lane.position(h.world.workspaceId)).toBeNull();
   const [batch] = await h.t.deps.db
     .select()
@@ -80,7 +71,7 @@ it("HD6 r5: a 20-second queue becomes labelled replay before approvals expire", 
   expect(voids).toHaveLength(0);
 }, 120_000);
 
-it("HD6 r5: a fifty-deep wait writes two attempts then labelled replay, below the outbox ceiling", async () => {
+it("HD6 r5: a fifty-deep queue writes one attempt with labelled replay, below the outbox ceiling", async () => {
   const g = await startRuns({ paypal: paypalScript().handlers });
   try {
     await resolveAll(g);
@@ -93,18 +84,6 @@ it("HD6 r5: a fifty-deep wait writes two attempts then labelled replay, below th
     }));
     for (const head of heads) lane.join(head);
     await runQueued(g, "postPayoutBatch");
-    g.t.clock.advance(20_000);
-    await g.t.pg?.owner.db
-      .update(schema.taskOutbox)
-      .set({ runAfter: new Date(Date.now() - 1_000) })
-      .where(
-        and(
-          eq(schema.taskOutbox.workspaceId, g.world.workspaceId),
-          eq(schema.taskOutbox.name, "postPayoutBatch"),
-          eq(schema.taskOutbox.state, "queued"),
-        ),
-      );
-    await runQueued(g, "postPayoutBatch");
     const rows = await g.t.deps.db
       .select()
       .from(schema.taskOutbox)
@@ -114,7 +93,7 @@ it("HD6 r5: a fifty-deep wait writes two attempts then labelled replay, below th
           eq(schema.taskOutbox.name, "postPayoutBatch"),
         ),
       );
-    expect(rows).toHaveLength(2);
+    expect(rows).toHaveLength(1);
     expect(rows.length).toBeLessThan(MAX_ATTEMPT_ROWS);
     expect(rows.filter((row) => row.state === "queued")).toHaveLength(0);
     expect(rows.some((row) => row.state === "dead")).toBe(false);
