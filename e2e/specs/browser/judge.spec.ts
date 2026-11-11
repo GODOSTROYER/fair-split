@@ -17,6 +17,7 @@ import {
   workTheReview,
 } from "../../lib/judge-run.js";
 import { PRESS_LIVE_CALLS, roomFor } from "../../lib/paypal-window.js";
+import { resetFromMenu } from "../../lib/stage-menu.js";
 
 const isV1 = (r: Request) => new URL(r.url()).pathname.startsWith("/v1/");
 const firstPress = (page: Page) => page.getByRole("button", { name: /Mark Lantern Bay.s invoice paid/ });
@@ -177,7 +178,8 @@ test("Reset brings the first view back within 10 s and a second press works", as
   const first = await sessionOf(page);
 
   const pressedAt = Date.now();
-  await page.getByRole("banner").getByRole("button", { name: "Reset" }).click();
+  // UI gate round 4: Reset is in the run pill's chevron menu (the top bar keeps six items).
+  await resetFromMenu(page);
   await expect(firstPress(page)).toBeEnabled({ timeout: 10_000 });
   await expect(
     page.getByRole("heading", { level: 1, name: /Invoice sent\. Awaiting payment\./ }),
@@ -240,25 +242,27 @@ test("the console signs with a fresh registered key after Reset changes the work
       const signed = await answer;
       expect(signed.status()).toBe(201);
       ids.push((signed.request().postDataJSON() as { keyId: string }).keyId);
-      // The labelled Proof chip must fit at the default 1280 px viewport without pushing Reset behind the phone.
+      // The labelled Proof chip must fit at the default 1280 px viewport without pushing the chevron (whose menu
+      // holds Reset since UI gate round 4) behind the phone; the bar keeps six controls at most.
       await expect
         .poll(() =>
           page.getByRole("banner").evaluate((banner) => {
             const controls = Array.from(banner.querySelectorAll("a, button"));
             const right = Math.max(...controls.map((control) => control.getBoundingClientRect().right));
-            const reset = banner.querySelector('[data-testid="W-JG-01.reset"]');
-            if (!reset) return { fits: false, resetReceivesPointer: false };
-            const rect = reset.getBoundingClientRect();
+            const menu = banner.querySelector('[data-testid="W-JG-01.runPill.menu"]');
+            if (!menu) return { fits: false, menuReceivesPointer: false, sixAtMost: false };
+            const rect = menu.getBoundingClientRect();
             const hit = document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2);
             return {
               fits: right <= window.innerWidth,
-              resetReceivesPointer: hit !== null && reset.contains(hit),
+              menuReceivesPointer: hit !== null && menu.contains(hit),
+              sixAtMost: controls.length <= 6,
             };
           }),
         )
-        .toEqual({ fits: true, resetReceivesPointer: true });
+        .toEqual({ fits: true, menuReceivesPointer: true, sixAtMost: true });
       await page.screenshot({ path: test.info().outputPath("reset-key1-layout.png") });
-      await page.getByRole("banner").getByRole("button", { name: "Reset" }).click();
+      await resetFromMenu(page);
       await expect(firstPress(page)).toBeEnabled();
       reset = true;
     } finally {

@@ -15,6 +15,7 @@ import {
   runState,
   workTheReview,
 } from "../../lib/judge-run.js";
+import { resetFromMenu } from "../../lib/stage-menu.js";
 
 interface FrameToken {
   token: string;
@@ -365,7 +366,7 @@ test("the console Judge stage itself hands the Chair frame its IC-12 token", asy
     if (await scrim.isVisible()) await scrim.click();
     await page.getByTestId("W-JG-01.tab.chair").click();
     await signInPhone(phone, page, s.runSlug, hash);
-    await page.getByRole("banner").getByRole("button", { name: "Reset" }).click();
+    await resetFromMenu(page);
     await expect(page.getByRole("button", { name: /Mark Lantern Bay.s invoice paid/ })).toBeEnabled();
     reset = true;
     await expect(phone.getByTestId("demo-label").first()).toBeAttached();

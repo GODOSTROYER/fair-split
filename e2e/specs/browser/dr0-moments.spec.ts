@@ -4,6 +4,7 @@ import { expect, test } from "../../lib/fixtures.js";
 import { collectRunEvents, runState } from "../../lib/judge-run.js";
 import { observeMoments } from "../../lib/moments.js";
 import { PRESS_LIVE_CALLS, roomFor } from "../../lib/paypal-window.js";
+import { resetFromMenu } from "../../lib/stage-menu.js";
 
 test("DR-0 / E-01 / E-15: logged-out judge, real moment phases, Proof, Reset and second press", async ({
   page,
@@ -120,7 +121,7 @@ test("DR-0 / E-01 / E-15: logged-out judge, real moment phases, Proof, Reset and
     await moments.reached("MM-4", "done");
     moments.ordered("MM-4", ["refuse", "plate", "done"]);
     const resetAt = Date.now();
-    await page.getByRole("banner").getByRole("button", { name: "Reset" }).click();
+    await resetFromMenu(page);
     const first = page.getByRole("button", { name: /Mark Lantern Bay.s invoice paid/ });
     await expect(first).toBeEnabled({ timeout: 10_000 });
     const resetMs = Date.now() - resetAt;
@@ -136,7 +137,7 @@ test("DR-0 / E-01 / E-15: logged-out judge, real moment phases, Proof, Reset and
     await expect(page.getByRole("heading", { level: 1, name: /Pool funded\./ })).toBeVisible({
       timeout: 60_000,
     });
-    await page.getByRole("banner").getByRole("button", { name: "Reset" }).click();
+    await resetFromMenu(page);
     await expect(first).toBeEnabled({ timeout: 10_000 });
   } finally {
     await test.info().attach("moment-phases.json", {
