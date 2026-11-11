@@ -33,6 +33,37 @@ vi.mock("./quota.js", async (original) => ({
 }));
 afterEach(() => vi.restoreAllMocks());
 
+it.each([6_000, 20_000])("HD6 r6: an uncontended invoice starting at %i ms stays live", async (delay) => {
+  const { deps, clock } = fixture(true);
+  const entry = { workspaceId: "reserved", sessionId: null, step: "invoice" as const };
+  expect(judgeRuntime(deps).lane.join(entry)).toBe(0);
+  clock.advance(delay);
+  const result = await beginLiveStep(deps, entry);
+  try {
+    expect(result).toMatchObject({ kind: "live" });
+  } finally {
+    if (result.kind === "live") await result.end();
+  }
+});
+
+it("HD6 r6: time behind a holder over 5 s still replays after promotion", async () => {
+  const { deps, clock } = fixture(true, 1_000);
+  const held = await beginLiveStep(deps, { workspaceId: "holder", sessionId: null, step: "invoice" });
+  if (held.kind !== "live") throw new Error("expected held lane");
+  const next = { workspaceId: "blocked", sessionId: null, step: "invoice" as const };
+  try {
+    expect(await beginLiveStep(deps, next)).toMatchObject({ kind: "queued", position: 1 });
+    clock.advance(6_000);
+    await held.end();
+    expect(await beginLiveStep(deps, next)).toMatchObject({
+      kind: "replay",
+      decision: { reason: "lane_full", label: expect.stringMatching(/^Replay:/) },
+    });
+  } finally {
+    await held.end();
+  }
+});
+
 function fixture(locked: boolean, burstMs = 40_000, inWindow = 0) {
   pacer.state.mockReset();
   pacer.state.mockResolvedValue({

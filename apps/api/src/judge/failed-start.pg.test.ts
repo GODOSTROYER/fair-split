@@ -164,9 +164,12 @@ it("HD6-5: an admission burst queues without pinning the database pool and refun
   for (const response of await Promise.all(pending)) {
     expect(response.body).toMatchObject({
       code: "QUEUED",
-      retryAfterMs: 250,
+      retryAfterMs: expect.any(Number),
       details: { reason: "PREPARING_WORKSPACE" },
     });
+    const retry = (response.body as { retryAfterMs: number }).retryAfterMs;
+    expect(retry).toBeGreaterThanOrEqual(200);
+    expect(retry).toBeLessThanOrEqual(250);
   }
   expect(budget(app, "unused-session")).toEqual(before);
   expect(app.deps.rateLimits.peek(RATE_RULES.judgeSessionAttempts, "all")).toEqual({

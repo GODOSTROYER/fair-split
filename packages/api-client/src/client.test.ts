@@ -43,6 +43,34 @@ const json = (status: number, body: unknown, headers: Record<string, string> = {
 const HOLD_ID = "0192f8a0-0000-7000-8000-000000000001";
 
 describe("typed client", () => {
+  it("HD6 r6: carries bounded preparation attempts per client and resets after success", async () => {
+    let queued = true;
+    const { fetch, seen } = scripted(() =>
+      queued
+        ? json(429, {
+            code: "QUEUED",
+            status: 429,
+            message: "Preparing",
+            details: { reason: "PREPARING_WORKSPACE" },
+          })
+        : json(201, {}),
+    );
+    const api = createApiClient({ fetch, validate: false });
+    for (let i = 0; i < 12; i++) await api.result("createJudgeSession", { body: {} });
+    expect(seen.map((r) => r.headers.get("x-fs-judge-attempt"))).toEqual(
+      [1, 2, 3, 4, 5, 6, 7, 8, 8, 8, 8, 8].map(String),
+    );
+    const other = createApiClient({ fetch, validate: false });
+    await other.result("createJudgeSession", { body: {} });
+    expect(seen.at(-1)?.headers.get("x-fs-judge-attempt")).toBe("1");
+    queued = false;
+    await api.createJudgeSession({ body: {} });
+    await api.createJudgeSession({ body: {} });
+    expect(seen.at(-1)?.headers.get("x-fs-judge-attempt")).toBe("1");
+    await api.presence({ body: { view: "W-TR-05" } });
+    expect(seen.at(-1)?.headers.has("x-fs-judge-attempt")).toBe(false);
+  });
+
   it("fills the path, sends the bearer and the same-origin cookie policy, and returns the parsed body", async () => {
     const { fetch, seen } = scripted(() => json(200, { ok: true }));
     const api = createApiClient({ baseUrl: "https://fs.example/", fetch, token: () => "fst_tok" });

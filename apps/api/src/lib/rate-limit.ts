@@ -47,7 +47,9 @@ export const RATE_RULES = {
   judgeSessionGlobal: { name: "judgeSessionGlobal", limit: 60, windowMs: 60_000, global: true },
   /** Failed expensive admissions still count; personal/success budgets are refundable. Above the e2e crowd. */
   judgeSessionAttempts: { name: "judgeSessionAttempts", limit: 120, windowMs: 60_000, global: true },
-  judgeSessionContendedAttempts: { name: "judgeSessionContendedAttempts", limit: 600, windowMs: 60_000 },
+  // 60 judges sharing one NAT have at most 40 preparation tries each per minute on average.
+  // This remains nonrefundable even when a client omits or lies about its backoff attempt.
+  judgeSessionContendedAttempts: { name: "judgeSessionContendedAttempts", limit: 2400, windowMs: 60_000 },
   judgeSessionPerNetworkDay: { name: "judgeSessionPerNetworkDay", limit: 60, windowMs: 86_400_000 },
 } as const satisfies Record<string, RateRule>;
 

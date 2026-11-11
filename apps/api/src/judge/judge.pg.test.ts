@@ -323,7 +323,7 @@ describe("POST /v1/judge/sessions (createJudgeSession)", () => {
       expect(r.status).toBe(429);
       expect(ApiError.parse(r.body)).toMatchObject({
         code: "QUEUED",
-        retryAfterMs: 250,
+        retryAfterMs: expect.any(Number),
         details: { reason: "PREPARING_WORKSPACE" },
       });
       expect(r.headers.get("retry-after")).toBe("1");

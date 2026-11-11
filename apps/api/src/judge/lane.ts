@@ -29,6 +29,8 @@ interface Entry extends LaneEntryInput {
   /** Reservation or lease end (head only). */
   until: number | null;
   leased: boolean;
+  /** First failed cross-process lock acquisition, distinct from a head reservation. */
+  elsewhereSince: number | null;
 }
 
 export interface LaneOptions {
@@ -140,6 +142,7 @@ export class LiveLane {
       headSince: null,
       until: null,
       leased: false,
+      elsewhereSince: null,
     });
     this.#sweep(now);
     return this.#index(key);
@@ -204,6 +207,24 @@ export class LiveLane {
     this.#sweep(now);
     const entry = this.#entries.find((x) => x.key === laneKey(e));
     return entry ? Math.max(0, now - entry.joinedAt) : 0;
+  }
+
+  /** Time actually blocked by another holder; a ready head's idle reservation consumes none. */
+  blockedMs(e: Pick<LaneEntryInput, "workspaceId" | "step">): number {
+    const now = this.#clock.nowMs();
+    this.#sweep(now);
+    const entry = this.#entries.find((x) => x.key === laneKey(e));
+    if (!entry) return 0;
+    return (
+      Math.max(0, (entry.headSince ?? now) - entry.joinedAt) +
+      (entry.elsewhereSince === null ? 0 : Math.max(0, now - entry.elsewhereSince))
+    );
+  }
+
+  /** Starts the unknown cross-process wait only when a lock actually refuses this step. */
+  blockedElsewhere(e: Pick<LaneEntryInput, "workspaceId" | "step">): void {
+    const entry = this.#entries.find((x) => x.key === laneKey(e));
+    if (entry && entry.elsewhereSince === null) entry.elsewhereSince = this.#clock.nowMs();
   }
 
   view(): LaneView {
