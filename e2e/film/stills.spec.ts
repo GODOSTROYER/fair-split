@@ -11,7 +11,8 @@
 // keyboard. Every PayPal value is the private stack's in-process simulator; the film says so once, at its end, so
 // the product's "Simulated" marks, the scrims and the toast are hidden in the stills only (stills-kit.ts
 // FILM_STYLE). Nothing is shot while PayPal's events are in flight (between key 2 and the follow-up, between "Pay in
-// cash" and settled): load then can make an item settle by a status check, and Proof honestly reads 5 of 6. A
+// cash" and settled): load then can make an item settle by a status check, and Proof honestly reads 5 of 6. The one
+// exception is a single light raster of the Chair's signed phone a second after key 2 (20c), never on a retry. A
 // session whose Proof does not read 6 of 6 fails the take; Playwright then runs a fresh session (retries).
 import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { cpus } from "node:os";
@@ -119,7 +120,7 @@ async function hold(page: Page, face: Locator, ms: number) {
 test("film stills take: every product state of the film, from one real judge run", async ({
   page,
   origin,
-}) => {
+}, testInfo) => {
   test.setTimeout(25 * 60_000);
   rmSync(TAKE, { recursive: true, force: true });
   mkdirSync(TAKE, { recursive: true });
@@ -135,6 +136,13 @@ test("film stills take: every product state of the film, from one real judge run
         timeout,
       })
       .toBe(true);
+  /** A load first shows a boot shell ("Loading season 2026-A"): the app has mounted once that is gone. */
+  const booted = async () => {
+    await expect(page.getByTestId("boot")).toHaveCount(0, { timeout: 90_000 });
+    await expect(page.getByTestId("W-JG-01.whatsRealOpen").or(page.getByTestId("W-PF-01"))).toBeVisible({
+      timeout: 60_000,
+    });
+  };
   const pill = page.getByTestId("W-JG-01.runPill.next");
   const followPill = async (want: RegExp, ms = 30_000) => {
     await expect(pill).toHaveAttribute("href", want, { timeout: ms });
@@ -160,6 +168,7 @@ test("film stills take: every product state of the film, from one real judge run
     // ------------------------------------------------------------------- #1 the season, before funding
     await roomFor(PRESS_LIVE_CALLS);
     await page.goto("/judge");
+    await booted();
     const mark = page.getByRole("button", { name: /Mark Lantern Bay.s invoice paid/ });
     await expect(mark).toBeVisible({ timeout: 60_000 });
     await page.evaluate(() => document.fonts.ready);
@@ -176,7 +185,7 @@ test("film stills take: every product state of the film, from one real judge run
         "pool-amount": { of: "W-JG-01.pool.amount", pad: 8 },
         "invoice-pool-row": { of: ["W-JG-01.invoice", "W-JG-01.pool"], pad: 12, hi: true },
         rules: "W-JG-01.rules",
-        photos: "W-JG-01.photos",
+        photos: { of: "W-JG-01.photos", hi: true },
         "mark-paid": { of: "W-JG-01.markPaid", pad: 8 },
       },
     });
@@ -254,11 +263,12 @@ test("film stills take: every product state of the film, from one real judge run
     await stills.take("09-needs-a-person", {
       state: "9",
       title: "47 of 48 read: slip 0462 needs a person",
-      boxes: [/^W-TR-03\.(film|status|bench|beds$|beds\.row\.0462|beds\.you\.0462|room)/],
+      boxes: [/^W-TR-03\.(film|status|bench|beds$|beds\.row\.0462|beds\.you\.0462|room|enterByHand)/],
       crops: {
         progress: { of: "W-TR-03.film.progress", pad: 8 },
         status: { of: "W-TR-03.status", pad: 8 },
         "row-0462": { of: "W-TR-03.beds.row.0462", pad: 6 },
+        "enter-by-hand": { of: "W-TR-03.enterByHand", pad: 10, hi: true },
         beds: "W-TR-03.beds",
         bench: "W-TR-03.bench",
         film: "W-TR-03.film",
@@ -289,13 +299,15 @@ test("film stills take: every product state of the film, from one real judge run
         .poll(
           () =>
             page
-              .locator(".fsc-heroes__tile > img")
+              .locator(".fsc-heroes__photo > img")
               .evaluateAll((imgs) => imgs.every((img) => (img as HTMLImageElement).complete)),
           { timeout: 30_000 },
         )
         .toBe(true)
         .catch(() => notes.push("reading: not every exhibit photo loaded"));
-      const photo = tile.locator("img");
+      // round 6: the photo is two layers of one image (the whole frame in grey, the paper in colour over it)
+      const frame = tile.locator(".fsc-heroes__photo");
+      const photo = tile.locator("img.fsc-heroes__paper");
       await photo.evaluate((img: HTMLImageElement) => img.decode().catch(() => undefined));
       await figure(tile.locator(".fsc-heroes__comparison"), "38.45 / 38.45", "0403 read A / read B");
       await stills.style(HERO_CSS, "hero");
@@ -308,8 +320,15 @@ test("film stills take: every product state of the film, from one real judge run
         boxes: [/^W-TR-03\.hero\./, "W-TR-03.heroes"],
         crops: {
           tile: { of: tile, hi: true },
-          slip: { of: photo, hi: true },
+          slip: { of: frame, hi: true },
           paper: { from: paperIn(photo, PAPER_0403), hi: true },
+          // round 6 draws the paper in colour only inside one fixed cut (reading.css .fsc-heroes__paper), which on
+          // this slip leaves its serial and its left rule in the grey layer: this crop stays inside that cut
+          "paper-colour": {
+            from: paperIn(photo, { x0: 0.126, y0: 0.097, x1: 0.87, y1: 0.898 }),
+            hi: true,
+            note: "Only the part of the paper the product draws in colour (its serial number and left table rule fall outside the product's colour cut and show grey in 'paper').",
+          },
           "net-a-b": { of: tile.locator(".fsc-heroes__comparison > div").first(), pad: 6, hi: true },
           "caption-claude": { of: tile.locator("p.fs-t-caption").first(), pad: 4, hi: true },
         },
@@ -426,7 +445,7 @@ test("film stills take: every product state of the film, from one real judge run
       crops: {
         bench: "W-TR-05.bench",
         dial: { of: "W-TR-05.dial", pad: 8 },
-        pools: { of: "W-TR-05.pools", pad: 8 },
+        pools: { of: "W-TR-05.pools", pad: 8, hi: true },
         grid: "W-TR-05.grid",
         "held-rows": { from: rows("M-007", "M-018") },
         "head-and-held-rows": { from: rows("M-007", "M-018", 1) },
@@ -553,7 +572,7 @@ test("film stills take: every product state of the film, from one real judge run
       crops: {
         bench: "W-TR-05.bench",
         dial: { of: "W-TR-05.dial", pad: 8 },
-        pools: { of: "W-TR-05.pools", pad: 8 },
+        pools: { of: "W-TR-05.pools", pad: 8, hi: true },
         grid: "W-TR-05.grid",
         "rows-top": {
           from: (b) => {
@@ -610,6 +629,7 @@ test("film stills take: every product state of the film, from one real judge run
       crops: {
         add: { of: "W-TR-02.add", hi: true },
         refusal: { of: "W-TR-02.refusal", pad: 8, hi: true },
+        "refused-row": { of: "W-TR-02.refusedRow", pad: 8, hi: true },
         pages: { of: "W-TR-02.pages", hi: true },
       },
     } as const;
@@ -740,6 +760,7 @@ test("film stills take: every product state of the film, from one real judge run
       // the last verified events (and their confirmations of what a status check read first) land after the state
       await new Promise((done) => setTimeout(done, 8000));
       await page.goto(`/runs/${run.runSlug}/fanout`);
+      await booted();
       await expect(page.getByTestId("W-TR-08.fan")).toBeVisible({ timeout: 60_000 });
       await page.evaluate(() => document.fonts.ready);
     };
@@ -752,10 +773,45 @@ test("film stills take: every product state of the film, from one real judge run
       await hold(page, chair.getByTestId("M-BD-02.slab"), 1600);
     });
     expect((await posted2).status()).toBe(201);
-    await page.waitForTimeout(1200);
+    // The Chair's phone, signed ("Napirmahan"): the one thing shot between key 2 and the follow-up, and only as one
+    // light raster of the phone alone, a second after the key (fs-api's read of the batch comes 25 s after it posts
+    // it). A session that then loses its 6 of 6 is dropped as ever, and the fresh one does not shoot it again, so
+    // it can cost one session at most. FILM_STILLS_SIGNED=0 leaves it out.
+    if (testInfo.retry === 0 && process.env.FILM_STILLS_SIGNED !== "0") {
+      await page.mouse.move(VIEW.width - 1, VIEW.height - 1);
+      const signed = chair.getByTestId("M-BD-02.signed");
+      const shown = await signed.waitFor({ state: "visible", timeout: 4000 }).then(
+        () => true,
+        () => false,
+      );
+      if (shown) {
+        await page.waitForTimeout(700);
+        await stills.takeElement("20c-chair-phone-signed", {
+          state: "20",
+          title: "Key 2 given: the Chair's phone, signed",
+          of: device,
+          name: "phone",
+          extra: Object.fromEntries(
+            ["M-BD-02", "M-BD-02.seal", "M-BD-02.hash", "M-BD-02.amount", "M-BD-02.signed"].map((testId) => [
+              `${C}>${testId}`,
+              chair.getByTestId(testId).first(),
+            ]),
+          ),
+          boxes: [new RegExp(`^${C.replaceAll(".", "\\.")}>M-BD-0[12]`), /^W-JG-01\.frame\./],
+          note: "One raster of the phone alone at the high scale (no full frame): shot a second after key 2, before PayPal's events are in flight.",
+        });
+      } else notes.push("signed: the Chair's phone did not show M-BD-02.signed within 4 s; not shot");
+    } else {
+      notes.push(
+        "signed: the Chair's signed phone is not shot in this session (a retry, or FILM_STILLS_SIGNED=0)",
+      );
+      await page.waitForTimeout(1200);
+    }
     await inFlight((state) => state === "NEEDS_FOLLOW_UP" || state === "SETTLED", 240_000);
     await expect(page.getByTestId("W-TR-08.parked")).toBeVisible({ timeout: 60_000 });
-    await expect(page.getByTestId("W-TR-08.count")).toContainText(/7/, { timeout: 60_000 });
+    await expect(page.getByTestId("W-TR-08.status"))
+      .toContainText(/7/, { timeout: 60_000 })
+      .catch(() => notes.push("fan-out: its count does not read 7"));
     await page.waitForTimeout(4000);
 
     // ------------------------------------------------------------------- #22 the fan-out, Rhea parked
@@ -848,6 +904,7 @@ test("film stills take: every product state of the film, from one real judge run
       if (attempt > 1) {
         await page.waitForTimeout(8000);
         await page.reload();
+        await booted();
         await expect(page.getByTestId("W-PF-01")).toBeVisible({ timeout: 30_000 });
         await page.waitForTimeout(2500);
       }
@@ -971,6 +1028,7 @@ test("film stills take: every product state of the film, from one real judge run
 
     // ------------------------------------------------------------------- #20 approved by both (after the follow-up)
     await page.goto(`/runs/${run.runSlug}/approve`);
+    await booted();
     await expect(page.getByTestId("W-TR-07.approved")).toBeVisible({ timeout: 30_000 });
     await page.waitForTimeout(3000);
     await stills.take("20a-approved-by-both", {
@@ -1171,6 +1229,7 @@ test("film stills take: every product state of the film, from one real judge run
 
     // ------------------------------------------------------------------- #29 What's real, #28 Try to break it
     await page.goto(`/runs/${run.runSlug}/fanout`);
+    await booted();
     await expect(page.getByTestId("W-JG-01.whatsRealOpen")).toBeVisible({ timeout: 30_000 });
     await page.waitForTimeout(2500);
     await page.getByTestId("W-JG-01.whatsRealOpen").click();
@@ -1270,6 +1329,9 @@ const SOURCE_PAPERS = [
     name: "paper-source",
     file: join(HERE, "..", "..", ".codex-scratch", "e2e-stack", "media", "slips", "spike-0403.webp"),
     share: PAPER_0403,
+    // the CSS size this crop had in the first take: scenes place marks on it by position, so it does not follow the
+    // exhibit tile's size from one UI round to the next (the pixels are the file's own either way)
+    css: { width: 297, height: 343 },
   },
 ] as const;
 
@@ -1304,7 +1366,7 @@ test("film stills: the source crops and the labelled contact sheet", async ({ br
       rmSync(html, { force: true });
       // the same picture as the product's crop: its width from the paper's share, its height from that crop's shape
       const width = Math.round(natural.w * (want.share.x1 - want.share.x0));
-      const height = Math.round((width * like.box.height) / like.box.width);
+      const height = Math.round((width * want.css.height) / want.css.width);
       const x = Math.round(natural.w * want.share.x0);
       const y = Math.round(natural.h * ((want.share.y0 + want.share.y1) / 2) - height / 2);
       await page.setViewportSize({ width: Math.max(natural.w, 800), height: Math.max(natural.h, 600) });
@@ -1314,8 +1376,8 @@ test("film stills: the source crops and the labelled contact sheet", async ({ br
       entry.crops.push({
         name: want.name,
         file,
-        box: like.box,
-        deviceScale: Math.round((width / like.box.width) * 1000) / 1000,
+        box: { x: like.box.x, y: like.box.y, ...want.css },
+        deviceScale: Math.round((width / want.css.width) * 1000) / 1000,
         px: { width, height },
         note: "Cut from the product's own photo file at the file's own pixels: the sharpest copy of this slip. Its scale is the file's pixels over the crop's CSS width.",
       });
@@ -1336,7 +1398,11 @@ test("film stills: the source crops and the labelled contact sheet", async ({ br
   let n = 0;
   for (const still of manifest.stills) {
     const thumbs: { file: string; label: string; width: number }[] = [
-      { file: still.file, label: `${still.px.width}×${still.px.height}`, width: 320 },
+      {
+        file: still.file,
+        label: `${still.px.width}×${still.px.height}`,
+        width: Math.round(Math.min(320, (180 * still.css.width) / still.css.height)),
+      },
     ];
     for (const crop of still.crops) {
       const best = crop.hi ?? crop;

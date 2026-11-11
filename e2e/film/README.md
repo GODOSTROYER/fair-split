@@ -50,6 +50,9 @@ disclosure word still inside a frame) land in `video/film2/stills/` (ignored); a
   session whose Proof does not read 6 of 6 is dropped and a fresh one is run (`FILM_STILLS_RETRIES`, default 2); only
   a whole take with Proof at 6 of 6 replaces the film's stills. `FILM_STILLS_KEEP_MISMATCH=1` shoots the rest of such
   a session into `e2e/film-out/stills-take/` to look at.
+- One thing is shot between key 2 and the follow-up: the Chair's phone in its signed state (`20c-chair-phone-signed`),
+  as a single scale-4 raster of the phone alone a second after the key, long before fs-api reads the batch. A retry
+  session does not shoot it again, so it can cost one session at most; `FILM_STILLS_SIGNED=0` leaves it out.
 - The contact sheet and the source crops alone, from the stills already on disk (no stack, no session):
   `$env:E2E_BASE_URL = "http://127.0.0.1:9"; corepack pnpm exec playwright test -c e2e/film/stills.config.ts -g "contact sheet"`.
 

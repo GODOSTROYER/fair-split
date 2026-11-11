@@ -144,8 +144,10 @@ function measure(view: { width: number; height: number }) {
       if (!test || r.width < 1 || !shown(frame)) continue;
       const inner = inPort(r);
       if (!inner) continue;
-      // a phone panel behind the one on show (kept mounted) is not on screen
-      if (doc.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2) !== frame) continue;
+      // a phone panel behind the one on show (kept mounted) is not on screen: the frame on show is the first frame
+      // under its own centre (a moment's layer may lie over it, so the topmost element is not always the frame)
+      const under = doc.elementsFromPoint(r.x + r.width / 2, r.y + r.height / 2);
+      if (under.find((el) => el.tagName === "IFRAME") !== frame) continue;
       try {
         if (frame.contentDocument)
           walk(frame.contentDocument, dx + r.x, dy + r.y, `${test}>`, {
@@ -311,6 +313,101 @@ export class Stills {
       b = Math.max(b, rect[1] + rect[3]);
     }
     return Number.isFinite(x) ? [x, y, r - x, b - y] : null;
+  }
+
+  /**
+   * One light still of one element (a phone): a single high-scale raster of its box and nothing else, for a moment
+   * that must not be loaded with a full frame (PayPal's events in flight). The still's image is the element itself:
+   * its CSS size is the box's, its boxes are measured from the box's corner, and its one crop (`name`) is that file.
+   */
+  async takeElement(
+    id: string,
+    spec: {
+      state: string;
+      title: string;
+      of: Locator;
+      name: string;
+      boxes?: readonly (string | RegExp)[];
+      /** Boxes asked of the page one by one after the raster (by the name they are stored under). */
+      extra?: Record<string, Locator>;
+      note?: string;
+    },
+  ): Promise<StillEntry | null> {
+    const { page } = this;
+    for (const frame of page.frames())
+      await frame.evaluate(installFilmStyle, FILM_STYLE).catch(() => undefined);
+    const box = await spec.of.boundingBox({ timeout: 2000 }).catch(() => null);
+    if (!box) {
+      this.notes.push(`${id}: nothing on screen to shoot`);
+      return null;
+    }
+    const x = Math.max(0, Math.floor(box.x));
+    const y = Math.max(0, Math.floor(box.y));
+    const clip = {
+      x,
+      y,
+      width: Math.min(VIEW.width, Math.ceil(box.x + box.width)) - x,
+      height: Math.min(VIEW.height, Math.ceil(box.y + box.height)) - y,
+    };
+    const m = await page.evaluate(measure, VIEW);
+    const file = `${id}.png`;
+    await this.shootHi(join(this.out, file), clip);
+    const inside = (r: Rect) =>
+      r[0] >= clip.x - 0.5 &&
+      r[1] >= clip.y - 0.5 &&
+      r[0] + r[2] <= clip.x + clip.width + 0.5 &&
+      r[1] + r[3] <= clip.y + clip.height + 0.5;
+    const local = (r: Rect) => ({
+      x: Math.round((r[0] - clip.x) * 10) / 10,
+      y: Math.round((r[1] - clip.y) * 10) / 10,
+      width: r[2],
+      height: r[3],
+    });
+    const px = { width: clip.width * HI_SCALE, height: clip.height * HI_SCALE };
+    const flags = m.flags.filter((f) => inside(f.box));
+    const entry: StillEntry = {
+      id,
+      state: spec.state,
+      title: spec.title,
+      file,
+      css: { width: clip.width, height: clip.height },
+      deviceScale: HI_SCALE,
+      px,
+      route: new URL(page.url()).pathname + new URL(page.url()).search,
+      scrollY: m.scrollY,
+      takenAt: new Date().toISOString(),
+      boxes: {},
+      crops: [
+        {
+          name: spec.name,
+          file,
+          box: { x: 0, y: 0, width: clip.width, height: clip.height },
+          deviceScale: HI_SCALE,
+          px,
+          ...(flags.length ? { flags: flags.map((f) => f.text) } : {}),
+        },
+      ],
+      flags: flags.map((f) => ({ text: f.text, box: local(f.box) })),
+      ...(spec.note ? { note: spec.note } : {}),
+    };
+    for (const want of spec.boxes ?? []) {
+      for (const [key, rect] of Object.entries(m.boxes)) {
+        if (!inside(rect)) continue;
+        if (typeof want === "string" ? key === want || key.endsWith(`>${want}`) : want.test(key))
+          entry.boxes[key] = local(rect);
+      }
+    }
+    for (const [key, locator] of Object.entries(spec.extra ?? {})) {
+      if (key in entry.boxes) continue;
+      const found = await locator.boundingBox({ timeout: 800 }).catch(() => null);
+      const rect: Rect | null = found ? [found.x, found.y, found.width, found.height] : null;
+      if (rect && inside(rect)) entry.boxes[key] = local(rect);
+      else this.notes.push(`${id}: no box for ${key}`);
+    }
+    this.allBoxes[id] = m.boxes;
+    this.entries.push(entry);
+    process.stdout.write(`[film-stills] ${id}: one light raster, ${px.width} × ${px.height}\n`);
+    return entry;
   }
 
   /** One still: the full frame, then every named crop (and its high-scale copy). */
