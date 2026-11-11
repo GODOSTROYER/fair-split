@@ -151,6 +151,9 @@ export const HOLDS = {
   h1TitleOnce: (slip: string) => `Slip ${slip}, counted once`,
   h1TitleTwo: (slip: string) => `Slip ${slip}, two deliveries`,
   h1Returned: (amount: string, members: number) => `+${amount} back to ${members} members`,
+  /** Round 8: the receipt's before and after for the slip's own member, for a screen reader. */
+  holderWas: "was",
+  holderNow: "now",
   h2Title: (name: string, perTree: string) => `${name}: ${perTree} kg a tree`,
   h2TitleDone: (name: string) => `${name}, plot registered`,
   h2Engine: (kg: string, trees: number, limit: string) =>
@@ -274,7 +277,16 @@ export const APPROVE = {
   /** The PayPal recipients under the bar (round 5), for a screen reader. */
   payeesLabel: (n: number) => `${n} PayPal payouts`,
   /** Under the slab while no key has signed (round 6): whose signature the press is, and whose comes next. */
-  firstKey: "Your key is the first of two · the Chair signs next",
+  firstKey: "Then Ernesto signs · 2 of 2",
+  /** Round 8: each signer's place in the order, in his row, until he signs ("Signs first", "Signs second"). */
+  signsFirst: "Signs first",
+  signsSecond: "Signs second",
+  signsNext: "Signs next",
+  /**
+   * Round 8: one short label under the seal per state, so the drawing explains itself: no ring inked, half of them
+   * inked by the treasurer's key, all of them once the Chair's key signs too.
+   */
+  sealState: ["Not signed yet", "Half signed · Analyn", "Signed · Analyn and Ernesto"],
   payeeWord: { paid: "confirmed", held: "parked" },
   keyWebCrypto: "Made by WebCrypto in this browser; the private half can't be exported.",
   keyNoble: "Held in this page's memory for this session; it never leaves the browser.",
@@ -360,8 +372,6 @@ export const FANOUT = {
     settled: en("run.SETTLED"),
     denied: "PayPal declined",
   },
-  /** Under the fan's cash row once every payout is settled (round 5: no "By value" bar restating the fan). */
-  keptCaption: (amount: string) => `Kept for members ${amount}`,
   /** The payout states in words ("Sent" while in flight). */
   legend: {
     planned: "To send",
@@ -378,7 +388,9 @@ export const FANOUT = {
   /** The same words in two parts: the second steps aside on a narrow fan (round 6: nothing is cut mid-word). */
   cashBandShort: (n: number) => `${n} members · cash`,
   cashBandWhere: " at the bodega",
-  movedToCash: (name: string) => `${name} → cash`,
+  /** Round 8: a line moved to cash says the cash is still due ("Rhea Jumawan · cash due 12 Nov"), never paid. */
+  movedToCash: (name: string, day: string) => `${name} · cash due ${day}`,
+  movedToCashDone: (name: string) => `${name} · cash handed over`,
   title: "Run",
   feesSoFar: "Simulated PayPal fees: none in this run's notices yet.",
   feesReplayed: "Fees belong to the earlier simulated run (labelled replay).",
@@ -400,9 +412,11 @@ export const FANOUT = {
   },
   logEmpty: "Nothing has happened in this run yet.",
   seededLog: "Seeded showcase history",
-  latency: "Funding to confirmation",
-  /** The dot strip's one line (round 5): the median, nothing else. */
-  latencySummary: (p50: string) => `Median ${p50}`,
+  /** Round 8: what the strip measures, in the run's own words: from the invoice paid to each payout confirmed. */
+  latency: "Invoice paid to payout confirmed",
+  /** The dot strip's one line (round 8): whose timings they are (this run's simulated payouts), then the median. */
+  latencySummary: (p50: string, n: number) =>
+    `This run · ${n === 1 ? "1 simulated payout" : `${n} simulated payouts`} · median ${p50}`,
   latencyEmpty: "No confirmations yet",
   /** Confirmed, but this page did not see the notices arrive (a reload): the count, and why there are no dots. */
   latencyUntimed: (confirmed: number) => `${confirmed} confirmed · timed only while the run is live`,
@@ -411,11 +425,14 @@ export const FANOUT = {
   rheaLine: "No PayPal account",
   rheaReplayed: "Unclaimed in the earlier simulated PayPal sandbox run · a labelled replay",
   returns: "returns in 30 days",
-  /** Round 7: the primary names whose payment it acts on ("Pay Rhea in cash at the bodega"). */
-  payCash: (first: string) => `Pay ${first} in cash at the bodega`,
+  /**
+   * Round 8: the action is named for what it does. It moves her line to the cash list (the cash is then due on cash
+   * day); it pays nobody, so it never says "Pay".
+   */
+  payCash: (first: string) => `Move ${first} to cash at the bodega`,
   payCashUnavailable: "Moving a line to cash needs the live run. This is the seeded showcase.",
   srPayCash: (name: string, amount: string) =>
-    `Pay ${name} ${amount} in cash at the bodega, changes a line, button`,
+    `Move ${name}'s ${amount} to cash at the bodega, changes a line, button`,
   resend: "Re-send",
   resendNote: "her email + your key",
   resendPending: "needs her confirmed email first",

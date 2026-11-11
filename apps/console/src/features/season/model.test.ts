@@ -172,8 +172,8 @@ describe("the invoice Claude drafted", () => {
 
 describe("the next step as a sentence", () => {
   it("drops the pill's 'Next:' and capitalises", () => {
-    expect(nextSentence("Next: 3 holds need you")).toBe("3 holds need you");
-    expect(nextSentence("Next: approve 8 payouts")).toBe("Approve 8 payouts");
+    expect(nextSentence("Next: decide 3 holds")).toBe("Decide 3 holds");
+    expect(nextSentence("Next: sign 1 of 2 · 8 payouts")).toBe("Sign 1 of 2 · 8 payouts");
   });
 });
 

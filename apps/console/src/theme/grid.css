@@ -79,6 +79,19 @@
   margin-left: auto;
 }
 
+/* Round 8: the id line has one quiet place on every screen, the far end of the title row, out of the title's and the
+   state chip's reading path (the title, its state, then the screen); a quiet control follows it. Where the row
+   wraps (a narrow panel) it keeps its place after the chip. */
+@container fsc-screen (min-width: 720px) {
+  .fsc-screen__meta {
+    margin-left: auto;
+  }
+
+  .fsc-screen__meta + .fsc-screen__actions {
+    margin-left: 8px;
+  }
+}
+
 /* A stack inside a cell: tight inside a group (12), generous between groups (24). */
 .fsc-stack {
   display: grid;

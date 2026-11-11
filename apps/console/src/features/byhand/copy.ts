@@ -23,7 +23,7 @@ export const BY_HAND_COPY = {
   noNeed: (serial: string) =>
     `Slip ${serial} needs nothing by hand: the seed stand-in has no doubtful field.`,
   openReading: "Open it in the reading room",
-  crop: (serial: string) => `slip ${serial} · 3×`,
+  crop: (serial: string) => `slip ${serial} · the photo, enlarged`,
   cropAlt: (serial: string) => `Slip ${serial}: gross, tare and net, under a water stain`,
   logbook: (page: number, from: number, to: number) => `logbook p. ${page} · lines ${from}–${to} · witness`,
   logbookAlt: (page: number, line: number, net: string) =>

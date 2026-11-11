@@ -110,26 +110,30 @@ describe("every width keeps the whole disclosure and the evidence (round 6)", ()
     expect(NET_MAX_PX).toBeLessThanOrEqual(136);
   });
 
-  it("Approve's seal is the hero on the 1,920 stage, and never crowds a laptop", () => {
-    expect(sealSizeFor(1920, 1080)).toBe(SEAL_SIZE_HERO);
-    expect(SEAL_SIZE_HERO).toBe(280);
-    expect(sealSizeFor(1920, APPROVE_TALL_PX - 1)).toBe(SEAL_SIZE_WIDE);
-    expect(sealSizeFor(1470, 956)).toBe(SEAL_SIZE);
+  it("Approve's seal is one relative size at every width (round 8: 14% of the window), never over the hero", () => {
+    expect(sealSizeFor(1920, 1080)).toBe(268);
+    expect(sealSizeFor(1470, 956)).toBe(206);
     expect(sealSizeFor(1280, 800)).toBe(SEAL_SIZE);
+    expect(SEAL_SIZE_HERO).toBe(280);
+    expect(sealSizeFor(2560, 1440)).toBe(SEAL_SIZE_HERO);
+    // A short window never gets a seal taller than it can hold; no window gets one under 180 px.
+    expect(sealSizeFor(1920, APPROVE_TALL_PX - 400)).toBe(SEAL_SIZE);
+    expect(sealSizeFor(1024, 700)).toBe(SEAL_SIZE);
+    expect(SEAL_SIZE_WIDE).toBe(220);
   });
 
-  it("Approve lists who is paid at every width: under the card on a laptop, a row of its own at 1,920", () => {
+  it("Approve lists who is paid at every width, in one dense column under the card (round 8: at 1,920 too)", () => {
     const css = readFileSync(resolve(process.cwd(), "src/features/approve/approve.css"), "utf8").replace(
       /\/\*[\s\S]*?\*\//g,
       "",
     );
-    // Shown by default (no width hides it); only the 1,920 stage lays it out as two columns under the money bar.
+    // Shown by default (no width hides it); since round 8 no width lays it out as a second, sparser list.
     expect(/\.fsr-payees\s*\{[^}]*display:\s*grid;/.test(css)).toBe(true);
     expect(/\.fsr-payees\s*\{[^}]*display:\s*none;/.test(css)).toBe(false);
-    expect(css).toMatch(
-      /@media \(min-width: 1600px\) and \(min-height: 1000px\) \{[\s\S]*\.fsr-approve > \.fsr-approve__aside \{\s*display: contents;/,
-    );
-    expect(APPROVE.firstKey).toBe("Your key is the first of two · the Chair signs next");
+    expect(css).not.toMatch(/\.fsr-approve__aside \{\s*display: contents;/);
+    expect(css).not.toMatch(/\.fsr-payee \{[^}]*min-height: 72px/);
+    // Round 8: the press is named for which signature it is, and the line under it says whose comes next.
+    expect(APPROVE.firstKey).toBe("Then Ernesto signs · 2 of 2");
   });
 });
 

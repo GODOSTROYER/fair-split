@@ -729,20 +729,30 @@
 /* The dot strip (round 5): the dots on one hairline, the median's tick through it, then one line under it. */
 .fsr-latency__track {
   position: relative;
-  height: 24px;
+  height: 32px;
+  margin-inline: 6px;
   border-bottom: 1px solid var(--fs-rule-strong);
 }
 
-/* Each confirmed payment is money: a jade dot on its border (decision §4). */
+/* Each confirmed payment is money: a jade dot on its border (decision §4). Round 8: 12 px, so seven payouts read as
+   seven marks on an axis, not as specks. */
 .fsr-latency__dot {
   position: absolute;
-  top: 8px;
-  width: 8px;
-  height: 8px;
-  margin-left: -4px;
+  top: 10px;
+  width: 12px;
+  height: 12px;
+  margin-left: -6px;
   border-radius: 50%;
   background: var(--fs-jade);
   box-shadow: 0 0 0 1px var(--fs-jade-flush-border);
+}
+
+/* The axis's two ends: the fastest and the slowest confirmation, in the id role (times). */
+.fsr-latency__ends {
+  display: flex;
+  justify-content: space-between;
+  margin-top: calc(-1 * var(--fs-space-4));
+  color: var(--fs-ink-2);
 }
 
 .fsr-latency__p50 {

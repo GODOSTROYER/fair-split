@@ -9,7 +9,7 @@
 
 import type { RunEvent, SeasonSnapshot } from "@fairsplit/contracts";
 import { webRoutes } from "@fairsplit/contracts";
-import { Chip, Glyph, HONESTY, Numeral, StateDot, useMotionMode } from "@fairsplit/ui-web";
+import { Chip, Glyph, HONESTY, Numeral, useMotionMode } from "@fairsplit/ui-web";
 import { useRouter } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PROVENANCE } from "../../chrome/copy.js";
@@ -384,7 +384,6 @@ export function ReadingRoom({
                 data-needs={progress.needs > 0 ? "" : undefined}
                 aria-hidden
               >
-                {progress.needs > 0 && <StateDot kind="held" />}
                 {progress.needs > 0 ? READING_COPY.progressNeeds(progress.needs) : READING_COPY.progressUnit}
               </span>
               {/* Round 6: the exception owns the screen. While a slip waits for a person, its entry is the room's one

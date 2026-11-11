@@ -556,13 +556,18 @@
 
 .fsc-pill__words > * {
   grid-area: 1 / 1;
+  align-self: center;
   min-width: 0;
   white-space: nowrap;
-  transition: opacity var(--fs-dur-swap) var(--fs-ease-out);
+  transition:
+    opacity var(--fs-dur-swap) var(--fs-ease-out),
+    transform var(--fs-dur-swap) var(--fs-ease-out);
 }
 
+/* Round 8: "Next: …" never leaves the pill. While an event shows, the step's words rise 8 px and the event's line
+   sits under them (two lines inside the 40 px pill), then they settle back. */
 .fsc-pill__next[data-swap="event"] .fsc-pill__say {
-  opacity: 0;
+  transform: translateY(-8px);
 }
 
 /* Who moves the run next: amber when a person must decide, graphite while the machine reads, the dashed steel
@@ -1317,14 +1322,20 @@
 /* The toast (round 5): the newest live event's plain words inside the Next pill, over its "Next: …" for 3 s, a 150 ms
    crossfade each way. It is the pill's own text (no surface, no shadow, no time: times live in the Run log), so the
    bar keeps six items and nothing ever covers a row. It never takes a click or focus. */
+/* Round 8: the pill always reads "Next: …". The event is a second, smaller line under it for its 3 s (the step's
+   words rise 8 px to make room, 150 ms), never instead of it. */
 .fsc-toast {
   position: relative;
   max-width: 44ch;
   overflow: hidden;
   text-overflow: ellipsis;
-  color: var(--fs-ink);
+  color: var(--fs-ink-2);
+  font-size: 0.8125rem;
+  font-weight: 430;
+  line-height: 1rem;
   pointer-events: none;
   opacity: 1;
+  transform: translateY(10px);
 }
 
 @starting-style {

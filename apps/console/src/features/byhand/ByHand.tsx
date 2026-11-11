@@ -11,6 +11,7 @@ import { Chip, Glyph, Paper, Slab, useMotionMode } from "@fairsplit/ui-web";
 import { useQuery } from "@tanstack/react-query";
 import {
   type ChangeEvent,
+  type CSSProperties,
   type KeyboardEvent,
   useCallback,
   useEffect,
@@ -33,7 +34,9 @@ import { focusAndReveal, useFocusAfterRemoval } from "../../lib/focus.js";
 import { format } from "../../lib/format.js";
 import { useMoment } from "../../lib/moment.js";
 import { useNextStep, usePrefocus } from "../../stage/context.js";
+import { useViewportHeight } from "../../stage/layout.js";
 import { PrimaryLink } from "../fanout/PrimaryLink.js";
+import { photoSlipCrop } from "../reading/exhibits.js";
 import { byHandHoldFor } from "../reading/model.js";
 import { SlipPaper } from "../reading/SlipPaper.js";
 import { boxFor } from "../reading/slip.js";
@@ -348,9 +351,14 @@ function ByHandField({
       ? BY_HAND_COPY.enterAnyway(value)
       : BY_HAND_COPY.enter(isComplete(value) ? value : field.reading.replace("?", SLOT));
   const crop = cropBox();
+  // Round 8: the slip's witness is the clerk's own photograph, cropped to this slip around its stained rows (the
+  // drawn form stands in only where the photo is not in the build).
+  const photoCrop = photoSlipCrop(field.slip.photoId, serial);
+  // A tall window (the 1,920 stage) has room for two more ledger lines either side of the slip's own.
+  const tall = useViewportHeight() >= 1000;
   // The logbook's lines around the slip's own (5 to 9 for line 7): enough ledger to trust, small enough that
   // the crop, the witness line, the field and the slab all fit above the stage's ribbon.
-  const lines = witness ? logbookWindow(witness.page, witness.lineNo) : null;
+  const lines = witness ? logbookWindow(witness.page, witness.lineNo, tall ? 3 : 2) : null;
 
   return (
     <ScreenRoot id="W-TR-04" state={state} labelledBy="fsc-hand-title" className="fsc-hand" grid>
@@ -400,7 +408,8 @@ function ByHandField({
               // Focusable from script only: the field's focus lands here when the value prints in ink.
               <div ref={ink} className="fsc-hand__committed" tabIndex={-1} data-testid="W-TR-04.committed">
                 {/* Round 6: the sum's label says what the line is, "Gross − tare = net". */}
-                <p id={`${inputId}-label`} className="fs-t-label fsc-hand__muted">
+                {/* Round 8: the equation says "gross − tare = net" itself; its label stays for a screen reader. */}
+                <p id={`${inputId}-label`} className="fs-sr">
                   {BY_HAND_COPY.sumLabel}
                 </p>
                 {/* The result as one line of kilos in the money face (round 3): her entry in ink, the slip's tare,
@@ -605,16 +614,36 @@ function ByHandField({
       </Cell>
 
       {/* The two witnesses side by side under the decision, each six columns and one height (round 5). */}
-      <Cell span={12} stretch className="fsc-hand__evidence" testId="W-TR-04.evidence">
+      <Cell
+        span={12}
+        stretch
+        className="fsc-hand__evidence"
+        testId="W-TR-04.evidence"
+        // The papers' proportions follow the ledger strip's (five lines, or seven on a tall window).
+        style={{ "--fsc-hand-aspect": tall ? "1.35" : "1.76" } as CSSProperties}
+      >
         <figure className="fsc-hand__figure">
           <figcaption className="fs-t-micro fsc-hand__muted">{BY_HAND_COPY.crop(serial)}</figcaption>
           <Paper alt={BY_HAND_COPY.cropAlt(serial)} className="fsc-hand__crop" testId="W-TR-04.crop">
-            <div
-              className="fsc-hand__crop-frame"
-              style={crop ? { aspectRatio: `${crop.w} / ${crop.h}` } : undefined}
-            >
-              <SlipPaper slip={field.slip} crop={crop} />
-            </div>
+            {photoCrop ? (
+              <div className="fsc-hand__photo" data-testid="W-TR-04.photo">
+                <img
+                  src={`/media/${photoCrop.image}`}
+                  alt=""
+                  style={{
+                    width: `${100 / photoCrop.width}%`,
+                    transform: `translate(${-photoCrop.left * 100}%, ${-photoCrop.centreY * 100}%)`,
+                  }}
+                />
+              </div>
+            ) : (
+              <div
+                className="fsc-hand__crop-frame"
+                style={crop ? { aspectRatio: `${crop.w} / ${crop.h}` } : undefined}
+              >
+                <SlipPaper slip={field.slip} crop={crop} />
+              </div>
+            )}
           </Paper>
         </figure>
         {witness && lines && (

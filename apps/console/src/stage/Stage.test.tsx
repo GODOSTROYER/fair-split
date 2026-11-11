@@ -242,13 +242,14 @@ describe("Judge stage", () => {
     expect(main.contains(drawer)).toBe(false);
   });
 
-  it("a decided hold's drawer at 1920 px is a compact card with no scrim: the screen beside it stays live", async () => {
-    // UI gate round 5: the showcase's H1 is decided, so its drawer hugs the success card and lays no blocking scrim.
+  it("a decided hold at 1920 px is a compact receipt in the split review, with no scrim: the screen stays live", async () => {
+    // UI gate round 8: the showcase's H1 is decided, so it prints as one strip above the split's table (the screen's
+    // own slot), not a sheet beside it: it takes no width, lays no scrim and leaves the screen live.
     await renderConsole({ path: "/runs/2026A-r37/split?hold=H1", viewport: { width: 1920, height: 900 } });
     const drawer = await screen.findByTestId("W-TR-06.drawer");
-    await waitFor(() => expect(drawer.dataset.scrim).toBe("none"));
-    expect(drawer.dataset.mode).toBe("overlay");
-    expect(drawer.hasAttribute("data-hug")).toBe(true);
+    expect(drawer.hasAttribute("data-receipt")).toBe(true);
+    expect(drawer.classList.contains("fsc-drawer")).toBe(false);
+    expect(screen.getByTestId("W-TR-05.receipt").contains(drawer)).toBe(true);
     expect(screen.queryByTestId("W-TR-06.drawer.scrim")).toBeNull();
     expect((document.getElementById("fsc-main") as HTMLElement).hasAttribute("inert")).toBe(false);
   });

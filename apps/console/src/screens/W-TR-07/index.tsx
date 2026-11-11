@@ -468,11 +468,13 @@ export function Screen({ runSlug }: RunScreenProps) {
   const amountState = batchAmountState(view);
   const total = batch.totalCents;
   const amount = { display: format.money(total), spoken: format.amountSpoken(total, "en") };
-  const label = en("W-TR-07.approve", { count: batch.itemCount });
+  const chair = chairRule(snapshot, total);
+  // Round 8: the button says which signature the press is ("Sign 1 of 2 · 8 payouts"): never "Approve", which read as
+  // the final authorisation. A batch under the Chair's threshold has one signer and says so.
+  const label = en(chair.required ? "W-TR-07.approve" : "W-TR-07.approve.sole", { count: batch.itemCount });
   const cashDay = format.dateShort(cashDayForRun(snapshot, view));
   const fees = feeFacts(snapshot);
   const safe = safeFacts(snapshot, view);
-  const chair = chairRule(snapshot, total);
   const reasons = blockingReasons(snapshot, view);
   const firstReason = reasons[0];
   const signedNow = keys > 0;
@@ -620,7 +622,13 @@ export function Screen({ runSlug }: RunScreenProps) {
       };
     });
   // The PayPal segment stays planned (a steel dashed outline) until the simulated PayPal confirmed every payout.
-  const paypalTone = payees.length > 0 && payees.every((p) => p.state === "paid") ? "confirmed" : "planned";
+  // Round 8: a solid steel segment while planned, the signers' indigo once both keys signed it, jade once confirmed.
+  const paypalTone =
+    payees.length > 0 && payees.every((p) => p.state === "paid")
+      ? "confirmed"
+      : keys === 2
+        ? "signed"
+        : "planned";
   const chip = stateChip(state, keys, reasons.length);
 
   const screenState: ScreenState<"W-TR-07"> = state;
@@ -721,7 +729,9 @@ export function Screen({ runSlug }: RunScreenProps) {
                             ? APPROVE.voidedKey(voidedTime)
                             : signing
                               ? APPROVE.signing
-                              : APPROVE.waitingKey
+                              : chair.required
+                                ? APPROVE.signsFirst
+                                : APPROVE.waitingKey
                       }
                       voided={voidedAt !== null}
                       signed={treasurerApproval !== null}
@@ -737,7 +747,8 @@ export function Screen({ runSlug }: RunScreenProps) {
                             ? en("W-TR-07.key.signed", { time: chairStamp.at })
                             : voidedTime
                               ? APPROVE.voidedKey(voidedTime)
-                              : (presenceStatus?.word ?? APPROVE.waitingKey)
+                              : (presenceStatus?.word ??
+                                (treasurerApproval ? APPROVE.signsNext : APPROVE.signsSecond))
                         }
                         {...(presenceStatus ? { statusTitle: presenceStatus.title } : {})}
                         voided={voidedAt !== null}

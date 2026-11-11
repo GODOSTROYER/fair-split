@@ -796,10 +796,10 @@
   gap: 8px;
 }
 
+/* Round 8: the row's quiet way in is a link, not a second button (the room's primary is the one button). */
 .fsc-beds__act {
-  min-height: 32px;
-  padding: 0 12px;
-  text-decoration: none;
+  padding: 0 4px;
+  color: var(--fs-ink-2);
 }
 
 .fsc-beds__row {

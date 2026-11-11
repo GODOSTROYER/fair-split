@@ -174,7 +174,8 @@ describe("rows on the bench", () => {
     if (!photo) throw new Error("no photo J");
     const printed = rowsForPhoto({ view, snapshot, photo });
     expect(statusSentence({ photo, rows: printed, reading: false, started: true, snapshot })).toMatch(
-      /^Photo J · 3\/4 read\. Slip 0462 needs a person/,
+      // Round 8: the room names the waiting slip once, on its one button; the sentence says only why.
+      /^Photo J · 3\/4 read\. A stain hides one digit\.$/,
     );
   });
 });

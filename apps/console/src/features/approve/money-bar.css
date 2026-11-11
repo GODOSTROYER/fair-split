@@ -23,12 +23,16 @@
   border-radius: var(--fs-radius-pill);
 }
 
-/* Planned (signed or not, not yet confirmed): the batch the simulated PayPal is asked to move. */
-/* Round 7: a planned segment is a steel face in its dashed outline at full strength, so it reads as money planned on
-   the simulated rail, never as a loading skeleton. */
+/* Planned (not yet signed by both keys): the batch the simulated PayPal is asked to move. Round 8: a solid steel
+   fill at full strength (the legend's own square), never a dashed capsule, which read as a loading placeholder; the
+   amount's "Simulated" tag says the rail. Hatch stays cash's alone. */
 .fsr-money__seg[data-tone="planned"] {
-  border: 1px dashed var(--fs-ink-3);
-  background: color-mix(in oklab, var(--fs-steel-line) 38%, var(--fs-plate));
+  background: var(--fs-steel-line);
+}
+
+/* Signed by both keys, not yet confirmed: the signers' indigo, the colour the seal's rings fill with. */
+.fsr-money__seg[data-tone="signed"] {
+  background: var(--fs-pod);
 }
 
 .fsr-money__seg[data-tone="confirmed"] {

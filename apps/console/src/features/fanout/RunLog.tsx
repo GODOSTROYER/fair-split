@@ -47,7 +47,12 @@ export interface RunLogProps {
    * log never says "Settled" while members still wait for their cash (round 3).
    */
   readonly settledAs?: string;
+  /** How many latest rows show before "All N events": four, or six on a tall window (round 8). */
+  readonly latestRows?: number;
 }
+
+/** The latest rows on a tall window (1,920 × 1,080): six, so the panel's lower third holds the run's history. */
+export const LATEST_TALL = 6;
 
 /** A PayPal notice in plain words; its event code stays in the row's detail. */
 const NOTICE_WORDS: Readonly<Record<string, string>> = {
@@ -118,9 +123,21 @@ function EventDetail({ row }: { readonly row: LogRow }) {
   );
 }
 
-export function RunLog({ rows, isLive, seeded, footer, settledAs }: RunLogProps) {
+/**
+ * Round 8: PayPal's bare notice of a cancelled item ("Payment cancelled", no name) is the same fact as the named row
+ * beside it ("Rhea Jumawan: cancelled · back to the simulated PayPal balance"), so the latest rows say it once, by name. The
+ * notice keeps its row in "All N events".
+ */
+function bareCancelNotice(row: LogRow): boolean {
+  return row.words === "PayPal notice: PAYMENT.PAYOUTS-ITEM.CANCELED";
+}
+
+export function RunLog({ rows, isLive, seeded, footer, settledAs, latestRows = LATEST }: RunLogProps) {
   const lanes = byLane(rows);
-  const latest = rows.slice(-LATEST).reverse();
+  const latest = rows
+    .filter((row) => !bareCancelNotice(row))
+    .slice(-latestRows)
+    .reverse();
   // A replayed payout's long note is the log's, said once here; each replayed row names only what it replayed.
   const replayNote = rows.find((row) => row.replayNote)?.replayNote ?? null;
   return (
@@ -264,8 +281,13 @@ export function LatencyDots({
               <span className="fsr-latency__p50" style={{ left: at(latency.p50) }} />
             )}
           </div>
+          {/* Round 8: the track's two ends say what the axis is: the fastest and the slowest confirmation. */}
+          <p className="fsr-latency__ends fs-t-id" aria-hidden>
+            <span>{format.elapsedWords(Math.min(...latency.dots.map((d) => d.ms)))}</span>
+            <span>{format.elapsedWords(max)}</span>
+          </p>
           <p className="fsr-latency__summary fs-t-caption" data-testid="W-TR-08.latency.summary">
-            {FANOUT.latencySummary(format.elapsedWords(latency.p50 ?? 0))}
+            {FANOUT.latencySummary(format.elapsedWords(latency.p50 ?? 0), latency.dots.length)}
           </p>
           <ul className="fs-sr">
             {latency.dots.map((d) => (

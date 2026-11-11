@@ -24,7 +24,7 @@ import {
 import { type CSSProperties, type ReactNode, useMemo } from "react";
 import { Stamp } from "../../chrome/Stamp.js";
 import { format } from "../../lib/format.js";
-import { BREAKPOINTS, useViewportHeight, useViewportWidth } from "../../stage/layout.js";
+import { useViewportHeight, useViewportWidth } from "../../stage/layout.js";
 import { APPROVE, en } from "../split/shared/copy.js";
 
 /** The seal's size on Approve: 180 px (`LAYOUT.console.seal`), the same drawing as the Chair's phone. */
@@ -42,10 +42,18 @@ export const SEAL_SIZE_HERO = 280;
 /** The window height from which Approve has the room for the hero seal and the taller recipient rows. */
 export const APPROVE_TALL_PX = 1000;
 
-/** The seal's size for this window: 180 px, 220 px from 1,600 px wide, 280 px where it is also 1,000 px tall. */
+/** The seal's share of the window's width (round 8): the same at every width, about 14%. */
+export const SEAL_SHARE = 0.14;
+
+/**
+ * The seal's size for this window (round 8): one relative size at every width, 14% of the window (180 px at 1,280,
+ * 206 at 1,470, 268 at 1,920), never under 180 px or over the 280 px hero, and never taller than a short window
+ * allows. Its importance beside the amount no longer changes with the layout.
+ */
 export function sealSizeFor(width: number, height: number): number {
-  if (width < BREAKPOINTS.overlay) return SEAL_SIZE;
-  return height >= APPROVE_TALL_PX ? SEAL_SIZE_HERO : SEAL_SIZE_WIDE;
+  const byWidth = Math.round((width * SEAL_SHARE) / 2) * 2;
+  const byHeight = Math.round((height * 0.28) / 2) * 2;
+  return Math.max(SEAL_SIZE, Math.min(SEAL_SIZE_HERO, byWidth, Math.max(SEAL_SIZE, byHeight)));
 }
 
 export function useSealSize(): number {
@@ -123,6 +131,14 @@ export function SealBlock({ batchSha256, keys, engrave, size = SEAL_SIZE }: Seal
         </span>
       ) : (
         <UnsealedRings size={size} testId="W-TR-07.seal" />
+      )}
+      {/* Round 8: the seal's state in a short label (not signed yet, half signed, signed), so the drawing explains
+          itself; the hash sits under it. */}
+      {batchSha256 && (
+        <p className="fsr-approve__seal-state fs-t-label" data-keys={keys} data-testid="W-TR-07.sealState">
+          <StateDot kind={keys === 0 ? "waiting" : "done"} className="fsr-approve__seal-dot" />
+          {APPROVE.sealState[keys]}
+        </p>
       )}
       <p className="fsr-approve__seal-caption fs-t-id">
         <span className="fs-sr">{APPROVE.batchHashLabel} </span>

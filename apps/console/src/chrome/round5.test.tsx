@@ -206,12 +206,16 @@ describe("the top bar keeps six calm items (round 5)", () => {
     }
   });
 
-  it("the swap is a 150 ms crossfade", () => {
+  it("the swap is 150 ms: the event is a second line, and Next never leaves the pill (round 8)", () => {
     const words = el("fsc-pill__words");
     const say = el("fsc-pill__say", {}, words);
-    expect(cascaded(stage, say, "transition", at(1920))).toBe(
-      "opacity var(--fs-dur-swap) var(--fs-ease-out)",
-    );
+    const transition = cascaded(stage, say, "transition", at(1920)) ?? "";
+    expect(transition).toContain("opacity var(--fs-dur-swap) var(--fs-ease-out)");
+    expect(transition).toContain("transform var(--fs-dur-swap) var(--fs-ease-out)");
+    // While an event shows, the step's words rise; they are never hidden.
+    const swapped = stage.filter((rule) => /data-swap="event"\] \.fsc-pill__say/.test(rule.selector));
+    expect(swapped.length).toBeGreaterThan(0);
+    for (const rule of swapped) expect(rule.declarations.opacity).toBeUndefined();
   });
 
   it.each([1280, 1470])("What's real keeps its word at %i px, and the indicator its whole name", (width) => {

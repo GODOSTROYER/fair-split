@@ -247,7 +247,8 @@ export function RateCard({ snapshot }: { readonly snapshot: SeasonSnapshot }) {
               {/* The card's seal stands under the page that refuses (round 7): the document and what bolts it. */}
               {citedOnly && (
                 <div className="fsc-rc__sealed">
-                  <HashPlate snapshot={snapshot} testId="W-TR-02.bolted" />
+                  {/* Round 8: the seal line only; the page above it already carries the two signatures. */}
+                  <HashPlate snapshot={snapshot} testId="W-TR-02.bolted" compact />
                 </div>
               )}
             </SnapScroll>
@@ -264,7 +265,8 @@ export function RateCard({ snapshot }: { readonly snapshot: SeasonSnapshot }) {
                 <h2 id="fsc-rc-schedule" className="fs-t-heading">
                   {RATECARD_COPY.schedule}
                 </h2>
-                <p className="fs-t-caption fsc-rc__muted">{RATECARD_COPY.scheduleLede}</p>
+                {/* Round 8: refused, the column explains once (the refusal and the clause it cites); the hint waits. */}
+                {!refused && <p className="fs-t-caption fsc-rc__muted">{RATECARD_COPY.scheduleLede}</p>}
               </header>
               {/* Each rule is its id and four words or fewer (round 4); its whole clause opens under it, and its
                 words on the scanned page take the reading band while it is open or pointed at. */}
@@ -409,20 +411,6 @@ export function RateCard({ snapshot }: { readonly snapshot: SeasonSnapshot }) {
                   </div>
                 </div>
               )}
-              {/* Round 6: once the refusal is printed, the attempt reads as one struck row (the fields and the bolted
-                  slab step aside, still in the document for the moment and its tests): never a button that looks
-                  disabled. The refusal above it is the state; next season's proposal is the column's one control. */}
-              {plateShown && plate && (
-                // Round 7: the attempt stays readable, in ink (never struck through): a compact rejected-change row,
-                // "✕ Iba pa (Other) · ₱150", then what locks it.
-                <p className="fsc-rc__refused-row" data-testid="W-TR-02.refusedRow">
-                  <Glyph name="ms:close" size={16} />
-                  <span className="fsc-rc__refused-what fs-t-body">{`${label.trim()} · ${amountText.trim()}`}</span>
-                  <span className="fs-t-caption fsc-rc__refused-why">
-                    {RATECARD_COPY.notAdded(card.canonical.resolutionNo)}
-                  </span>
-                </p>
-              )}
               <CommandNotice error={otherError} testId="W-TR-02.error" />
               {plateShown && plate && (
                 <section
@@ -444,6 +432,15 @@ export function RateCard({ snapshot }: { readonly snapshot: SeasonSnapshot }) {
                     <Glyph name="ms:lock" size={18} />
                     {plate.title}
                   </h2>
+                  {/* Round 8: the attempt is the refusal's own second line ("Iba pa (Other) · ₱150 · Not added"), in ink,
+                      never struck through: one block says what was refused; the clause banded on the page says why. */}
+                  <p className="fsc-rc__refused-row" data-testid="W-TR-02.refusedRow">
+                    <Glyph name="ms:close" size={16} />
+                    <span className="fsc-rc__refused-what fs-t-body">{`${label.trim()} · ${amountText.trim()}`}</span>
+                    <span className="fs-t-caption fsc-rc__refused-why">
+                      {RATECARD_COPY.notAdded(card.canonical.resolutionNo)}
+                    </span>
+                  </p>
                   <details className="fsc-rc__why" data-testid="W-TR-02.why">
                     <summary className="fs-link fs-t-label">
                       {RATECARD_COPY.why}

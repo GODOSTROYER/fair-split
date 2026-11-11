@@ -26,8 +26,6 @@ export interface SplitFanProps {
   readonly drawing: boolean;
   readonly mode: "full" | "reduced" | "low";
   readonly cashDay: string;
-  /** A caption under the cash row ("Kept for members US$21.14"), once every payout is settled. */
-  readonly cashCaption?: string;
   /**
    * Round 7: a parked payout's reason and its quiet way out, as the second line of that member's own row (never a
    * card that repeats her under the fan). It is the one part of the fan a reader and a pointer reach.
@@ -90,7 +88,7 @@ function Amount({ cents, state }: { readonly cents: number; readonly state: stri
 
 const DOT_R = FAN.dot / 2;
 
-export function SplitFan({ fan, animate, drawing, mode, cashDay, cashCaption, parkedNote }: SplitFanProps) {
+export function SplitFan({ fan, animate, drawing, mode, cashDay, parkedNote }: SplitFanProps) {
   const notedThread = parkedNote ? fan.threads.find((t) => t.memberNo === parkedNote.memberNo) : undefined;
   const uid = useId().replaceAll(":", "");
   const geometry = useMemo(() => (fan.sealHash ? seal(fan.sealHash, FAN.seal.size) : null), [fan.sealHash]);
@@ -268,7 +266,11 @@ export function SplitFan({ fan, animate, drawing, mode, cashDay, cashCaption, pa
             {t.tone === "moved" ? (
               // Her money now rides with the cash row beneath: the row says where it went, and how much.
               <>
-                <span className="fsr-fan__name fs-t-label">{FANOUT.movedToCash(t.name)}</span>
+                <span className="fsr-fan__name fs-t-label">
+                  {fan.cash.amountState === "attested"
+                    ? FANOUT.movedToCashDone(t.name)
+                    : FANOUT.movedToCash(t.name, cashDay)}
+                </span>
                 <Amount cents={t.cents} state="moved" />
               </>
             ) : (
@@ -291,11 +293,6 @@ export function SplitFan({ fan, animate, drawing, mode, cashDay, cashCaption, pa
               <span className="fsr-fan__more">{FANOUT.cashBandWhere}</span>
             </span>
             <Amount cents={fan.cash.cents} state={fan.cash.amountState} />
-            {cashCaption && (
-              <span className="fsr-fan__caption fs-t-caption" data-testid="W-TR-08.kept">
-                {cashCaption}
-              </span>
-            )}
           </p>
         )}
       </div>

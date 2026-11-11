@@ -285,9 +285,11 @@ export function Beds({
                         <span className="fsc-beds__step">
                           <StateDot kind="held" />
                           <span className="fs-sr">{READING_COPY.needsPerson}</span>
+                          {/* Round 8: one action a screen. The room's primary enters this slip; the row keeps a
+                              quiet link for a keyboard on the row (its name says which slip), drawn as the word only. */}
                           <AppLink
                             href={webRoutes.byHand(season, serial)}
-                            className="fs-flat fsc-beds__act"
+                            className="fs-link fs-t-caption fsc-beds__act"
                             data-testid={`${testId}.you.${serial}`}
                             aria-label={READING_COPY.byHandName(serial)}
                           >

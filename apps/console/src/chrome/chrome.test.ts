@@ -68,7 +68,7 @@ describe("run pill (S1.6)", () => {
       w.enterByHand("64.80");
     });
     const step = nextStep(holds, CTX);
-    expect(step).toMatchObject({ id: "holds", screen: "W-TR-06", text: "Next: 3 holds need you" });
+    expect(step).toMatchObject({ id: "holds", screen: "W-TR-06", text: "Next: decide 3 holds" });
     expect(step.to).toBe(`/runs/${holds.runSlug}/split?hold=H1`);
     const cosign = runTo((w) => {
       w.markPaid();
@@ -95,7 +95,7 @@ describe("run pill (S1.6)", () => {
       w.enterByHand("64.80");
       w.resolve("H1");
     });
-    expect(nextStep(decided, { ...CTX, openHold: "H1" }).text).toBe("Next: 2 holds need you");
+    expect(nextStep(decided, { ...CTX, openHold: "H1" }).text).toBe("Next: decide 2 holds");
     expect(nextStep(reading, { ...CTX, openHold: null }).id).toBe("by-hand");
   });
 });

@@ -33,12 +33,19 @@ export interface SplitScreenProps {
   readonly hold?: string;
   /** `?member=M-014`: W-TR-09's member line is open. */
   readonly member?: string;
+  /** Round 8: the slot above the table where a decided hold prints its receipt (the route hands it to W-TR-06). */
+  readonly receiptRef?: (slot: HTMLElement | null) => void;
 }
 
 /** W-TR-06 the hold drawer, rendered beside the split when `?hold=` is set. */
 export interface HoldDrawerProps {
   readonly runSlug: string;
   readonly holdId: string;
+  /**
+   * Round 8: where a decided hold prints its compact receipt (the split review's slot above its table). Undefined
+   * prints it in place; null waits for the slot.
+   */
+  readonly receiptTarget?: HTMLElement | null;
 }
 
 /** W-TR-09 the member line, rendered beside the split when `?member=` is set. */

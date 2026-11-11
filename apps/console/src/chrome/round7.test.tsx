@@ -68,7 +68,9 @@ describe("the 1,280 laptop keeps names and evidence (round 7)", () => {
 
 describe("the Run with a parked payout (round 7)", () => {
   it("the primary says whose payment it acts on", () => {
-    expect(FANOUT.payCash("Rhea")).toBe("Pay Rhea in cash at the bodega");
+    // Round 8: named for what it does (it moves her line to the cash list; nobody is paid by the press).
+    expect(FANOUT.payCash("Rhea")).toBe("Move Rhea to cash at the bodega");
+    expect(FANOUT.payCash("Rhea")).not.toMatch(/\bPay\b/);
   });
 
   it("the parked reason is short enough for her own row", () => {
@@ -108,7 +110,7 @@ describe("one id line, readable supporting text (round 7)", () => {
 
 describe("the rate card after a refusal, and What's real (round 7)", () => {
   it("the refused attempt stays readable and says what became of it", () => {
-    expect(RATECARD_COPY.notAdded("BR 2026-04")).toBe("Not added · locked by BR 2026-04");
+    expect(RATECARD_COPY.notAdded("BR 2026-04")).toBe("Not added");
     const rc = css("src/features/ratecard/ratecard.css");
     expect(rc).not.toMatch(/\.fsc-rc__refused-row > s/);
   });

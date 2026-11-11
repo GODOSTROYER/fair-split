@@ -7,9 +7,20 @@
 import { type ResolveHoldRequest, webRoutes } from "@fairsplit/contracts";
 import { Glyph, Print } from "@fairsplit/ui-web";
 import { useRouter } from "@tanstack/react-router";
-import { type FormEvent, type ReactNode, useCallback, useEffect, useId, useRef, useState } from "react";
+import {
+  type FormEvent,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
+import { createPortal } from "react-dom";
 import { AppLink } from "../../chrome/AppLink.js";
 import { CommandNotice } from "../../chrome/CommandNotice.js";
+import { DRAWER } from "../../chrome/copy.js";
 import { RunRouteGate } from "../../chrome/Fallbacks.js";
 import { PrintBed } from "../../chrome/PrintBed.js";
 import { ScreenRoot } from "../../chrome/ScreenRoot.js";
@@ -41,8 +52,10 @@ import { en, HOLDS } from "../../features/split/shared/copy.js";
 import { stampFor } from "../../features/split/shared/people.js";
 import { useLiveEvents, useRunData } from "../../features/split/shared/run-data.js";
 import { useMomentScript, usePhaseSync } from "../../features/split/shared/script.js";
+import { type FocusPlace, focusAndReveal, rememberFocus, returnFocus } from "../../lib/focus.js";
 import { useMoment } from "../../lib/moment.js";
 import type { ScreenState } from "../../lib/screens.js";
+import { useShortcut } from "../../lib/shortcuts.js";
 import type { HoldDrawerProps } from "../contract.js";
 import "../../features/split/shared/runs.css";
 import "../../features/split/split.css";
@@ -50,12 +63,16 @@ import "../../features/holds/holds.css";
 
 type Mm3Resting = "ready" | "pressed" | "resolved";
 
-export function Screen({ runSlug, holdId }: HoldDrawerProps) {
+export function Screen({ runSlug, holdId, receiptTarget }: HoldDrawerProps) {
   const data = useRunData(runSlug);
   const { snapshot, view } = data;
   const router = useRouter();
   const instance = useId();
   const close = useCallback(() => router.history.push(webRoutes.split(runSlug)), [router, runSlug]);
+  // What opened the hold (a grid row, a link), remembered as the hold first renders: the open sheet and, once it is
+  // decided, its receipt hand focus back to the same place when they close.
+  const opener = useRef<FocusPlace | null | undefined>(undefined);
+  if (opener.current === undefined) opener.current = rememberFocus();
   const hold = view ? findHold(view, holdId) : undefined;
   const resolve = useCommand("resolveHold");
   const [slabKey, setSlabKey] = useState(0);
@@ -241,6 +258,12 @@ export function Screen({ runSlug, holdId }: HoldDrawerProps) {
     };
     const stamp = stampFor(snapshot, hold.resolvedBy, hold.resolvedAt);
     const result = resultLine(snapshot, view, hold, hold.resolution);
+    // Round 8: what the decision changed for the member the slip belongs to (the engine's own two figures: his net
+    // with both copies counted, and with one), beside what it gave back to everyone else. Never computed here.
+    const holder =
+      hold.kind === "DUPLICATE_SLIP" && !holdOpen && hold.resolution === "COUNT_ONCE"
+        ? duplicateFacts(factsFor(snapshot, view, hold), seeded)
+        : null;
     const member = memberOf(snapshot, hold.memberNo);
     const facts = factsFor(snapshot, view, hold);
     const phase = moment.phase === "closed" && resting !== null ? resting : moment.phase;
@@ -408,10 +431,39 @@ export function Screen({ runSlug, holdId }: HoldDrawerProps) {
             testId="W-TR-06.result"
           />
         )}
+        {holder?.holderBoth && holder.holderOnce && (
+          <p className="fsr-hold__holder" data-testid="W-TR-06.holder">
+            <span className="fsr-hold__holder-name fs-t-caption">{member?.consoleName ?? hold.memberNo}</span>
+            <span className="fsr-hold__holder-figures fs-t-heading">
+              <span className="fs-sr">{HOLDS.holderWas} </span>
+              <span className="fsr-hold__holder-was">{holder.holderBoth}</span>
+              <Glyph name="ms:arrow-back" size={16} className="fsr-hold__arrow" />
+              <span className="fs-sr">{HOLDS.holderNow} </span>
+              <span>{holder.holderOnce}</span>
+            </span>
+          </p>
+        )}
         {resolve.error && inFlight && <CommandNotice error={resolve.error} testId="W-TR-06.error" />}
       </ScreenRoot>
     );
   })();
+
+  // Round 8: a decided hold is a compact receipt in the split review itself (above the table), not a 560 px sheet
+  // with an empty lower half: the table keeps its width, its columns and its evidence rows at every width.
+  if (compact) {
+    return (
+      <HoldReceipt
+        label={drawerLabel}
+        meta={meta}
+        onClose={close}
+        target={receiptTarget}
+        footer={footer}
+        opener={opener.current ?? null}
+      >
+        {body}
+      </HoldReceipt>
+    );
+  }
 
   return (
     <StageDrawer
@@ -437,6 +489,84 @@ function keepFacts(line: string): string {
     .split(" · ")
     .map((part) => part.replaceAll(" ", "\u00a0"))
     .join("\u00a0· ");
+}
+
+/**
+ * A decided hold's receipt (round 8): one strip in the split review, above its table. It keeps the drawer's hooks
+ * (`W-TR-06.drawer`, its Close and its foot) and its manners: Esc closes it, focus lands on the next step when it
+ * appears and goes back to what opened it when it leaves. It takes nothing from the screen's width and lays no scrim.
+ */
+function HoldReceipt({
+  target,
+  ...frame
+}: ReceiptFrameProps & {
+  /** The split review's slot; undefined renders in place (a screen test), null waits for the slot. */
+  readonly target: HTMLElement | null | undefined;
+}) {
+  if (target === null) return null;
+  const node = <ReceiptFrame {...frame} />;
+  return target ? createPortal(node, target) : node;
+}
+
+interface ReceiptFrameProps {
+  readonly label: string;
+  readonly meta: ReactNode;
+  readonly onClose: () => void;
+  readonly footer: ReactNode;
+  /** What opened the hold: focus goes back to it when the receipt closes. */
+  readonly opener: FocusPlace | null;
+  readonly children: ReactNode;
+}
+
+function ReceiptFrame({ label, meta, onClose, footer, opener, children }: ReceiptFrameProps) {
+  const ref = useRef<HTMLElement>(null);
+  const close = useRef(onClose);
+  close.current = onClose;
+  useShortcut({
+    id: "drawer.close",
+    keys: "Escape",
+    label: "Close the drawer",
+    group: "Review",
+    run: () => close.current(),
+  });
+  const from = useRef(opener);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    if (!el.contains(document.activeElement)) {
+      focusAndReveal(el.querySelector<HTMLElement>("[data-focus-after]") ?? el);
+    }
+    const place = from.current;
+    return () => {
+      returnFocus(place, { leaving: el });
+    };
+  }, []);
+  return (
+    <aside
+      ref={ref}
+      className="fsr-receipt"
+      aria-label={label}
+      tabIndex={-1}
+      data-receipt=""
+      data-testid="W-TR-06.drawer"
+    >
+      {/* Which hold of how many is the strip's name for assistive technology; the title chip counts the open ones. */}
+      {meta && <p className="fs-sr">{meta}</p>}
+      <div className="fsr-receipt__body">{children}</div>
+      <div className="fsr-receipt__actions" data-testid="W-TR-06.drawer.foot">
+        {footer}
+        <button
+          type="button"
+          className="fsr-receipt__close fs-flat"
+          onClick={() => close.current()}
+          data-testid="W-TR-06.drawer.close"
+        >
+          <Glyph name="ms:close" size={18} />
+          <span>{DRAWER.close}</span>
+        </button>
+      </div>
+    </aside>
+  );
 }
 
 function NextLink({

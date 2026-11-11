@@ -51,7 +51,7 @@ import "../../features/split/split.css";
 /** States after which the grid's statuses come from the simulated PayPal sandbox (the batch has posted). */
 const POSTED = ["APPROVED", "POSTING", "POSTED", "SETTLING", "NEEDS_FOLLOW_UP", "SETTLED", "CLOSED"];
 
-export function Screen({ runSlug, hold, member }: SplitScreenProps) {
+export function Screen({ runSlug, hold, member, receiptRef }: SplitScreenProps) {
   const router = useRouter();
   const data = useRunData(runSlug);
   const live = useLiveEvents(data.live ? runSlug : null);
@@ -248,6 +248,8 @@ export function Screen({ runSlug, hold, member }: SplitScreenProps) {
           {SPLIT.declined}
         </p>
       )}
+      {/* Round 8: a decided hold's receipt prints here (W-TR-06 portals into it); empty, it takes no room. */}
+      <div ref={receiptRef} className="fsr-split__receipt" data-testid="W-TR-05.receipt" />
       <SplitHeader
         dial={dial}
         swing={live.isLive(basisEventId(view, basis))}

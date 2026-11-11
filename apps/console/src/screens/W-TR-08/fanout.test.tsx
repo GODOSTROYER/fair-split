@@ -130,9 +130,11 @@ describe("W-TR-08 run: the honest fan-out", () => {
       expect(rhea.closest(".fsr-fan__note")).not.toBeNull();
       expect(rhea.querySelector("h3.fs-sr")?.textContent).toBe("Parked · Rhea Jumawan · US$26.65");
       expect(rhea.textContent).toMatch(/No PayPal account · returns in 30 days/);
+      // Round 8: the action is named for what it does (her line moves to the cash list; nobody is paid by it).
       expect(screen.getByTestId("W-TR-08.payCash.face").textContent).toContain(
-        "Pay Rhea in cash at the bodega",
+        "Move Rhea to cash at the bodega",
       );
+      expect(screen.getByTestId("W-TR-08.payCash.face").textContent).not.toMatch(/\bPay\b/);
       // The run's count with its one micro-tag beside it; that a person must decide is the run's state, said once
       // on the title row (round 5). No money bar restates the fan.
       const count = screen.getByTestId("W-TR-08.status").querySelector(".fsr-fanout__instrument");
@@ -154,8 +156,13 @@ describe("W-TR-08 run: the honest fan-out", () => {
       expect(runLog.querySelectorAll(".fsr-log__latest > li")).toHaveLength(4);
       expect(runLog.querySelectorAll("[data-fs-glyph]")).toHaveLength(0);
       expect(runLog.closest(".fsc-peek")).toBeTruthy();
-      // Funding to confirmation: the dot strip and one line, the median.
-      expect(screen.getByTestId("W-TR-08.latency.summary").textContent).toMatch(/^Median \d/);
+      // Round 8: the strip says what it measures and whose timings they are, then the median.
+      expect(screen.getByTestId("W-TR-08.latency").querySelector("figcaption")?.textContent).toBe(
+        "Invoice paid to payout confirmed",
+      );
+      expect(screen.getByTestId("W-TR-08.latency.summary").textContent).toMatch(
+        /^This run · 7 simulated payouts · median \d/,
+      );
       expect(screen.getByTestId("W-TR-08.latency").textContent).not.toMatch(/slowest/);
       expect(tagBudget(screen.getByTestId("W-TR-08")).glyphs).toBe(0);
       await expectNoAxeViolations(screen.getByTestId("W-TR-08"));
@@ -199,13 +206,15 @@ describe("W-TR-08 run: the honest fan-out", () => {
       expect(fan.querySelectorAll("path.fsr-fan__cash-line")).toHaveLength(57);
       // Round 5: her row keeps her amount, in ink-3 behind the hatch swatch (it rides with the cash now).
       const rheaRow = screen.getByTestId("W-TR-08.label.M-031");
-      expect(rheaRow.textContent).toBe("Rhea Jumawan → cashUS$26.65");
+      // Round 8: the row says the cash is still due, never that she was paid.
+      expect(rheaRow.textContent).toMatch(/^Rhea Jumawan · cash due \d{1,2} [A-Z][a-z]{2}US\$26\.65$/);
       expect(rheaRow.querySelector('[data-amount-state="moved"] .fs-swatch[data-kind="cash"]')).toBeTruthy();
       expect(screen.getByTestId("W-TR-08.cashLabel").textContent).toMatch(
         /^57 members · cash at the bodegaUS\$3,876\.43/,
       );
-      // What the holds kept for members: a caption on the cash row (round 5: no "By value" bar or legend).
-      expect(screen.getByTestId("W-TR-08.kept").textContent).toBe("Kept for members US$21.14");
+      // Round 8: no "Kept for members" caption on Run (Proof explains what the holds kept); no bar or legend.
+      expect(screen.queryByTestId("W-TR-08.kept")).toBeNull();
+      expect(screen.getByTestId("W-TR-08").textContent).not.toMatch(/Kept for members/);
       expect(screen.getByTestId("W-TR-08").querySelector(".fsr-money")).toBeNull();
       expect(screen.queryByTestId("W-TR-08.chip.M-031")).toBeNull();
       const run = view.runtime.client.getQueryData<RunView>(queryKeys.run(RUN));
@@ -251,7 +260,7 @@ describe("W-TR-08 run: the honest fan-out", () => {
       expect(status.textContent).not.toMatch(/Settled|Done/);
       // Her move to cash is said once: on her row of the fan, never as a line of its own.
       expect(screen.queryByTestId("W-TR-08.rerouted")).toBeNull();
-      expect(screen.getByTestId("W-TR-08").textContent?.match(/Rhea Jumawan → cash/g)).toHaveLength(1);
+      expect(screen.getByTestId("W-TR-08").textContent?.match(/Rhea Jumawan · cash due/g)).toHaveLength(1);
       await waitFor(() => expect(tracedPhases("MM-6").slice(-1)[0]).toBe("settled"), WAIT);
       expect(tracedPhases("MM-6")).toEqual(expect.arrayContaining(["parked", "rerouted", "settled"]));
       // The log never says "Settled" while the 57 members' cash is due: PayPal is complete, the cash is not.

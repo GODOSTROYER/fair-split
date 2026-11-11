@@ -15,6 +15,15 @@
   grid-template-rows: auto auto auto minmax(0, 1fr);
 }
 
+/* Round 8: a decided hold's receipt is a row of its own between the title and the bench; the lines keep the rest. */
+.fsr-split.fsc-screen:has(> .fsr-split__receipt:not(:empty)) {
+  grid-template-rows: auto auto auto minmax(0, 1fr);
+}
+
+.fsr-split.fsc-screen:has(> .fsr-banner):has(> .fsr-split__receipt:not(:empty)) {
+  grid-template-rows: auto auto auto auto minmax(0, 1fr);
+}
+
 .fsr-split.fsc-screen > :nth-child(2) {
   margin-top: var(--fs-space-16);
 }
@@ -1079,4 +1088,9 @@
   .fsr-chip {
     padding: 0 var(--fs-space-8);
   }
+}
+
+/* The receipt's slot is the screen's second child (drawn or not): the bench after it keeps its own step. */
+.fsr-split.fsc-screen > .fsr-split__receipt + * {
+  margin-top: var(--fs-space-16);
 }

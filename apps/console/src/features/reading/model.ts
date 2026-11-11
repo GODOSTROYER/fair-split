@@ -470,8 +470,9 @@ export function statusSentence({
       const slip = snapshot.slips.find((s) => s.serial === row.serial);
       parts.push(
         slip?.artifacts.includes("WATER_STAIN")
-          ? `Slip ${row.serial} needs a person: a stain hides one digit.`
-          : `Slip ${row.serial} needs a person to confirm the doubtful seed stand-in value.`,
+          ? // Round 8: the room names the waiting slip once, on its one action; the sentence says only why.
+            "A stain hides one digit."
+          : "One value is doubtful.",
       );
     }
   }

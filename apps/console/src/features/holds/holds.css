@@ -676,3 +676,143 @@
 .fsr-hold .fs-hold__voice[data-voice="seeded"] dt .fs-glyph {
   color: var(--fs-ink-3);
 }
+
+/* ------------------------------------------------------------------ a decided hold's receipt (round 8) */
+
+/* Once a hold is decided it is one strip in the split review, above its bench and table (W-TR-05's slot), not a
+   560 px sheet. Two lines at every width: what was decided and who decided it; then what it changed for the slip's
+   own member (before, then after), what it gave everyone else, and the evidence one disclosure away. The next hold
+   and Close stand at its end. Flat on a 1 px rule (no shadow: it is part of the screen). The table keeps its width,
+   its columns and its evidence rows. */
+.fsr-split__receipt:empty {
+  display: none;
+}
+
+.fsr-receipt {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--fs-space-8) var(--fs-space-24);
+  min-width: 0;
+  padding: var(--fs-space-12) var(--fs-space-12) var(--fs-space-12) var(--fs-space-20);
+  border: 1px solid var(--fs-rule-strong);
+  border-radius: var(--fs-radius-card);
+  background: var(--fs-plate-2);
+}
+
+/* The receipt takes focus only to hand it on (its next step); no ring frames the strip. */
+.fsr-receipt:focus {
+  outline: none;
+}
+
+/* The break between the two lines: after the decision, who decided it and the actions; before the figures. */
+.fsr-receipt::after {
+  content: "";
+  flex-basis: 100%;
+  order: 4;
+  height: 0;
+  margin-top: calc(-1 * var(--fs-space-8));
+}
+
+/* The receipt's facts lie flat on its two lines (the card's own parts, in the card's markup). */
+.fsr-receipt__body,
+.fsr-receipt .fsr-hold-screen,
+.fsr-receipt .fsr-mm3,
+.fsr-receipt .fsr-hold.fs-hold {
+  display: contents;
+}
+
+.fsr-receipt .fsr-hold.fs-hold .fs-hold__head {
+  order: 1;
+  margin: 0;
+}
+
+.fsr-receipt .fsr-hold.fs-hold .fs-hold__title {
+  white-space: nowrap;
+}
+
+.fsr-receipt .fsr-hold.fs-hold .fs-hold__actions {
+  order: 2;
+  margin: 0;
+  padding: 0;
+}
+
+.fsr-receipt .fsr-hold.fs-hold .fs-hold__resolution {
+  margin: 0;
+  white-space: nowrap;
+}
+
+/* The next hold and Close end the first line. */
+.fsr-receipt__actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  align-self: center;
+  gap: var(--fs-space-8);
+  order: 3;
+  margin-left: auto;
+}
+
+.fsr-receipt__close {
+  min-height: 40px;
+  border-color: transparent;
+  background: transparent;
+}
+
+.fsr-receipt .fsr-hold__holder {
+  order: 5;
+}
+
+.fsr-receipt .fsr-hold-screen > .fsr-hold__result {
+  order: 6;
+  white-space: nowrap;
+}
+
+.fsr-receipt .fsr-hold.fs-hold .fs-hold__evidence {
+  order: 7;
+  /* Closed, the disclosure is its one word: no grid gap under it (its hidden content is still a grid item). */
+  gap: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+/* Opened, the evidence takes the strip's whole width under the facts; an error does the same. */
+.fsr-receipt .fsr-hold.fs-hold .fs-hold__evidence[open],
+.fsr-receipt .fsc-command-notice {
+  flex: 1 0 100%;
+  order: 8;
+}
+
+.fsr-receipt .fsr-hold.fs-hold .fs-hold__evidence[open] {
+  gap: var(--fs-space-16);
+}
+
+.fsr-receipt .fsr-hold.fs-hold .fs-hold__gate,
+.fsr-receipt .fsr-hold.fs-hold .fs-hold__voices {
+  display: none;
+}
+/* The slip's own member, before and after: his name, then the two figures with an arrow between them. */
+.fsr-hold__holder {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--fs-space-4) var(--fs-space-8);
+  margin: 0;
+}
+
+.fsr-hold__holder-name {
+  color: var(--fs-ink-2);
+}
+
+.fsr-hold__holder-figures {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--fs-space-8);
+  color: var(--fs-ink);
+  font-variant-numeric: tabular-nums lining-nums;
+  white-space: nowrap;
+}
+
+.fsr-hold__holder-was {
+  color: var(--fs-ink-2);
+}

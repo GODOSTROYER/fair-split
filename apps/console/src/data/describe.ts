@@ -235,7 +235,9 @@ export function describeEvent(event: RunEvent, ctx: DescribeContext): LogRow | n
           : p.to === "UNCLAIMED"
             ? `${name}'s address has no PayPal account. Parked`
             : p.to === "RETURNED" && p.source === "cancel"
-              ? `${name}: returned to the co-op's simulated PayPal balance`
+              ? // Round 8: one named row for a cancelled payment, verb first like the rows around it; it still names
+                // the simulated balance (I8).
+                `${name}: cancelled · back to the simulated PayPal balance`
               : `${name}: ${presentation.statusWord}`;
       const eventName = presentation.replayed
         ? null

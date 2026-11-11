@@ -124,8 +124,29 @@
 
 .fsr-approve__seal-caption {
   margin: 0;
-  color: var(--fs-ink-3);
+  /* Round 8: the hash is read against the Chair's phone: ink-2 (9.8:1), never a faint ink-3 line. */
+  color: var(--fs-ink-2);
   text-align: center;
+}
+
+/* Round 8: the seal's state in words, right under it: a hollow dot while no key signed, the signers' indigo dot once
+   one has. The label says who, so the half-inked drawing needs no reading. */
+.fsr-approve__seal-state {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--fs-space-8);
+  margin: 0;
+  color: var(--fs-ink);
+  white-space: nowrap;
+}
+
+.fsr-approve__seal-state:not([data-keys="0"]) .fsr-approve__seal-dot {
+  background: var(--fs-pod);
+  box-shadow: none;
+}
+
+.fsr-approve__seal-state + .fsr-approve__seal-caption {
+  margin-top: calc(-1 * var(--fs-space-8));
 }
 
 .fsr-approve__amount {
@@ -185,9 +206,15 @@
 }
 
 @container fsc-screen (min-width: 720px) {
+  /* Round 8: the aside spans the batch's three rows and one flexible row after them, so what it is taller by goes
+     under the left column, never between the seal, the money bar and Details. */
+  .fsr-approve.fsc-screen {
+    grid-template-rows: auto auto auto minmax(0, 1fr);
+  }
+
   .fsr-approve > .fsr-approve__aside {
     grid-column: 8 / -1;
-    grid-row: 1 / span 3;
+    grid-row: 1 / span 4;
   }
 }
 
@@ -215,51 +242,12 @@
   border-bottom: 0;
 }
 
-/* The 1,920 stage (a 1,600 px window, 1,000 tall): the aside steps out of the layout, so the card packs back beside
-   the batch (columns 8–12, the screen's dense flow) and the recipients take a row of their own under the money bar,
-   two columns of 72 px rows across all twelve columns. With the 280 px seal the spare height is the content's: Details
-   ends near the panel's foot, never over an empty band. */
-@media (min-width: 1600px) and (min-height: 1000px) {
-  .fsr-approve > .fsr-approve__aside {
-    display: contents;
-  }
-
-  .fsr-approve.fsc-screen > :is(.fsr-approve__money, .fsr-approve__more) {
-    grid-column: 1 / -1;
-  }
-
-  .fsr-approve__aside > .fsr-approve__decide {
-    grid-column: span 5;
-  }
-
-  .fsr-approve__aside > .fsr-payees {
-    grid-column: 1 / -1;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    grid-template-rows: repeat(var(--fsr-rows, 4), auto);
-    grid-auto-flow: column;
-  }
-
+/* Round 8: one recipient list at every width. The 1,920 stage keeps the laptops' layout (the decision card and,
+   under it, one dense column of recipients in columns 8–12; the seal, the signers, the money bar and Details in
+   columns 1–7): one component, one density. A tall window gives each row 40 px, the table's own row height. */
+@media (min-height: 1000px) {
   .fsr-payee {
-    min-height: 72px;
-  }
-
-  .fsr-payee:last-child {
-    border-bottom: 1px solid var(--fs-rule);
-  }
-
-  .fsr-payee__name {
-    font-size: 1rem;
-    line-height: 1.5rem;
-  }
-
-  .fsr-payee__amount {
-    font-size: 1rem;
-    line-height: 1.5rem;
-  }
-
-  /* The batch beside the hero seal: the amount and the two signers centred against its 280 px. */
-  .fsr-approve__hero {
-    align-items: center;
+    min-height: 40px;
   }
 }
 
@@ -533,12 +521,25 @@
   border-bottom-color: transparent;
 }
 
+/* Round 8: a signed row keeps the waiting row's shape (no card outline); its dot is the signers' indigo, the colour
+   the seal's rings fill with (ink dots are checks; jade is confirmed money). */
 .fsr-key.fs-solid-row,
 .fsr-key.fs-solid-row:last-child {
   display: grid;
-  border-color: var(--fs-rule);
-  border-radius: var(--fs-radius-control);
-  background: var(--fs-plate);
+  border-color: transparent;
+  border-bottom-color: var(--fs-rule);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.fsr-key.fs-solid-row:last-child {
+  border-bottom-color: transparent;
+}
+
+.fsr-key[data-state="signed"] .fs-state-dot {
+  background: var(--fs-pod);
+  box-shadow: none;
 }
 
 .fsr-key__slot {

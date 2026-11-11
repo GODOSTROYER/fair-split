@@ -9,11 +9,13 @@ import { MoneyFigure, Swatch, type SwatchKind } from "@fairsplit/ui-web";
 import type { CSSProperties } from "react";
 import "./money-bar.css";
 
-export type MoneyTone = "planned" | "confirmed" | "held" | "cash";
+export type MoneyTone = "planned" | "signed" | "confirmed" | "held" | "cash";
 
 /** Each tone's legend key. */
 const SWATCH: Readonly<Record<MoneyTone, SwatchKind>> = {
   planned: "planned",
+  // Signed by both keys, not yet confirmed: the signers' indigo (the vocabulary's square for a person's decision).
+  signed: "held",
   confirmed: "paid",
   held: "held",
   cash: "cash",

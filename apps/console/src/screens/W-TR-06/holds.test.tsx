@@ -225,7 +225,10 @@ describe("W-TR-06 hold drawer", () => {
         await waitFor(() => expect(face.isConnected).toBe(false), WAIT);
         const next = await screen.findByTestId("W-TR-06.next");
         await waitFor(() => expect(document.activeElement).toBe(next), WAIT);
-        expect(scrolled).toContain(next);
+        // Round 8: the decided hold is a receipt in the screen's own flow (no scrollport of its own): focus lands on
+        // its next step, inside it.
+        expect(screen.getByTestId("W-TR-06.drawer").contains(next)).toBe(true);
+        expect(screen.getByTestId("W-TR-06.drawer").hasAttribute("data-receipt")).toBe(true);
       } finally {
         vi.restoreAllMocks();
       }
@@ -298,19 +301,27 @@ describe("W-TR-06 hold drawer", () => {
         expect(foot.contains(next)).toBe(true);
         expect(screen.getByTestId("W-TR-06").contains(next)).toBe(false);
         expect(next.closest(".fs-slab")).not.toBeNull();
-        expect(drawer.hasAttribute("data-hug")).toBe(true);
-        expect(drawer.dataset.scrim).toBe("none");
+        // Round 8: a decided hold is a compact receipt in the split review's flow, not a sheet: no drawer frame, no
+        // scrim, nothing taken from the screen's width.
+        expect(drawer.hasAttribute("data-receipt")).toBe(true);
+        expect(drawer.classList.contains("fsc-drawer")).toBe(false);
         expect(screen.queryByTestId("W-TR-06.drawer.scrim")).toBeNull();
         // The evidence is one disclosure away on the decided card.
         expect(screen.getByTestId("W-TR-06.card.evidence").tagName).toBe("DETAILS");
-        // The settle window has ended; nothing has moved Next yet.
+        // What changed for the slip's own member (the engine's two figures) and for everyone else.
+        const holder = screen.getByTestId("W-TR-06.holder");
+        expect(holder.textContent).toMatch(/US\$[\d,.]+.*US\$[\d,.]+/);
+        expect((await screen.findByTestId("W-TR-06.result", undefined, WAIT)).textContent).toBe(
+          "+US$17.94 back to 63 members",
+        );
+        // The settle window has ended; a layout change never scrolls a receipt whose Next is in view.
         const now = performance.now();
         vi.spyOn(performance, "now").mockReturnValue(now + REVEAL_SETTLE_MS + 924);
         await new Promise<void>((done) => requestAnimationFrame(() => requestAnimationFrame(() => done())));
         scrolled.length = 0;
         nextTop = 669;
         layout.resized(foot);
-        expect(scrolled).toEqual([next]);
+        expect(scrolled).toEqual([]);
       } finally {
         vi.restoreAllMocks();
         vi.unstubAllGlobals();

@@ -52,7 +52,7 @@ import {
   summaryFacts,
 } from "../../features/fanout/model.js";
 import { PrimaryLink } from "../../features/fanout/PrimaryLink.js";
-import { LatencyDots, RunLog } from "../../features/fanout/RunLog.js";
+import { LATEST, LATEST_TALL, LatencyDots, RunLog } from "../../features/fanout/RunLog.js";
 import { SplitFan } from "../../features/fanout/SplitFan.js";
 import { seededLog } from "../../features/fanout/seeded.js";
 import { en, FANOUT } from "../../features/split/shared/copy.js";
@@ -64,6 +64,7 @@ import { format } from "../../lib/format.js";
 import { useMoment } from "../../lib/moment.js";
 import type { ScreenState } from "../../lib/screens.js";
 import { useOptionalStage, usePrefocus } from "../../stage/context.js";
+import { useViewportHeight } from "../../stage/layout.js";
 import type { RunScreenProps } from "../contract.js";
 import "../../features/split/shared/runs.css";
 import "../../features/fanout/fanout.css";
@@ -85,6 +86,8 @@ export function Screen({ runSlug }: RunScreenProps) {
   const [slabKey, setSlabKey] = useState(0);
   const [resendAsked, setResendAsked] = useState(false);
   const [now, setNow] = useState(() => Date.now());
+  // Round 8: a tall window (1,920 × 1,080) shows six latest events, so the panel's lower third is the run's history.
+  const latestRows = useViewportHeight() >= 1000 ? LATEST_TALL : LATEST;
   const notes = useRef(0);
   const pressedCash = useRef<string | null>(null);
   const drawnBy = useRef<string | null>(null);
@@ -273,9 +276,7 @@ export function Screen({ runSlug }: RunScreenProps) {
     cashDue,
     needsYou: counts.parked + counts.failed,
   });
-  // What the holds kept inside the members' share, once every payout is settled: a caption on the cash row.
-  const kept =
-    state === "done" && snapshot.figures.redirectedCents > 0 ? FANOUT.keptCaption(summary.kept) : undefined;
+  // Round 8: what the holds kept inside the members' share is Proof's to explain; on Run it read as money withheld.
   // The run's one micro-tag, beside its PayPal count (round 5: no money bar to carry it).
   const microTag = <MicroTag label={tag} testId="W-TR-08.tag" className="fsr-fanout__tag" />;
 
@@ -401,8 +402,8 @@ export function Screen({ runSlug }: RunScreenProps) {
             <div ref={slabRef} className="fsr-fanout__action">
               <Slab
                 key={slabKey}
-                // Round 7: the action says whose payment it acts on ("Pay Rhea in cash at the bodega"), never one
-                // that could read as the whole cash cohort's.
+                // Round 8: the action is named for what it does and whose line it moves ("Move Rhea to cash at the
+                // bodega"): it pays nobody, and never reads as the whole cash cohort's.
                 label={FANOUT.payCash(parked.name.split(" ")[0] ?? parked.name)}
                 srLabel={FANOUT.srPayCash(parked.name, format.money(parked.cents))}
                 depth="d2"
@@ -444,7 +445,6 @@ export function Screen({ runSlug }: RunScreenProps) {
               drawing={drawing}
               mode={moment.mode}
               cashDay={cashDay}
-              {...(kept ? { cashCaption: kept } : {})}
               {...(parked
                 ? {
                     parkedNote: {
@@ -541,6 +541,7 @@ export function Screen({ runSlug }: RunScreenProps) {
           rows={rows}
           isLive={(id) => live.isLive(id)}
           seeded={view.events.length === 0 && view.origin === "showcase"}
+          latestRows={latestRows}
           {...(cashDue ? { settledAs: en("W-JG-01.pill.stateCashDue") } : {})}
           footer={
             <p className="fsr-fanout__fees fs-t-caption" data-testid="W-TR-08.fees">

@@ -123,6 +123,27 @@
   height: 100%;
 }
 
+/* Round 8: the slip's witness is the clerk's own photograph, cropped to this slip around its stained rows. The
+   picture is as wide as the slip (its width inline) and centred on the gross and net rows (its shift inline); the
+   frame takes the paper's box, so the two witnesses are one height. */
+.fsc-hand__photo {
+  position: relative;
+  width: auto;
+  height: 100%;
+  aspect-ratio: 1.76;
+  overflow: hidden;
+  background: var(--fs-plate-2);
+}
+
+.fsc-hand__photo > img {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  display: block;
+  max-width: none;
+  height: auto;
+}
+
 .fsc-hand__logbook {
   padding: 8px;
   transform: rotate(-0.3deg);
@@ -183,6 +204,7 @@
   }
 
   .fsc-hand__crop-frame,
+  .fsc-hand__photo,
   .fsc-hand__logbook .fsc-logbook {
     width: 100%;
     height: auto;
@@ -449,13 +471,36 @@
   }
 
   .fsc-hand__figure {
-    /* The crop's 1.85 : 1 in a six-column paper (its 10 px mat each side), never taller than a short window leaves. */
-    --fsc-hand-h: min(calc((50cqw - 32px) / 1.85 + 20px), calc(100dvh - 540px));
+    /* Round 8: both papers take the ledger strip's proportions in six columns (its mat each side): five lines, or
+       seven on a tall window, where the papers stand about 580 px and the decision ends near the panel's foot.
+       Never taller than a short window leaves. */
+    --fsc-hand-h: min(calc((50cqw - 32px) / var(--fsc-hand-aspect, 1.76) + 20px), calc(100dvh - 500px));
     justify-items: stretch;
   }
 
   .fsc-hand__figure > .fs-paper {
     width: 100%;
+  }
+
+  /* The photograph fills its paper edge to edge inside the mat. */
+  .fsc-hand__photo {
+    width: 100%;
+    aspect-ratio: auto;
+  }
+
+  /* Round 8: once the value is in, whose slip and why it needed a person are one quiet line over the sum. */
+  .fsc-hand__entry:has(.fsc-hand__committed) .fsc-hand__context {
+    gap: 4px 8px;
+  }
+
+  .fsc-hand__entry:has(.fsc-hand__committed) .fsc-hand__prompt {
+    color: var(--fs-ink-2);
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+  }
+
+  .fsc-hand__entry:has(.fsc-hand__committed) .fsc-hand__prompt::before {
+    content: "·";
   }
 
   /* Each sheet stands whole and centred on its paper. */

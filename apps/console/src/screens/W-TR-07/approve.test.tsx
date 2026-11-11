@@ -206,16 +206,24 @@ describe("W-TR-07 approve", () => {
         "Synthetic co-op · seeded slips",
       );
       expect(screen.getByTestId("W-TR-07.head").querySelector(".fsc-screen__id")?.textContent).toBe("r37");
-      // The seal is the screen's hero, 220 px from a 1,600 px window (round 4), beside "Two officers sign this batch"
-      // and its two named signers, each waiting on a hollow circle.
-      expect(screen.getByTestId("W-TR-07.seal").getAttribute("width")).toBe("220");
+      // The seal is the screen's hero at one relative size (round 8: 14% of the window's width), beside "Two officers
+      // sign this batch" and its two named signers, each waiting on a hollow circle; its state is said under it.
+      expect(screen.getByTestId("W-TR-07.seal").getAttribute("width")).toBe("268");
+      expect(screen.getByTestId("W-TR-07.sealState").textContent).toBe("Not signed yet");
       expect(screen.getByRole("heading", { name: "Two officers sign this batch" })).toBeTruthy();
       expect(screen.getByTestId("W-TR-07.keysCount").textContent).toBe("0/2 signed");
-      for (const officer of ["treasurer", "chair"]) {
+      // Round 8: each row says its signer's place in the order ("Signs first", "Signs second"), so the Chair's step
+      // is visible as the second before anyone signs.
+      for (const [officer, place] of [
+        ["treasurer", "Signs first"],
+        ["chair", "Signs second"],
+      ] as const) {
         const row = screen.getByTestId(`W-TR-07.key.${officer}`);
         expect(row.querySelector('.fs-state-dot[data-kind="waiting"]')).toBeTruthy();
-        expect(screen.getByTestId(`W-TR-07.key.${officer}.status`).textContent).toBe("Waiting");
+        expect(screen.getByTestId(`W-TR-07.key.${officer}.status`).textContent).toBe(place);
       }
+      // The press is named for which signature it is, never "Approve" (it is the first of two).
+      expect(screen.getByTestId("W-TR-07.approve.face").textContent).toBe("Sign 1 of 2 · 8 payouts");
       // Round 5, no ids for people: each signer's line is words. The Chair's rule id is only its title.
       const chairLine = screen.getByTestId("W-TR-07.key.chair.caption");
       expect(chairLine.firstChild?.textContent).toBe("Co-signs batches over US$300");
@@ -268,9 +276,7 @@ describe("W-TR-07 approve", () => {
       );
       expect(aside?.contains(screen.getByTestId("W-TR-07.payees"))).toBe(true);
       expect(screen.getByTestId("W-TR-07.payees").querySelectorAll(".fsr-payee")).toHaveLength(8);
-      expect(screen.getByTestId("W-TR-07.firstKey").textContent).toBe(
-        "Your key is the first of two · the Chair signs next",
-      );
+      expect(screen.getByTestId("W-TR-07.firstKey").textContent).toBe("Then Ernesto signs · 2 of 2");
       // The batch first (the seal, the amount and the two signers as one composition), its money bar, then the
       // decision (the four checks, the slab) with who is paid, and last the fees and what both keys sign, behind
       // Details (round 6).
@@ -308,10 +314,11 @@ describe("W-TR-07 approve", () => {
       fireEvent.keyDown(face("W-TR-07.approve.dialog.confirm"), { key: "Enter" });
 
       await waitFor(() => expect(root.dataset.state).toBe("key1"), { timeout: 10_000 });
-      // The spent slab goes with no status box in its place: "Waiting" lives in Ernesto's row alone, and Analyn's
-      // row is a solid row with a green dot and her time.
+      // The spent slab goes with no status box in its place: Ernesto's row says he signs next (round 8), and
+      // Analyn's row carries the signers' dot and her time.
       expect(screen.queryByTestId("W-TR-07.approve")).toBeNull();
-      expect(screen.getByTestId("W-TR-07.key.chair.status").textContent).toBe("Waiting");
+      expect(screen.getByTestId("W-TR-07.key.chair.status").textContent).toBe("Signs next");
+      expect(screen.getByTestId("W-TR-07.sealState").textContent).toBe("Half signed · Analyn");
       expect(screen.getByTestId("W-TR-07.key.treasurer.status").textContent).toMatch(/^Signed \d\d:\d\d$/);
       const signedRow = screen.getByTestId("W-TR-07.key.treasurer");
       expect(signedRow.classList.contains("fs-solid-row")).toBe(true);
@@ -351,8 +358,8 @@ describe("W-TR-07 approve", () => {
       );
 
       await waitFor(() => expect(tracedPhases("MM-5")).toContain("waiting-2"), { timeout: 5_000 });
-      // Ernesto is not here yet: his row says "Waiting", once.
-      expect(screen.getByTestId("W-TR-07.key.chair.status").textContent).toBe("Waiting");
+      // Ernesto is not here yet: his row says "Signs next", once.
+      expect(screen.getByTestId("W-TR-07.key.chair.status").textContent).toBe("Signs next");
       // Once he is on the batch his row says so in its place, never a second line (round 4).
       act(() =>
         view.runtime.client.setQueryData<RunView>(

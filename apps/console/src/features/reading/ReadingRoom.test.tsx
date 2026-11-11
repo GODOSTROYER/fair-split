@@ -260,11 +260,13 @@ describe("W-TR-03 reading room", { timeout: 60_000 }, () => {
     const r = await readingRun("reduced", `${READING}?photo=J`);
     act(() => r.stream.inject(rowsFor(["J"])));
     const you = await screen.findByTestId("W-TR-03.beds.you.0462");
-    // The row's one step, inline at its end (round 3): a secondary button whose name starts with its words.
+    // The row's one step, inline at its end: since round 8 a quiet link (the room's primary is the one button),
+    // its name still starting with its words.
     expect(you.getAttribute("href")).toBe("/season/2026-A/by-hand/0462");
     expect(you.textContent).toBe("Enter by hand");
     expect(you.getAttribute("aria-label")).toBe("Enter by hand, slip 0462");
-    expect(you.classList.contains("fs-flat")).toBe(true);
+    expect(you.classList.contains("fs-link")).toBe(true);
+    expect(you.classList.contains("fs-flat")).toBe(false);
     expect(screen.getByTestId("W-TR-03.film.J").dataset.pending).toBe("");
     const row = screen.getByTestId("W-TR-03.beds.row.0462");
     expect(row.dataset.needs).toBe("person");

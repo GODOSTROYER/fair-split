@@ -211,9 +211,23 @@
 
 /* The reading band: a rule's clause, in pencil, the way Claude found it; a 1 px chalk line under the wash, as the
    reading band marks a slip (never a side bar). */
+/* Round 8: a cited clause is marked the way a reader marks a passage: a 2 px indigo rule in the page's margin beside
+   it and the faintest indigo tint under its words (the grey block read as a text selection). The same mark shows
+   the clause a pointed rule was read from. */
 .fsc-rc-page__line[data-band] {
-  background: color-mix(in srgb, var(--fs-pencil) 34%, transparent);
-  box-shadow: inset 0 -1px 0 color-mix(in srgb, var(--fs-paper-ink) 70%, transparent);
+  position: relative;
+  background: color-mix(in srgb, var(--fs-pod) 7%, transparent);
+}
+
+.fsc-rc-page__line[data-band]::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -14px;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--fs-pod);
 }
 
 .fsc-rc-page__folio {
@@ -551,8 +565,12 @@
 }
 
 .fsc-rc__refused-why {
-  margin-left: 8px;
   color: var(--fs-ink-2);
+}
+
+/* Round 8: the attempt is the refusal's second line; "· Not added" follows it on the same line. */
+.fsc-rc__refused-why::before {
+  content: "· ";
 }
 
 .fsc-rc__add[data-plate] > .fsc-rc__row {

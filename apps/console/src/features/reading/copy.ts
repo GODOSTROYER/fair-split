@@ -50,7 +50,8 @@ export const READING_COPY = {
   progressDots: (read: number, total: number) => `${read}/${total}`,
   progressUnit: "slips read this run",
   /** Round 5, the truthful count: while a slip waits for a person, the count says so beside it. */
-  progressNeeds: (needs: number) => `read · ${needs} needs a person`,
+  /** Round 8: the title row's chip says a slip waits for a person; the count says only what it counts. */
+  progressNeeds: (_needs: number) => "slips read",
   /** The room's state in the title row's chip (round 5). */
   stateWaiting: "Waits for payment",
   stateReading: "Reading",

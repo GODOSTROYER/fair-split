@@ -147,7 +147,9 @@ describe("W-TR-02 rate card", { timeout: 60_000 }, () => {
     const refusedRow = screen.getByTestId("W-TR-02.refusedRow");
     expect(refusedRow.querySelector("s")).toBeNull();
     expect(refusedRow.querySelector(".fsc-rc__refused-what")?.textContent).toMatch(/ · /);
-    expect(refusedRow.textContent).toContain("Not added · locked by BR 2026-04");
+    expect(refusedRow.textContent).toContain("Not added");
+    // Round 8: the attempt is the refusal's own second line, so one block says what was refused.
+    expect(plate.contains(refusedRow)).toBe(true);
     const pages = screen.getByTestId("W-TR-02.pages");
     expect(pages.hasAttribute("data-cited")).toBe(true);
     expect(pages.querySelectorAll(".fsc-rc-page")).toHaveLength(1);
