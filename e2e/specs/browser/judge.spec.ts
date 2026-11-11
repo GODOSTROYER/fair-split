@@ -157,7 +157,7 @@ test("the first press starts a judge session on the simulated rail and funds the
   const started = page.waitForResponse(sessionStarted);
   await firstPress(page).click();
   expect((await started).status()).toBe(201);
-  await expect(page.getByRole("heading", { level: 1, name: /Pool funded\./ })).toBeVisible({
+  await expect(page.getByTestId("W-JG-01.title")).toHaveAttribute("data-state", "funded", {
     timeout: 60_000,
   });
   const session = await sessionOf(page);
@@ -172,7 +172,7 @@ test("Reset brings the first view back within 10 s and a second press works", as
   await roomFor(2 * PRESS_LIVE_CALLS);
   await page.goto("/judge");
   await firstPress(page).click();
-  await expect(page.getByRole("heading", { level: 1, name: /Pool funded\./ })).toBeVisible({
+  await expect(page.getByTestId("W-JG-01.title")).toHaveAttribute("data-state", "funded", {
     timeout: 60_000,
   });
   const first = await sessionOf(page);
@@ -181,9 +181,8 @@ test("Reset brings the first view back within 10 s and a second press works", as
   // UI gate round 4: Reset is in the run pill's chevron menu (the top bar keeps six items).
   await resetFromMenu(page);
   await expect(firstPress(page)).toBeEnabled({ timeout: 10_000 });
-  await expect(
-    page.getByRole("heading", { level: 1, name: /Invoice sent\. Awaiting payment\./ }),
-  ).toBeVisible();
+  // UI gate round 5: the title is "Season 2026-A"; the run's state is the chip on its row.
+  await expect(page.getByTestId("W-JG-01.title")).toHaveText("Awaiting payment");
   const resetMs = Date.now() - pressedAt;
   test.info().annotations.push({ type: "reset", description: `first view back ${resetMs} ms after Reset` });
   expect(resetMs).toBeLessThanOrEqual(10_000);
@@ -191,7 +190,7 @@ test("Reset brings the first view back within 10 s and a second press works", as
   const again = page.waitForResponse(sessionStarted);
   await firstPress(page).click();
   expect((await again).status()).toBe(201);
-  await expect(page.getByRole("heading", { level: 1, name: /Pool funded\./ })).toBeVisible({
+  await expect(page.getByTestId("W-JG-01.title")).toHaveAttribute("data-state", "funded", {
     timeout: 60_000,
   });
   const second = await sessionOf(page);

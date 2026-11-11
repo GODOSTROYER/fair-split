@@ -181,6 +181,18 @@ No other hue appears: no blue chip, no red chip. No wash, gradient, glow or colo
   "Counted once", "Next hold" as the primary) passes `scrim={false}`: no blocking scrim, the screen stays live.
   Dialog 520 px, radius 24, e3, only for a decision that must interrupt (signing). Everything else is inline or a
   drawer.
+- **Season first view** (round 5, W-JG-01). Title row "Season 2026-A" with the state chip ("Awaiting payment"
+  neutral, "Funded" the MM-S mark that floods jade, "PayPal complete · cash due" on the hatch), the run id in the id
+  line once a session starts, and "Synthetic co-op · seeded slips". Then the invoice (5 columns) beside the pool (7),
+  ending level: the pool leads with its own amount so the one 1.5 px jade arc joins the two amounts; under it the sum
+  in words and the premium and quality bonus; the rate card is the pool card's foot (a row over a rule, not a card).
+  The slips are one 12-up strip of prints at most 72 px wide, their head ("Slips", the counts' scope, Claude's real
+  readings) in the first 3 columns from 1,040 px. The pipeline is flat: five StateDots on one hairline track, each
+  count ink on the title step, its unit the label role. What's real hugs its rows and marks only the simulated PayPal
+  row (the dashed circle the screens carry); no hatch or square there.
+- **The member's statement** (round 5): her whole pay in the first view, "= 43.69 + 21.85 − 1.09" under the amount;
+  the header line "M-014 · 2026-A"; Paminawa a 48 dp row whose voice reads "Sintetikong tingog" (the engine's name in
+  the accessible name). On the receipt bar a deduction is an outline (1 px ink-3 on plate 2), never hatched.
 - **Hero moments.** Fan-out: Rhea's path ends at her marker; cash is a 6 px hatched ribbon. Before the move to cash
   the count is `Numeral` "7/8" beside the seal; after it the hero reads **"7 PayPal · 57 cash"** (a jade dot by 7,
   a hatch swatch by 57) with "Review cash handover" as the screen's one primary Slab, and Rhea's cash line appears
