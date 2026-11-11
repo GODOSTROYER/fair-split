@@ -1,4 +1,4 @@
-# Fair Split design system (UI gate round 6)
+# Fair Split design system (UI gate round 7)
 
 The single source for every surface: the console and judge stage, Proof, and the phone app. It refines the
 incumbent Hayag world (white and porcelain surfaces, blue-black ink, one job per colour, no brown); it does not
@@ -456,7 +456,70 @@ replayed stand-in reading of all 48 slips from Claude's real readings of the 10 
     fan under 1,040 px the cash row reads "57 members · cash" whole ("at the bodega" steps aside, never an ellipsis).
 12. **This file records decisions 1–11.**
 
-## 12. The owner's reference reels
+## 12. Round 7 decisions (one builder's reconciliation of both round-6 reviews)
+
+Where a rule here differs from §3, §4 or §9–§11, this section wins.
+1. **Nothing covers or cuts a key number.**
+   - **Drawers push at every width.** From 1,280 px up (the 1,920 stage included) a drawer takes its 560 px from the
+     screen instead of lying over it: the screen's container narrows and its content reflows (the split's sum stays
+     whole, the lines take the compact or slim set). Every drawer is a **full-height sheet** (the frame of What's
+     real), so no row shows under a rounded foot; a short state keeps its action right under its content and the
+     plate runs on to the foot; a sheet that scrolls fades its last 24 px. Below 1,440 px the console rail folds to
+     its glyphs while a drawer is open (`StageApi.noteDrawer`) and the screen's side padding drops to 24 px, so the
+     slim set (Member, Net, Rail, Status) fits beside the sheet at 1,280.
+   - **The phone below 1,440 px never opens on its own.** A beat (key 2, "Bayad na") turns the rail to that frame
+     (its avatar, its status dot) and the console keeps every name and amount; the sheet opens only when the viewer
+     asks (an avatar, the phone glyph, the pill's step, "Or sign in the Chair frame"). Open, it never dims the page
+     (a clear backdrop still takes the press that closes it), its head ends with **Close**, its screen is as tall
+     as the window gives (600 px at 1,280 × 800) and the sheet scrolls where that is too tall. A window narrowed
+     under 1,440 px drops a raise it made while the phone had its column.
+2. **1,280 and 1,470.** Split review's compact set (the 1,280 laptop) is Member (184 px, a whole name, never an
+   ellipsis), Verified kg, Premium, Deductions, Credit, Net, Rail, Status; **Bonus waits behind "Columns"** (the total
+   still sums it). The holds' evidence rows ("Slip 0457 ×2 · 4/4 fields match", "2.14 kg a tree") and their "Open
+   H1/H2" stay at 1,280; only the slim and narrow sets (beside a drawer) give those rows to the lines. On the
+   settled Run each count carries its own qualifier **under its word** ("● PayPal" over the "Simulated" tag, "▨
+   cash" over "due 12 Nov"), so the cash's day never reads as PayPal's at any width.
+3. **Run with a parked payout.** The primary names whose payment it acts on: **"Pay Rhea in cash at the bodega"**.
+   The parked reason is the second line of her own fan row ("No PayPal account · returns in 30 days", then
+   "Re-send" as a link); no card under the fan repeats her name and amount (`W-TR-08.parked` is that line). The
+   seal stands 30 units higher (its top 180 down: 60 px under the primary at 1,920, 17 px at 1,280), the cash row 12
+   lower. One rule for the jade dot in the log: every row that says the simulated PayPal confirmed money ("Paid …",
+   "Payment confirmed"). While a parked payment waits, the pill keeps "Next: decide on Rhea's payment": no toast
+   takes its place.
+4. **Spacing.** Season's two cards are top-aligned on one rhythm (label, amount, its line, then the action or the
+   record 24 px under it); each card's foot is pinned to its end and the row is capped at 440 px, so spare height
+   collects above the foot's rule. By hand (1,920): the witnesses start 24 px under the title row, each paper as
+   wide as its six columns (the logbook ends on the grid's edge), the sum, who entered it and the one primary 32 px
+   under them; whose slip and why it needs a person are one line. What is left of a tall window is the panel's
+   foot, never a band between parts. Proof is a 1,200 px sheet from 1,600 px wide. What's real: one row style for
+   all five (the heading step over a caption) and, on a tall window, taller rows.
+5. **Rate card, refused.** Once the refusal is printed the paper shows **the page that refuses it, alone, from its
+   top edge**, the clause banded whole, with the card's seal under it (opening a rule shows every page again). The
+   attempt stays readable in ink ("✕ Iba pa (Other) · ₱150 · Not added · locked by BR 2026-04", never struck
+   through). Schedule A's rows carry no rule ids (R0–R6 are the document's own, on its page).
+6. **Supporting text and markers.** Text that carries meaning is never ink-3 at 12 px: the id line, a member's id
+   (13 px), the sum's words, a filter's count, a log row's lane and time are **ink-2**. Measured on the tokens
+   (WCAG 2.x): ink 18.7:1 on plate (17.6 on plate-2), **ink-2 9.8:1 (9.2)**, ink-3 6.0:1 (5.6), pencil 7.0:1, the
+   indigo 7.9:1, steel-line 3.6:1 (non-text). A divider between rows of data is the **row rule**
+   (`--fsc-rule-row`, halfway from `rule` to `rule-strong`: 1.37:1 where `rule` is 1.24:1); the split table's frame
+   is `rule-strong` (1.52:1). **Over the limit** is its own mark, a line warning glyph and the words in a 1 px ink
+   outline, never a round dot; the rail's "next step is here" mark is a small pointer, so a round indigo dot means
+   only "a person must decide" (a held row, the pill). **One id line**: the run id alone in the mono ("r2"), then
+   the provenance phrase; the title's suffix says the season, so no row says "2026-A" twice.
+7. **Honesty wording on the phone.** A phone screen is read on its own, with no top bar: the micro-tag beside the
+   member's paid status reads the whole name, **"Simulated PayPal sandbox"** (`MicroTag full`; the accessible name
+   is unchanged), one line under the status pill with the time, in every state; the Chair's sign screen and the
+   board's payout list say it in full too. The Chair's request keeps the one word beside "8 ka bayad pinaagi sa
+   PayPal" (the row has no room for more at 360 px, and a second line would push the seal card under the button on
+   a 706 px phone).
+8. **Smaller items.** The pool's hero before funding is ink-2 (9.8:1), never a disabled grey, and its bar the
+   pending tone; Approve's planned PayPal segment is a steel face in its dashed outline at full strength; the
+   phone's top fade is plain surface for its first 16 px (no ghost text) and its fees row is named ("Bayad sa
+   padala" over its two rates); on a tall, quiet request the Chair's seal takes part of the height its card would
+   leave empty (to 190 px, the card still ending clear of the button); a Try that cannot be pressed says "After key
+   1, before the Chair".
+
+## 13. The owner's reference reels
 
 Taken: one spacing scale; colour only where it means something (semantic dots, matching chart lines); thin line
 icons; a deliberate type ramp; tabular or mono numerals; factual headers instead of greetings; far fewer words;
