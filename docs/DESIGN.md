@@ -451,7 +451,9 @@ replayed stand-in reading of all 48 slips from Claude's real readings of the 10 
     (14%), the H2 yield bar and Rhea's parked thread follow the token. The run pill never shows a dot without words
     (an event with nothing to say leaves "Next: …"); the Run's latency panel never says "No confirmations yet" on a
     settled run read back after a reload ("7 confirmed · timed only while the run is live"). On the phone the open
-    slip's sheet is opaque and its sample mark sits in the paper's empty corner.
+    slip's sheet is opaque and its sample mark sits in the paper's empty corner. Raised over the console below
+    1,440 px, the phone's dock takes no row of its own, so the console keeps the stage's height under the scrim; on a
+    fan under 1,040 px the cash row reads "57 members · cash" whole ("at the bodega" steps aside, never an ellipsis).
 12. **This file records decisions 1–11.**
 
 ## 12. The owner's reference reels
