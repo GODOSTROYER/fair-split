@@ -342,9 +342,11 @@ function nightTimes(accent, slot, kwOut) {
   const pull = [r3(kwOut + 0.1), r3(slot.end - 0.04)];
   // the night lifts as an iris from the lit window (film-slots.js, review v4 item 2) that reaches the keyword only
   // after its wipe out has finished (kwOut + 0.32), so the word never sits half-faded over the light
-  const fade = [r3(kwOut + 0.2), r3(kwOut + 0.42)];
+  // review v6 V6-15: the night closes in from the frame's edges onto the lit window over 9 frames (dipIn), and
+  // opens again over 10 (fade), never a one-frame cut or an even grey
+  const fade = [r3(kwOut + 0.2), r3(kwOut + 0.53)];
   if (fade[1] - slot.start > 3) throw new Error(`${slot.id}: a night insert runs over 3 s`);
-  return { ...accent, at: r3(slot.start), pull, fade, peak: r3(kwOut + 0.31) };
+  return { ...accent, at: r3(slot.start), dipIn: 0.3, pull, fade, peak: r3(kwOut + 0.36) };
 }
 /**
  * Keywords that hold until the voice finishes a phrase (verify v5-r1 R1): "sent." stays through "sent, not yet paid."
@@ -480,6 +482,9 @@ function choreograph() {
       push: push ? [r3(kwOut + 0.15), r3(kwOut + 1.8)] : null,
       // the push pose: the window centred and larger (STYLE §4 `b`)
       pushCam: push ? { x: r3(s.x - (b.x - 960) / b.s), y: r3(s.y - (b.y - 540) / b.s), s: b.s } : null,
+      // a recorded clip's labels (cut-captures.mjs): a real-time multiplier where a wait is sped, a micro-tag
+      badge: recorded(s.id) ? (TAKE.slots[s.id].badge ?? null) : null,
+      chip: recorded(s.id) ? (TAKE.slots[s.id].chip ?? null) : null,
       accent: !ACCENTS[s.id]
         ? null
         : ACCENTS[s.id].kind === "night"
@@ -833,7 +838,7 @@ export const CLOSE = {
   // the close camera's glides (rig.js CAM + 143): to the 3, to the slip, the pull-out to the limits, between the
   // limits (the last a short push), and into the overview
   glides: [
-    [145.35, 147.4],
+    [145.35, 147.45],
     [148.45, 149.5],
     [153.45, 155.45],
     [158.0, 159.3],

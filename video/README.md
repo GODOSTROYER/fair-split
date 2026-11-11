@@ -101,9 +101,14 @@ product, never drawn:
 2. **The cut** (`node video/tools/cut-captures.mjs`): each slot's clip comes out of its segment by a recipe
    (`RECIPES`): the action mark and the film second it lands on (a press on its narration word or its accent's beat,
    so the product's own motion meets the approved sound), the test ids it frames (grown to the window's aspect), and
-   the ids its accent sits on. A clip covers its window's whole time on screen, glides included (`plan.mjs`
+   the ids its accent sits on. A clip is one or more shots of the recording, each framing one readable element
+   inside its own panel (inset, never a sliver of a neighbour) and dissolving to the next on the word that names it
+   (the dial on "drops", each Proof check on its word, where every dollar went). A clip covers its window's whole time on screen, glides included (`plan.mjs`
    `clipSpan`: media 0 is the start of its glide in), so a neighbour's glide across a cut shows the same frame. Clips
-   are quiet (STYLE §3): the product at half saturation, the film's accent the one lit thing. The cut writes
+   are quiet (STYLE §3): the product at 0.15 saturation, its own indigo and colour greyed, full colour only inside the
+   film's accent while it fires (and on the payouts as they confirm, and the pink carbon copy). The fan-out's seven
+   confirmations play at their recorded order and a labelled real-time multiplier ("×6 real time") so they land on
+   the seven notes; a micro-tag marks the simulated record-payment beside "Marked paid by Analyn". The cut writes
    `captures/<slot-id>.mp4` and `captures/take.json` (crop, length, accent boxes), all git-ignored; `plan.mjs` reads
    the accent boxes, so the indigo box, the button pulses, the jade hit and the trace land on the recorded element.
    The fan-out's confirmations are the product's own (`real`): the film draws no fills over them.
