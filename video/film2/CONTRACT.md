@@ -6,8 +6,8 @@ are in `research/film-1111/script.md`. This file says how the parts plug togethe
 
 ## 1. What is fixed
 
-- Canvas: 1920 × 1080 CSS px, 175 s. The final render is 3840 × 2160 (device scale 2), so one CSS px is two output px.
-- `timing.json` holds the seven windows (below, as of the director's change of 11 Nov). A section file's root
+- Canvas: 1920 × 1080 CSS px, 179 s. The final render is 3840 × 2160 (device scale 2), so one CSS px is two output px.
+- `timing.json` holds the seven windows (below, as of the retime to 179 s). A section file's root
   `data-duration` is its window's length; `node tools/sync.mjs` fails if it is not.
 - The render is 4K, so a 2× still may never be shown larger than its own CSS size; anything a viewer must read uses
   the capture agent's high-scale crops (`<still id>.<crop name>`, section 4).
@@ -21,11 +21,11 @@ are in `research/film-1111/script.md`. This file says how the parts plug togethe
 | --- | ----------------- | ----------------------------------- | ------------ |
 | s1  | `s1-scenario`     | `compositions/s1-scenario.html`     | 0–17         |
 | s2  | `s2-problem`      | `compositions/s2-problem.html`      | 17–38        |
-| s3  | `s3-solution`     | `compositions/s3-solution.html`     | 38–55        |
-| s4  | `s4-demo`         | `compositions/s4-demo.html`         | 55–109       |
-| s5  | `s5-compare`      | `compositions/s5-compare.html`      | 109–120      |
-| s6  | `s6-architecture` | `compositions/s6-architecture.html` | 120–158      |
-| s7  | `s7-close`        | `compositions/s7-close.html`        | 158–175      |
+| s3  | `s3-solution`     | `compositions/s3-solution.html`     | 38–53.6      |
+| s4  | `s4-demo`         | `compositions/s4-demo.html`         | 53.6–102     |
+| s5  | `s5-compare`      | `compositions/s5-compare.html`      | 102–112      |
+| s6  | `s6-architecture` | `compositions/s6-architecture.html` | 112–166      |
+| s7  | `s7-close`        | `compositions/s7-close.html`        | 166–179      |
 - `index.html` (LEAD) mounts the seven sections and the audio. `film.css` (LEAD) is the visual system. `film.js`
   (LEAD) is `window.FILM`. Ask LEAD for a new token or helper; do not edit these, and do not add your own copy.
 - Cuts between sections are hard cuts on the one ground `#F7F8FB`. Where the storyboard says one section's last frame
@@ -58,15 +58,15 @@ class="step-w">Read</span><span class="step-dots"><i class="on"></i><i class="on
 
 ```json
 {
-  "version": 1, "unit": "film seconds", "duration": 175, "measured": true,
+  "version": 1, "unit": "film seconds", "duration": 179, "measured": true,
   "sections": {
     "s4": {
-      "start": 55, "end": 109,            // the clip plays from the section's start; clip time 0 = film `start`
+      "start": 53.6, "end": 102,          // the clip plays from the section's start; clip time 0 = film `start`
       "clip": "narration/s4.m4a",         // relative to audio/
-      "speech": [55.45, 107.9],           // first word's start, last word's end
+      "speech": [54.1, 100.84],           // first word's start, last word's end
       "text": "The buyer pays one PayPal invoice. …",
-      "lines": { "4a": { "start": 55.45, "end": 57.32, "text": "The buyer pays one PayPal invoice." } },
-      "words": [ { "w": "The", "start": 55.45, "end": 55.52, "line": "4a" } ]
+      "lines": { "4a": { "start": 54.1, "end": 56.11, "text": "The buyer pays one PayPal invoice." } },
+      "words": [ { "w": "The", "start": 54.1, "end": 54.17, "line": "4a" } ]
     }
   },
   "marks": { "fairSplit": { "start": 38.45, "end": 39.02 }, "fairSplitFinal": { "start": 170, "end": 170.52 },
@@ -74,7 +74,7 @@ class="step-w">Read</span><span class="step-dots"><i class="on"></i><i class="on
 }
 ```
 
-Every time is in film seconds. `w` keeps its punctuation. `lines` exist for s4 (`4a`–`4h`) and s6 (`one`–`four`).
+Every time is in film seconds. `w` keeps its punctuation. `lines` exist for s4 (`4a`–`4h`) and s6 (`simple`, `stages`, `first`, `second`, `third`, `fourth`, `under`).
 Never read the JSON yourself and never hard-code a time. Use `FILM`:
 
 | Call                                                                 | Gives                                                                                                                 |
@@ -198,14 +198,14 @@ are inline HTML and SVG: an SVG loaded through `<img>` cannot use FS Sans, and a
 ## 8. Audio the root mounts (SOUND)
 
 `audio/narration/s1.m4a … s7.m4a` (one per section, clip time 0 = the section's start), `audio/music-bed.wav` and
-`audio/sfx.wav` (each 175 s from film 0). They give the Studio preview and the one-section drafts their sound. The
+`audio/sfx.wav` (each the film's length, from film 0). They give the Studio preview and the one-section drafts their sound. The
 film's own sound is SOUND's final mix, `audio/mix.wav`, laid under the picture at assembly.
 
 ## 9. Assembly (LEAD)
 
 ```powershell
 node tools/sync.mjs; node tools/lint.mjs; npx hyperframes lint
-npx hyperframes render --resolution 4k --fps 30 --quality delivery --crf 12 --output out/fair-split-film-v7-picture.mp4
-node tools/finish.mjs      # out/fair-split-film-v7.mp4 (+ .en.vtt, -1080p.mp4): the mix as AAC 320 kb/s, captions as a soft track, off by default
+npx hyperframes render --resolution 4k --fps 30 --quality delivery --crf 12 --output out/fair-split-film-v8-picture.mp4
+node tools/finish.mjs      # out/fair-split-film-v8.mp4 (+ .en.vtt, -1080p.mp4): the mix as AAC 320 kb/s, captions as a soft track, off by default
 node tools/verify.mjs --sheet <contact sheet.png>   # the finished file: streams, loudness, ground luma per section, blank runs, a frame every 5 s
 ```

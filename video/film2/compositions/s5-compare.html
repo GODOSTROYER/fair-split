@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- Fair Split film v7, section 5: Before and now, film 109 to 120 s (SCENES C).
+<!-- Fair Split film v7, section 5: Before and now, film 102 to 112 s (SCENES C).
      A split frame at full brightness on both sides. Before: the box of slips, the notebook, "Trust". Now: five
      ticks, then "53.6 s" (facts.md section 5: first press to the payout request, in our demo). No duration is ever
      stated for "before". The frame is built by compare() below; s6-architecture.html carries the same function
@@ -20,14 +20,14 @@
         }
       </style>
 
-      <div id="root" data-composition-id="s5-compare" data-width="1920" data-height="1080" data-duration="11"></div>
+      <div id="root" data-composition-id="s5-compare" data-width="1920" data-height="1080" data-duration="10"></div>
 
       <script>
         (() => {
           /* COMPARE:START (keep identical in s5-compare.html and s6-architecture.html) */
           const compare = (host, p) => {
             const css = `
-.${p}-cmp{position:absolute;left:0;top:0;width:1920px;height:1080px;margin:0}
+.${p}-cmp{position:absolute;left:0;top:0;width:1920px;height:1080px;margin:0;will-change:transform}
 .${p}-cmp-k{position:absolute;margin:0;font-size:40px;font-weight:650;line-height:48px;letter-spacing:-0.015em;color:#5b6475;white-space:nowrap}
 .${p}-cmp-big{position:absolute;margin:0;font-size:132px;font-weight:680;line-height:1;letter-spacing:-0.035em;color:#0e1525;white-space:nowrap;font-variant-numeric:tabular-nums lining-nums}
 .${p}-cmp-big i{font-style:normal;font-weight:600;letter-spacing:0;margin-left:0.12em}
@@ -96,14 +96,14 @@
           const root = document.querySelector('[data-composition-id="s5-compare"]');
           const c = compare(root, "s5");
           const E = FILM.ease;
-          const LAST = 10.0; // the finished frame holds still to the cut
+          const LAST = 9.3; // the finished frame holds still to the cut
           const at = (text, nth = 1, offset = 0) => Math.min(FILM.at("s5", text, nth, offset), LAST);
           const rise = (target, position, y = 24, duration = 0.6) =>
             tl.fromTo(target, { opacity: 0, y }, { opacity: 1, y: 0, duration, ease: E }, Math.min(position, LAST));
 
           /* "Before: a box of slips, and trust." */
           rise(c.before, at("Before:"), 16, 0.5);
-          rise(c.boxHold, at("box", 1, -0.1), 32, 0.7);
+          rise(c.boxHold, at("Before:", 1, 0.1), 32, 0.7); // with the heading, so "Before" never stands alone
           rise(c.bookHold, at("slips", 1, 0.1), 32, 0.7);
           rise(c.trust, at("trust", 1, -0.1), 28, 0.6);
 

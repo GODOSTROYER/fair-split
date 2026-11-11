@@ -1,6 +1,6 @@
 Fair Split film v7: effects cue sheet (made by tools/sound-sfx.mjs from audio/sfx-cues.json; do not edit)
 
-57 cues, 84 sounds played, from 28 CC0 files of the Barty-Bart motion-graphics sound-effects kit.
+63 cues, 87 sounds played, from 28 CC0 files of the Barty-Bart motion-graphics sound-effects kit.
 Voice reference (95th percentile while speaking, K-weighted, both channels): -10.21 LUFS over 400 ms, -8.47 LUFS over 50 ms.
 Every cue is at least 12 dB under it in both windows, and no cue peaks above -10 dBFS. Stem peak: -10 dBFS.
 
@@ -19,67 +19,89 @@ film s   cue                 under  peak    400 ms   sounds                     
 32.30    s2-question-dots    20.0   -10.7   -33.6    blip                          the dots flip to question marks (32.3-32.9)
 35.80    s2-question         18.0   -16.8   -35.5    bong                          the '?' on the broken line to the buyer
 35.99    s2-riser            14.0   -15.8   -25.2    riser                         the rise into the turn, ending on 38.0 (it runs through the bed's 0.2 s of silence), then the hit
-36.50    s2-scatter          18.0   -21.6   -31.0    rustle                        the slips scatter
+37.19    s2-scatter          18.0   -21.6   -31.0    rustle                        the slips scatter (37.19-37.88), into the riser's end on 38.0
 38.00    s3-paper-run        16.0   -21.2   -28.6    swish                         the slips snap into one line: a tight run of paper ticks into the hit
 38.42    s3-hit              12.0   -13.3   -26.1    tap+impact+impact-drum        the slips land flat (38.42) and the wordmark 'Fair Split' arrives (38.45)
 41.20    s3-jade             16.0   -12.8   -27.3    bell                          the jade amount on the phone statement
 42.02    s3-tick             18.0   -12.3   -35.5    tick                          the buyer's tick
 52.45    s3-title            18.0   -14.6   -35.5    pop-in                        the title 'Working today'
-58.44    s4-step-2           20.0   -16.6   -37.5    pop-in                        step 2 Read arrives
-61.53    s4-readings         20.0   -16.6   -37.5    drop-small                    the stained digit's card arrives
-63.36    s4-key              20.0   -10.4   -37.5    key                           the digit is typed by hand: one key press (the picture's 63.44, sounded 0.08 s early so it sits in the pause before 'a person')
-63.88    s4-outline-1        22.0   -16.3   -39.5    tick                          outline: the hand-typed 64.50
-65.05    s4-step-3           20.0   -16.6   -37.5    pop-in                        step 3 Compute arrives
-69.57    s4-holds            20.0   -16.6   -37.5    drop-small                    the held rows arrive
-69.97    s4-outline-2        22.0   -16.3   -39.5    tick                          outline: the three held rows (one tick of the three)
-72.00    s4-step-4           20.0   -16.6   -37.5    pop-in                        step 4 Check arrives
-77.04    s4-money-back       18.0   -14.8   -29.3    bell                          +US$17.94 back to 63 members: the money chime, once
-81.61    s4-step-5           20.0   -16.6   -37.5    pop-in                        step 5 Sign arrives
-86.45    s4-signed           18.0   -23.4   -31.6    confirm                       the second signature: both signed
-87.98    s4-step-6           20.0   -16.6   -37.5    pop-in                        step 6 Pay arrives
-88.54    s4-outline-3        22.0   -16.3   -39.5    tick                          outline: 7 PayPal
-90.85    s4-cash             20.0   -16.6   -37.5    drop-small                    the cash figures arrive
-91.72    s4-outline-4        22.0   -16.3   -39.5    tick                          outline: 57 cash
-94.28    s4-step-7           20.0   -16.6   -37.5    pop-in                        step 7 Explain arrives
-97.25    s4-phone            20.0   -18.9   -37.3    whoosh-quick                  her phone slides
-98.00    s4-outline-5        22.0   -16.3   -39.5    tick                          outline: the listen control
-102.43   s4-step-8           20.0   -16.6   -37.5    pop-in                        step 8 Prove arrives
-103.32   s4-checks           20.0   -25.4   -33.6    confirm                       the six checks: the confirm tone (on the start of 'checks', as cued; kept 20 dB under)
-104.75   s4-browser          20.0   -16.6   -37.5    drop-small                    the buyer's checks card settles
-105.40   s4-outline-6        22.0   -16.3   -39.5    tick                          outline: 6 of 6 checks
-110.50   s5-box              18.0   -16.9   -35.3    whoosh-quick                  the box of slips (Before)
-114.31   s5-ticks            18.0   -12.1   -33.8    tick+glass-short              five ticks draw: Read, Computed, Signed, Paid, Proven; the fourth (Paid) a little brighter
-118.05   s5-53-6             16.0   -21.3   -30.8    note                          '53.6 s': one clean low note
-123.22   s6-stage-1          20.0   -17.4   -37.5    pluck-a                       stage 1 READ arrives
-126.80   s6-leg-1            20.0   -18.9   -37.3    whoosh-quick                  the slip token slides along the first lane leg
-130.15   s6-stage-2          20.0   -17.2   -37.5    pluck-b                       stage 2 COMPUTE arrives
-131.10   s6-leg-2            20.0   -18.9   -37.3    whoosh-quick                  the second lane leg
-135.24   s6-stage-3          20.0   -17.4   -37.5    pluck-a                       stage 3 APPROVE arrives
-136.50   s6-leg-3            20.0   -18.9   -37.3    whoosh-quick                  the third lane leg
-137.76   s6-seal-rings       20.0   -12.0   -30.2    scratch                       the two keys draw the seal's rings (137.76, 138.16)
-141.19   s6-stage-4          20.0   -17.2   -37.5    pluck-b                       stage 4 PAY arrives
-148.40   s6-seal-match       16.0   -17.1   -28.9    swipe+click                   the seal travels to stage 4 (148.40) and matches PayPal's request: a clean click (149.20)
-150.20   s6-money            16.0   -12.8   -27.3    bell                          the money moves: the chime
-153.28   s6-links            20.0   -16.8   -31.5    select                        four links of the record chain close, 0.12 s apart
-168.70   s7-hit              12.0   -13.3   -26.3    impact+impact-drum            the wordmark 'Fair Split' on the final crest: the impact carries the hit (Aurora has none)
+53.60    s4-step-1           20.0   -16.6   -37.5    pop-in                        step 1 Fund arrives (0.5 s clear of 'The')
+56.60    s4-step-2           20.0   -16.6   -37.5    pop-in                        step 2 Read arrives
+59.63    s4-readings         20.0   -16.6   -37.5    drop-small                    the stained digit's card arrives
+61.46    s4-key              20.0   -10.4   -37.5    key                           the digit is typed by hand: one key press (the picture's 61.54, sounded 0.08 s early so it sits in the pause before 'a person')
+61.98    s4-outline-1        22.0   -16.3   -39.5    tick                          outline: the hand-typed 64.50
+62.71    s4-step-3           20.0   -16.6   -37.5    pop-in                        step 3 Compute arrives
+67.07    s4-holds            20.0   -16.6   -37.5    drop-small                    the held rows arrive
+67.57    s4-outline-2        22.0   -16.3   -39.5    tick                          outline: the three held rows (one tick for the three)
+69.16    s4-step-4           20.0   -16.6   -37.5    pop-in                        step 4 Check arrives
+74.97    s4-money-back       18.0   -14.8   -29.3    bell                          the jade headline '+US$17.94 back': the money chime, once (on the start of 'almost', as cued)
+78.27    s4-step-5           20.0   -16.6   -37.5    pop-in                        step 5 Sign arrives
+83.05    s4-signed           18.0   -23.4   -31.6    confirm                       the second signature: both signed
+84.14    s4-step-6           20.0   -16.6   -37.5    pop-in                        step 6 Pay arrives
+84.64    s4-outline-3        22.0   -16.3   -39.5    tick                          outline: 7 PayPal
+86.95    s4-cash             20.0   -16.6   -37.5    drop-small                    the cash figures arrive
+87.82    s4-outline-4        22.0   -16.3   -39.5    tick                          outline: 57 cash
+89.94    s4-step-7           20.0   -16.6   -37.5    pop-in                        step 7 Explain arrives
+92.85    s4-phone            20.0   -18.9   -37.3    whoosh-quick                  her phone slides
+93.60    s4-outline-5        22.0   -16.3   -39.5    tick                          outline: the listen control
+97.59    s4-step-8           20.0   -16.6   -37.5    pop-in                        step 8 Prove arrives
+98.42    s4-checks           20.0   -25.4   -33.6    confirm                       the six checks: the confirm tone (on the start of 'checks', as cued; kept 20 dB under, as in the approved mix)
+99.85    s4-browser          20.0   -16.6   -37.5    drop-small                    the buyer's checks card settles
+100.50   s4-outline-6        22.0   -16.3   -39.5    tick                          outline: 6 of 6 checks
+102.60   s5-box              18.0   -16.9   -35.3    whoosh-quick                  the box of slips (Before)
+107.31   s5-ticks            18.0   -12.1   -33.8    tick+glass-short              five ticks draw: Read, Computed, Signed, Paid, Proven; the fourth (Paid) a little brighter
+111.05   s5-53-6             16.0   -21.3   -30.8    note                          '53.6 s': one clean low note
+118.50   s6-move-1           24.0   -22.9   -41.3    whoosh-quick                  the camera moves to stage 1 (the quietest sound in the film)
+122.40   s6-read-b           20.0   -17.4   -37.5    pluck-a                       the second reading lands
+125.20   s6-person           18.0   -23.3   -32.8    note                          the path to a person: one low note
+126.20   s6-move-2           24.0   -22.9   -41.3    whoosh-quick                  the camera moves to stage 2
+129.40   s6-cents            22.0   -16.3   -39.5    tick                          whole cents: a tick
+131.10   s6-stamp            20.0   -17.1   -37.4    tap+drop-a                    the rate card is hashed: the seal stamp
+139.45   s6-recompute        22.0   -16.3   -39.5    tick                          the server recomputes (one tick of the three)
+144.70   s6-move-4           24.0   -22.9   -41.3    whoosh-quick                  the camera moves to stage 4
+157.55   s6-pull-back        24.0   -26.3   -40.7    whoosh                        the pull-back to the whole system: a broader, very soft whoosh
+159.41   s6-links            20.0   -16.8   -34.5    select                        links of the ledger close (two of the five, 0.16 s apart)
+160.90   s6-show-1           18.0   -12.3   -35.5    tick                          showcase, no voice: stage 1 ticks
+161.25   s6-show-2           18.0   -12.3   -35.5    tick                          showcase: stage 2 ticks
+161.95   s6-show-3           18.0   -12.3   -35.5    tick                          showcase: stage 3 ticks
+162.40   s6-seal-match       16.0   -11.0   -32.9    click                         showcase: the seal matches PayPal's request, a clean click
+162.60   s6-money            16.0   -12.8   -27.3    bell                          showcase: the money moves, the film's chime
+162.80   s6-show-link        18.0   -14.8   -35.5    select                        showcase: one link of the ledger closes
+175.13   s7-hit              12.0   -13.3   -26.3    impact+impact-drum            the wordmark 'Fair Split' on the final crest: the impact carries the hit (Aurora has none); the approved mix's layered hit, on the fairSplitFinal mark
 
 Left out
-27.14    the outline around the double-counted slip: 0.26 s after the second pen tick and on the word 'twice.': the two ticks carry the beat
-55.42    step 1 Fund arrives: 0.08 s before the section's first word, 'The': the sound's body would sit on it
-56.17    outline tick: on the start of 'one'
-60.47    outline tick: on the start of 'twice.'
-67.49    outline tick: on the start of 'every'
-68.66    card arrives: on the start of 'to' (to the cent)
-70.11    second of three quick ticks: on the end of 'stops', 0.08 s before 'what'
-70.25    third of three quick ticks: 0.06 s into 'what'
-75.13    outline tick: on the start of 'pink'
-78.09    outline tick: on the start of 'eighteen'
-83.29    outline tick: on the start of 'same'
-96.55    outline tick: 0.05 s before 'language,'
-97.70    card arrives: 0.02 s before 'listens.'
-99.31    card arrives (the tap): on the start of 'One'
-99.71    outline tick: on the end of 'tap', 0.08 s before 'shows'
-100.33   card arrives (the slip opens): on the start of 'slip'
+27.14    the outline around the double-counted slip: 0.26 s after the second pen tick and on the word 'twice.': the two ticks carry the beat (as in the approved mix)
+54.45    the invoice turns paid: a quiet confirm tone (new): exactly on the start of 'pays', 0.35 s into the section's first sentence
+54.77    outline tick: on the start of 'one'
+58.57    outline tick: on the start of 'twice.'
+65.09    outline tick: on the start of 'every'
+72.23    outline tick: on the start of 'pink'
+74.14    card arrives (the result strip): on the start of 'Once'
+75.19    outline tick: on the start of 'eighteen'
+76.33    'Balanced' arrives: on the start of 'back'
+79.89    outline tick: on the start of 'same'
+92.15    outline tick: 0.05 s before 'language,'
+93.30    card arrives: 0.02 s before 'listens.'
+94.91    card arrives (the tap): on the start of 'One'
+95.31    outline tick: on the end of 'tap', 0.08 s before 'shows'
+95.93    card arrives (the slip opens): on the start of 'slip'
+113.70   soft paper sound (opening): 0.07 s before 'simple:'; its body would cover the word's start
+115.60   clean note as the line reaches the payment: 0.01 s before 'pay'
+116.70   quiet settle: 0.06 s into 'Four'
+121.70   first of two light blips: 0.01 s before 'reads'
+123.50   click: 0.04 s into 'code'
+133.30   camera whoosh to stage 3: 0.08 s before 'Third,': it would mask the word
+135.50   pen stroke: 0.07 s before 'Two'
+136.10   pen stroke: 0.07 s before 'sign'
+139.10   first of three small ticks: on the start of 'recomputes'
+139.85   third of three small ticks: 0.01 s before 'it'
+141.55   the dull, soft 'no': on the end of 'One', 0.09 s before 'changed'
+153.40   soft send: 0.01 s before 'sent'
+155.00   return ping: 0.03 s before 'confirmed'
+159.25   first link click: 0.05 s before 'chained'
+159.73   fourth link click: 0.05 s into 'into'
+159.89   fifth link click: 0.01 s before 'one'
+162.65   showcase tick: 0.05 s after the money chime starts: the chime carries that moment
 
 Sounds (all CC0 1.0; credit given voluntarily)
 "Classic Click" by adh.dreaming: https://freesound.org/people/adh.dreaming/sounds/671105/  [sfx/cc0-click.ogg]
@@ -99,7 +121,6 @@ Sounds (all CC0 1.0; credit given voluntarily)
 "glass_001 (Interface Sounds)" by Kenney: https://kenney.nl/assets/interface-sounds  [sfx/cc0-kenney-interface-glass-001.ogg]
 "glass_002 (Interface Sounds)" by Kenney: https://kenney.nl/assets/interface-sounds  [sfx/cc0-kenney-interface-glass-002.ogg]
 "pluck_001 (Interface Sounds)" by Kenney: https://kenney.nl/assets/interface-sounds  [sfx/cc0-kenney-interface-pluck-001.ogg]
-"pluck_002 (Interface Sounds)" by Kenney: https://kenney.nl/assets/interface-sounds  [sfx/cc0-kenney-interface-pluck-002.ogg]
 "rollover2 (UI Audio)" by Kenney: https://kenney.nl/assets/ui-audio  [sfx/cc0-kenney-ui-rollover2.ogg]
 "scroll_001 (Interface Sounds)" by Kenney: https://kenney.nl/assets/interface-sounds  [sfx/cc0-kenney-interface-scroll-001.ogg]
 "select_001 (Interface Sounds)" by Kenney: https://kenney.nl/assets/interface-sounds  [sfx/cc0-kenney-interface-select-001.ogg]
@@ -107,6 +128,7 @@ Sounds (all CC0 1.0; credit given voluntarily)
 "swipe" by LilMati: https://freesound.org/people/LilMati/sounds/702773/  [sfx/cc0-fs-702773-swipe-wav.ogg]
 "Click Tick" by malle99: https://freesound.org/people/malle99/sounds/384187/  [sfx/cc0-fs384187.ogg]
 "soft_impact3" by peoplearehappy: https://freesound.org/people/peoplearehappy/sounds/841274/  [sfx/cc0-impact.ogg]
+"Whoosh" by qubodup: https://freesound.org/people/qubodup/sounds/60013/  [sfx/cc0-whoosh.ogg]
 "Pop-in SFX" by Sadiquecat: https://freesound.org/people/Sadiquecat/sounds/824189/  [sfx/cc0-fs-824189-pop-in-sfx.ogg]
 "Freesound 745291 (a light tap)" by SamsterBirdies: https://freesound.org/people/SamsterBirdies/sounds/745291/  [sfx/cc0-fs745291.ogg]
 "Click / Tick" by Squirrel_404: https://freesound.org/people/Squirrel_404/sounds/683048/  [sfx/cc0-tick.ogg]

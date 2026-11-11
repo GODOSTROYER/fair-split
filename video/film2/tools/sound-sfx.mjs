@@ -87,10 +87,12 @@ for (const [id, s] of Object.entries(words.sections)) {
 const voicePower = kPower(voice, 1).map((p) => 2 * p); // the voice plays in both channels
 const spoken = (list) => list.filter((v) => v > -40).sort((a, b) => a - b);
 const p95 = (list) => list[Math.floor(list.length * 0.95)];
-const REF = {
+const MEASURED = {
   momentary: r2(p95(spoken(windows(voicePower, 0.4)))),
   short: r2(p95(spoken(windows(voicePower, 0.05)))),
 };
+// (a sheet may pin the reference of an approved mix, so a retimed film keeps exactly the approved levels)
+const REF = sheet.voiceReference ?? MEASURED;
 
 // ----------------------------------------------------------------------------------------------- the kit's files
 const manifest = JSON.parse(readFileSync(join(kit, "manifest.json"), "utf8"));
@@ -235,7 +237,7 @@ writeFileSync(
   new URL("sfx.json", audio),
   `${JSON.stringify({ duration: words.duration, voiceReference: REF, peakDbfs: r2(20 * Math.log10(top)), cues: rows, dropped: sheet.dropped ?? [], sounds: credits.map(({ samples, ...s }) => s) }, null, 2)}\n`,
 );
-console.log(`voice reference ${JSON.stringify(REF)}`);
+console.log(`voice reference ${JSON.stringify(REF)} (measured now: ${JSON.stringify(MEASURED)})`);
 for (const r of rows)
   console.log(
     `${r.at.toFixed(2).padStart(7)}  ${r.id.padEnd(18)} gain ${String(r.gainDb).padStart(6)} dB  peak ${String(r.peakDbfs).padStart(6)}  400ms ${String(r.momentaryLufs).padStart(6)}  50ms ${String(r.shortLufs).padStart(6)}  under ${String(r.underVoiceDb).padStart(5)} (${r.limitedBy})  voice near ${r.voiceNearLufs ?? "-"}`,

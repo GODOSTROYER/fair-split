@@ -10,7 +10,7 @@
     "truePeak": -1.5,
     "rate": 48000
   },
-  "requests": 18,
+  "requests": 25,
   "sections": [
     {
       "section": "s1",
@@ -175,20 +175,20 @@
     {
       "section": "s3",
       "file": "s3.m4a",
-      "sha256": "32c4271dfaa2567772b48cc4e28ecf1d133503e7c0ba42c992862e0eb437e937",
+      "sha256": "e509b2d7d26d23c87d3c221094ed7697673e7026d4c9ee7a20f27091b589f290",
       "use": [
         {
           "unit": "s3",
           "take": 1
         }
       ],
-      "clip": [38, 55],
+      "clip": [38, 53.6],
       "speech": [38.5, 53.19],
       "words": 34,
       "wpm": 138.9,
       "rawWpm": 145.7,
-      "air": [0.4, 1.56],
-      "airToWords": [0.5, 1.81],
+      "air": [0.4, 0.16],
+      "airToWords": [0.5, 0.41],
       "loudness": {
         "lufs": -16.1,
         "truePeak": -2.3
@@ -270,7 +270,7 @@
     {
       "section": "s4",
       "file": "s4.m4a",
-      "sha256": "d5051931e7e547a6c1f123ae3aeae31ab6adfabd00d0f3f81447ad400659ed35",
+      "sha256": "f6089a010725729fbbb86f27bb320dbe5e3ba498f39f06adaebdff00a655e16d",
       "use": [
         {
           "unit": "s4_0-1",
@@ -299,16 +299,16 @@
           "take": 1
         }
       ],
-      "clip": [55, 109],
-      "speech": [55.5, 105.74],
+      "clip": [53.6, 102],
+      "speech": [54.1, 100.84],
       "words": 115,
-      "wpm": 137.3,
+      "wpm": 147.6,
       "rawWpm": 147.5,
-      "air": [0.4, 3.01],
-      "airToWords": [0.5, 3.26],
+      "air": [0.4, 0.91],
+      "airToWords": [0.5, 1.16],
       "loudness": {
         "lufs": -16.1,
-        "truePeak": -1.9
+        "truePeak": -2.1
       },
       "pace": "even, clear and unhurried, about 130 words a minute, the same calm pace from the first word to the last, never speeding up; each paragraph is one step of a demo: a short pause at every full stop and a longer pause, about half a second, between paragraphs; say 'Nang Celing' as nahng seh-LING and peso as PAY-so; in 'what it can't explain' stress the word can't and sound its final t clearly",
       "pauses": [
@@ -317,7 +317,7 @@
           "kind": "para",
           "at": 3.095,
           "was": 1.17,
-          "now": 1.2
+          "now": 0.7
         },
         {
           "after": "slip,",
@@ -352,7 +352,7 @@
           "kind": "para",
           "at": 8.86,
           "was": 0.54,
-          "now": 1.2
+          "now": 0.7
         },
         {
           "after": "AI,",
@@ -380,7 +380,7 @@
           "kind": "para",
           "at": 15.325,
           "was": 0.89,
-          "now": 1.2
+          "now": 0.7
         },
         {
           "after": "twice:",
@@ -408,7 +408,7 @@
           "kind": "para",
           "at": 23.99,
           "was": 0.54,
-          "now": 1.2
+          "now": 0.7
         },
         {
           "after": "batch:",
@@ -429,7 +429,7 @@
           "kind": "para",
           "at": 29.84,
           "was": 0.82,
-          "now": 1.2
+          "now": 0.7
         },
         {
           "after": "account.",
@@ -450,7 +450,7 @@
           "kind": "para",
           "at": 35.9,
           "was": 0.54,
-          "now": 1.2
+          "now": 0.7
         },
         {
           "after": "language,",
@@ -471,7 +471,7 @@
           "kind": "para",
           "at": 43.715,
           "was": 1.05,
-          "now": 1.2
+          "now": 0.7
         },
         {
           "after": "line,",
@@ -520,23 +520,23 @@
     {
       "section": "s5",
       "file": "s5.m4a",
-      "sha256": "196fd4532502f567fff0cf5fc15a6fe2f1ba8edc86ffae2038ecf265955c0fcd",
+      "sha256": "71e1ae54892a447fdbd519b64a6769318ebc09cf975a5512cd8a833ce7ae2c4c",
       "use": [
         {
           "unit": "s5",
           "take": 1
         }
       ],
-      "clip": [109, 120],
-      "speech": [109.5, 118.65],
+      "clip": [102, 112],
+      "speech": [102.4, 111.55],
       "words": 20,
       "wpm": 131.1,
       "rawWpm": 132.6,
-      "air": [0.4, 1.1],
-      "airToWords": [0.5, 1.35],
+      "air": [0.3, 0.2],
+      "airToWords": [0.4, 0.45],
       "loudness": {
         "lufs": -16.2,
-        "truePeak": -2.3
+        "truePeak": -2
       },
       "pace": "steady, about 130 words a minute; a short pause after 'Before' and after 'Now', and at every full stop",
       "pauses": [
@@ -594,177 +594,273 @@
     {
       "section": "s6",
       "file": "s6.m4a",
-      "sha256": "89da5131c10e95907d2c9380e5b1a51613e8bb0fe6e7801e7e64094ee7ea713b",
+      "sha256": "3366aab75573434923784658f2a6d32af2e6fdcbe4aad47fa6913bef1aff6b45",
       "use": [
         {
-          "unit": "s6",
+          "unit": "s6_0-2",
+          "take": 3,
+          "say": "Under the hood, it starts simple: paper in, pay out."
+        },
+        {
+          "unit": "s6_1-1",
+          "take": 1
+        },
+        {
+          "unit": "s6_0-2",
+          "take": 3,
+          "say": "First, AI reads. Claude reads each slip twice, and code compares the readings."
+        },
+        {
+          "unit": "s6_3-4",
+          "take": 2
+        },
+        {
+          "unit": "s6_5-6",
           "take": 1
         }
       ],
-      "clip": [120, 158],
-      "speech": [120.5, 155.1],
-      "words": 74,
-      "wpm": 128.3,
-      "rawWpm": 132.6,
-      "air": [0.4, 2.65],
-      "airToWords": [0.5, 2.9],
+      "clip": [112, 166],
+      "speech": [112.5, 160.6],
+      "words": 99,
+      "wpm": 123.5,
+      "rawWpm": 121.8,
+      "air": [0.4, 5.15],
+      "airToWords": [0.5, 5.4],
       "loudness": {
-        "lufs": -16.2,
-        "truePeak": -2.1
+        "lufs": -16.1,
+        "truePeak": -2.2
       },
-      "pace": "steady, exact and unhurried, about 130 words a minute, the same calm pace from the first word to the last, never speeding up; a short pause at every full stop and a longer pause, about half a second, before 'One', 'Two', 'Three' and 'Four'; say AI as the letters A, I",
+      "pace": "steady and exact, about 135 words a minute, the same calm pace from the first word to the last, never speeding up; a short pause at every full stop and a longer pause, about half a second, between paragraphs; say AI as the letters A, I",
       "pauses": [
         {
           "after": "hood,",
           "kind": "comma",
-          "at": 1.135,
-          "was": 0.33,
-          "now": 0.33
+          "at": 1.04,
+          "was": 0.28,
+          "now": 0.243
         },
         {
-          "after": "rules.",
-          "kind": "para",
-          "at": 2.51,
-          "was": 0.72,
-          "now": 0.931
-        },
-        {
-          "after": "One:",
+          "after": "simple:",
           "kind": "colon",
-          "at": 3.41,
-          "was": 0.52,
-          "now": 0.52
+          "at": 2.265,
+          "was": 0.55,
+          "now": 0.469
+        },
+        {
+          "after": "in,",
+          "kind": "comma",
+          "at": 3.285,
+          "was": 0.37,
+          "now": 0.315
+        },
+        {
+          "after": "out.",
+          "kind": "para",
+          "at": 4.27,
+          "was": 0.74,
+          "now": 0.6
+        },
+        {
+          "after": "between.",
+          "kind": "para",
+          "at": 6.735,
+          "was": 0.73,
+          "now": 0.9
+        },
+        {
+          "after": "First,",
+          "kind": "comma",
+          "at": 7.635,
+          "was": 0.33,
+          "now": 0.283
         },
         {
           "after": "reads.",
           "kind": "sentence",
-          "at": 5.24,
-          "was": 0.46,
-          "now": 0.699
+          "at": 9.02,
+          "was": 0.64,
+          "now": 0.567
         },
         {
-          "after": "data,",
+          "after": "twice,",
           "kind": "comma",
-          "at": 7.33,
-          "was": 0.38,
-          "now": 0.38
+          "at": 11.21,
+          "was": 0.28,
+          "now": 0.243
         },
         {
-          "after": "number.",
+          "after": "readings.",
           "kind": "para",
-          "at": 9.09,
-          "was": 0.92,
-          "now": 0.931
+          "at": 13.005,
+          "was": 0.51,
+          "now": 0.9
         },
         {
-          "after": "Two:",
-          "kind": "colon",
-          "at": 10.07,
-          "was": 0.42,
-          "now": 0.42
-        },
-        {
-          "after": "math,",
+          "after": "Second,",
           "kind": "comma",
-          "at": 11.73,
-          "was": 0.44,
-          "now": 0.44
+          "at": 13.945,
+          "was": 0.29,
+          "now": 0.251
+        },
+        {
+          "after": "computes:",
+          "kind": "colon",
+          "at": 15.38,
+          "was": 0.48,
+          "now": 0.413
+        },
+        {
+          "after": "cents,",
+          "kind": "comma",
+          "at": 17.52,
+          "was": 0.36,
+          "now": 0.307
         },
         {
           "after": "season.",
           "kind": "para",
-          "at": 14.145,
-          "was": 0.87,
-          "now": 0.931
+          "at": 20.7,
+          "was": 0.92,
+          "now": 0.9
         },
         {
-          "after": "Three:",
-          "kind": "colon",
-          "at": 15.125,
-          "was": 0.41,
-          "now": 0.41
+          "after": "Third,",
+          "kind": "comma",
+          "at": 21.81,
+          "was": 0.4,
+          "now": 0.339
         },
         {
           "after": "approve.",
           "kind": "sentence",
-          "at": 16.55,
-          "was": 0.62,
-          "now": 0.859
+          "at": 22.955,
+          "was": 0.59,
+          "now": 0.551
         },
         {
-          "after": "batch.",
-          "kind": "para",
-          "at": 19.765,
-          "was": 0.81,
-          "now": 0.931
+          "after": "batch,",
+          "kind": "comma",
+          "at": 26.39,
+          "was": 0.34,
+          "now": 0.291
         },
         {
-          "after": "Four:",
-          "kind": "colon",
-          "at": 20.7,
-          "was": 0.46,
-          "now": 0.46
-        },
-        {
-          "after": "money.",
+          "after": "paying.",
           "kind": "sentence",
-          "at": 22.495,
-          "was": 0.75,
-          "now": 0.989
+          "at": 29.065,
+          "was": 0.71,
+          "now": 0.623
         },
         {
-          "after": "Toolkit;",
+          "after": "signatures.",
+          "kind": "para",
+          "at": 32.33,
+          "was": 0.8,
+          "now": 0.9
+        },
+        {
+          "after": "Fourth,",
+          "kind": "comma",
+          "at": 33.4,
+          "was": 0.36,
+          "now": 0.307
+        },
+        {
+          "after": "pays:",
           "kind": "colon",
-          "at": 25.3,
-          "was": 0.5,
-          "now": 0.5
+          "at": 34.935,
+          "was": 0.63,
+          "now": 0.532
+        },
+        {
+          "after": "Toolkit,",
+          "kind": "comma",
+          "at": 37.63,
+          "was": 0.66,
+          "now": 0.546
         },
         {
           "after": "tool,",
           "kind": "comma",
-          "at": 26.95,
-          "was": 0.38,
-          "now": 0.38
+          "at": 40.205,
+          "was": 0.55,
+          "now": 0.459
+        },
+        {
+          "after": "first,",
+          "kind": "comma",
+          "at": 41.535,
+          "was": 0.41,
+          "now": 0.347
         },
         {
           "after": "once,",
           "kind": "comma",
-          "at": 28.41,
-          "was": 0.3,
-          "now": 0.3
+          "at": 43.195,
+          "was": 0.49,
+          "now": 0.411
         },
         {
-          "after": "notices.",
+          "after": "webhooks.",
           "kind": "para",
-          "at": 30.805,
-          "was": 0.93,
-          "now": 0.931
+          "at": 45.595,
+          "was": 0.79,
+          "now": 0.9
+        },
+        {
+          "after": "Underneath,",
+          "kind": "comma",
+          "at": 46.685,
+          "was": 0.39,
+          "now": 0.331
         }
       ],
       "alignment": {
         "source": "local transcript (openai-whisper small, word timestamps), offline",
         "characterErrorRate": 0,
-        "heard": "Under the hood, four rules. One, AI only reads. Claude turns slips into data and never touches a number. Two, code does the math. Under rules sealed before the season. Three, people approve. Two signatures lock one fingerprint of the batch. Four, PayPal moves the money. The invoice goes through PayPal's agent toolkit, payouts through our own tool, sent exactly once, and confirmed by signed notices. Every step is chained into a tamper -evident record.",
-        "questioned": []
+        "heard": "Under the hood, it starts simple. Paper in, pay out. Four stages sit between. First, AI reads. Claude reads each slip twice, and code compares the readings. Second, code computes every share in whole cents under a rate card hashed before the season. Third, people approve. Two officers sign one fingerprint of the batch, and the server recomputes it before paying. One changed cent voids both signatures. Fourth, PayPal pays. The invoice through PayPal's agent toolkit payouts through our own typed tool, saved first, sent exactly once, confirmed by signed webhooks. Underneath, every step is chained into one ledger.",
+        "questioned": [
+          {
+            "k": 28,
+            "w": "code",
+            "heard": "code",
+            "probability": 0.448,
+            "same": true
+          },
+          {
+            "k": 30,
+            "w": "every",
+            "heard": "every",
+            "probability": 0.125,
+            "same": true
+          },
+          {
+            "k": 34,
+            "w": "cents,",
+            "heard": "cents",
+            "probability": 0.433,
+            "same": true
+          }
+        ]
       }
     },
     {
       "section": "s7",
       "file": "s7.m4a",
-      "sha256": "6f8f0b78a4e4cc21c7bcd42ef91a61099d6c72d01c84298c1ce1ba8c5d06c9cc",
+      "sha256": "ae449f209d2005885461d5b3f96534ece176d9da08b2c2e297487f9b5899a571",
       "use": [
         {
           "unit": "s7",
           "take": 1
         }
       ],
-      "clip": [158, 175],
-      "speech": [158.5, 171.57],
+      "clip": [166, 179],
+      "speech": [166.4, 177.72],
       "words": 25,
-      "wpm": 114.8,
+      "wpm": 132.5,
       "rawWpm": 114.9,
-      "air": [0.4, 3.18],
-      "airToWords": [0.5, 3.43],
+      "air": [0.3, 1.03],
+      "airToWords": [0.4, 1.28],
       "loudness": {
         "lufs": -16.2,
         "truePeak": -2.3
@@ -783,35 +879,35 @@
           "kind": "colon",
           "at": 2.755,
           "was": 0.57,
-          "now": 0.57
+          "now": 0.35
         },
         {
           "after": "synthetic.",
           "kind": "sentence",
           "at": 6.87,
           "was": 0.84,
-          "now": 0.85
+          "now": 0.42
         },
         {
           "after": "real.",
           "kind": "para",
           "at": 9.64,
           "was": 1.56,
-          "now": 1.57
+          "now": 0.75
         },
         {
           "after": "Split.",
           "kind": "para",
           "at": 11.34,
           "was": 0.8,
-          "now": 0.8
+          "now": 0.6
         },
         {
           "after": "peso,",
           "kind": "comma",
           "at": 12.71,
           "was": 0.38,
-          "now": 0.38
+          "now": 0.3
         }
       ],
       "alignment": {

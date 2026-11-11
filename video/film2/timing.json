@@ -1,7 +1,10 @@
 {
   "version": 1,
-  "duration": 175,
-  "canvas": { "width": 1920, "height": 1080 },
+  "duration": 179,
+  "canvas": {
+    "width": 1920,
+    "height": 1080
+  },
   "fps": 30,
   "outputScale": 2,
   "sections": [
@@ -29,7 +32,7 @@
       "file": "compositions/s3-solution.html",
       "title": "Solution and vision",
       "start": 38,
-      "duration": 17,
+      "duration": 15.6,
       "owner": "SCENES A"
     },
     {
@@ -37,8 +40,8 @@
       "composition": "s4-demo",
       "file": "compositions/s4-demo.html",
       "title": "Working today",
-      "start": 55,
-      "duration": 54,
+      "start": 53.6,
+      "duration": 48.4,
       "owner": "SCENES B"
     },
     {
@@ -46,8 +49,8 @@
       "composition": "s5-compare",
       "file": "compositions/s5-compare.html",
       "title": "Before and now",
-      "start": 109,
-      "duration": 11,
+      "start": 102,
+      "duration": 10,
       "owner": "SCENES C"
     },
     {
@@ -55,8 +58,8 @@
       "composition": "s6-architecture",
       "file": "compositions/s6-architecture.html",
       "title": "Under the hood",
-      "start": 120,
-      "duration": 38,
+      "start": 112,
+      "duration": 54,
       "owner": "SCENES C"
     },
     {
@@ -64,8 +67,8 @@
       "composition": "s7-close",
       "file": "compositions/s7-close.html",
       "title": "Close",
-      "start": 158,
-      "duration": 17,
+      "start": 166,
+      "duration": 13,
       "owner": "SCENES C"
     }
   ],

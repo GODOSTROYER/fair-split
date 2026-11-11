@@ -1,6 +1,7 @@
-// Film v7 music bed (175.0 s): Scott Buckley's "Machina" under sections 1-2, a clean cut at 38.0 s into "Aurora"
+// Film v7 music bed (the film's length): Scott Buckley's "Machina" under sections 1-2, a clean cut at 38.0 s into "Aurora"
 // (its build arriving on the cut), Aurora's calm tail under section 6, and Aurora's last crest landing where the
-// narrator says the final "Fair Split.", ringing out to 175.0. CC BY 4.0, credited in audio/CREDITS.txt and on the
+// narrator says the final "Fair Split.", ringing out to the end. In the retimed film (179.0 s) the calm tail also
+// lifts gently for 2.5 s once section 6's voice has ended, while the finished diagram runs, and settles. CC BY 4.0, credited in audio/CREDITS.txt and on the
 // end card; the MP3s live in a cache outside the repo (video/tools/fetch-music.mjs) and the bed is git-ignored.
 // Cuts, fades and one level per piece only (plus one accent: Aurora enters 3.5 dB up and settles over 2.5 s, so the
 // cut at 38.0 reads as a hit): nothing is layered, retimed or re-pitched.
@@ -28,8 +29,10 @@ export const MACHINA = { from: 1.5 };
 
 export function pieces() {
   const turn = words.sections.s3.start; // 38.0: the cut, 0.4 s before the narrator's "Fair Split"
-  const hood = words.sections.s6.start; // 124
-  const close = words.sections.s7.start; // 160
+  const hood = words.sections.s6.start; // 112
+  const close = words.sections.s7.start; // 166
+  // the finished diagram runs without voice from here (the director's 160.0; never before the last word)
+  const runs = Math.max(160, Math.ceil(words.sections.s6.speech[1] * 10) / 10);
   const last = words.marks.fairSplitFinal.start; // the final "Fair Split."
   const liftFrom = close - 1.5;
   return [
@@ -49,6 +52,7 @@ export function pieces() {
       src: AURORA.arrival,
       fade: [0.012, 2.0],
       lufs: -20.5,
+      ref: [AURORA.arrival, 82.9], // levelled on the same stretch as the approved 175 s bed, so it is unchanged
       accent: { db: 3.5, seconds: 2.5 },
       why: `Cut in on Aurora's arrival (track ${AURORA.arrival} s) at ${turn} s, ahead of the narrator's "Fair Split" (${words.marks.fairSplit.start} s); bright under the solution, the demo and the comparison.`,
     },
@@ -59,15 +63,19 @@ export function pieces() {
       src: AURORA.calm,
       fade: [2.0, 2.5],
       lufs: -25,
-      why: "Aurora's calm, glittering tail, lower, under the architecture.",
+      ref: [AURORA.calm, 40.1],
+      lift: { from: runs, up: 1.0, hold: 0.7, down: 0.8, db: 5 },
+      why: `Aurora's calm, glittering tail, lower, under the architecture; from ${runs} s it lifts 5 dB over 1.0 s, holds 0.7 s and settles by ${r3(runs + 2.5)} s (a gentle rise while the finished diagram runs, not a hit).`,
     },
     {
       id: "aurora-final",
       track: "aurora",
       film: [liftFrom, FILM],
       src: AURORA.crest - (last - liftFrom),
-      fade: [2.5, 2.0],
+      // (the last word ends about 1.3 s before the film does: a short fade, so the crest still rings after it)
+      fade: [2.5, 1.2],
       lufs: -20,
+      ref: [287.8, 18.5],
       why: `The last build: Aurora's final crest (track ${AURORA.crest} s) lands on the last "Fair Split." (${last} s) and rings out to ${FILM} s.`,
     },
   ].map((p) => ({ ...p, film: p.film.map(r3), src: r3(p.src) }));
@@ -95,10 +103,10 @@ for (const track of TRACKS) {
 }
 const list = pieces();
 for (const piece of list) {
-  const length = piece.film[1] - piece.film[0];
+  const length = piece.ref?.[1] ?? piece.film[1] - piece.film[0];
   const log = ffmpeg([
     "-ss",
-    String(piece.src),
+    String(piece.ref?.[0] ?? piece.src),
     "-t",
     String(length),
     "-i",
@@ -112,13 +120,21 @@ for (const piece of list) {
   piece.measured = integrated(log);
   piece.gain = r3(piece.lufs - piece.measured);
 }
+/** A level rise and fall on one piece: up over `up` s from film `from`, held, back down (a volume envelope). */
+function lift(piece) {
+  if (!piece.lift) return "";
+  const { from, up, hold, down, db } = piece.lift;
+  const a = r3(from - piece.film[0]);
+  const end = r3(a + up + hold + down);
+  return `volume='pow(10,${db}*min(1,max(0,(t-${a})/${up}))*min(1,max(0,(${end}-t)/${down}))/20)':eval=frame,`;
+}
 const index = Object.keys(files);
 const inputs = Object.values(files).flatMap((path) => ["-i", path]);
 const chains = list.map((piece, i) => {
   const length = r3(piece.film[1] - piece.film[0]);
   const [fin, fout] = piece.fade;
   const delay = Math.round(piece.film[0] * 1000);
-  return `[${index.indexOf(piece.track)}:a]atrim=start=${piece.src}:duration=${length},asetpts=PTS-STARTPTS,aresample=48000:resampler=soxr,aformat=channel_layouts=stereo,volume=${piece.gain}dB,${piece.accent ? `volume='pow(10,${piece.accent.db}*max(0,1-t/${piece.accent.seconds})/20)':eval=frame,` : ""}afade=t=in:d=${fin}:curve=qsin,afade=t=out:st=${r3(length - fout)}:d=${fout}:curve=qsin,adelay=${delay}|${delay}[p${i}]`;
+  return `[${index.indexOf(piece.track)}:a]atrim=start=${piece.src}:duration=${length},asetpts=PTS-STARTPTS,aresample=48000:resampler=soxr,aformat=channel_layouts=stereo,volume=${piece.gain}dB,${piece.accent ? `volume='pow(10,${piece.accent.db}*max(0,1-t/${piece.accent.seconds})/20)':eval=frame,` : ""}${lift(piece)}afade=t=in:d=${fin}:curve=qsin,afade=t=out:st=${r3(length - fout)}:d=${fout}:curve=qsin,adelay=${delay}|${delay}[p${i}]`;
 });
 const graph = `${chains.join(";")};${list.map((_, i) => `[p${i}]`).join("")}amix=inputs=${list.length}:normalize=0:dropout_transition=0,apad,atrim=duration=${FILM}[bed]`;
 const wav = fileURLToPath(new URL("music-bed.wav", audio));

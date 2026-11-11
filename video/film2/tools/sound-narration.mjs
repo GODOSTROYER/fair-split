@@ -33,7 +33,9 @@ const [takesDir, asrDir] = args.filter((a) => !a.startsWith("--")).map((a) => re
 if (!takesDir || !asrDir) throw new Error("usage: sound-narration.mjs <takes-dir> <asr-dir> [--check]");
 const r3 = (v) => Math.round(v * 1000) / 1000;
 const spoken = (say) => say.split(/\s+/).filter((word) => /[\p{L}\p{N}]/u.test(word));
-const FILM = 175;
+const FILM = takes.duration;
+// --keep s1,s2: sections whose clips are left exactly as they are on disk (their words must not have moved)
+const keep = new Set((args.find((a) => a.startsWith("--keep="))?.slice(7) ?? "").split(",").filter(Boolean));
 
 function ffmpeg(a) {
   const run = spawnSync(FFMPEG, ["-hide_banner", "-nostats", "-y", ...a], {
@@ -408,9 +410,11 @@ function fit(loaded) {
   // the air is measured to the clip's audible ends: 0.10 s of lead-in before the first word and 0.25 s of tail
   const [LEAD, TAIL] = [0.1, 0.25];
   // (`endBy`: the film second the last word must have ended by, when the picture needs the time after it)
+  // (a section may state its own air: the retimed film's windows were drawn round takes that already existed)
+  const air = { start: cfg.airStart ?? takes.air.start, end: cfg.airEnd ?? takes.air.end };
   const budget = Math.min(
-    section.window[1] - section.window[0] - takes.air.start - takes.air.end - LEAD - TAIL,
-    (cfg.endBy ?? Number.POSITIVE_INFINITY) - (section.window[0] + takes.air.start + LEAD),
+    section.window[1] - section.window[0] - air.start - air.end - LEAD - TAIL,
+    (cfg.endBy ?? Number.POSITIVE_INFINITY) - (section.window[0] + air.start + LEAD),
   );
   for (const p of pauses) {
     p.want =
@@ -422,26 +426,41 @@ function fit(loaded) {
     if (p.kind === "sentence" && p.nat + p.extra > cfg.sentenceKeep)
       p.want = Math.max(0.05, cfg.sentenceKeep - p.extra);
   }
+  // `set`: pauses given outright, by the word they follow ("copy." or "Split.#2" for its second occurrence): the
+  // gaps between a section's lines, or a section whose placement is kept from an earlier build. They are not
+  // touched by the fitting below; `frozen` leaves every other pause as the voice made it.
+  for (const [key, seconds] of Object.entries(cfg.set ?? {})) {
+    const [token, nth = "1"] = key.split("#");
+    const ks = script.map((w, k) => (w === token ? k : -1)).filter((k) => k >= 0);
+    const k = ks[Number(nth) - 1];
+    const p = pauses.filter((x) => x.k === k && x.kind !== "inner").sort((x, y) => y.nat - x.nat)[0];
+    if (k === undefined || !p) throw new Error(`${id}: no pause after "${key}" to set`);
+    p.want = Math.max(0.03, seconds - p.extra);
+    p.fixed = true;
+  }
+  const floorOf = (p) => (p.fixed ? p.want : (FLOOR[p.kind] ?? p.want));
   const voiced = raw.speech[1] - raw.speech[0] - pauses.reduce((s, p) => s + p.nat, 0);
   const length = () => voiced + pauses.reduce((s, p) => s + p.want, 0);
   let over = length() - budget;
-  if (over > 0) {
+  if (cfg.frozen) {
+    // placed as recorded and as set: nothing is fitted
+  } else if (over > 0) {
     // too long: every pause gives up the same share of what it has above its floor
-    const room = pauses.reduce((s, p) => s + Math.max(0, p.want - (FLOOR[p.kind] ?? p.want)), 0);
+    const room = pauses.reduce((s, p) => s + Math.max(0, p.want - floorOf(p)), 0);
     const take = Math.min(1, over / (room || 1));
-    for (const p of pauses) p.want -= Math.max(0, p.want - (FLOOR[p.kind] ?? p.want)) * take;
+    for (const p of pauses) p.want -= Math.max(0, p.want - floorOf(p)) * take;
     over = length() - budget;
   } else {
     // room to spare: first the gaps between paragraphs (the demo's lines, the rules), then the full stops; what is
     // left stays as air at the end
     let slack = -over - cfg.endAirExtra;
-    const paras = pauses.filter((p) => p.kind === "para" && !cfg.anchor);
+    const paras = pauses.filter((p) => p.kind === "para" && !cfg.anchor && !p.fixed);
     if (paras.length && slack > 0) {
       const each = Math.min(cfg.paraMax - cfg.paraMin, (slack * cfg.paraShare) / paras.length);
       for (const p of paras) p.want += each;
       slack -= each * paras.length;
     }
-    const stops = pauses.filter((p) => p.kind === "sentence");
+    const stops = pauses.filter((p) => p.kind === "sentence" && !p.fixed);
     for (let pass = 0; pass < 4 && slack > 0.01 && stops.length; pass++) {
       const open = stops.filter((p) => p.want + p.extra < cfg.sentenceMax - 1e-6);
       if (!open.length) break;
@@ -454,7 +473,7 @@ function fit(loaded) {
     }
   }
   // an anchored paragraph (the last "Fair Split."): the pause before it grows until its first word is on its time
-  const start = section.window[0] + takes.air.start + LEAD;
+  const start = section.window[0] + air.start + LEAD;
   const filmAt = (t) =>
     start +
     (t - raw.speech[0]) +
@@ -544,8 +563,8 @@ function fit(loaded) {
   // the clip is the whole window: clip time 0 is the section's start (the lead's index.html plays it that way), with
   // silence for the air before the first sound and after the last
   const clip = new Int16Array(Math.round((section.window[1] - section.window[0]) * rate));
-  const lead = Math.round(takes.air.start * rate);
-  if (lead + (to - from) > clip.length - Math.round(takes.air.end * rate) + 1 && fits)
+  const lead = Math.round(air.start * rate);
+  if (lead + (to - from) > clip.length - Math.round(air.end * rate) + 1 && fits)
     throw new Error(`${id}: the take does not sit inside its window`);
   const piece = samples.slice(from, Math.min(to, from + clip.length - lead));
   // the take's own floor comes in and goes out over its lead-in and tail, so nothing sounds inside the air
@@ -767,9 +786,27 @@ const manifest = {
 // (relative to audio/, clip time 0 = start), words: [{ w, start, end, line? }] }, film seconds; plus, for sound and
 // scenes, `speech` (first and last sound), `lines` (section 4's 4a-4h, section 6's one-four) and `marks`.
 const out = { version: 1, unit: "film seconds", duration: FILM, measured: true, sections: {}, marks: {} };
+const before = {
+  manifest: existsSync(new URL("manifest.json", dir))
+    ? JSON.parse(readFileSync(new URL("manifest.json", dir), "utf8"))
+    : null,
+  words: existsSync(new URL("words.json", audio))
+    ? JSON.parse(readFileSync(new URL("words.json", audio), "utf8"))
+    : null,
+};
+function kept(f) {
+  const was = before.manifest?.sections.find((s) => s.section === f.id);
+  if (!was || JSON.stringify(before.words?.sections[f.id]?.words) !== JSON.stringify(f.words))
+    throw new Error(`${f.id}: cannot be kept, its words have moved`);
+  const sha256 = createHash("sha256")
+    .update(readFileSync(new URL(was.file, dir)))
+    .digest("hex");
+  if (sha256 !== was.sha256) throw new Error(`${f.id}: the clip on disk is not the one in the manifest`);
+  return { file: was.file, lufs: was.loudness.lufs, peak: was.loudness.truePeak, sha256, kept: true };
+}
 for (const f of fitted) {
   const section = takes.sections[f.id];
-  const enc = encode(f);
+  const enc = keep.has(f.id) ? kept(f) : encode(f);
   const n = f.words.length;
   const lines = {};
   (section.lines ?? []).forEach((name, p) => {
@@ -808,7 +845,9 @@ for (const f of fitted) {
       questioned: f.questioned,
     },
   });
-  console.log(`${f.id}: ${enc.file}  clip ${f.clipStart}-${f.clipEnd}  ${enc.lufs} LUFS  ${enc.peak} dBTP`);
+  console.log(
+    `${f.id}: ${enc.file}  clip ${f.clipStart}-${f.clipEnd}  ${enc.lufs} LUFS  ${enc.peak} dBTP${enc.kept ? "  (kept as it was)" : ""}`,
+  );
 }
 const s3 = out.sections.s3.words;
 const s7 = out.sections.s7.words;

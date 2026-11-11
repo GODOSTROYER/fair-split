@@ -1,9 +1,14 @@
 <!doctype html>
-<!-- Fair Split film v7, section 6: Under the hood, film 120 to 158 s (SCENES C).
-     One diagram that follows one slip through the system: a lane on top (slip, data, pay lines, signed, sent,
-     paid), four stages named for who does the work, a record strip, a foundation strip. Every name on it is from
-     research/film-1111/facts.md sections 7 and 8. The diagram is built by diagram() below; s7-close.html carries
-     the same function (copied verbatim between the DIAGRAM markers) so its first frame equals this section's last.
+<!-- Fair Split film v7, section 6: Under the hood, film 112 to 166 s (SCENES C).
+     One world, built in front of the viewer and then shown working. It starts with a slip, a payment and one line;
+     four stages hang from the line; the camera goes inside each stage while its line is spoken and the mechanism
+     builds on the narrator's phrases; it pulls back for the ledger and the foundation; then one slip runs through
+     the finished system (the showcase) and the frame holds still to the cut.
+     Every name, number and equation is from research/film-1111/pr1-architecture.html (PR #1's architecture page)
+     and research/film-1111/facts.md section 7. World coordinates are the finished frame's own pixels (1920 x 1080):
+     the camera only ever scales the world up, so type is always drawn at the size it is shown.
+     The world is built by diagram() below; its resting state is the finished frame. s7-close.html carries the
+     same function (copied verbatim between the DIAGRAM markers) so its first frame equals this section's last.
      Structure and rules: CONTRACT.md. -->
 <html lang="en">
   <head>
@@ -20,7 +25,7 @@
         }
       </style>
 
-      <div id="root" data-composition-id="s6-architecture" data-width="1920" data-height="1080" data-duration="38"></div>
+      <div id="root" data-composition-id="s6-architecture" data-width="1920" data-height="1080" data-duration="54"></div>
 
       <script>
         (() => {
@@ -28,49 +33,58 @@
           const diagram = (host, p) => {
             const NS = "http://www.w3.org/2000/svg";
             const INK = "#0e1525";
+            const MUTED = "#5b6475";
             const FAINT = "#c3cad6";
+            const HAIR = "#d9dee7";
             const INDIGO = "#4a2fd6";
-            const JADE = "#14cc90";
             const GROUND = "#f7f8fb";
-            // the grid: three 408 columns and the PayPal column at 504, 24 apart, inside 60 px margins
-            const COL = [
-              { x: 60, w: 408 },
-              { x: 492, w: 408 },
-              { x: 924, w: 408 },
-              { x: 1356, w: 504 },
-            ];
-            const LANE_Y = 210;
-            const CARD_Y = 272;
-            const HEAD_H = 92;
-            const ROW_H = 90;
-            const CARD_H = HEAD_H + ROW_H * 4 + 10;
-            const STRIP_Y = CARD_Y + CARD_H + 28;
-            const STRIP_H = 112;
-            const BASE_Y = STRIP_Y + STRIP_H + 18;
-            const BASE_H = 104;
-            // lane stops: the slip, then what leaves each stage (centred on the gaps), the request, the money
-            const G = { slip: 87, data: 480, pay: 912, seal: 1344, sent: 1672, paid: 1832 };
+            // the grid: four 444 columns, 16 apart, inside 48 px margins
+            const PX = [48, 508, 968, 1428];
+            const PW = 444;
+            const PY = 222;
+            const PH = 570;
+            const LY = 162; // the lane: paper in, pay out
+            const LEDGER_Y = 806;
+            const LEDGER_H = 110;
+            const BASE_Y = 928;
+            const BASE_H = 90;
+            const SW = 1824; // strip width
+            // lane stops: the slip, what leaves each stage (centred on the gaps), the request, the payment
+            const G = { slip: 75, data: 500, pay: 960, seal: 1420, sent: 1608, paid: 1800 };
 
             const css = `
-.${p}-abs{position:absolute;left:0;top:0;margin:0}
-.${p}-title{position:absolute;left:60px;top:66px;margin:0;font-size:40px;font-weight:650;line-height:1.1;letter-spacing:-0.02em;color:${INK};white-space:nowrap}
+.${p}-abs{position:absolute;left:0;top:0;margin:0;will-change:transform}
+.${p}-world{position:absolute;left:0;top:0;width:1920px;height:1080px;transform-origin:0 0}
+.${p}-world p,.${p}-world div{font-variant-numeric:lining-nums}
+.${p}-title{position:absolute;left:48px;top:36px;margin:0;font-size:34px;font-weight:650;line-height:40px;letter-spacing:-0.02em;color:${INK};white-space:nowrap}
+.${p}-more{position:absolute;right:48px;top:44px;margin:0;font-size:20px;font-weight:500;line-height:28px;color:${MUTED};white-space:nowrap}
+.${p}-more b{font-family:var(--font-mono);font-weight:400;font-size:19px}
 .${p}-line{position:absolute;height:2px;transform-origin:0 50%}
-.${p}-cap{position:absolute;width:200px;margin:0;text-align:center;font-size:24px;font-weight:520;line-height:30px;color:#5b6475;white-space:nowrap}
+.${p}-cap{position:absolute;width:200px;margin:0;text-align:center;font-size:22px;font-weight:520;line-height:28px;color:${MUTED};white-space:nowrap}
+.${p}-big{position:absolute;margin:0;font-size:56px;font-weight:680;line-height:64px;letter-spacing:-0.03em;color:${INK};white-space:nowrap}
 .${p}-node{position:absolute;left:0;top:0;width:0;height:0}
 .${p}-node svg{position:absolute;display:block;overflow:visible}
-.${p}-chip{position:absolute;left:-38px;top:-28px;width:76px;height:56px;background:#ffffff;border:1px solid #d9dee7;border-radius:10px}
-.${p}-chip b{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-size:26px;font-weight:400;line-height:1;color:${INK}}
+.${p}-chip{position:absolute;left:-38px;top:-28px;width:76px;height:56px;background:#ffffff;border:1px solid ${HAIR};border-radius:10px}
+.${p}-chip b{position:absolute;left:0;top:0;right:0;bottom:0;display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-size:26px;font-weight:400;line-height:1;color:${INK}}
 .${p}-card{position:absolute}
-.${p}-card-bg{position:absolute;left:0;top:0;right:0;bottom:0;background:#ffffff;border:1px solid #d9dee7;border-radius:16px}
-.${p}-head{position:absolute;left:24px;top:22px;margin:0;display:flex;align-items:baseline;gap:16px;font-size:40px;font-weight:680;line-height:52px;letter-spacing:-0.025em;color:${INK};white-space:nowrap}
+.${p}-card-bg{position:absolute;left:0;top:0;right:0;bottom:0;background:#ffffff;border:1px solid ${HAIR};border-radius:14px}
+.${p}-head{position:absolute;left:20px;top:13px;margin:0;display:flex;align-items:baseline;gap:12px;font-size:30px;font-weight:680;line-height:36px;letter-spacing:-0.025em;color:${INK};white-space:nowrap}
 .${p}-n{display:inline-block;color:${INDIGO}}
-.${p}-row{position:absolute;left:24px;right:24px;height:${ROW_H}px;border-top:1px solid #d9dee7;padding-top:13px}
-.${p}-l{margin:0;font-size:30px;font-weight:600;line-height:36px;letter-spacing:-0.01em;color:${INK};white-space:nowrap}
-.${p}-m{margin:1px 0 0;font-family:var(--font-mono);font-size:22px;font-weight:400;line-height:28px;word-spacing:-0.2em;color:#5b6475;white-space:nowrap}
-.${p}-strip{position:absolute;left:60px;width:1800px;border-radius:16px}
-.${p}-strip-bg{position:absolute;left:0;top:0;right:0;bottom:0;background:#ffffff;border:1px solid #d9dee7;border-radius:16px}
-.${p}-base-bg{position:absolute;left:0;top:0;right:0;bottom:0;border:1px solid ${FAINT};border-radius:16px}
-.${p}-cell{position:absolute;top:22px}
+.${p}-L,.${p}-Ls,.${p}-M,.${p}-N,.${p}-B,.${p}-L2,.${p}-M2{position:absolute;margin:0;white-space:nowrap}
+.${p}-L{font-size:15px;font-weight:600;line-height:20px;letter-spacing:-0.005em;color:${INK}}
+.${p}-Ls{font-size:15px;font-weight:500;line-height:20px;color:${MUTED}}
+.${p}-N{font-size:15px;font-weight:600;line-height:20px;color:${INK}}
+.${p}-B{font-size:19px;font-weight:650;line-height:24px;letter-spacing:-0.01em;color:${INK}}
+.${p}-M{font-family:var(--font-mono);font-size:11.6px;font-weight:400;line-height:16px;word-spacing:-0.2em;color:${MUTED}}
+.${p}-L2{font-size:26px;font-weight:650;line-height:32px;letter-spacing:-0.015em;color:${INK}}
+.${p}-M2{font-family:var(--font-mono);font-size:20px;font-weight:400;line-height:26px;word-spacing:-0.2em;color:${MUTED}}
+.${p}-box{position:absolute;background:${GROUND};border:1px solid ${HAIR};border-radius:8px}
+.${p}-hr{position:absolute;height:1px;background:${HAIR}}
+.${p}-vr{position:absolute;width:1px;background:${HAIR}}
+.${p}-strip{position:absolute;left:48px;width:${SW}px}
+.${p}-strip-bg{position:absolute;left:0;top:0;right:0;bottom:0;background:#ffffff;border:1px solid ${HAIR};border-radius:14px}
+.${p}-base-bg{position:absolute;left:0;top:0;right:0;bottom:0;border:1px solid ${FAINT};border-radius:14px}
+.${p}-hold{position:absolute}
 `;
             if (!document.getElementById(`${p}-diagram-style`)) {
               const style = document.createElement("style");
@@ -79,6 +93,7 @@
               document.head.appendChild(style);
             }
 
+            const px = (value) => `${value}px`;
             const el = (className, styles = {}, html = "") => {
               const node = document.createElement("div");
               node.className = className;
@@ -89,60 +104,48 @@
             const svg = (tag, attrs = {}, kids = []) => {
               const node = document.createElementNS(NS, tag);
               for (const [key, value] of Object.entries(attrs)) node.setAttribute(key, String(value));
-              for (const kid of kids) node.appendChild(kid);
+              for (const kid of kids) if (kid) node.appendChild(kid);
               return node;
             };
-            const px = (value) => `${value}px`;
             const layer = el(`${p}-abs`, { width: "1920px", height: "1080px" });
             host.appendChild(layer);
-            const add = (node, parent = layer) => parent.appendChild(node);
+            const world = el(`${p}-world`);
+            layer.appendChild(world);
+            const add = (node, parent = world) => parent.appendChild(node);
 
-            const title = add(el(`${p}-title`, {}, "Under the hood"));
-
-            /* ---- the lane ---- */
-            const line = (from, to, colour) =>
-              add(el(`${p}-line`, { left: px(from), top: px(LANE_Y - 1), width: px(to - from), background: colour }));
-            const laneBase = line(G.slip, G.paid, FAINT);
-            const seg = [line(G.slip, G.data, INDIGO), line(G.data, G.pay, INDIGO), line(G.pay, G.seal, INDIGO), line(G.seal, G.sent, INDIGO), line(G.sent, G.paid, INDIGO)];
-            const node = (x) => add(el(`${p}-node`, { left: px(x), top: px(LANE_Y) }));
-            const cap = (x, text) => add(el(`${p}-cap`, { left: px(x - 100), top: px(LANE_Y - 76) }, text));
-
-            // the slip: SCENES A's object
-            const slipAt = (x) => {
-              const holder = node(x);
-              holder.appendChild(FSO.slip({ detail: "mini", flat: true, w: 54, anchor: "center", serial: "0403" }));
-              return holder;
+            // parts: named groups of elements the timeline reveals together, in order
+            const parts = {};
+            const part = (name, ...nodes) => {
+              parts[name] ||= [];
+              parts[name].push(...nodes.flat().filter(Boolean));
+              return nodes[0];
             };
-            const slip = slipAt(G.slip);
-            const slipGo = slipAt(G.slip);
-
-            const chip = (x, inner) => {
-              const holder = node(x);
-              const box = el(`${p}-chip`);
-              box.appendChild(inner);
-              holder.appendChild(box);
-              return holder;
+            /** Text in a parent, by its top-left; { right: x } aligns its right edge to x, { mid: x } centres it. */
+            const T = (parent, kind, x, y, text, o = {}) => {
+              const node = el(`${p}-${kind}`, { top: px(y) }, text);
+              if (o.right) node.style.right = px((o.pw ?? PW) - x);
+              else if (o.mid) Object.assign(node.style, { left: px(x - 160), width: "320px", textAlign: "center" });
+              else node.style.left = px(x);
+              if (o.color) node.style.color = o.color;
+              return add(node, parent);
             };
-            const dataMark = () => {
-              const b = document.createElement("b");
-              b.textContent = "{ }";
-              return b;
+            const box = (parent, x, y, w, h) => add(el(`${p}-box`, { left: px(x), top: px(y), width: px(w), height: px(h) }), parent);
+            const rule = (parent, x, y, w) => add(el(`${p}-hr`, { left: px(x), top: px(y), width: px(w) }), parent);
+            const sheet = (parent, w, h) => add(svg("svg", { width: w, height: h, viewBox: `0 0 ${w} ${h}`, style: "position:absolute;left:0;top:0;overflow:visible" }), parent);
+            /** A stroke that can draw itself on (the timeline animates its dash offset). */
+            const stroke = (parent, d, o = {}) => {
+              const node = svg("path", { d, pathLength: 1, "stroke-dasharray": "1 1", fill: "none", stroke: o.color ?? FAINT, "stroke-width": o.w ?? 1.5, "stroke-linecap": "round", "stroke-linejoin": "round" });
+              node.setAttribute("data-draw", "1");
+              return add(node, parent);
             };
-            // pay lines: three rows, a member and an amount each
-            const payMark = () =>
-              svg("svg", { width: 76, height: 56, viewBox: "0 0 76 56", style: "left:0;top:0" }, [
-                ...[16, 28, 40].flatMap((y, index) => [
-                  svg("rect", { x: 13, y: y - 2, width: [22, 17, 25][index], height: 4, rx: 2, fill: FAINT }),
-                  svg("rect", { x: 63 - [16, 20, 14][index], y: y - 2, width: [16, 20, 14][index], height: 4, rx: 2, fill: INK }),
-                ]),
-              ]);
-            const data = chip(G.data, dataMark());
-            const dataGo = chip(G.data, dataMark());
-            const pay = chip(G.pay, payMark());
-            const payGo = chip(G.pay, payMark());
+            const shape = (parent, tag, attrs) => add(svg(tag, attrs), parent);
+            const head = (parent, x, y, dir = "down", color = FAINT) => {
+              const d = dir === "down" ? `M${x - 4} ${y - 5}L${x} ${y}L${x + 4} ${y - 5}` : `M${x - 5} ${y - 4}L${x} ${y}L${x - 5} ${y + 4}`;
+              return shape(parent, "path", { d, fill: "none", stroke: color, "stroke-width": 1.5, "stroke-linecap": "round", "stroke-linejoin": "round" });
+            };
 
             // the batch seal, as the product draws it under 96 px: the inner ring is the treasurer's key, the
-            // outer ring the Chair's (packages/seal). Fixed parameters: this is a picture of a seal, not a digest.
+            // outer ring the Chair's (packages/seal). Fixed parameters: a picture of a seal, not a digest.
             const ringPath = (radius, band, lobes, turns, turn) => {
               const mid = ((band[0] + band[1]) / 200) * radius;
               const amp = ((band[1] - band[0]) / 200) * radius;
@@ -155,21 +158,65 @@
               }
               return `${d}Z`;
             };
-            const sealAt = (x, size = 76) => {
-              const holder = node(x);
+            /** Two rings around (cx, cy) in an svg; other: a different batch (one cent changed), so another pattern. */
+            const sealIn = (parent, cx, cy, size, o = {}) => {
               const r = size / 2;
-              const ring = (band, lobes, turns, turn) =>
-                svg("path", { d: ringPath(r, band, lobes, turns, turn), pathLength: 1, fill: "none", stroke: INDIGO, "stroke-width": 1.5, "stroke-linejoin": "round" });
-              const inner = ring([30, 62], 7, 2, 0.4);
-              const outer = ring([70, 98], 11, 3, 1.1);
-              holder.appendChild(
-                svg("svg", { width: size, height: size, viewBox: `${-r} ${-r} ${size} ${size}`, style: `left:${-r}px;top:${-r}px` }, [
-                  svg("circle", { cx: 0, cy: 0, r: r + 3, fill: GROUND }),
-                  inner,
-                  outer,
+              const spec = o.other ? [[5, 2, 2.1], [9, 4, 0.3]] : [[7, 2, 0.4], [11, 3, 1.1]];
+              const ring = (band, [lobes, turns, turn]) => {
+                const node = svg("path", { d: ringPath(r, band, lobes, turns, turn), pathLength: 1, "stroke-dasharray": "1 1", fill: "none", stroke: o.color ?? INDIGO, "stroke-width": o.w ?? 1.5, "stroke-linejoin": "round", transform: `translate(${cx} ${cy})` });
+                node.setAttribute("data-draw", "1");
+                return add(node, parent);
+              };
+              return [ring([30, 62], spec[0]), ring([70, 98], spec[1])];
+            };
+
+            const title = add(el(`${p}-title`, {}, "Under the hood"), layer);
+            const more = add(el(`${p}-more`, {}, "Full architecture page: <b>docs/architecture</b> in the repo"), layer);
+
+            /* ---------------------------------------------------------------- the lane: paper in, pay out ---- */
+            const line = (from, to, colour) => add(el(`${p}-line`, { left: px(from), top: px(LY - 1), width: px(to - from), background: colour }));
+            const laneBase = line(G.slip, G.paid, FAINT);
+            const seg = [line(G.slip, G.data, INDIGO), line(G.data, G.pay, INDIGO), line(G.pay, G.seal, INDIGO), line(G.seal, G.sent, INDIGO), line(G.sent, G.paid, INDIGO)];
+            const node = (x) => add(el(`${p}-node`, { left: px(x), top: px(LY) }));
+            const cap = (x, text) => add(el(`${p}-cap`, { left: px(x - 100), top: px(LY - 74) }, text));
+            // the slip (SCENES A's object) in a box that scales from its left edge
+            const slipBox = (hidden) => {
+              const holder = add(el(`${p}-hold`, { left: "48px", top: px(LY - 34), width: "54px", height: "68px" }));
+              holder.appendChild(FSO.slip({ detail: "mini", flat: true, w: 54, serial: "0403" }));
+              if (hidden) holder.style.opacity = "0";
+              return holder;
+            };
+            const slip = slipBox(false);
+            const slipGo = slipBox(true);
+            const chip = (x, inner, hidden) => {
+              const holder = node(x);
+              const body = el(`${p}-chip`);
+              body.appendChild(inner);
+              holder.appendChild(body);
+              if (hidden) holder.style.opacity = "0";
+              return holder;
+            };
+            const dataMark = () => {
+              const b = document.createElement("b");
+              b.textContent = "{ }";
+              return b;
+            };
+            const payMark = () =>
+              svg("svg", { width: 76, height: 56, viewBox: "0 0 76 56", style: "left:0;top:0" }, [
+                ...[16, 28, 40].flatMap((y, index) => [
+                  svg("rect", { x: 13, y: y - 2, width: [22, 17, 25][index], height: 4, rx: 2, fill: FAINT }),
+                  svg("rect", { x: 63 - [16, 20, 14][index], y: y - 2, width: [16, 20, 14][index], height: 4, rx: 2, fill: INK }),
                 ]),
-              );
-              holder.rings = [inner, outer];
+              ]);
+            const data = chip(G.data, dataMark());
+            const dataGo = chip(G.data, dataMark(), true);
+            const pay = chip(G.pay, payMark());
+            const payGo = chip(G.pay, payMark(), true);
+            const sealAt = (x) => {
+              const holder = node(x);
+              const art = svg("svg", { width: 76, height: 76, viewBox: "-38 -38 76 76", style: "left:-38px;top:-38px" }, [svg("circle", { cx: 0, cy: 0, r: 41, fill: GROUND })]);
+              holder.appendChild(art);
+              holder.rings = sealIn(art, 0, 0, 76);
               return holder;
             };
             // the request waiting for its seal: an empty ring
@@ -181,12 +228,11 @@
               ]),
             );
             const seal = sealAt(G.seal);
-            layer.appendChild(payGo); // the arriving batch sits over the seal it is about to become
-            const sealGo = sealAt(G.seal);
+            const sealGo = sealAt(G.sent); // the seal that travelled with the request, at rest
             // "what they signed is what is sent": the match mark on the request's seal
             const match = node(G.sent + 30);
-            match.style.top = px(LANE_Y + 28);
-            const matchTick = svg("path", { d: "M-6 0.5L-2 4.5L6.5 -4.5", pathLength: 1, fill: "none", stroke: "#ffffff", "stroke-width": 2.6, "stroke-linecap": "round", "stroke-linejoin": "round" });
+            match.style.top = px(LY + 28);
+            const matchTick = svg("path", { d: "M-6 0.5L-2 4.5L6.5 -4.5", pathLength: 1, "stroke-dasharray": "1 1", fill: "none", stroke: "#ffffff", "stroke-width": 2.6, "stroke-linecap": "round", "stroke-linejoin": "round" });
             match.appendChild(
               svg("svg", { width: 28, height: 28, viewBox: "-14 -14 28 28", style: "left:-14px;top:-14px" }, [
                 svg("circle", { cx: 0, cy: 0, r: 14, fill: GROUND }),
@@ -194,133 +240,228 @@
                 matchTick,
               ]),
             );
-            // money that has arrived: the film's one jade in this section
-            const paid = node(G.paid);
-            const paidTick = svg("path", { d: "M-11 1L-3.5 8.5L11.5 -8", pathLength: 1, fill: "none", stroke: INK, "stroke-width": 4.5, "stroke-linecap": "round", "stroke-linejoin": "round" });
-            paid.appendChild(
-              svg("svg", { width: 72, height: 72, viewBox: "-36 -36 72 72", style: "left:-36px;top:-36px" }, [
-                svg("circle", { cx: 0, cy: 0, r: 36, fill: GROUND }),
-                svg("circle", { cx: 0, cy: 0, r: 28, fill: JADE }),
-                paidTick,
-              ]),
-            );
-            const caps = {
-              slip: cap(G.slip, "slip"),
-              data: cap(G.data, "data"),
-              pay: cap(G.pay, "pay lines"),
-              seal: cap(G.seal, "signed"),
-              sent: cap(G.sent, "sent"),
-              paid: cap(G.paid, "paid"),
+            // the payment: SCENES A's token, one member's pay (M-014). An outline until the money lands, then jade.
+            const payBox = (outline) => {
+              const holder = add(el(`${p}-hold`, { left: px(G.paid - 72), top: px(LY - 22), width: "144px", height: "44px" }));
+              const token = FSO.token({ amount: "US$64.45", h: 44, anchor: "center", x: 72, y: 22 });
+              if (outline) {
+                Object.assign(token.fsoIn.style, { background: GROUND, color: MUTED, outline: `2px solid ${FAINT}`, outlineOffset: "-2px" });
+                holder.style.opacity = "0";
+              }
+              holder.appendChild(token);
+              return holder;
             };
+            const paidOutline = payBox(true);
+            const paid = payBox(false);
+            const caps = { slip: cap(G.slip, "slip"), data: cap(G.data, "data"), pay: cap(G.pay, "pay lines"), seal: cap(G.seal, "signed"), sent: cap(G.sent, "sent"), paid: cap(G.paid, "paid") };
+            // the opening words, larger than anything else: they leave when the stages arrive
+            const paperIn = add(el(`${p}-big`, { left: "48px", top: px(LY + 86), opacity: "0" }, "Paper in"));
+            const payOut = add(el(`${p}-big`, { right: "48px", top: px(LY + 86), opacity: "0" }, "Pay out"));
 
-            /* ---- the four stages ---- */
-            const STAGES = [
-              {
-                head: "AI reads",
-                rows: [
-                  ["Reads each slip twice", "claude-opus-5-5 ×2"],
-                  ["Ignores hidden orders", "claude-haiku-5-5"],
-                  ["Unsure? Ask a person.", "auto-accept ≥ 0.85"],
-                  ["Data out. No amounts.", "packages/ai"],
-                ],
-              },
-              {
-                head: "Code computes",
-                rows: [
-                  ["Pay engine, whole cents", "packages/domain"],
-                  ["Every cent adds up", "invariant I3 · fast-check"],
-                  ["Rules sealed first", "rate card · SHA-256"],
-                  ["Holds the unexplained", "holds · mass balance ±2.0%"],
-                ],
-              },
-              {
-                head: "People approve",
-                rows: [
-                  ["Treasurer's key", "Ed25519"],
-                  ["Chair's key", "Ed25519"],
-                  ["One batch fingerprint", "batchSha256"],
-                  ["Any change voids it", "executeApproved()"],
-                ],
-              },
-              {
-                head: "PayPal pays",
-                rows: [
-                  ["Invoice", "Invoicing v2 · Agent Toolkit 1.11.0"],
-                  ["Payouts", "Payouts v1 · our typed tool"],
-                  ["Sent exactly once", "outbox · PayPal-Request-Id"],
-                  ["Signed notices back", "webhooks"],
-                ],
-              },
-            ];
-            const stages = STAGES.map((stage, index) => {
-              const card = add(el(`${p}-card`, { left: px(COL[index].x), top: px(CARD_Y), width: px(COL[index].w), height: px(CARD_H) }));
+            /* --------------------------------------------------------------------------- the four stages ---- */
+            const NAMES = ["AI reads", "Code computes", "People approve", "PayPal pays"];
+            const stages = NAMES.map((name, index) => {
+              const card = add(el(`${p}-card`, { left: px(PX[index]), top: px(PY), width: px(PW), height: px(PH) }));
               const bg = add(el(`${p}-card-bg`), card);
-              const head = add(el(`${p}-head`), card);
+              const header = add(el(`${p}-head`), card);
               const n = document.createElement("span");
               n.className = `${p}-n`;
               n.textContent = String(index + 1);
               const h = document.createElement("span");
-              h.textContent = stage.head;
-              head.append(n, h);
-              const rows = stage.rows.map(([label, mono], rowIndex) =>
-                add(el(`${p}-row`, { top: px(HEAD_H + rowIndex * ROW_H) }, `<p class="${p}-l">${label}</p><p class="${p}-m">${mono}</p>`), card),
-              );
-              return { card, bg, n, h, rows };
+              h.textContent = name;
+              header.append(n, h);
+              const top = rule(card, 20, 60, PW - 40);
+              const art = sheet(card, PW, PH);
+              // done: ticked when the showcase slip has passed through
+              const done = FSO.tick({ size: 30, weight: 5.5, color: INDIGO, x: PW - 20 - 30, y: 16 });
+              // as FSO.write leaves it
+              done.fsoStrokes.forEach((mark) => {
+                mark.setAttribute("stroke-dasharray", "1 1");
+              });
+              card.appendChild(done);
+              return { card, bg, n, h, top, art, done };
             });
 
-            /* ---- every step lands in the record ---- */
-            const drops = COL.map((col) =>
-              add(el(`${p}-line`, { left: px(col.x + col.w / 2 - 1), top: px(CARD_Y + CARD_H), width: "2px", height: "28px", background: FAINT, transformOrigin: "50% 0" })),
-            );
-            const strip = add(el(`${p}-strip`, { top: px(STRIP_Y), height: px(STRIP_H) }));
-            const stripBg = add(el(`${p}-strip-bg`), strip);
-            const cell = (parent, x, label, mono) => add(el(`${p}-cell`, { left: px(x) }, `<p class="${p}-l">${label}</p><p class="${p}-m">${mono}</p>`), parent);
-            // strip x is measured from the strip's own left edge (60): cells start on the column grid
-            const cells = [
-              cell(strip, 24, "Tamper-evident record", "hash-chained ledger · Postgres"),
-              cell(strip, 888, "Member statement", "en · ceb · fil"),
-              cell(strip, 1320, "Proof", "six checks in the browser"),
-            ];
-            // the chain: each entry seals the one before it
-            const chainSvg = svg("svg", { width: 300, height: 40, viewBox: "0 0 300 40", style: `position:absolute;left:450px;top:${STRIP_H / 2 - 20}px;overflow:visible` });
-            const links = [];
-            for (let index = 0; index < 5; index += 1) {
-              const x = 6 + index * 62;
-              const block = svg("rect", { x, y: 8, width: 24, height: 24, rx: 6, fill: "#ffffff", stroke: INK, "stroke-width": 2 });
-              const bar = index > 0 ? svg("path", { d: `M${x - 38} 20H${x}`, pathLength: 1, fill: "none", stroke: INK, "stroke-width": 2 }) : null;
-              if (bar) chainSvg.appendChild(bar);
-              chainSvg.appendChild(block);
-              links.push({ block, bar });
+            /* 1. AI reads: two readings, compared in code, a threshold, a person (PR #1 "Reading a weigh-slip") */
+            {
+              const { card: c, art: a } = stages[0];
+              const photo = FSO.slip({ detail: "full", flat: true, w: 84, serial: "0403", kg: "38.45", x: 180, y: 74 });
+              c.appendChild(photo);
+              part("p1.slip", photo, T(c, "M", 276, 112, "slip 0403"), T(c, "M", 276, 128, "one photo, read twice"));
+              part("p1.readA", stroke(a, "M222 179V192H116V204"), head(a, 116, 205), box(c, 20, 206, 192, 58), T(c, "L", 32, 214, "Read A"), T(c, "N", 200, 214, "38.45 kg", { right: true }), T(c, "M", 32, 238, "claude-opus-5-5"));
+              part("p1.readB", stroke(a, "M222 192H328V204"), head(a, 328, 205), box(c, 232, 206, 192, 58), T(c, "L", 244, 214, "Read B"), T(c, "N", 412, 214, "38.45 kg", { right: true }), T(c, "M", 244, 238, "claude-opus-5-5"));
+              part("p1.cmp", stroke(a, "M116 264V278H222V290"), stroke(a, "M328 264V278H222"), head(a, 222, 291), box(c, 92, 292, 260, 42), T(c, "L", 106, 303, "Code compares"), T(c, "M", 340, 306, "agreement()", { right: true }));
+              // the 0 to 1 scale, with the auto-accept line at 0.85
+              const X0 = 20;
+              const XW = 404;
+              const at = (score) => X0 + score * XW;
+              part(
+                "p1.scale",
+                stroke(a, "M222 336V348"),
+                head(a, 222, 349),
+                shape(a, "rect", { x: X0, y: 379, width: XW, height: 6, rx: 3, fill: HAIR }),
+                shape(a, "rect", { x: at(0.85), y: 379, width: X0 + XW - at(0.85), height: 6, rx: 3, fill: INK }),
+                shape(a, "path", { d: `M${at(0.85)} 371V393`, stroke: INDIGO, "stroke-width": 2, "stroke-linecap": "round", fill: "none" }),
+                T(c, "M", 424, 394, "auto-accept ≥ 0.85", { right: true }),
+                shape(a, "circle", { cx: at(0.97), cy: 382, r: 6.5, fill: "#ffffff", stroke: INK, "stroke-width": 2 }),
+                T(c, "M", 424, 354, "0.97 · A = B, clear", { right: true }),
+              );
+              part("p1.low", shape(a, "circle", { cx: at(0.4), cy: 382, r: 6.5, fill: "#ffffff", stroke: INDIGO, "stroke-width": 2 }), T(c, "M", at(0.4), 354, "0.40 · reads disagree", { mid: true }));
+              // a person: the film's indigo
+              const who = svg("svg", { width: 20, height: 20, viewBox: "0 0 20 20", style: "position:absolute;left:12px;top:9px" }, [
+                svg("circle", { cx: 10, cy: 6, r: 4, fill: INDIGO }),
+                svg("path", { d: "M2.5 19C2.5 13.5 6 11.5 10 11.5C14 11.5 17.5 13.5 17.5 19Z", fill: INDIGO }),
+              ]);
+              const chipBox = box(c, 20, 418, 178, 38);
+              chipBox.appendChild(who);
+              part("p1.person", stroke(a, `M${at(0.4)} 392V414`, { color: INDIGO }), head(a, at(0.4), 416, "down", INDIGO), chipBox, T(c, "L", 60, 427, "A person decides"), T(c, "M", 20, 464, "below 0.85: one zoom re-read, then a person"));
+              part("p1.notes", rule(c, 20, 490, PW - 40), T(c, "L", 20, 498, "Screens for hidden instructions"), T(c, "M", 424, 502, "claude-haiku-5-5", { right: true }));
+              part("p1.notes", T(c, "L", 20, 521, "No amount fields in its schema"), T(c, "M", 424, 525, "invariant I1", { right: true }));
+              part("p1.notes", T(c, "M", 20, 545, "packages/ai · ClaudeGateway"));
             }
-            strip.appendChild(chainSvg);
-            const arrow = (x) => {
-              const shaft = svg("path", { d: "M-15 0H13", fill: "none", stroke: INK, "stroke-width": 2, "stroke-linecap": "round" });
-              const tip = svg("path", { d: "M6 -7L13.5 0L6 7", fill: "none", stroke: INK, "stroke-width": 2, "stroke-linecap": "round", "stroke-linejoin": "round" });
-              const holder = svg("svg", { width: 32, height: 20, viewBox: "-16 -10 32 20", style: `position:absolute;left:${x - 16}px;top:${STRIP_H / 2 - 10}px;overflow:visible` }, [shaft, tip]);
-              strip.appendChild(holder);
-              return holder;
-            };
-            const arrows = [arrow(852), arrow(1284)];
 
-            /* ---- what it all stands on ---- */
+            /* 2. Code computes: whole cents, conserved; the rate card sealed first (PR #1 "Money flow", facts 7.2) */
+            {
+              const { card: c, art: a } = stages[1];
+              part("p2.kg", box(c, 20, 80, 150, 44), T(c, "B", 95, 90, "148.0 kg", { mid: true }), T(c, "M", 20, 128, "M-014 · her four slips"));
+              part("p2.cents", stroke(a, "M176 102H256"), head(a, 258, 102, "right"), T(c, "M", 217, 82, "× rate card", { mid: true }), box(c, 264, 80, 160, 44), T(c, "B", 344, 90, "US$64.45", { mid: true }), T(c, "M", 424, 128, "6,445 cents", { right: true }));
+              part("p2.cents", T(c, "M", 20, 152, "premium 43.69 + bonus 21.85 − CBU 1.09"), T(c, "M", 20, 170, "packages/domain · largest-remainder shares"));
+              part("p2.sum", rule(c, 20, 196, PW - 40), T(c, "L", 20, 206, "Every cent adds up"), T(c, "M", 424, 210, "invariant I3", { right: true }));
+              const rows = [
+                ["", "4,333.50", "one invoice", 234],
+                ["=", "341.74", "PayPal · 7 members", 266],
+                ["+", "3,876.43", "cash · 57 members", 290],
+                ["+", "55.33", "kept by the co-op, net of credits", 314],
+                ["+", "60.00", "disbursement cost", 338],
+              ];
+              rows.forEach(([sign, amount, label, y], index) => {
+                part("p2.sum", T(c, "N", 20, y, sign), T(c, "N", 140, y, amount, { right: true }), T(c, index ? "Ls" : "L", 156, y, label));
+                if (index === 0) part("p2.sum", rule(c, 20, 260, 120));
+              });
+              part("p2.sum", T(c, "M", 20, 364, "inv.i3.conservation · fast-check property test"));
+              const doc = svg("svg", { width: 30, height: 38, viewBox: "0 0 30 38", style: "position:absolute;left:20px;top:404px" }, [
+                svg("path", { d: "M1 1H20L29 10V37H1Z", fill: "#ffffff", stroke: INK, "stroke-width": 1.5, "stroke-linejoin": "round" }),
+                svg("path", { d: "M20 1V10H29", fill: "none", stroke: INK, "stroke-width": 1.5, "stroke-linejoin": "round" }),
+                svg("path", { d: "M7 18H23M7 24H23M7 30H17", fill: "none", stroke: FAINT, "stroke-width": 1.5, "stroke-linecap": "round" }),
+              ]);
+              c.appendChild(doc);
+              part("p2.card", rule(c, 20, 392, PW - 40), doc, T(c, "L", 62, 402, "Rate card, sealed first"), T(c, "M", 62, 424, "BR 2026-04 · canonical JSON → SHA-256"));
+              part(
+                "p2.seal",
+                stroke(a, "M68 458H424", { color: FAINT }),
+                shape(a, "circle", { cx: 68, cy: 458, r: 5, fill: INDIGO }),
+                T(c, "M", 62, 466, "14 Mar · ratified"),
+                shape(a, "circle", { cx: 268, cy: 458, r: 5, fill: "#ffffff", stroke: INK, "stroke-width": 1.5 }),
+                T(c, "M", 262, 466, "2 Apr · first slip, 0301"),
+              );
+              part("p2.refuse", T(c, "M", 62, 488, "an edit → 409 RATE_CARD_RATIFIED · invariant I2"));
+              part("p2.holds", rule(c, 20, 514, PW - 40), T(c, "L", 20, 522, "Holds what it can't justify"), T(c, "M", 20, 545, "duplicate slip · impossible yield · unruled fine"));
+            }
+
+            /* 3. People approve: two keys, one digest, recomputed before the POST (PR #1 "Two keys, one hash") */
+            {
+              const { card: c, art: a } = stages[2];
+              part("p3.payload", T(c, "L", 20, 74, "What they sign"), T(c, "M", 424, 78, "8 items · US$368.39", { right: true }), box(c, 20, 98, 404, 52), T(c, "M", 32, 108, "{ …, rateCardSha256, batchSha256, linesDigest,"), T(c, "M", 32, 126, "&nbsp; totalCents, nonce, exp }"));
+              const big = sealIn(a, 368, 212, 100);
+              const pen = (y) => stroke(a, `M22 ${y + 14}C26 ${y + 1} 31 ${y + 1} 32 ${y + 12}C33 ${y + 19} 38 ${y + 18} 40 ${y + 8}C42 ${y} 47 ${y + 4} 45 ${y + 12}C44 ${y + 19} 50 ${y + 16} 54 ${y + 10}C58 ${y + 5} 62 ${y + 8} 65 ${y + 12}C70 ${y + 16} 78 ${y + 12} 86 ${y + 9}`, { color: INDIGO, w: 1.6 });
+              part("p3.sig1", pen(168), T(c, "L", 104, 166, "Treasurer"), T(c, "M", 104, 188, "Ed25519 · key 1"), big[0]);
+              part("p3.sig2", pen(216), T(c, "L", 104, 214, "Chair"), T(c, "M", 104, 236, "Ed25519 · key 2 · over US$300"), big[1]);
+              part("p3.finger", T(c, "L", 20, 274, "One fingerprint of the batch"), T(c, "M", 368, 278, "batchSha256", { mid: true }));
+              part("p3.server", rule(c, 20, 304, PW - 40), T(c, "L", 20, 314, "The server recomputes it"), T(c, "M", 20, 336, "PayoutsService.executeApproved()"));
+              [
+                ["re-reads the locked lines from the database", 360],
+                ["recomputes both digests", 382],
+                ["checks both signatures", 404],
+              ].forEach(([text, y], index) => {
+                part(`p3.check${index}`, stroke(a, `M22 ${y + 10}L26.5 ${y + 14.5}L34 ${y + 5}`, { color: INK, w: 2 }), T(c, "Ls", 44, y, text, { color: INK }));
+              });
+              const signedA = sealIn(a, 38, 452, 36);
+              const again = sealIn(a, 96, 452, 36);
+              part("p3.match", signedA, T(c, "B", 67, 440, "=", { mid: true }), again, T(c, "L", 132, 434, "Same digest: the batch is sent"), T(c, "M", 132, 456, "re-hashed just before the POST"));
+              const signedB = sealIn(a, 38, 522, 36);
+              const moved = sealIn(a, 96, 522, 36, { other: true, color: INK });
+              part("p3.voidA", rule(c, 20, 484, PW - 40), signedB, T(c, "B", 67, 510, "≠", { mid: true }), moved);
+              part("p3.voidB", T(c, "L", 132, 504, "One cent changed: nothing sent"), T(c, "M", 132, 526, "both approvals void · invariants I4, I6"));
+            }
+
+            /* 4. PayPal pays: the request path (PR #1 "Request path", "Invoicing, Payouts and webhooks") */
+            {
+              const { card: c, art: a } = stages[3];
+              part("p4.inv", T(c, "L", 20, 74, "Invoice"), T(c, "M", 424, 78, "Invoicing v2 · Agent Toolkit 1.11.0", { right: true }));
+              part("p4.pay", T(c, "L", 20, 102, "Payouts"), T(c, "M", 424, 106, "Payouts v1 · our typed tool", { right: true }));
+              // three lifelines, and five messages between them: who tells whom, in order
+              const LIFE = { db: 62, api: 222, pp: 382 };
+              const ROWS = [180, 246, 312, 378, 444];
+              // a lifeline is drawn only where no words cross it, so the words need no backing
+              const lifeline = (x, name, w, end, labels, monos) => {
+                const blocks = [...labels.map((row) => [ROWS[row], ROWS[row] + 20]), ...monos.map((row) => [ROWS[row] + 35, ROWS[row] + 51])].sort((one, two) => one[0] - two[0]);
+                let d = "";
+                let from = 168;
+                for (const [top, bottom] of [...blocks, [end, end]]) {
+                  if (top - 3 - from > 4) d += `M${x} ${from}V${top - 3}`;
+                  from = bottom + 3;
+                }
+                part("p4.life", box(c, x - w / 2, 142, w, 26), T(c, "L", x, 145, name, { mid: true }));
+                part("p4.life", shape(a, "path", { d, fill: "none", stroke: FAINT, "stroke-width": 1.5, "stroke-dasharray": "2 5", "stroke-linecap": "round" }));
+              };
+              part("p4.life", rule(c, 20, 132, PW - 40));
+              lifeline(LIFE.db, "Postgres", 88, 508, [0, 3, 4], [0, 3, 4]);
+              lifeline(LIFE.api, "fs-api", 68, 508, [], [0, 1, 2, 3]);
+              lifeline(LIFE.pp, "PayPal", 74, 372, [1, 2], [1, 2]);
+              const say = (name, y, from, to, label, mono, side) => {
+                const tip = to > from ? to - 3 : to + 3;
+                part(name, stroke(a, `M${from} ${y + 27}H${tip}`, { color: INK, w: 1.8 }), shape(a, "path", { d: to > from ? `M${tip - 6} ${y + 22}L${tip} ${y + 27}L${tip - 6} ${y + 32}` : `M${tip + 6} ${y + 22}L${tip} ${y + 27}L${tip + 6} ${y + 32}`, fill: "none", stroke: INK, "stroke-width": 1.8, "stroke-linecap": "round", "stroke-linejoin": "round" }));
+                const words = side === "left" ? [T(c, "L", 20, y, label), T(c, "M", 20, y + 35, mono)] : [T(c, "L", 424, y, label, { right: true }), T(c, "M", 424, y + 35, mono, { right: true })];
+                part(name, words);
+              };
+              say("p4.s1", ROWS[0], LIFE.api, LIFE.db, "Saved first", "state change + outbox row · one transaction", "left");
+              say("p4.s2", ROWS[1], LIFE.api, LIFE.pp, "Sent exactly once", "PayPal-Request-Id = sha256(sender_batch_id)", "right");
+              say("p4.s3", ROWS[2], LIFE.pp, LIFE.api, "Signed webhook back", "CRC32 + RSA-SHA256 · deduplicated", "right");
+              say("p4.s4", ROWS[3], LIFE.api, LIFE.db, "Status only moves forward", "PENDING 10 → UNCLAIMED 30 → SUCCESS 60", "left");
+              say("p4.s5", ROWS[4], LIFE.db, LIFE.api, "Every screen updates", "Postgres NOTIFY → SSE", "left");
+              part("p4.cash", rule(c, 20, 518, PW - 40), T(c, "M", 20, 531, "7 members by PayPal · 57 in cash, on the same statement"));
+            }
+
+            /* --------------------------------------------------- underneath: one ledger (PR #1 "Ledger & Proof") ---- */
+            const drops = PX.map((x) => add(el(`${p}-line`, { left: px(x + PW / 2 - 1), top: px(PY + PH), width: "2px", height: px(LEDGER_Y - PY - PH), background: FAINT, transformOrigin: "50% 0" })));
+            const ledger = add(el(`${p}-strip`, { top: px(LEDGER_Y), height: px(LEDGER_H) }));
+            const ledgerBg = add(el(`${p}-strip-bg`), ledger);
+            const ledgerArt = sheet(ledger, SW, LEDGER_H);
+            const SO = { pw: SW };
+            part("led.head", T(ledger, "L2", 24, 13, "One ledger"), T(ledger, "M2", 186, 17, "entry hash = sha256(previous hash, sequence, fact)"));
+            part("led.rule", add(el(`${p}-vr`, { left: "812px", top: "14px", height: "32px" }), ledger), T(ledger, "M2", 838, 17, "append-only: no UPDATE, no DELETE"));
+            part("led.proof", add(el(`${p}-vr`, { left: "1262px", top: "14px", height: "32px" }), ledger), T(ledger, "L2", 1288, 13, "Proof"), T(ledger, "M2", 1372, 17, "six checks, re-run in the browser"));
+            const KINDS = ["invoice.funded", "rows.accepted", "approval.signed", "approval.signed", "payout.submitting", "webhook.applied"];
+            const links = KINDS.map((kind, index) => {
+              const x = 24 + index * 296;
+              const from = x - 46;
+              const bar = index ? stroke(ledgerArt, `M${from} 77H${x - 8}`, { color: INK, w: 2 }) : null;
+              const block = shape(ledgerArt, "rect", { x, y: 66, width: 22, height: 22, rx: 5.5, fill: "#ffffff", stroke: INK, "stroke-width": 2 });
+              const name = T(ledger, "M2", x + 34, 64, kind, SO);
+              return { bar, block, name };
+            });
+
+            /* --------------------------------------------------------------------- what it all stands on ---- */
             const base = add(el(`${p}-strip`, { top: px(BASE_Y), height: px(BASE_H) }));
             add(el(`${p}-base-bg`), base);
-            const baseCells = [
-              cell(base, 24, "One TypeScript service", "Hono API · Postgres · live updates over SSE · React console · Expo app"),
-              cell(base, 1320, "5,000+ automated tests", "Vitest · fast-check · Playwright"),
-            ];
-            baseCells.forEach((node) => {
-              node.style.top = "18px";
-            });
+            T(base, "L2", 24, 12, "One TypeScript service");
+            T(base, "M2", 24, 48, "fs-api · Hono · Node 24 · API · SSE · webhooks · outbox dispatcher");
+            T(base, "L2", 880, 12, "One database");
+            T(base, "M2", 880, 48, "fs-db · Postgres 18");
+            T(base, "L2", 1240, 12, "5,000+ automated tests");
+            T(base, "M2", 1240, 48, "23 packages · one dependency rule");
 
-            return { layer, title, laneBase, seg, slip, slipGo, data, dataGo, pay, payGo, seal, sealGo, slot, match, matchTick, paid, paidTick, caps, stages, drops, strip, stripBg, cells, links, arrows, base, baseCells, G };
+            return {
+              layer, world, title, more, laneBase, seg, slip, slipGo, data, dataGo, pay, payGo, seal, sealGo, slot, match, matchTick, paid, paidOutline, caps, paperIn, payOut,
+              stages, parts, drops, ledger, ledgerBg, links, base, G, PX, PW, PY, PH, LY,
+            };
           };
           /* DIAGRAM:END */
 
           /* COMPARE:START (keep identical in s5-compare.html and s6-architecture.html) */
           const compare = (host, p) => {
             const css = `
-.${p}-cmp{position:absolute;left:0;top:0;width:1920px;height:1080px;margin:0}
+.${p}-cmp{position:absolute;left:0;top:0;width:1920px;height:1080px;margin:0;will-change:transform}
 .${p}-cmp-k{position:absolute;margin:0;font-size:40px;font-weight:650;line-height:48px;letter-spacing:-0.015em;color:#5b6475;white-space:nowrap}
 .${p}-cmp-big{position:absolute;margin:0;font-size:132px;font-weight:680;line-height:1;letter-spacing:-0.035em;color:#0e1525;white-space:nowrap;font-variant-numeric:tabular-nums lining-nums}
 .${p}-cmp-big i{font-style:normal;font-weight:600;letter-spacing:0;margin-left:0.12em}
@@ -391,125 +532,244 @@
           // the first frame is section 5's last (before and now); it clears before the voice starts
           const before = compare(root, "s6");
           tl.fromTo(before.layer, { opacity: 1 }, { opacity: 0, duration: 0.4, ease: "power2.in" }, 0.04);
-          const { G } = d;
-          const E = FILM.ease;
-          const LAST = 37.0; // nothing starts after this: the finished diagram holds still to the cut
-          const at = (text, nth = 1, offset = 0) => Math.min(FILM.at("s6", text, nth, offset), LAST);
-          const atEnd = (text, nth = 1, offset = 0) => Math.min(FILM.atEnd("s6", text, nth, offset), LAST);
 
-          const rise = (target, position, y = 12, duration = 0.5) =>
-            tl.fromTo(target, { opacity: 0, y }, { opacity: 1, y: 0, duration, ease: E }, Math.min(position, LAST));
-          const show = (target, position, duration = 0.4) =>
-            tl.fromTo(target, { opacity: 0 }, { opacity: 1, duration, ease: "power2.out" }, Math.min(position, LAST));
+          const { G, PX, PW, PY, PH, LY } = d;
+          const E = FILM.ease;
+          // word times are measured from the narration's own section start, so they hold whichever window is mounted
+          const ZERO = window.FILM_DATA?.words?.sections?.s6?.start ?? FILM.section("s6").start;
+          const local = (seconds) => Math.max(0, Math.round((seconds - ZERO) * 1000) / 1000);
+          /** The start of a spoken word in this section's seconds; `fallback` until the narration has that word. */
+          const at = (text, nth, offset, fallback) => {
+            try {
+              return local(FILM.word("s6", text, nth).start) + offset;
+            } catch {
+              return fallback + offset;
+            }
+          };
+          const atEnd = (text, nth, offset, fallback) => {
+            try {
+              return local(FILM.word("s6", text, nth).end) + offset;
+            } catch {
+              return fallback + offset;
+            }
+          };
+
+          const isSvg = (node) => node instanceof SVGElement;
+          const rise = (target, position, y = 10, duration = 0.5) => tl.fromTo(target, { opacity: 0, y }, { opacity: 1, y: 0, duration, ease: E }, position);
+          const show = (target, position, duration = 0.4) => tl.fromTo(target, { opacity: 0 }, { opacity: 1, duration, ease: "power2.out" }, position);
           const draw = (path, position, duration = 0.5) => {
             path.setAttribute("stroke-dasharray", "1 1");
-            tl.fromTo(path, { attr: { "stroke-dashoffset": 1 } }, { attr: { "stroke-dashoffset": 0 }, duration, ease: "power2.out" }, Math.min(position, LAST));
+            tl.fromTo(path, { opacity: 0 }, { opacity: 1, duration: 0.001, ease: "none" }, position);
+            tl.fromTo(path, { attr: { "stroke-dashoffset": 1 } }, { attr: { "stroke-dashoffset": 0 }, duration, ease: "power2.out" }, position);
           };
-          /** One leg of the journey: the lane turns indigo from `from` to `to`, `leaving` rides its tip and fades,
-              `arriving` rides with it and resolves at the stop. */
-          const travel = (segment, leaving, arriving, from, to, position, duration = 0.8) => {
-            const start = Math.min(position, LAST);
-            tl.fromTo(segment, { scaleX: 0 }, { scaleX: 1, duration, ease: E }, start);
-            tl.fromTo(leaving, { x: 0 }, { x: to - from, duration, ease: E }, start);
-            tl.fromTo(leaving, { opacity: 0 }, { opacity: 1, duration: 0.01, ease: "none" }, start);
-            tl.to(leaving, { opacity: 0, duration: duration * 0.45, ease: "power1.in" }, start + duration * 0.2);
-            tl.fromTo(arriving, { x: from - to }, { x: 0, duration, ease: E }, start);
-            tl.fromTo(arriving, { opacity: 0 }, { opacity: 1, duration: duration * 0.5, ease: "power1.out" }, start + duration * 0.25);
+          /** Bring a named part of the world in: strokes draw themselves, shapes fade, words rise. */
+          const reveal = (name, position, o = {}) => {
+            const nodes = d.parts[name] ?? [];
+            if (nodes.length === 0) throw new Error(`[s6] no part "${name}"`);
+            nodes.forEach((node, index) => {
+              const when = position + index * (o.stagger ?? 0.03);
+              if (isSvg(node) && node.getAttribute("data-draw")) draw(node, when, o.draw ?? 0.5);
+              else if (isSvg(node)) show(node, when, 0.35);
+              else rise(node, when, o.y ?? 8, o.duration ?? 0.5);
+            });
           };
 
-          /* 0. "Under the hood, four rules." */
-          rise(d.title, at("Under"), 16, 0.6);
-          tl.fromTo(d.laneBase, { scaleX: 0 }, { scaleX: 1, duration: 0.8, ease: E }, at("hood"));
-          rise(d.slip, at("hood"), 10);
-          show(d.caps.slip, at("hood", 1, 0.15));
+          /* ---- the camera: the world's own transform. Z is the close-up scale; the overview is the world at rest. */
+          const Z = 1.74;
+          const OPEN_Y = 540 - LY; // the lane starts in the middle of the frame
+          const view = { x: 0, y: OPEN_Y, k: 1 };
+          const camera = (position, x, y, k, duration = 0.8) => {
+            tl.fromTo(d.world, { x: view.x, y: view.y, scale: view.k }, { x, y, scale: k, duration, ease: "power3.inOut", force3D: false, immediateRender: false }, position);
+            Object.assign(view, { x, y, k });
+          };
+          const closeUp = (index) => ({ x: Math.round(960 - (PX[index] + PW / 2) * Z), y: Math.round(540 - (PY + PH / 2 + 4.5) * Z) }); // a little low, so the lane above stays out of frame
+          tl.set(d.world, { x: 0, y: OPEN_Y, scale: 1, force3D: false }, 0);
+
+          /* ================================================================================================
+             [simple] "Under the hood, it starts simple: paper in, pay out."
+             ================================================================================================ */
+          const BIG = 1.5;
+          rise(d.title, at("Under", 1, 0, 0.5), 14, 0.6);
+          tl.fromTo(d.slip, { opacity: 0, y: 16, scale: BIG, transformOrigin: "0% 50%" }, { opacity: 1, y: 0, scale: BIG, duration: 0.6, ease: E }, at("simple:", 1, -0.1, 1.77));
+          rise(d.paperIn, at("paper", 1, 0, 2.73), 14, 0.5);
+          tl.fromTo(d.laneBase, { scaleX: 0 }, { scaleX: 1, duration: 0.7, ease: "power2.inOut" }, at("in,", 1, 0, 2.89));
+          tl.fromTo(d.paidOutline, { opacity: 0, y: 16, scale: BIG, transformOrigin: "100% 50%" }, { opacity: 1, y: 0, scale: BIG, duration: 0.6, ease: E }, at("pay", 1, -0.05, 3.61));
+          rise(d.payOut, at("pay", 1, 0.1, 3.61), 14, 0.5);
+
+          /* ================================================================================================
+             [stages] "Four stages sit between."
+             ================================================================================================ */
+          const stagesAt = at("Four", 1, -0.15, 4.64);
+          tl.to([d.paperIn, d.payOut], { opacity: 0, duration: 0.3, ease: "power2.in" }, stagesAt);
+          tl.to([d.slip, d.paidOutline], { scale: 1, duration: 0.8, ease: "power3.inOut" }, stagesAt + 0.1);
+          camera(stagesAt + 0.1, 0, 0, 1);
+          const QUIET = "#b4bcc9";
           d.stages.forEach((stage, index) => {
-            rise(stage.n, at("four", 1, index * 0.1), 14);
+            const when = at("stages", 1, 0.25 + index * 0.14, 4.89);
+            show(stage.bg, when, 0.5);
+            rise(stage.n, when, 12);
+            rise(stage.h, when, 12);
+            // "sit between": the names come up to ink, one job each
+            const job = at("between.", 1, 0.1 + index * 0.12, 5.85);
+            tl.fromTo(stage.n, { color: QUIET }, { color: "#4a2fd6", duration: 0.35, ease: "power2.out" }, job);
+            tl.fromTo(stage.h, { color: QUIET }, { color: "#0e1525", duration: 0.35, ease: "power2.out" }, job);
           });
 
-          const stage = (index, word, headWord, nth = 1) => {
-            const s = d.stages[index];
-            show(s.bg, at(word, nth), 0.5);
-            tl.fromTo(s.n, { color: "#c3cad6" }, { color: "#4a2fd6", duration: 0.3, ease: "power2.out" }, at(word, nth));
-            rise(s.h, at(headWord), 12);
-            return s.rows;
+          /** Go inside a stage: the camera has arrived by `arrive`, and the card fills as it does. */
+          const enter = (index, arrive) => {
+            const to = closeUp(index);
+            camera(arrive - 0.8, to.x, to.y, Z);
+            const stage = d.stages[index];
+            tl.fromTo(stage.bg, { backgroundColor: "#f7f8fb" }, { backgroundColor: "#ffffff", duration: 0.5, ease: "power2.out" }, arrive - 0.45);
+            show(stage.top, arrive - 0.3, 0.4);
           };
 
-          /* 1. "One: AI only reads. Claude turns slips into data, and never touches a number." */
-          let rows = stage(0, "One:", "AI");
-          rise(rows[0], at("Claude"));
-          rise(rows[1], at("slips"));
-          travel(d.seg[0], d.slipGo, d.data, G.slip, G.data, at("into", 1, -0.25));
-          show(d.caps.data, at("data"));
-          rise(rows[2], at("data", 1, 0.3));
-          rise(rows[3], at("never"));
+          /* ================================================================================================
+             [first] "First, AI reads. Claude reads each slip twice, and code compares the readings."
+             Not spoken, so the picture says it: when the readings disagree, the path leads to a person.
+             ================================================================================================ */
+          const firstAt = at("First,", 1, 0, 7.27);
+          tl.to(d.title, { opacity: 0, duration: 0.3, ease: "power2.in" }, firstAt - 0.8);
+          enter(0, firstAt);
+          reveal("p1.slip", at("AI", 1, 0, 7.92));
+          reveal("p1.readA", at("reads", 2, -0.05, 9.71));
+          reveal("p1.readB", at("twice,", 1, -0.1, 10.53));
+          reveal("p1.cmp", at("code", 1, 0, 11.46));
+          reveal("p1.scale", at("compares", 1, 0.3, 11.76));
+          const firstEnd = atEnd("readings.", 1, 0, 12.8);
+          reveal("p1.low", firstEnd + 0.1);
+          reveal("p1.person", firstEnd + 0.55, { draw: 0.45 });
+          reveal("p1.notes", firstEnd + 1.15, { stagger: 0.05 });
 
-          /* 2. "Two: code does the math, under rules sealed before the season." */
-          rows = stage(1, "Two:", "code");
-          travel(d.seg[1], d.dataGo, d.pay, G.data, G.pay, at("does"));
-          rise(rows[0], at("math", 1, -0.2));
-          show(d.caps.pay, at("math", 1, 0.3));
-          rise(rows[1], at("math", 1, 0.45));
-          rise(rows[2], at("sealed", 1, -0.1));
-          rise(rows[3], at("season", 1, 0.3));
+          /* ================================================================================================
+             [second] "Second, code computes: every share in whole cents, under a rate card hashed before the season."
+             ================================================================================================ */
+          enter(1, Math.max(firstEnd + 2.15, at("computes:", 1, 0.3, 14.69)));
+          reveal("p2.kg", at("every", 1, -0.1, 15.92));
+          reveal("p2.cents", at("whole", 1, -0.15, 16.88));
+          reveal("p2.sum", at("cents,", 1, 0.3, 17.13), { stagger: 0.035 });
+          reveal("p2.card", at("rate", 1, 0.25, 18.27));
+          reveal("p2.seal", at("hashed", 1, 0.3, 18.75), { stagger: 0.12 });
+          reveal("p2.refuse", at("season.", 1, 0.05, 20.07));
+          reveal("p2.holds", atEnd("season.", 1, 0.05, 20.5));
 
-          /* 3. "Three: people approve. Two signatures lock one fingerprint of the batch." */
-          rows = stage(2, "Three:", "people");
-          const [ringIn, ringOut] = d.seal.rings;
-          // the batch of pay lines arrives; each signature draws one ring of its seal
-          const batchAt = at("approve", 1, 0.25);
-          tl.fromTo(d.seg[2], { scaleX: 0 }, { scaleX: 1, duration: 0.8, ease: E }, batchAt);
-          tl.fromTo(d.payGo, { x: 0 }, { x: G.seal - G.pay, duration: 0.8, ease: E }, batchAt);
-          tl.fromTo(d.payGo, { opacity: 0 }, { opacity: 1, duration: 0.01, ease: "none" }, batchAt);
-          show(d.seal, batchAt, 0.01);
-          rise(rows[0], at("Two", 2));
-          draw(ringIn, at("Two", 2), 0.7);
-          rise(rows[1], at("signatures", 1, 0.1));
-          draw(ringOut, at("lock", 1, -0.1), 0.7);
-          tl.to(d.payGo, { opacity: 0, scale: 0.4, duration: 0.5, ease: "power2.out" }, at("Two", 2));
-          rise(rows[2], at("fingerprint"));
-          show(d.caps.seal, at("fingerprint"));
-          rise(rows[3], atEnd("batch", 1, 0.25));
+          /* ================================================================================================
+             [third] "Third, people approve. Two officers sign one fingerprint of the batch, and the server
+                      recomputes it before paying. One changed cent voids both signatures."
+             ================================================================================================ */
+          enter(2, at("people", 1, -0.1, 22.17));
+          reveal("p3.payload", at("approve.", 1, 0, 22.35));
+          reveal("p3.sig1", at("Two", 1, -0.05, 23.57), { draw: 0.7 });
+          reveal("p3.sig2", at("sign", 1, -0.1, 24.17), { draw: 0.7 });
+          reveal("p3.finger", at("fingerprint", 1, 0, 25.09));
+          reveal("p3.server", at("server", 1, -0.05, 26.82));
+          reveal("p3.check0", at("recomputes", 1, 0.0, 27.1), { draw: 0.3 });
+          reveal("p3.check1", at("recomputes", 1, 0.35, 27.1), { draw: 0.3 });
+          reveal("p3.check2", at("before paying.", 1, -0.15, 27.98), { draw: 0.3 });
+          reveal("p3.match", at("paying.", 1, -0.15, 28.32), { stagger: 0.05 });
+          reveal("p3.voidA", at("changed", 1, -0.1, 29.64), { stagger: 0.06 });
+          reveal("p3.voidB", at("voids", 1, 0, 30.44));
 
-          /* 4. "Four: PayPal moves the money. The invoice goes through PayPal's Agent Toolkit; payouts through our
-                own tool, sent exactly once, and confirmed by signed notices." */
-          rows = stage(3, "Four:", "PayPal", 2);
-          rise(rows[0], at("invoice"));
-          rise(rows[1], at("payouts"));
-          show(d.slot, at("payouts", 1, 0.2));
-          rise(rows[2], at("sent"));
-          // the seal the officers signed travels with the request, and matches
-          const sendAt = at("sent");
-          tl.fromTo(d.seg[3], { scaleX: 0 }, { scaleX: 1, duration: 0.8, ease: E }, sendAt);
-          tl.fromTo(d.sealGo, { opacity: 0 }, { opacity: 1, duration: 0.01, ease: "none" }, sendAt);
-          tl.fromTo(d.sealGo, { x: 0 }, { x: G.sent - G.seal, duration: 0.8, ease: E }, sendAt);
-          show(d.caps.sent, sendAt + 0.6);
-          show(d.match, sendAt + 0.8, 0.2);
-          draw(d.matchTick, sendAt + 0.85, 0.3);
-          tl.fromTo(d.seg[4], { scaleX: 0 }, { scaleX: 1, duration: 0.5, ease: E }, at("confirmed"));
-          tl.fromTo(d.paid, { opacity: 0, scale: 0.6 }, { opacity: 1, scale: 1, duration: 0.5, ease: E }, at("confirmed", 1, 0.3));
-          draw(d.paidTick, at("confirmed", 1, 0.5), 0.35);
-          show(d.caps.paid, at("confirmed", 1, 0.5));
-          rise(rows[3], at("signed"));
+          /* ================================================================================================
+             [fourth] "Fourth, PayPal pays: the invoice through PayPal's Agent Toolkit, payouts through our own
+                       typed tool, saved first, sent exactly once, confirmed by signed webhooks."
+             ================================================================================================ */
+          enter(3, at("PayPal", 1, -0.15, 33.67));
+          reveal("p4.life", at("pays:", 1, 0.15, 33.93), { stagger: 0.04 }); // the three parties first
+          reveal("p4.inv", at("invoice", 1, 0, 35.26));
+          reveal("p4.pay", at("payouts", 1, 0, 37.78));
+          
+          reveal("p4.s1", at("saved", 1, -0.05, 40.21));
+          reveal("p4.s2", at("sent", 1, -0.05, 41.41));
+          reveal("p4.s3", at("confirmed", 1, -0.05, 43.03));
+          const fourthEnd = atEnd("webhooks.", 1, 0, 44.6);
+          reveal("p4.s4", fourthEnd - 0.05);
+          reveal("p4.s5", fourthEnd + 0.25);
+          reveal("p4.cash", fourthEnd + 0.5);
 
-          /* 5. "Every step is chained into a tamper-evident record." */
+          /* ================================================================================================
+             [under] "Underneath, every step is chained into one ledger." The camera pulls back to the whole.
+             ================================================================================================ */
+          const underAt = at("Underneath,", 1, 0, 45.69);
+          camera(underAt - 0.15, 0, 0, 1, 0.9);
+          show(d.title, underAt + 0.45, 0.4);
           d.drops.forEach((drop, index) => {
-            tl.fromTo(drop, { scaleY: 0 }, { scaleY: 1, duration: 0.35, ease: "power2.out" }, at("Every", 1, index * 0.07));
+            tl.fromTo(drop, { scaleY: 0 }, { scaleY: 1, duration: 0.3, ease: "power2.out" }, at("every step", 1, 0.05 + index * 0.06, 46.52));
           });
-          show(d.stripBg, at("step"), 0.5);
-          d.links.forEach((link, index) => {
-            const when = at("chained", 1, index * 0.12);
-            if (link.bar) draw(link.bar, when - 0.08, 0.2);
-            tl.fromTo(link.block, { opacity: 0 }, { opacity: 1, duration: 0.25, ease: "power2.out" }, when);
+          show(d.ledgerBg, at("every step", 1, 0.1, 46.52), 0.5);
+          reveal("led.head", at("step", 1, 0.1, 46.72));
+          const chainAt = at("chained", 1, -0.05, 47.3);
+          d.links.slice(0, 5).forEach((link, index) => {
+            const when = chainAt + index * 0.16;
+            if (link.bar) draw(link.bar, when - 0.1, 0.2);
+            show(link.block, when, 0.25);
+            rise(link.name, when + 0.03, 6, 0.4);
           });
-          rise(d.cells[0], at("chained", 1, 0.45));
-          show(d.arrows[0], at("tamper-evident", 1, 0.25), 0.3);
-          rise(d.cells[1], at("tamper-evident", 1, 0.3));
-          show(d.arrows[1], at("record", 1, 0.15), 0.3);
-          rise(d.cells[2], at("record", 1, 0.2));
+          reveal("led.rule", at("one ledger.", 1, -0.1, 47.9));
+          reveal("led.proof", at("ledger.", 1, -0.1, 48.2));
+          // the foundation, and where the full page lives: in place as the voice ends
+          const underEnd = atEnd("ledger.", 1, 0, 48.6);
+          rise(d.base, underEnd - 0.45, 12, 0.5);
+          show(d.more, underEnd - 0.3, 0.5);
 
-          /* 6. the voice ends; the foundation arrives; the finished diagram holds still to the cut */
-          const baseAt = Math.min(atEnd("record", 1, 0.1), 36.0);
-          rise(d.base, baseAt, 14, 0.6);
+          /* ================================================================================================
+             The showcase: no voice. One slip runs through the finished system, end to end; then nothing moves.
+             ================================================================================================ */
+          const run = underEnd + 0.05;
+          const LEG = 0.36;
+          const tick = (index, position) => FSO.write(tl, d.stages[index].done, position, 0.28, { ease: "power2.out" });
+          /** One leg: the lane turns indigo, `leaving` rides its tip and fades, `arriving` resolves at the stop. */
+          const leg = (segment, leaving, arriving, from, to, position) => {
+            tl.fromTo(segment, { scaleX: 0 }, { scaleX: 1, duration: LEG, ease: "power2.inOut" }, position);
+            tl.fromTo(leaving, { x: 0 }, { x: to - from, duration: LEG, ease: "power2.inOut" }, position);
+            tl.fromTo(leaving, { opacity: 0 }, { opacity: 1, duration: 0.01, ease: "none" }, position);
+            tl.to(leaving, { opacity: 0, duration: LEG * 0.4, ease: "power1.in" }, position + LEG * 0.45);
+            tl.fromTo(arriving, { x: from - to }, { x: 0, duration: LEG, ease: "power2.inOut" }, position);
+            tl.fromTo(arriving, { opacity: 0 }, { opacity: 1, duration: LEG * 0.5, ease: "power1.out" }, position + LEG * 0.4);
+          };
+          const SLIP_X = G.slip; // the slip's own box starts at the left margin; its centre is G.slip
+          show(d.caps.slip, run - 0.1, 0.3);
+          // read twice -> data
+          leg(d.seg[0], d.slipGo, d.data, SLIP_X, G.data, run);
+          show(d.caps.data, run + LEG - 0.1, 0.3);
+          tick(0, run + LEG - 0.12);
+          // computed -> pay lines
+          leg(d.seg[1], d.dataGo, d.pay, G.data, G.pay, run + LEG);
+          show(d.caps.pay, run + LEG * 2 - 0.1, 0.3);
+          tick(1, run + LEG * 2 - 0.12);
+          // the batch reaches the officers; each signature draws one ring of its seal
+          const signAt = run + LEG * 2;
+          tl.fromTo(d.seg[2], { scaleX: 0 }, { scaleX: 1, duration: LEG, ease: "power2.inOut" }, signAt);
+          tl.fromTo(d.payGo, { x: 0 }, { x: G.seal - G.pay, duration: LEG, ease: "power2.inOut" }, signAt);
+          tl.fromTo(d.payGo, { opacity: 0 }, { opacity: 1, duration: 0.01, ease: "none" }, signAt);
+          tl.to(d.payGo, { opacity: 0, scale: 0.4, duration: 0.3, ease: "power2.out" }, signAt + LEG - 0.05);
+          show(d.seal, signAt + LEG - 0.1, 0.01);
+          draw(d.seal.rings[0], signAt + LEG - 0.1, 0.32);
+          draw(d.seal.rings[1], signAt + LEG + 0.04, 0.32);
+          show(d.caps.seal, signAt + LEG + 0.1, 0.3);
+          tick(2, signAt + LEG + 0.2);
+          // the seal travels with the request, and matches
+          const sendAt = signAt + LEG + 0.32;
+          show(d.slot, signAt, 0.3);
+          tl.fromTo(d.seg[3], { scaleX: 0 }, { scaleX: 1, duration: LEG, ease: "power2.inOut" }, sendAt);
+          tl.fromTo(d.sealGo, { opacity: 0 }, { opacity: 1, duration: 0.01, ease: "none" }, sendAt);
+          tl.fromTo(d.sealGo, { x: G.seal - G.sent }, { x: 0, duration: LEG, ease: "power2.inOut" }, sendAt);
+          show(d.caps.sent, sendAt + LEG - 0.1, 0.3);
+          show(d.match, sendAt + LEG, 0.15);
+          draw(d.matchTick, sendAt + LEG + 0.03, 0.22);
+          // the payment lands: the film's jade
+          const landAt = sendAt + LEG + 0.05;
+          tl.fromTo(d.seg[4], { scaleX: 0 }, { scaleX: 1, duration: 0.25, ease: "power2.inOut" }, landAt);
+          tl.fromTo(d.paid, { opacity: 0 }, { opacity: 1, duration: 0.3, ease: "power2.out" }, landAt + 0.15);
+          tl.to(d.paidOutline, { opacity: 0, duration: 0.01, ease: "none" }, landAt + 0.45);
+          show(d.caps.paid, landAt + 0.2, 0.3);
+          tick(3, landAt + 0.2);
+          // a new link closes on the ledger
+          const last = d.links[5];
+          const closeAt = landAt + 0.32;
+          draw(last.bar, closeAt, 0.22);
+          show(last.block, closeAt + 0.14, 0.2);
+          rise(last.name, closeAt + 0.16, 6, 0.35);
 
           window.__timelines["s6-architecture"] = tl;
         })();

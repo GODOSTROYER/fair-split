@@ -13,32 +13,32 @@
     <script src="assets/objects/objects.js"></script>
   </head>
   <body>
-    <div id="root" data-composition-id="film" data-start="0" data-width="1920" data-height="1080" data-duration="175">
+    <div id="root" data-composition-id="film" data-start="0" data-width="1920" data-height="1080" data-duration="179">
       <!-- the one ground, under every section -->
       <div id="film-ground"></div>
 
       <!-- picture: seven sections, hard cuts on the one ground (track 1) -->
       <div id="sec-s1" data-composition-id="s1-scenario" data-composition-src="compositions/s1-scenario.html" data-start="0" data-duration="17" data-track-index="1" data-width="1920" data-height="1080"></div>
       <div id="sec-s2" data-composition-id="s2-problem" data-composition-src="compositions/s2-problem.html" data-start="17" data-duration="21" data-track-index="1" data-width="1920" data-height="1080"></div>
-      <div id="sec-s3" data-composition-id="s3-solution" data-composition-src="compositions/s3-solution.html" data-start="38" data-duration="17" data-track-index="1" data-width="1920" data-height="1080"></div>
-      <div id="sec-s4" data-composition-id="s4-demo" data-composition-src="compositions/s4-demo.html" data-start="55" data-duration="54" data-track-index="1" data-width="1920" data-height="1080"></div>
-      <div id="sec-s5" data-composition-id="s5-compare" data-composition-src="compositions/s5-compare.html" data-start="109" data-duration="11" data-track-index="1" data-width="1920" data-height="1080"></div>
-      <div id="sec-s6" data-composition-id="s6-architecture" data-composition-src="compositions/s6-architecture.html" data-start="120" data-duration="38" data-track-index="1" data-width="1920" data-height="1080"></div>
-      <div id="sec-s7" data-composition-id="s7-close" data-composition-src="compositions/s7-close.html" data-start="158" data-duration="17" data-track-index="1" data-width="1920" data-height="1080"></div>
+      <div id="sec-s3" data-composition-id="s3-solution" data-composition-src="compositions/s3-solution.html" data-start="38" data-duration="15.6" data-track-index="1" data-width="1920" data-height="1080"></div>
+      <div id="sec-s4" data-composition-id="s4-demo" data-composition-src="compositions/s4-demo.html" data-start="53.6" data-duration="48.4" data-track-index="1" data-width="1920" data-height="1080"></div>
+      <div id="sec-s5" data-composition-id="s5-compare" data-composition-src="compositions/s5-compare.html" data-start="102" data-duration="10" data-track-index="1" data-width="1920" data-height="1080"></div>
+      <div id="sec-s6" data-composition-id="s6-architecture" data-composition-src="compositions/s6-architecture.html" data-start="112" data-duration="54" data-track-index="1" data-width="1920" data-height="1080"></div>
+      <div id="sec-s7" data-composition-id="s7-close" data-composition-src="compositions/s7-close.html" data-start="166" data-duration="13" data-track-index="1" data-width="1920" data-height="1080"></div>
 
       <!-- biome-ignore-start lint/a11y/useMediaCaption: the film's captions are one subtitle track for the whole film (audio/captions.vtt), muxed into the MP4 at assembly; these audio slots are stems -->
       <!-- narration: one clip per section, clip time 0 = the section's start (track 10) -->
       <audio id="vo-s1" src="audio/narration/s1.m4a" data-start="0" data-duration="17" data-track-index="10" data-volume="1"></audio>
       <audio id="vo-s2" src="audio/narration/s2.m4a" data-start="17" data-duration="21" data-track-index="10" data-volume="1"></audio>
-      <audio id="vo-s3" src="audio/narration/s3.m4a" data-start="38" data-duration="17" data-track-index="10" data-volume="1"></audio>
-      <audio id="vo-s4" src="audio/narration/s4.m4a" data-start="55" data-duration="54" data-track-index="10" data-volume="1"></audio>
-      <audio id="vo-s5" src="audio/narration/s5.m4a" data-start="109" data-duration="11" data-track-index="10" data-volume="1"></audio>
-      <audio id="vo-s6" src="audio/narration/s6.m4a" data-start="120" data-duration="38" data-track-index="10" data-volume="1"></audio>
-      <audio id="vo-s7" src="audio/narration/s7.m4a" data-start="158" data-duration="17" data-track-index="10" data-volume="1"></audio>
+      <audio id="vo-s3" src="audio/narration/s3.m4a" data-start="38" data-duration="15.6" data-track-index="10" data-volume="1"></audio>
+      <audio id="vo-s4" src="audio/narration/s4.m4a" data-start="53.6" data-duration="48.4" data-track-index="10" data-volume="1"></audio>
+      <audio id="vo-s5" src="audio/narration/s5.m4a" data-start="102" data-duration="10" data-track-index="10" data-volume="1"></audio>
+      <audio id="vo-s6" src="audio/narration/s6.m4a" data-start="112" data-duration="54" data-track-index="10" data-volume="1"></audio>
+      <audio id="vo-s7" src="audio/narration/s7.m4a" data-start="166" data-duration="13" data-track-index="10" data-volume="1"></audio>
 
       <!-- the music bed, already cut to the film (track 11), and the effects stem (track 12): both 175 s from 0 -->
-      <audio id="music-bed" src="audio/music-bed.wav" data-start="0" data-duration="175" data-track-index="11" data-volume="1"></audio>
-      <audio id="sfx-stem" src="audio/sfx.wav" data-start="0" data-duration="175" data-track-index="12" data-volume="1"></audio>
+      <audio id="music-bed" src="audio/music-bed.wav" data-start="0" data-duration="179" data-track-index="11" data-volume="1"></audio>
+      <audio id="sfx-stem" src="audio/sfx.wav" data-start="0" data-duration="179" data-track-index="12" data-volume="1"></audio>
       <!-- biome-ignore-end lint/a11y/useMediaCaption: the film's captions are one subtitle track for the whole film (audio/captions.vtt), muxed into the MP4 at assembly; these audio slots are stems -->
     </div>
     <script>

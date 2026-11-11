@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- Fair Split film v7, section 3: Solution and vision, film 38 to 55 s (SCENES A).
+<!-- Fair Split film v7, section 3: Solution and vision, film 38 to 53.6 s (SCENES A).
      The first frame is section 2's last frame (the SCATTER block is the same numbers as s2-problem.html).
      38.0, the music hit: the scattered slips snap into the underline of "Fair Split". Then one picture of the
      whole idea (paper, pay, proof), the vision in three lines, and the title "Working today".
@@ -22,24 +22,6 @@
           left: 0;
           top: 0;
           overflow: visible;
-        }
-        .s3-sum {
-          position: absolute;
-          left: 0;
-          top: 502px;
-          width: 1920px;
-          margin: 0;
-          text-align: center;
-          font-size: 76px;
-          font-weight: 680;
-          line-height: 1;
-          letter-spacing: -0.03em;
-          color: #0e1525;
-          white-space: nowrap;
-        }
-        .s3-sum span {
-          display: inline-block;
-          margin: 0 14px;
         }
         .s3-label {
           position: absolute;
@@ -81,9 +63,7 @@
         }
       </style>
 
-      <div id="root" data-composition-id="s3-solution" data-width="1920" data-height="1080" data-duration="17">
-        <h1 id="s3-sum" class="s3-sum"><span>Mistakes.</span><span>Surprise deductions.</span><span>No proof.</span></h1>
-
+      <div id="root" data-composition-id="s3-solution" data-width="1920" data-height="1080" data-duration="15.6">
         <!-- the whole idea in one picture -->
         <svg id="s3-flow" class="s3-svg" width="1920" height="1080" viewBox="0 0 1920 1080" fill="none" stroke="#0e1525" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
           <title>Paper, pay, proof</title>
@@ -152,7 +132,6 @@
           );
           const order = SCATTER.map((spot, index) => index).sort((a, b) => SCATTER[a][0] - SCATTER[b][0] || SCATTER[a][1] - SCATTER[b][1]);
           const hit = 0;
-          tl.fromTo("#s3-sum", { opacity: 1 }, { opacity: 0, duration: 0.18, ease: "power2.out" }, hit);
           order.forEach((slipIndex, place) => {
             const [x, y, turn] = SCATTER[slipIndex];
             const seg = mark.fsoSeg(place);

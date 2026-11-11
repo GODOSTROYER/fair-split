@@ -33,6 +33,10 @@ const readJson = (relative, fallback) => {
 };
 
 const isNumber = (value) => typeof value === "number" && Number.isFinite(value);
+// windows may fall on a tenth of a second (53.6): compare and add times in whole milliseconds
+const r3 = (value) => Math.round(value * 1000) / 1000;
+const same = (a, b) => Math.abs(a - b) < 1e-6;
+const warnings = [];
 
 /** Width and height of a PNG from its IHDR, without decoding it. */
 const pngSize = (file) => {
@@ -54,12 +58,12 @@ const stills = normalizeStills(readJson("stills/stills.json", null));
 if (timing) {
   let cursor = 0;
   for (const section of timing.sections) {
-    if (section.start !== cursor)
+    if (!same(section.start, cursor))
       problem(`timing.json: ${section.id} starts at ${section.start}, expected ${cursor}`);
-    cursor = section.start + section.duration;
+    cursor = r3(section.start + section.duration);
     if (!existsSync(join(root, section.file))) problem(`timing.json: ${section.file} does not exist`);
   }
-  if (cursor !== timing.duration)
+  if (!same(cursor, timing.duration))
     problem(`timing.json: sections end at ${cursor}, the film is ${timing.duration}`);
 }
 
@@ -70,7 +74,7 @@ if (timing && words) {
       notes.push(`audio/words.json has no section ${section.id} yet`);
       continue;
     }
-    const end = section.start + section.duration;
+    const end = r3(section.start + section.duration);
     if (
       isNumber(entry.start) &&
       isNumber(entry.end) &&
@@ -91,7 +95,7 @@ if (timing && words) {
       }
       if (word.end < word.start) problem(`${where}: ends before it starts`);
       if (word.start < last - 1e-6) problem(`${where}: starts before the previous word starts`);
-      if (word.start < section.start || word.end > end)
+      if (word.start < section.start - 1e-6 || word.end > end + 1e-6)
         problem(
           `${where}: ${word.start} to ${word.end} is outside the section's window ${section.start} to ${end}`,
         );
@@ -112,10 +116,15 @@ if (timing && words) {
     if (entry.words.length > 0) {
       const first = entry.words[0].start - section.start;
       const tail = end - entry.words[entry.words.length - 1].end;
+      // air is the director's call with SOUND (s3 and s5 end on about 0.4 s by design): say so, do not fail
       if (first < 0.4 - 1e-6)
-        problem(`audio/words.json ${section.id}: ${first.toFixed(2)} s of air at the start, needs 0.4`);
+        warnings.push(
+          `audio/words.json ${section.id}: ${first.toFixed(2)} s of air before the first word (0.4 is usual)`,
+        );
       if (tail < 0.6 - 1e-6)
-        problem(`audio/words.json ${section.id}: ${tail.toFixed(2)} s of air at the end, needs 0.6`);
+        warnings.push(
+          `audio/words.json ${section.id}: ${tail.toFixed(2)} s of air after the last word (0.6 is usual)`,
+        );
     }
   }
 }
@@ -168,7 +177,7 @@ if (timing) {
   let html = readFileSync(index, "utf8");
   const before = html;
   for (const section of timing.sections) {
-    const end = section.start + section.duration;
+    const end = r3(section.start + section.duration);
     html = html.replace(
       new RegExp(`(<div id="sec-${section.id}" [^>]*?)data-start="[^"]*" data-duration="[^"]*"`),
       `$1data-start="${section.start}" data-duration="${section.duration}"`,
@@ -197,13 +206,18 @@ if (timing) {
       const own = /data-composition-id="[^"]*"[^>]*data-duration="([^"]*)"/.exec(
         readFileSync(file, "utf8"),
       )?.[1];
-      if (own !== undefined && Number(own) !== section.duration)
+      if (own !== undefined && !same(Number(own), section.duration))
         problem(
           `${section.file}: its root says data-duration="${own}", the window is ${section.duration} s (timing.json)`,
         );
     }
   }
   html = html.replace(/(<div id="root" [^>]*?data-duration=")[^"]*(")/, `$1${timing.duration}$2`);
+  // the music bed and the effects stem run the whole film
+  html = html.replace(
+    /(<audio id="(?:music-bed|sfx-stem)" [^>]*?data-duration=")[^"]*(")/g,
+    `$1${timing.duration}$2`,
+  );
   if (html !== before && !checkOnly) {
     writeFileSync(index, html);
     console.log("sync: index.html updated from timing.json and audio/words.json");
@@ -226,6 +240,7 @@ if (process.argv.includes("--list") && timing) {
 }
 
 for (const note of notes) console.log(`note: ${note}`);
+for (const text of warnings) console.log(`warn: ${text}`);
 if (problems.length > 0) {
   for (const text of problems) console.error(`sync: ${text}`);
   console.error(

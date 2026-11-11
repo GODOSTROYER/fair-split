@@ -31,7 +31,6 @@ Sound effects (CC0 1.0, credit given voluntarily; via the Barty-Bart motion-grap
 "glass_001 (Interface Sounds)" by Kenney: https://kenney.nl/assets/interface-sounds
 "glass_002 (Interface Sounds)" by Kenney: https://kenney.nl/assets/interface-sounds
 "pluck_001 (Interface Sounds)" by Kenney: https://kenney.nl/assets/interface-sounds
-"pluck_002 (Interface Sounds)" by Kenney: https://kenney.nl/assets/interface-sounds
 "rollover2 (UI Audio)" by Kenney: https://kenney.nl/assets/ui-audio
 "scroll_001 (Interface Sounds)" by Kenney: https://kenney.nl/assets/interface-sounds
 "select_001 (Interface Sounds)" by Kenney: https://kenney.nl/assets/interface-sounds
@@ -39,6 +38,7 @@ Sound effects (CC0 1.0, credit given voluntarily; via the Barty-Bart motion-grap
 "swipe" by LilMati: https://freesound.org/people/LilMati/sounds/702773/
 "Click Tick" by malle99: https://freesound.org/people/malle99/sounds/384187/
 "soft_impact3" by peoplearehappy: https://freesound.org/people/peoplearehappy/sounds/841274/
+"Whoosh" by qubodup: https://freesound.org/people/qubodup/sounds/60013/
 "Pop-in SFX" by Sadiquecat: https://freesound.org/people/Sadiquecat/sounds/824189/
 "Freesound 745291 (a light tap)" by SamsterBirdies: https://freesound.org/people/SamsterBirdies/sounds/745291/
 "Click / Tick" by Squirrel_404: https://freesound.org/people/Squirrel_404/sounds/683048/

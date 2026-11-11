@@ -1,11 +1,11 @@
 // Fair Split film v7: the delivery files, from the rendered picture and SOUND's final mix.
-//   npx hyperframes render --resolution 4k --fps 30 --quality delivery --crf 12 --output out/fair-split-film-v7-picture.mp4
+//   npx hyperframes render --resolution 4k --fps 30 --quality delivery --crf 12 --output out/fair-split-film-v8-picture.mp4
 //   node tools/finish.mjs
 // Writes, in out/:
-//   fair-split-film-v7.mp4         the picture as rendered (copied, not re-encoded), audio/mix.wav as AAC 320 kb/s,
+//   fair-split-film-v8.mp4         the picture as rendered (copied, not re-encoded), audio/mix.wav as AAC 320 kb/s,
 //                                  audio/captions.vtt as a soft English subtitle track that is NOT on by default
-//   fair-split-film-v7.en.vtt      the same captions, for YouTube
-//   fair-split-film-v7-1080p.mp4   a 1920x1080 copy, downscaled from the 4K master, for quick viewing
+//   fair-split-film-v8.en.vtt      the same captions, for YouTube; and .en.srt, the same again as SubRip
+//   fair-split-film-v8-1080p.mp4   a 1920x1080 copy, downscaled from the 4K master, for quick viewing
 // The browser's own audio mix in the picture file is dropped: the film's sound is audio/mix.wav.
 import { spawnSync } from "node:child_process";
 import { copyFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
@@ -14,7 +14,10 @@ import { fileURLToPath } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const timing = JSON.parse(readFileSync(join(root, "timing.json"), "utf8"));
-const NAME = "fair-split-film-v7";
+// the cut's name: node tools/finish.mjs --name fair-split-film-v9 for the next one
+const NAME = process.argv.includes("--name")
+  ? process.argv[process.argv.indexOf("--name") + 1]
+  : "fair-split-film-v8";
 const picture = join(root, "out", `${NAME}-picture.mp4`);
 const mix = join(root, "audio", "mix.wav");
 const captions = join(root, "audio", "captions.vtt");
@@ -113,6 +116,7 @@ ffmpeg([
 ]);
 subtitlesOffByDefault(master);
 copyFileSync(captions, join(root, "out", `${NAME}.en.vtt`));
+ffmpeg(["-i", captions, join(root, "out", `${NAME}.en.srt`)]);
 
 // the quick-view copy: downscaled from the 4K master, visually lossless
 ffmpeg([
@@ -154,4 +158,6 @@ ffmpeg([
 ]);
 subtitlesOffByDefault(small);
 
-console.log(`finish: wrote out/${NAME}.mp4, out/${NAME}.en.vtt and out/${NAME}-1080p.mp4`);
+console.log(
+  `finish: wrote out/${NAME}.mp4, out/${NAME}.en.vtt, out/${NAME}.en.srt and out/${NAME}-1080p.mp4`,
+);
