@@ -1,11 +1,12 @@
-// The first view's five steps (ADR-0016; UI gate rounds 2 and 3, number first): every figure is counted from the
-// seed or Proof's plates, the pay split is the plan until the run settles, and nothing claims a live Claude reading.
+// The first view's pipeline (ADR-0016; UI gate rounds 2 to 5, number first): every figure is counted from the seed or
+// Proof's plates, the pay split is the plan until the run settles, nothing claims a live Claude reading, and each
+// step's dot is its state only (round 5: pending, done, held, paid; never indigo).
 import { UiProvider } from "@fairsplit/ui-web";
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import { applyRunEvents, firstView, sessionView } from "../../data/run-view.js";
 import { createTestWorld, seedSnapshot } from "../../test/world.js";
-import { StoryTiles, storyTiles } from "./StoryTiles.js";
+import { StoryTiles, storyStates, storyTiles } from "./StoryTiles.js";
 
 const snapshot = seedSnapshot();
 
@@ -36,7 +37,36 @@ describe("the story tiles", () => {
     expect(pay).toMatchObject({ text: "7 PayPal · 57 cash", phase: "settled" });
   });
 
-  it("render as an ordered list of Read, Check, Sign, Pay and Prove, the plan in grey", () => {
+  it("light each step in its state's colour only: pending before the run, held while a person decides, paid in jade", () => {
+    expect(Object.values(storyStates(firstView(snapshot)))).toEqual([
+      "pending",
+      "pending",
+      "pending",
+      "pending",
+      "pending",
+    ]);
+    const world = createTestWorld();
+    world.markPaid();
+    const reading = applyRunEvents(sessionView(snapshot, world), world.eventsAfter(null));
+    // Funded and read: slip 0462 waits for a person, and the holds are open.
+    expect(storyStates(reading)).toMatchObject({
+      read: "held",
+      check: "held",
+      sign: "pending",
+      pay: "pending",
+    });
+    const settled = settledView();
+    expect(storyStates(settled, { proofChecked: true })).toEqual({
+      read: "done",
+      check: "done",
+      sign: "done",
+      pay: "paid",
+      prove: "done",
+    });
+    expect(storyStates(settled).prove).toBe("pending");
+  });
+
+  it("render as an ordered list of Read, Check, Sign, Pay and Prove, the plan said in a word", () => {
     render(
       <UiProvider lang="en" motion="full">
         <StoryTiles snapshot={snapshot} view={firstView(snapshot)} />
@@ -49,6 +79,9 @@ describe("the story tiles", () => {
     expect(tiles[3]?.textContent).toContain("Pay");
     expect(tiles[3]?.textContent).toContain("8 PayPal · 56 cash planned");
     expect(tiles[3]?.dataset.phase).toBe("planned");
+    // State dots only (round 5): every step a StateDot, none indigo, no square.
+    expect(list.querySelectorAll(".fs-state-dot")).toHaveLength(5);
+    for (const tile of tiles) expect(tile.dataset.state).toBe("pending");
   });
 
   it("never claims a live Claude reading", () => {

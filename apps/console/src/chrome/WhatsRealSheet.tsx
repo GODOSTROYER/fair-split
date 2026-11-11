@@ -1,6 +1,7 @@
-// W-JG-02 "What's real" (S1.6; UI gate rounds 2 to 4): a sheet of five rows (Real code, the simulated PayPal
-// sandbox, Replayed, Synthetic, Not built), each its mark, its name and one sentence, the whole row opening to its
-// details (round 4: no "More" on every row); it starts under the top bar;
+// W-JG-02 "What's real" (S1.6; UI gate rounds 2 to 5): a sheet of five rows (Real code, the simulated PayPal
+// sandbox, Replayed, Synthetic, Not built), each its name and one sentence (only the simulated row wears a mark, the
+// dashed circle the screens carry), the whole row opening to its details (round 4: no "More" on every row); it starts
+// under the top bar and hugs its rows (round 5);
 // then "Try to break it", four rows each with "Try". This sheet is where the stage's explanations live: the screens
 // keep only the marks. The PayPal row follows the rail the API runs (ADR-0002). Opened from the stage bar. The
 // attempts' controls are the season slice's (ChromePortal "whatsReal.tryToBreak"); the rows' names stand in until
@@ -13,16 +14,13 @@ import { stageCaption, TRY_TO_BREAK, type WhatsRealFacts, whatsReal } from "./co
 import { ChromeSlot } from "./slots.js";
 
 /**
- * The full legend lives here only (UI gate round 3): each row's glyph is the one the screens carry bare, with its
- * words as tooltip and name. Real code a solid square, the simulated PayPal sandbox (and demo keys) a dashed
- * circle, the seed stand-in and the synthetic co-op a hatched square.
+ * The legend lives here only (UI gate rounds 3 and 5). Round 5 (provenance once, hatch only for cash): the screens
+ * carry one mark, the dashed circle beside PayPal money, so only the simulated PayPal row wears it; every other row
+ * is its words alone (the screens say them once, in their id line), its mark's slot kept so the names align.
  */
 const SECTION_GLYPH: Readonly<Record<string, HonestyKind>> = {
-  real: "real",
   "simulated-paypal": "simulated",
   "real-paypal": "simulated",
-  replayed: "synthetic",
-  synthetic: "synthetic",
 };
 
 export interface WhatsRealSheetProps {
@@ -37,9 +35,10 @@ export function WhatsRealSheet({ open, onOpenChange, facts }: WhatsRealSheetProp
     <Dialog.Root open={open} onOpenChange={(next) => onOpenChange(next)}>
       <Dialog.Portal>
         <Dialog.Backdrop className="fsc-sheet__scrim" />
+        {/* Round 5: the sheet hugs its rows (no empty band under "Try to break it"), scrolling past the stage's foot. */}
         <Dialog.Popup
           finalFocus={false}
-          className="fsc-sheet"
+          className="fsc-sheet fsc-sheet--hug"
           data-testid="W-JG-01.whatsReal"
           data-rail={facts.rail}
         >

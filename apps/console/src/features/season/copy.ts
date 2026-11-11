@@ -30,6 +30,8 @@ export const SEASON_COPY = {
   poolShare: (members: number) => `What ${members} members share`,
   premium: "Premium",
   premiumNote: "Never deducted, R0",
+  /** The first view's premium lock, in words (round 5: no rule id where a person reads). */
+  premiumNever: "Never deducted",
   bonus: "Quality bonus",
   disbursement: "Disbursement",
   disbursementNote: "Payout costs, never shared",
@@ -83,54 +85,25 @@ export function fundedSource(rail: PaypalRail): string {
     : "The payment was recorded on the untested PayPal sandbox rail, then the invoice read back as paid with nothing due.";
 }
 
-/** A heading in two parts (UI gate round 3): what already happened in grey, then where the run is now, in ink. */
-export interface FirstViewTitle {
-  readonly done: string;
-  readonly now: string;
-}
-
 /** The first view's single action (W-JG-01), and what happens while it runs (UI gate round 2: one line each). */
 export const FIRST_VIEW_COPY = {
-  /** The season in the meta line under the heading, before the co-op (round 3: nothing above the heading). */
-  season: (season: string) => `Season ${season}`,
-  /** The hero's one line of facts under the title; the slips' counts sit on the desk, with their scope. */
-  facts: (members: number) => `${members} members · 1 invoice`,
-  lede: (members: number, buyer: string) =>
-    `${members} members' cacao went to ${buyer} in one lot. One invoice funds every member's share; the slips on the desk decide who gets what.`,
   /**
-   * The heading says where the run is, never more (round 3, decision 3). Before the press: the invoice is out and
-   * nobody has paid it. Funded: the invoice read back as paid (or marked paid, the simulated record-payment).
+   * The title row (round 5): a noun title with the season as its grey suffix, "Season 2026-A", and the run's state
+   * as one chip on the same row: "Awaiting payment" until the invoice reads back paid, then "Funded", then the
+   * settled run's words (`settledStatus`), never more than the run has done.
    */
-  titleReady: { done: "Invoice sent.", now: "Awaiting payment." } satisfies FirstViewTitle,
-  titleFunded: (marked: boolean): FirstViewTitle => ({
-    done: marked ? "Invoice marked paid." : "Invoice paid.",
-    now: "Pool funded.",
-  }),
-  /**
-   * A settled run: PayPal counts only payouts its own evidence confirmed, and a replay says so. Cash is "due"
-   * until the bodega has handed every cash line over; it never reads settled or done while any is due.
-   */
-  titleSettled: (c: {
-    readonly paypal: number;
-    readonly cash: number;
-    readonly replayed: boolean;
-    readonly cashDue: boolean;
-  }): FirstViewTitle => ({
-    done: c.replayed ? `${c.paypal} payouts replayed.` : `${c.paypal} paid by PayPal.`,
-    now: c.cashDue ? `${c.cash} due in cash.` : `${c.cash} in cash.`,
-  }),
+  title: "Season",
+  awaiting: "Awaiting payment",
   srConsequence: "starts the run, changes a line",
   starting: "Starting your run.",
   pending: "Recording the payment.",
-  funded: "Funded",
   movedOn: "The invoice is paid. The run has moved on.",
   /** A settled run's status line: PayPal's part, then the cash still due (the pill's own words). */
   settledStatus: (replayed: boolean, cashDue: boolean) =>
     `${replayed ? "Payouts replayed" : "PayPal complete"}${cashDue ? " · cash due" : ""}`,
   openNext: "Next step",
-  rules: "The rules, bolted before the first slip",
   openCard: "Open the rate card",
-  /** The rate card's chip: its name, then its hash and seal date in micro, then "Open". */
+  /** The rate card's row, the pool card's foot (round 5): its name, its hash and seal date, then "Open". */
   card: "Rate card",
   /** The chip's seal date, after its hash (the hash is an id, in the mono). */
   cardSealedOn: (date: string) => ` · sealed ${date}`,
@@ -140,23 +113,17 @@ export const FIRST_VIEW_COPY = {
   members: (n: number) => `${n} members`,
   /** The pool's state before the simulated PayPal funds it, beside its hollow dot (round 4). */
   notFunded: "Not funded",
-  /** The pool as one line (round 3): "Invoice US$4,333.50 − costs US$60.00 = US$4,273.50". */
+  /** The pool's amount, then its sum in words under it (round 5): "Invoice US$4,333.50 − costs US$60.00". */
   eqInvoice: "Invoice",
   eqCosts: "costs",
   eqSpoken: (invoice: string, costs: string) => `Invoice ${invoice} minus costs ${costs} equals the pool: `,
-  statusCheck: "status check",
-  slips: "Slips",
   /** The desk's counts with their scope (round 3): this run's photos and slips, then the season's slip images. */
   slipsMicro: (photos: number, counts: string) => `${photos} photos · ${counts}`,
   exhibit: "Claude's real readings of 10 hero slips",
   invoice: "Invoice",
-  seededSample: "Seeded sample",
-  syntheticSample: "Synthetic sample",
   desk: "Slips",
-  synthetic: "Synthetic samples",
   deskNote: (count: number, funded: boolean) =>
     funded
       ? `${count} photos composed in code, four synthetic slips each, in Jessie's blue block capitals. Each photo ticks once its rows land.`
       : `${count} photos composed in code, four synthetic slips each, in Jessie's blue block capitals.`,
-  stamp: (name: string) => `Pressed by ${name}`,
 } as const;

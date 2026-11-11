@@ -5,60 +5,27 @@
 
 /* ---------------------------------------------------------------- the first view */
 
-/* The first view sits on the one twelve-column grid (round 4, .fsc-screen): the title row, the desk 32 px under it
-   (the money and the paper, top-aligned), then the five steps 32 px under the cards. It fills the screen panel to
-   its inner edge; nothing is centred or stretched in a tall card. */
-.fsc-first__head {
-  display: grid;
-  gap: 4px;
-  min-width: 0;
+/* The first view sits on the one twelve-column grid (rounds 4 and 5, .fsc-screen), top-aligned, 32 px between its
+   rows: the title row ("Season 2026-A", the state's chip, the id line), the invoice beside the pool, the slips as one
+   strip, then the pipeline. It fills the screen panel to its inner edge; nothing is centred in a tall card. */
+
+/* The state's chip on the title row: "Awaiting payment", "Funded" (MM-S floods it), the settled run's words. */
+.fsc-first__state {
+  display: inline-flex;
+  align-items: center;
 }
 
-.fsc-first__titles {
-  display: grid;
-  gap: 4px;
-  min-width: 0;
-}
-
-/* The heading in two parts (round 3): what already happened in grey, then where the run is now, in ink. Nothing
-   sits above it. */
-.fsc-first__title {
-  margin: 0;
-  color: var(--fs-ink);
-  text-wrap: balance;
-}
-
-.fsc-first__title-done {
-  color: var(--fs-ink-3);
-}
-
-/* One meta line under the heading: "Season 2026-A · the co-op · 64 members · 1 invoice". */
-.fsc-first__meta {
-  margin: 0;
-  color: var(--fs-ink-2);
-}
-
-.fsc-first__sep {
-  color: var(--fs-ink-3);
-}
-
-/* The facts wrap as one piece, never "64 members ·" over "1 invoice". */
-.fsc-first__facts {
-  white-space: nowrap;
-}
-
-/* The rate card as the quiet card under the invoice (round 4): a lock, its name, its hash (mono) and seal date,
-   then "Open" at the row's end. A card on e1 like the invoice beside it, one 56 px row that hugs its words. */
+/* The rate card, the pool card's foot (round 5): the rules that share the pool, one 48 px row over the card's rule,
+   not a card of its own: a lock, its name, its hash (mono) and seal date, then "Open" at the row's end. */
 .fsc-first__card {
   display: flex;
   align-items: center;
   gap: 8px;
   min-width: 0;
-  min-height: 56px;
-  padding: 0 12px 0 24px;
-  border-radius: var(--fs-radius-card);
-  background: var(--fs-plate);
-  box-shadow: var(--fs-shadow-e1);
+  min-height: 48px;
+  margin: 0 -12px;
+  padding: 0 12px;
+  border-radius: var(--fs-radius-control);
   color: var(--fs-ink);
   text-decoration: none;
   white-space: nowrap;
@@ -81,8 +48,6 @@
 .fsc-first__card-open {
   flex: none;
   margin-left: auto;
-  padding: 4px 8px;
-  border-radius: var(--fs-radius-control);
   color: var(--fs-pod);
 }
 
@@ -90,18 +55,25 @@
   background: var(--fs-plate-2);
 }
 
-/* The paper, beside the invoice under the pool's strip: it starts inside the first screen at every stage size. */
+/* The slips (round 5): one 12-up strip of small prints on the screen's columns, the head beside it from 1,040 px
+   ("Slips", the counts' scope, Claude's real readings), above it narrower. */
 .fsc-first__desk {
   display: grid;
-  align-content: start;
-  gap: 12px;
+  grid-template-columns: subgrid;
+  column-gap: normal;
+  row-gap: 12px;
+  align-items: start;
 }
 
-/* "Slips", its micro line and the synthetic tag: one row. */
+.fsc-first__desk > * {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+
 .fsc-first__desk-head {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
+  align-items: baseline;
   gap: 4px 12px;
 }
 
@@ -111,178 +83,201 @@
 }
 
 .fsc-first__desk-note {
-  color: var(--fs-ink-3);
-}
-
-/* All twelve prints on the first screen: two rows of six, each still a photo of four slips. */
-.fsc-first__sheet {
-  display: grid;
-  justify-items: start;
-  gap: 12px;
-}
-
-.fsc-first__sheet > .fs-link {
   color: var(--fs-ink-2);
 }
 
-/* Two rows of six prints that fill the paper's column (round 4: no gutter left at the panel's edge), still four
-   slips each. */
-.fsc-first__sheet {
-  justify-items: stretch;
+.fsc-first__desk-head > .fs-link {
+  color: var(--fs-ink-2);
 }
 
-.fsc-first__sheet > .fs-link {
-  justify-self: start;
+/* Twelve prints in one row, each at most 72 px wide (they shrink to the row, never wrap), still four slips each. */
+.fsc-first__desk > .fsc-contact {
+  grid-template-columns: repeat(12, minmax(0, 72px));
+  gap: 8px;
 }
 
-.fsc-first__sheet > .fsc-contact {
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.fsc-first__sheet .fsc-contact__link {
+.fsc-first__desk .fsc-contact__link {
   gap: 4px;
 }
 
-/* The desk's synthetic tag sits in the head's row. */
-.fsc-first__synthetic {
-  display: inline-flex;
+@container fsc-screen (min-width: 1040px) {
+  .fsc-first__desk-head {
+    grid-row: 1;
+    grid-column: 1 / span 3;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .fsc-first__desk > .fsc-contact {
+    grid-row: 1;
+    grid-column: 4 / span 9;
+  }
 }
 
-/* ---------------------------------------------------------------- the five steps, number first */
+/* ---------------------------------------------------------------- the pipeline */
 
-/* One quiet band of five: each step a coloured dot and its verb, over one figure in the numeral face. Colour is
-   only the dot, and each dot is the stage's own mark for who acts: graphite for the machine, marigold for a hold
-   a person settles, ballpoint for a person's key, the dashed steel ring for the simulated PayPal sandbox, ink
-   for Proof. No bubbles, no coloured bars, no sentences. */
+/* Five steps on one track (round 5): each step's dot sits on a hairline that runs from the first dot to the last, its
+   verb beside it, its count under it. The dot is the state alone (pending hollow, done ink, held amber, paid jade);
+   no indigo, no card: the strip is flat on the panel. Every count is ink on the title step, its unit the label role
+   in ink-2. */
 .fsc-tiles {
+  position: relative;
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   margin: 0;
-  padding: 0;
-  border-radius: var(--fs-radius-card);
-  background: var(--fs-plate);
-  box-shadow: inset 0 0 0 1px var(--fs-rule);
+  padding: 8px 0 0;
   list-style: none;
 }
 
+/* The track: from the first dot's centre to the last's (each step is a fifth of the row, its dot 8 px in). */
+.fsc-tiles::before {
+  content: "";
+  position: absolute;
+  top: 18px;
+  left: 8px;
+  width: 80%;
+  height: 1px;
+  background: var(--fs-rule-strong);
+}
+
 .fsc-tile {
-  --dot: var(--fs-pencil);
   display: grid;
   align-content: start;
-  gap: 8px;
+  justify-items: start;
+  gap: 12px;
   min-width: 0;
-  padding: 16px 20px;
+  padding-right: 16px;
 }
 
-.fsc-tile + .fsc-tile {
-  border-left: 1px solid var(--fs-rule);
-}
-
-.fsc-tile[data-role="check"] {
-  --dot: var(--fs-canary);
-}
-
-.fsc-tile[data-role="sign"] {
-  --dot: var(--fs-pod);
-}
-
-.fsc-tile[data-role="prove"] {
-  --dot: var(--fs-ink);
-}
-
+/* The dot and its verb knock the track out behind them, so the line runs between the steps. */
 .fsc-tile__step {
-  display: flex;
+  position: relative;
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
+  min-height: 20px;
+  padding-right: 12px;
+  background: var(--fs-plate);
   color: var(--fs-ink-2);
 }
 
-.fsc-tile__dot {
+.fsc-tile__node {
+  display: inline-flex;
   flex: none;
-  width: 8px;
-  height: 8px;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
-  background: var(--dot);
+  background: var(--fs-plate);
 }
 
-.fsc-tile[data-role="pay"] .fsc-tile__dot {
-  border: 1.25px dashed var(--fs-steel-line);
-  background: transparent;
+.fsc-tile[data-state="held"] .fsc-tile__step,
+.fsc-tile[data-state="paid"] .fsc-tile__step,
+.fsc-tile[data-state="done"] .fsc-tile__step {
+  color: var(--fs-ink);
 }
 
 .fsc-tile__figure {
-  color: var(--fs-ink-2);
-  font-family: var(--fs-font-ui);
-  font-stretch: 87.5%;
-  font-weight: 500;
-  font-size: 0.875rem;
-  line-height: 1.75rem;
-  font-variant-numeric: tabular-nums lining-nums;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0 6px;
+  padding-left: 4px;
+  color: var(--fs-ink);
   white-space: nowrap;
 }
 
-/* Each step's count on the title step (24/30, round 3), in the numerals' 500 at 87.5 %: the invoice above stays
-   the screen's one hero. */
+/* Each step's count on the title step (24/30) in the numerals' 500 at 87.5 %: the invoice stays the one hero. */
 .fsc-tile__no {
   color: var(--fs-ink);
+  font-family: var(--fs-font-ui);
+  font-stretch: 87.5%;
   font-weight: 500;
   font-size: 1.5rem;
   line-height: 1.875rem;
   letter-spacing: -0.015em;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+/* The unit in the label role (14/20, 520, width 100) in ink-2: never the numerals' condensed cut. */
+.fsc-tile__unit {
+  color: var(--fs-ink-2);
+  font-family: var(--fs-font-ui);
+  font-stretch: 100%;
+  font-weight: 520;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
 }
 
 .fsc-tile__sep {
   color: var(--fs-ink-3);
+  font-size: 0.875rem;
 }
 
-/* The pay split before the run settles is the plan: grey figures, "planned" beside them (round 3). */
-.fsc-tile[data-phase="planned"] .fsc-tile__figure,
-.fsc-tile[data-phase="planned"] .fsc-tile__no {
-  color: var(--fs-pending);
-}
-
+/* The pay split before the run settles is the plan: "planned" after the counts, in ink-3. */
 .fsc-tile__planned {
-  margin-left: auto;
-  color: var(--fs-pending);
+  color: var(--fs-ink-3);
 }
 
-@media (max-width: 1599px) {
-  .fsc-tile {
-    padding: 12px 16px;
-  }
-
-  .fsc-first__sheet > .fsc-contact {
-    gap: 8px;
+/* A tall window (1,920 x 1,080): the slips and the pipeline take 64 px above them, the scale's widest step. */
+@media (min-height: 1000px) {
+  .fsc-first > .fsc-first__desk,
+  .fsc-first > .fsc-tiles {
+    margin-top: 32px;
   }
 }
 
-/* A short window (1280 x 800): the steps stay in view; the prints keep to the height the window has. */
+/* A short window (1,280 x 800): every row stays whole in the panel (round 5: nothing clipped). The rows close to
+   24 px, the invoice card tightens around its hero, and the pipeline's count sits under its verb. */
 @media (max-height: 899px) {
-  .fsc-first__sheet {
-    gap: 8px;
+  .fsc-first {
+    row-gap: 24px;
   }
 
-  .fsc-first__sheet > .fsc-contact {
-    grid-template-columns: repeat(6, minmax(0, 64px));
+  .fsc-first > .fsc-fund {
+    margin-top: 8px;
   }
 
-  .fsc-tile {
+  .fsc-first .fsc-fund__plate {
+    padding: 20px 24px;
+  }
+
+  .fsc-first .fsc-fund[data-compact] .fsc-fund__invoice > .fsc-fund__total {
+    margin-top: 0;
+  }
+
+  .fsc-first .fsc-fund__action[data-place="lead"] {
+    padding-block: 0;
+  }
+
+  .fsc-first .fsc-tile {
     gap: 4px;
-    padding: 12px 16px;
+  }
+
+  .fsc-first .fsc-tiles {
+    padding-top: 0;
+  }
+
+  .fsc-first .fsc-tiles::before {
+    top: 10px;
   }
 }
 
-@media (max-width: 1199px) {
+/* A narrow panel: two steps a row, no track. */
+@container fsc-screen (max-width: 719px) {
   .fsc-tiles {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    row-gap: 20px;
   }
 
-  .fsc-tile + .fsc-tile {
-    border-left: 0;
+  .fsc-tiles::before {
+    display: none;
   }
 }
 
+/* ---------------------------------------------------------------- the press */
 .fsc-first__action {
   display: grid;
   gap: 12px;

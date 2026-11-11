@@ -5,9 +5,11 @@
 // on the one twelve-column grid, top-aligned; Paid never lights while cash is due at the bodega.
 
 import { webRoutes } from "@fairsplit/contracts";
-import { Glyph, HONESTY, LegendGlyph, useT } from "@fairsplit/ui-web";
+import { Glyph, useT } from "@fairsplit/ui-web";
 import { useMemo } from "react";
 import { AppLink } from "../../chrome/AppLink.js";
+import { PROVENANCE } from "../../chrome/copy.js";
+import { ScreenHead } from "../../chrome/ScreenGrid.js";
 import { ScreenRoot } from "../../chrome/ScreenRoot.js";
 import { usePaypalRail, useStageRun } from "../../data/hooks.js";
 import { payoutReplayed } from "../../data/payout-replay.js";
@@ -21,7 +23,7 @@ import { FundingBlock, useFundingMoment } from "./funding.js";
 import { gateBeds, SeasonGate } from "./gate.js";
 import { nextSentence, type SeasonScreenState, seasonState, stripStages } from "./model.js";
 import { useOnline } from "./online.js";
-import { ContactSheet, EvalWaffle, RunStrip, SeasonMark } from "./parts.js";
+import { ContactSheet, EvalWaffle, RunStrip } from "./parts.js";
 
 export function SeasonScreen({ seasonCode }: { readonly seasonCode: string }) {
   return (
@@ -83,33 +85,35 @@ function Season() {
   const photos = replayPhotos(snapshot);
   return (
     <ScreenRoot id="W-TR-01" state={state} labelledBy="fsc-season-title" className="fsc-season" grid>
-      <header className="fsc-season__head">
-        <div className="fsc-season__titles">
-          <h1 id="fsc-season-title" className="fsc-season__title">
-            <span className="fs-sr">Season </span>
-            <SeasonMark snapshot={snapshot} testId="W-TR-01.mark" size="hero" lot coop={false} />
-          </h1>
-          <p className="fsc-season__coop fs-t-title-2">{t("W-TR-01.coop")}</p>
-          {/* The lot's facts as data (round 4), its code already beside the season. */}
-          <p className="fsc-season__lede fs-t-caption">
-            {SEASON_COPY.lotFacts(
-              format.kg(snapshot.lot.shippedG, 0),
-              snapshot.lot.buyer,
-              snapshot.lot.sacks,
-            )}
-          </p>
-        </div>
-        {next && next.actor !== "done" && (
-          <p className="fsc-season__next" data-testid="W-TR-01.next" data-actor={next.actor}>
-            <span className="fsc-season__next-word fs-t-caption">{SEASON_COPY.next}</span>
-            <AppLink href={next.to} className="fsc-season__next-link fs-t-label">
-              <span className="fsc-season__next-mark" aria-hidden />
-              {nextSentence(next.text)}
-            </AppLink>
-          </p>
-        )}
-      </header>
-
+      {/* Round 5: the shared title row, "Season 2026-A" (the season its grey suffix), the lot's code in the id line
+          with the screen's one provenance phrase, and the next step at the row's end; the co-op and the lot's facts
+          are the first line under it, data joined by " · ". */}
+      <ScreenHead
+        title={FIRST_VIEW_COPY.title}
+        suffix={<span data-testid="W-TR-01.mark">{season}</span>}
+        titleId="fsc-season-title"
+        meta={snapshot.lot.lotCode}
+        provenance={PROVENANCE.seededSlips}
+        className="fsc-season__head"
+        actions={
+          next && next.actor !== "done" ? (
+            <p className="fsc-season__next" data-testid="W-TR-01.next" data-actor={next.actor}>
+              <span className="fsc-season__next-word fs-t-caption">{SEASON_COPY.next}</span>
+              <AppLink href={next.to} className="fsc-season__next-link fs-t-label">
+                <span className="fsc-season__next-mark" aria-hidden />
+                {nextSentence(next.text)}
+              </AppLink>
+            </p>
+          ) : null
+        }
+      />
+      <p className="fsc-season__lede fs-t-caption">
+        {`${t("W-TR-01.coop")} · ${SEASON_COPY.lotFacts(
+          format.kg(snapshot.lot.shippedG, 0),
+          snapshot.lot.buyer,
+          snapshot.lot.sacks,
+        )}`}
+      </p>
       <div className="fsc-season__run">
         <RunStrip
           stages={stripStages(view, snapshot)}
@@ -143,8 +147,8 @@ function Season() {
 
       <div className="fsc-season__lower">
         <section className="fsc-season__desk" aria-labelledby="fsc-season-photos">
-          {/* The desk's head as on the first view (round 4): "Slips", the counts with their scope, the synthetic
-              mark (its words are its tooltip and name). */}
+          {/* The desk's head as on the first view: "Slips" and the counts with their scope (round 5: no mark; the
+              title row's id line says the provenance once). */}
           <header className="fsc-season__desk-head">
             <h2 id="fsc-season-photos" className="fsc-section-title fs-t-label">
               {FIRST_VIEW_COPY.desk}
@@ -152,7 +156,6 @@ function Season() {
             <span className="fs-t-caption fsc-season__muted">
               {FIRST_VIEW_COPY.slipsMicro(photos.length, slipCounts(snapshot).text)}
             </span>
-            <LegendGlyph {...HONESTY.syntheticSample} />
           </header>
           <ContactSheet
             snapshot={snapshot}

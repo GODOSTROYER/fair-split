@@ -66,6 +66,11 @@
   cursor: help;
 }
 
+/* The " · " between the run id and the phrase is a flex item of its own: it keeps its spaces. */
+.fsc-screen__sep {
+  white-space: pre;
+}
+
 .fsc-screen__actions {
   display: flex;
   align-items: center;

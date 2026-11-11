@@ -39,13 +39,22 @@
   width: min(440px, calc(100vw - var(--fsc-stage-gutter) * 2));
 }
 
+/* Round 5: a sheet that hugs its content (What's real) ends at its last row, never past the stage's foot, where it
+   scrolls; no empty band under its content. */
+.fsc-sheet--hug {
+  bottom: auto;
+  max-height: calc(100dvh - var(--fsc-stage-top) - var(--fsc-stage-gutter));
+}
+
 /* The phone visit (under 1,024 px) has no stage bar to clear: a sheet takes the screen. */
 @media (max-width: 1023px) {
-  .fsc-sheet {
+  .fsc-sheet,
+  .fsc-sheet--hug {
     top: 0;
     right: 0;
     bottom: 0;
     width: 100vw;
+    max-height: none;
     border-radius: 0;
   }
 }
@@ -205,9 +214,9 @@
 /* ---------------------------------------------------------------- What's real: five rows (UI gate round 2) */
 
 /* Each row is one disclosure (round 4): its mark and name on the left, its one sentence beside them, a chevron at
-   the end; the details open under the sentence. The marks are the honesty row's: real code a solid ink square, the
-   simulated PayPal sandbox the dashed steel ring, replayed a graphite square, synthetic hatched, not built an
-   outline. */
+   the end; the details open under the sentence. Round 5: the only mark is the simulated PayPal sandbox's dashed
+   steel ring (the one the screens carry beside PayPal money); every other row keeps an empty slot, so the names
+   align. No hatch (it means cash), no squares. */
 .fsc-truth {
   display: grid;
   margin: 0;
@@ -254,27 +263,6 @@
   flex: none;
   width: 10px;
   height: 10px;
-  border-radius: 2px;
-  background: var(--fs-ink);
-}
-
-.fsc-truth__row[data-section="replayed"] .fsc-truth__mark {
-  background: var(--fs-pencil);
-}
-
-.fsc-truth__row:is([data-section="simulated-paypal"], [data-section="real-paypal"]) .fsc-truth__mark {
-  border: 1.25px dashed var(--fs-steel-line);
-  border-radius: 50%;
-  background: transparent;
-}
-
-.fsc-truth__row[data-section="synthetic"] .fsc-truth__mark {
-  background: repeating-linear-gradient(-45deg, var(--fs-ink-3) 0 1.5px, transparent 1.5px 3px);
-}
-
-.fsc-truth__row:is([data-section="not-built"], [data-section="build"]) .fsc-truth__mark {
-  background: transparent;
-  box-shadow: inset 0 0 0 1.25px var(--fs-ink-3);
 }
 
 .fsc-truth__line {
