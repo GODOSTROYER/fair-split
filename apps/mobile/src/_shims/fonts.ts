@@ -31,6 +31,11 @@ export type FontRole = keyof typeof fontFamily;
  * Native builds keep `fontFamily.strong` until WS-DS's font build cuts the static 600 (`FSSans-SemiBold`).
  */
 export const TITLE_WEB = "FSSans-Title";
+/**
+ * Labels in the web frames (UI gate round 5: every label at width 100, 520, the console's label cut): the same
+ * variable file as the titles, drawn at 520. One family name, so the file loads once.
+ */
+export const LABEL_WEB = TITLE_WEB;
 /** The variable file's weight axis, declared on its `@font-face` (expo-font's `weight` range). */
 export const TITLE_WEB_WEIGHTS = "200 900";
 

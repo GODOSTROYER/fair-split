@@ -170,8 +170,36 @@ export function MarkRow({ marks }: { marks: readonly LegendGlyphProps[] }) {
   );
 }
 
+/**
+ * The same marks with nothing drawn (UI gate round 5, provenance once): inside the judge stage's frames the stage's
+ * own indicator and What's real say it, so the phone's corner glyphs go. Each mark keeps its test hook and its words
+ * for assistive technology, in a 1 px box at the screen's corner that never takes a touch.
+ */
+export function QuietMarks({ marks }: { marks: readonly LegendGlyphProps[] }) {
+  if (!marks.length) return null;
+  return (
+    <View pointerEvents="none" style={styles.quiet}>
+      {marks.map((m) => (
+        <View
+          key={m.label}
+          testID={m.testID}
+          dataSet={{ ...m.dataSet, fsGlyph: m.kind, quiet: "" }}
+          accessible
+          accessibilityRole="text"
+          accessibilityLabel={m.label}
+          style={styles.quietMark}
+        >
+          <Hidden>{m.label}</Hidden>
+        </View>
+      ))}
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   glyph: { alignItems: "center", justifyContent: "center" },
+  quiet: { position: "absolute", top: 0, right: 0, width: 1, height: 1, overflow: "hidden", opacity: 0 },
+  quietMark: { width: 1, height: 1, overflow: "hidden" },
   hidden: { position: "absolute", width: 1, height: 1, overflow: "hidden", opacity: 0 },
   micro: {
     flexDirection: "row",

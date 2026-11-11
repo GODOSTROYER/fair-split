@@ -19,10 +19,11 @@ import { pendingReview } from "../_shims/i18n";
 import { layout, radius, space, target } from "../_shims/tokens.native";
 import { MARK_KIND } from "../lib/honesty";
 import { STATUS_GLYPH, STATUS_TONE, type StatusTone } from "../lib/item-status";
+import { inFrame } from "../services/frame-bridge";
 import { useApp } from "../state/app";
 import { useFs } from "../theme/theme";
 import { Glyph, type GlyphName } from "./glyph";
-import { LegendGlyph, type LegendGlyphProps, MarkRow } from "./honesty";
+import { LegendGlyph, type LegendGlyphProps, MarkRow, QuietMarks } from "./honesty";
 import { Txt, useT } from "./text";
 
 /* ------------------------------------------------------------------ Button */
@@ -256,6 +257,8 @@ export function MachineTranslatedNote({ testID }: { testID?: string }) {
  * The marks that open every surface: demo data (I8) and the review mark (OD-2), as bare glyphs on one row; a tap
  * shows their words. The chrome draws them on every `<Screen>`; the one surface that is not a screen, the Paminawa
  * sheet, draws them itself. `screen` is the register ID: the review mark's test hook is `{screen}.machine`.
+ * Round 5 (provenance once): inside the judge stage's frames nothing is drawn in the corner (the stage's indicator
+ * and What's real say it); the marks keep their hooks and their words for assistive technology (`QuietMarks`).
  */
 export function SurfaceLabels({ screen }: { screen: string }) {
   const { demo, lang } = useApp();
@@ -269,7 +272,7 @@ export function SurfaceLabels({ screen }: { screen: string }) {
       label: t("common.machineTranslated"),
     });
   }
-  return <MarkRow marks={marks} />;
+  return inFrame ? <QuietMarks marks={marks} /> : <MarkRow marks={marks} />;
 }
 
 export function SectionTitle({ children }: { children: ReactNode }) {
@@ -398,20 +401,22 @@ export function MemberStatusChip({
   );
 }
 
-/** A ruled deduction (design §2.2): plate-2 with the rule ID in text, no hue of its own. "CBU −1.09 R1". */
+/**
+ * A ruled deduction (design §2.2): plate-2, no hue of its own. Round 5 (no ids for people): it reads its words alone
+ * ("CBU −1.09"); the rule's id is part of its accessible name only. A chip with no words of its own draws nothing:
+ * its row already says the deduction, and speaks the rule.
+ */
 export function RuleChip({ ruleId, label, testID }: { ruleId: string; label?: string; testID?: string }) {
   const { t } = useFs();
+  if (!label) return null;
   return (
     <View
       testID={testID}
       accessible
-      accessibilityLabel={label ? `${label}, ${ruleId}` : ruleId}
+      accessibilityLabel={ruleId ? `${label}, rule ${ruleId}` : label}
       style={[styles.rule, { backgroundColor: t.color.plate2, borderColor: t.color.rule }]}
     >
-      {label ? <Txt kind="label">{label}</Txt> : null}
-      <Txt kind="label" color="ink2">
-        {ruleId}
-      </Txt>
+      <Txt kind="label">{label}</Txt>
     </View>
   );
 }

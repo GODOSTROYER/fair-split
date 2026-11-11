@@ -160,8 +160,23 @@ function TopFade({ color, inset }: { color: string; inset: number }) {
 interface ScreenScroll {
   /** Registers a block the bar may never cut; returns its unregistration. */
   add(node: SnapNode): () => void;
-  /** Scrolls so `node` starts `gap` px under the top inset (16 by default): an opened card, never mid-row. */
+  /**
+   * Scrolls so `node` starts `gap` px under the top inset: an opened card, never mid-row. Round 5: 32 by default, the
+   * 24 px top fade and 8 more, so a revealed card's top edge is never under the fade or against the status inset.
+   */
   reveal(node: SnapNode, gap?: number): void;
+}
+
+/** Where a revealed block starts under the top inset (round 5): clear of the 24 px fade, with 8 px to spare. */
+export const REVEAL_GAP = layout.fade + space.s8;
+
+/**
+ * The room under a sticky footer's last line (round 5): the bottom inset and 24 px, so nothing sits on the bezel.
+ * Footers (the thumb zone, a step's footer) pad their foot with it.
+ */
+export function useFooterEnd(): number {
+  const insets = useSafeAreaInsets();
+  return insets.bottom + layout.end;
 }
 
 const ScreenScrollContext = createContext<ScreenScroll | null>(null);
@@ -354,7 +369,7 @@ export function Screen<S extends ScreenWithStates>({
           settle(SNAP_SETTLE_MS);
         };
       },
-      reveal(node, gap = space.s16) {
+      reveal(node, gap = REVEAL_GAP) {
         const box = root.current;
         if (!box) return;
         void Promise.all([measured(box), measured(node)]).then(([top, row]) => {
@@ -441,5 +456,7 @@ const styles = StyleSheet.create({
   top: { paddingHorizontal: space.s16 },
   topRow: { minHeight: 64, flexDirection: "row", alignItems: "center", gap: space.s12 },
   screen: { flex: 1 },
+  // The scrolled content ends 48 px under its last line: above the tab bar's 12 px fade, and at least 24 px (layout.end)
+  // above the bezel on a screen with no bar (round 5).
   content: { paddingHorizontal: space.s16, paddingBottom: space.s48, gap: space.s24 },
 });

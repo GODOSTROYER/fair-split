@@ -23,7 +23,7 @@ import { deviceKeyId } from "../../lib/signing";
 import { pirmaHref } from "../../services/session";
 import { useApp } from "../../state/app";
 import { useFs } from "../../theme/theme";
-import { EdgeFade, Screen } from "../../ui/chrome";
+import { EdgeFade, Screen, useFooterEnd } from "../../ui/chrome";
 import { Glyph } from "../../ui/glyph";
 import { LegendGlyph, MicroTag } from "../../ui/honesty";
 import { MomentMarker } from "../../ui/moment";
@@ -81,6 +81,7 @@ export function SignScreen() {
   const { t } = useFs();
   const tr = useT();
   const insets = useSafeAreaInsets();
+  const footerEnd = useFooterEnd();
   const { width, height } = useWindowDimensions();
   const compact = useCompact();
   const gloss = useGloss();
@@ -185,7 +186,8 @@ export function SignScreen() {
       style={[
         styles.thumb,
         {
-          paddingBottom: compact ? 0 : insets.bottom + space.s16,
+          // Round 5: the thumb zone's last line ends 24 px above the bezel (useFooterEnd).
+          paddingBottom: compact ? 0 : footerEnd,
           backgroundColor: t.color.ground,
           borderTopColor: t.color.rule,
         },

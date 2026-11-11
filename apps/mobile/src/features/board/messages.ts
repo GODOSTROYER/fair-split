@@ -275,10 +275,11 @@ export const messages = defineMessages({
     fil: "Pindutin nang matagal para pumirma",
     en: "Hold to sign",
   },
+  // Round 5: the console's words, "Other ways to sign", in each language.
   "M-BD-02.another": {
-    ceb: "Dili makakupti? Pirmahi sa laing paagi",
-    fil: "Hindi makapindot nang matagal? Pumirma sa ibang paraan",
-    en: "Can't hold? Sign another way",
+    ceb: "Ubang paagi sa pagpirma",
+    fil: "Ibang paraan ng pagpirma",
+    en: "Other ways to sign",
   },
   "M-BD-02.prompt": {
     ceb: "Pirmahi ang batch sa Season {season}",

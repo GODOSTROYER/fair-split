@@ -35,7 +35,9 @@ describe("board copy", () => {
       "Kinahanglan og signal aron makapirma. Dili kini ipadala sa ulahi.",
     );
     expect(messages["M-BD-02.caption.biometric"].ceb).toBe("Kupti, dayon gamita ang inyong fingerprint.");
-    expect(messages["M-BD-02.another"].ceb).toBe("Dili makakupti? Pirmahi sa laing paagi");
+    expect(messages["M-BD-02.another"].ceb).toBe("Ubang paagi sa pagpirma");
+    expect(messages["M-BD-02.another"].fil).toBe("Ibang paraan ng pagpirma");
+    expect(messages["M-BD-02.another"].en).toBe("Other ways to sign");
     expect(messages["M-BD-02.mismatch"].ceb).toBe("Lahi ang batch hash. Walay napirmahan.");
     expect(messages["M-BD-02.signed"].ceb).toBe("Napirmahan. Key {key}. Parehas ang batch hash sa console.");
     expect(messages["M-BD-01.none"].ceb).toBe("Walay pirmahan karon.");

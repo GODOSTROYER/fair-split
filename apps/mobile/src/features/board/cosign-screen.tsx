@@ -27,7 +27,7 @@ import { signHref } from "../../services/session";
 import { useApp } from "../../state/app";
 import { typeScale, useFs } from "../../theme/theme";
 import { focusFirst } from "../../ui/a11y";
-import { EdgeFade, Screen, SnapRow } from "../../ui/chrome";
+import { EdgeFade, Screen, SnapRow, useFooterEnd } from "../../ui/chrome";
 import { MicroTag } from "../../ui/honesty";
 import { LanguagePicker } from "../../ui/language-picker";
 import { Sheet } from "../../ui/overlay";
@@ -58,6 +58,7 @@ export function CosignScreen() {
   const c = useCosign();
   const { api, lang } = useApp();
   const { t } = useFs();
+  const footerEnd = useFooterEnd();
   const tr = useT();
   const { width } = useWindowDimensions();
   const compact = useCompact();
@@ -193,7 +194,13 @@ export function CosignScreen() {
   // The thumb zone holds the one way forward; with large text it joins the scroll instead (S1.12 reflow).
   const footer =
     action && !compact ? (
-      <View style={[styles.footer, { backgroundColor: t.color.ground, borderTopColor: t.color.rule }]}>
+      <View
+        style={[
+          styles.footer,
+          // Round 5: the footer's last line ends 24 px above the bezel.
+          { backgroundColor: t.color.ground, borderTopColor: t.color.rule, paddingBottom: footerEnd },
+        ]}
+      >
         <EdgeFade color={t.color.ground} />
         {action}
       </View>

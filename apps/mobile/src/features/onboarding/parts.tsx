@@ -13,7 +13,6 @@ import * as Speech from "expo-speech";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, StyleSheet, TextInput, View, type ViewStyle } from "react-native";
 import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from "react-native-reanimated";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
 import type { Lang } from "../../_shims/contracts";
 import { fontFamily } from "../../_shims/fonts";
@@ -21,6 +20,7 @@ import { radius, space, target, themes } from "../../_shims/tokens.native";
 import { CODE_LENGTH, normalizeCode } from "../../lib/pairing";
 import { pickVoiceLanguage } from "../../services/voice";
 import { TYPE_STEPS, useFs } from "../../theme/theme";
+import { useFooterEnd } from "../../ui/chrome";
 import { Glyph } from "../../ui/glyph";
 import { reducedFade, spring, tween } from "../../ui/motion";
 import { Txt } from "../../ui/text";
@@ -414,13 +414,13 @@ export function CodeInput({
 
 export function StepFooter({ children }: { children: ReactNode }) {
   const { t } = useFs();
-  const insets = useSafeAreaInsets();
+  const footerEnd = useFooterEnd();
   return (
     <View
       style={[
         styles.footer,
         {
-          paddingBottom: insets.bottom + space.s16,
+          paddingBottom: footerEnd,
           backgroundColor: t.color.ground,
           borderTopColor: t.color.rule,
         },

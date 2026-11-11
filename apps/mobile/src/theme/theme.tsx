@@ -8,7 +8,15 @@
 import * as Device from "expo-device";
 import { createContext, type ReactNode, useContext, useEffect, useMemo, useState } from "react";
 import { AccessibilityInfo, Platform, type TextStyle } from "react-native";
-import { FIGURE_VARIANT, fontFamily, MONO_IOS, MONO_NATIVE, MONO_WEB, TITLE_WEB } from "../_shims/fonts";
+import {
+  FIGURE_VARIANT,
+  fontFamily,
+  LABEL_WEB,
+  MONO_IOS,
+  MONO_NATIVE,
+  MONO_WEB,
+  TITLE_WEB,
+} from "../_shims/fonts";
 import { type FsTokens, type ThemeName, themes, typeSteps } from "../_shims/tokens.native";
 import { bootQuery } from "../platform/query";
 
@@ -66,7 +74,23 @@ const HEADING: TextStyle = {
   fontVariant: TABULAR,
 };
 const BODY = { fontFamily: fontFamily.ui, fontSize: TYPE_STEPS.body, lineHeight: 24, fontVariant: TABULAR };
-const LABEL = {
+/**
+ * Labels, tab labels, section heads and links (UI gate round 5): width 100 at 520, the console's label cut, never the
+ * condensed one. The web frames set them in the console's variable FS Sans at 520; native sets them in the width-100
+ * Regular until WS-DS's font build cuts the static 520 (`FSSans-Medium`), so a native label is never condensed either.
+ */
+const LABEL_FACE: TextStyle = Platform.select({
+  web: { fontFamily: LABEL_WEB, fontWeight: "520" as TextStyle["fontWeight"] },
+  default: { fontFamily: fontFamily.ui },
+});
+const LABEL: TextStyle = {
+  ...LABEL_FACE,
+  fontSize: TYPE_STEPS.label,
+  lineHeight: 20,
+  fontVariant: TABULAR,
+};
+/** Numerals on the label step (a figure in a row): the figure cut, 87.5/500, like the console's `figure` role. */
+const FIGURE = {
   fontFamily: fontFamily.figure,
   fontSize: TYPE_STEPS.label,
   lineHeight: 20,
@@ -96,8 +120,8 @@ export const typeScale = {
   title2: HEADING,
   body: BODY,
   bodyStrong: HEADING,
-  figure: LABEL,
-  figureS: LABEL,
+  figure: FIGURE,
+  figureS: FIGURE,
   label: LABEL,
   caption: SECONDARY,
   micro: SECONDARY,

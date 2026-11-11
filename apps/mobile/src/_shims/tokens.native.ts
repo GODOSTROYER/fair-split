@@ -290,7 +290,7 @@ export const target = { min: 48, primary: 56, hero: 64, play: 72 } as const;
  * 140 on the Chair's co-sign card (it ends 16 px above its sticky button); the status pill is 32 (the label step);
  * the fade under the status inset is 24.
  */
-export const layout = { seal: 180, cosignSeal: 140, statusChip: 32, fade: 24 } as const;
+export const layout = { seal: 180, cosignSeal: 140, statusChip: 32, fade: 24, end: 24 } as const;
 
 /** The generated `typeSteps` (UI gate round 3, docs/DESIGN.md §1): the phone's five size steps in sp. */
 export const typeSteps = { id: 13, label: 15, body: 17, title: 24, hero: 48 } as const;

@@ -58,9 +58,11 @@ describe("UI gate round 4 on the phone: whole rows above the bar, measured where
     }
   });
 
-  it("brings an opened receipt line up to 16 px under the top inset (the traced peso starts whole)", () => {
+  it("brings an opened receipt line up clear of the top fade (the traced peso starts whole)", () => {
     const chrome = code("ui/chrome.tsx");
-    expect(chrome).toMatch(/reveal\(node, gap = space\.s16\)/);
+    // Round 5: 32 px under the top inset, the 24 px fade and 8 more (REVEAL_GAP), never against the inset.
+    expect(chrome).toMatch(/reveal\(node, gap = REVEAL_GAP\)/);
+    expect(chrome).toMatch(/REVEAL_GAP = layout\.fade \+ space\.s8/);
     expect(chrome).toMatch(/- inset - gap/);
     expect(code("features/statement/receipt-bar.tsx")).toMatch(/scroll\.reveal\(node\.current\)/);
   });
