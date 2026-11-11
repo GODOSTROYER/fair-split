@@ -80,6 +80,10 @@ export const STAGE = {
   zone: "Davao time",
   soundOn: "Sound on",
   soundOff: "Sound off",
+  /** The chevron menu's sound item (round 4): the word, then its state. */
+  sound: "Sound",
+  on: "On",
+  off: "Off",
   reset: "Reset",
   /** The top bar's short Proof counter: "Proof 0/8", or "Proof replayed" on a replayed run. */
   proof: "Proof",

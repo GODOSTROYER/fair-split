@@ -180,12 +180,14 @@ describe("W-TR-07 approve", () => {
         "Rate card unchangedsince 14 Mar",
       ]);
       expect(screen.getByTestId("W-TR-07.safe").querySelectorAll("[data-done]")).toHaveLength(4);
-      // The hero says what the amount is, with the one micro-tag for the batch it heads ("Sandbox" on screen, the
-      // whole label for a screen reader). Every other honesty mark is a bare glyph: the screen holds one tag, the
-      // top bar's indicator the second (round 3's budget is three).
+      // The hero says what the amount is, with the one micro-tag for the batch it heads ("Simulated" on screen since
+      // round 4, the whole label for a screen reader). Every other honesty mark is a bare glyph: the screen holds one
+      // tag, the top bar's indicator the second (round 3's budget is three).
       const hero = screen.getByTestId("W-TR-07.amount").parentElement as HTMLElement;
       expect(hero.textContent).toMatch(/^PayPal batch · 8 payouts.*Simulated PayPal sandbox/);
-      expect(screen.getByTestId("W-TR-07.tag").textContent).toContain("Sandbox");
+      expect(screen.getByTestId("W-TR-07.tag").querySelector(".fs-microtag__word")?.textContent).toBe(
+        "Simulated",
+      );
       expect(tagBudget(root)).toMatchObject({ tags: 1, micro: 1, ok: true });
       // The seal is the screen's hero at 180 px, beside "Two officers sign this batch" and its two named signers,
       // each waiting on a hollow circle.

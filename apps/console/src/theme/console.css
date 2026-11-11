@@ -4,6 +4,7 @@
 
 @import "./base.css";
 @import "./stage.css";
+@import "./grid.css";
 @import "./sheets.css";
 @import "./placeholder.css";
 @import "./surfaces.css";

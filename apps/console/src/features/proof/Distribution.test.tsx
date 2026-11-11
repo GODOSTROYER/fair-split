@@ -59,9 +59,9 @@ describe("Proof's distribution bar", () => {
     const bar = screen.getByTestId("proof-distribution");
     expect(bar.getAttribute("aria-label")).toBe("Where US$4,333.50 went");
     // A legend row reads swatch · name · count · amount; the PayPal money carries the card's one micro-tag, which a
-    // screen reader hears in full.
+    // screen reader hears in full (round 4: its word is "Simulated").
     expect(screen.getByTestId("proof-distribution.paypal").textContent).toBe(
-      "PayPal, confirmedSandboxSimulated PayPal sandbox7US$341.74",
+      "PayPal, confirmedSimulatedSimulated PayPal sandbox7US$341.74",
     );
     // The axis runs to the next US$500 past the invoice, a tick every US$1,000.
     expect([...bar.querySelectorAll(".pf-dist__tick")].map((t) => t.textContent)).toEqual([

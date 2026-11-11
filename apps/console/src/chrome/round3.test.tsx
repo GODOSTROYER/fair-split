@@ -9,6 +9,7 @@ import { invoiceLabel, payCell, runLabel, seasonLabel, slipCounts, stageInvoice 
 import { PROOF_CHECKS, proofChecksFor, recordProofChecks } from "../lib/proof-checks.js";
 import { prefocusQuietly } from "../stage/context.js";
 import { renderConsole } from "../test/render.js";
+import { clickStageMenuItem } from "../test/stage-menu.js";
 import { createTestWorld, seedSnapshot } from "../test/world.js";
 import { TOAST_MS } from "./copy.js";
 
@@ -91,9 +92,8 @@ describe("the toast and the Log replace the ribbon", () => {
     expect(toast.dataset.state).toBe("in");
     expect(toast.getAttribute("aria-label")).toBe("Latest event");
     await waitFor(() => expect(toast.dataset.state).toBe("out"), { timeout: TOAST_MS + 2000 });
-    await act(async () => {
-      fireEvent.click(screen.getByTestId("W-JG-01.logOpen"));
-    });
+    // Round 4: the run log opens from the chevron's menu.
+    await clickStageMenuItem("W-JG-01.logOpen");
     expect((await screen.findByTestId("W-JG-01.log.rows")).children.length).toBeGreaterThan(0);
   });
 });

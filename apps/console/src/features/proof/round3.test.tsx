@@ -130,7 +130,7 @@ describe("Proof's stylesheets hold round 3's floors", () => {
     }
   });
 
-  it("keeps the type on DESIGN.md's steps: no 15, 17, 18, 20 or 22 px words, and no off-step weights", () => {
+  it("keeps the type on docs/DESIGN.md's steps: no 15, 17, 18, 20 or 22 px words, and no off-step weights", () => {
     for (const [name, css] of Object.entries(sheets)) {
       // The slip drawing is evidence art (an SVG in px); everything else is in rem on the five steps.
       const sizes = [...rules(css).matchAll(/font-size:\s*([\d.]+)rem/g)].map((m) => Number(m[1]));

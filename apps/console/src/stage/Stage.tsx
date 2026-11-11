@@ -1,9 +1,10 @@
 import { payoutReplayed } from "../data/payout-replay.js";
-// The Judge stage (S1.6, design §6 J1; UI gate round 3): one bar on top ("Fair Split", the run pill in its
-// centre, What's real, Log, Sound and Reset as line icons, the Proof counter on Proof's six checks and the one quiet
-// honesty indicator), the console (rail and the screen) on the left and the phone on the right: its own column
-// from 1440 px, folded to a 56 px rail where it shows nothing new, rising on its beats. No ribbon: each new event
-// is one toast at the bottom left for 3 s, and the whole timeline is behind Log, so the screens get the height.
+// The Judge stage (S1.6, design §6 J1; UI gate round 4): one bar on top of six items at most ("Fair Split", the
+// status area with the one event toast, the run pill in its centre with Play and the chevron whose menu holds the
+// screens, the run log, sound and Reset; What's real, the Proof counter on Proof's six checks and the one quiet
+// honesty indicator on the right), the console (rail and the screen) on the left and the phone on the right: its
+// own column from 1440 px, folded to a 56 px rail where it shows nothing new, rising on its beats. No ribbon: each
+// new event toasts for 3 s in the bar (never over a row), and the whole timeline is behind the menu's Run log.
 // Under 1024 px the stage is a phone visit: the member's statement. It holds the run the judge is driving: the
 // first view before the first press (no session, no calls), then the session's run, kept live by one SSE stream.
 // Every console route renders inside it.
@@ -430,9 +431,18 @@ export function Stage({ children }: { readonly children: ReactNode }) {
                   next={next}
                   items={items}
                   onStep={(s) => s.persona && raisePhone(s.persona)}
+                  // Round 4: the run log, sound and Reset live in the chevron's menu (six items in the bar).
+                  utilities={{
+                    onLog: () => setLogOpen(true),
+                    canReset: inSession || session.status === "failed",
+                    resetting: session.status === "resetting",
+                    onReset: () => void onReset(),
+                  }}
                 />
               )
             }
+            // Round 4: the one event toast lives in the bar's status area, so it never covers a row.
+            status={visit ? null : <EventToast runSlug={inSession ? runSlug : null} />}
             // The phone visit's bar keeps the product, the simulation status and its controls; Proof moves into
             // its overflow menu, with the laptop line and the link (round 3).
             proofHref={!visit && runSlug ? webRoutes.proof(runSlug) : null}
@@ -495,7 +505,6 @@ export function Stage({ children }: { readonly children: ReactNode }) {
               size={phoneSize}
             />
           </div>
-          {!visit && <EventToast runSlug={inSession ? runSlug : null} />}
           <LogSheet
             open={logOpen}
             onOpenChange={setLogOpen}

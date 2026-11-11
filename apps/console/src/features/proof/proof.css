@@ -5,7 +5,7 @@
    under both, then the chain, the ledger, the plots and the fine print. Every colour is a token, every timing a
    --fs-dur-* or --fs-ease-* variable. Jade appears only where the simulated PayPal confirmed money; a check that
    matches is ink. Spacing is the 4 px scale (4 · 8 · 12 · 16 · 20 · 24 · 32 · 48).
-   Round 3 (DESIGN.md): one family and one mono. FS Sans sets every word and number in tabular figures, on the five
+   Round 3 (docs/DESIGN.md): one family and one mono. FS Sans sets every word and number in tabular figures, on the five
    steps (the verdict's count is the page's one hero; the headline and the section titles are the title step; plate
    and card headings the heading step; reading text the body step; secondary words 14 px); the mono sets ids,
    hashes and times at 12 px. Red is only PayPal saying no: a check that does not match reads in ink with its ✕
@@ -1070,7 +1070,7 @@
   background: var(--fs-plate);
 }
 
-/* A table (DESIGN.md §4): the header on the label step in ink-2 on plate-2, 36 px; rows 40 px on rule
+/* A table (docs/DESIGN.md §4): the header on the label step in ink-2 on plate-2, 36 px; rows 40 px on rule
    separators; numbers right-aligned in tabular figures, ids in the mono. */
 .pf-table {
   width: 100%;

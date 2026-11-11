@@ -11,7 +11,7 @@
   /* The raised phone's panel (1024–1679 px): the 360 px screen in its bezel. */
   --fsc-phone-panel: 400px;
   /* The gutter between the stage's panels. */
-  --fsc-gutter: 10px;
+  --fsc-gutter: var(--fsc-stage-gutter);
   /* The docked phone's column: S1.6's 420 px from 1680 px; narrower (a 340 px screen) from 1440 px. */
   --fsc-dock: var(--fs-console-dock);
   /* The folded phone's rail (round 3). */
@@ -56,16 +56,24 @@
 
 /* ---------------------------------------------------------------- top bar */
 
-/* One row (UI gate round 3): "Fair Split" leads at every width, then a mock chip (if any) in a column that gives
-   way first; the run pill keeps its full width and never truncates; the right holds the utilities, the Proof
-   counter and the one quiet honesty indicator. */
+/* The stage's measures, on :root so a sheet portalled to <body> can clear the bar too (round 4): the gutter between
+   the stage's panels, and the top of everything under the bar (gutter, the 56 px bar, gutter). */
+:root {
+  --fsc-stage-gutter: 10px;
+  --fsc-stage-top: calc(var(--fsc-stage-gutter) * 2 + var(--fs-console-bar));
+}
+
+/* One row of six items at most (UI gate round 4): "Fair Split" leads at every width, then the status area (the mock
+   chip, if any, and the one event toast) in a column that gives way first; the run pill (Next, Play, the chevron)
+   keeps its full width and never truncates; the right holds What's real, the Proof counter and the one quiet
+   honesty indicator. */
 .fsc-bar {
   display: grid;
   flex: none;
   grid-template-columns: max-content minmax(0, 1fr) max-content minmax(max-content, 1fr);
   align-items: center;
   gap: 8px 16px;
-  min-height: 56px;
+  min-height: var(--fs-console-bar);
   padding: 8px 12px 8px 20px;
   border-radius: var(--fs-radius-panel);
   background: var(--fs-plate);
@@ -80,11 +88,15 @@
   border-right: 1px solid var(--fs-rule);
 }
 
-.fsc-bar__honest {
+/* The status area: the mock chip, then the toast, set against the run pill (what just happened, beside what is
+   next). It gives way first: the toast's words end in an ellipsis before the pill moves. */
+.fsc-bar__status {
   display: flex;
+  justify-content: flex-end;
   align-items: center;
   gap: 8px;
   min-width: 0;
+  overflow: hidden;
 }
 
 .fsc-bar__pill {
@@ -100,8 +112,8 @@
   gap: 8px;
 }
 
-/* Each part keeps its column even while the mock slot is empty (and hidden). */
-.fsc-bar > .fsc-bar__honest {
+/* Each part keeps its column even while the status area is empty. */
+.fsc-bar > .fsc-bar__status {
   grid-row: 1;
   grid-column: 2;
 }
@@ -116,7 +128,7 @@
   grid-column: 4;
 }
 
-/* What's real, Log, Sound and Reset: one quiet cluster of line icons, set off from Proof by a rule. */
+/* What's real (and, on the phone visit, the log, sound and Reset as line icons), set off from Proof by a rule. */
 .fsc-bar__utils {
   display: flex;
   align-items: center;
@@ -133,10 +145,6 @@
 
 .fsc-bar__mock {
   flex: none;
-}
-
-.fsc-bar__honest:empty {
-  display: none;
 }
 
 .fsc-barlink {
@@ -270,13 +278,16 @@
   min-height: 0;
 }
 
+/* The screen panel (round 4): a size container for the one 12-column grid (grid.css), its title row 32 px from the
+   top. The toast lives in the top bar, so nothing floats over the panel's foot. */
 .fsc-console__screen {
   position: absolute;
   inset: 0;
   overflow: auto;
-  padding: 28px 32px 56px;
+  padding: 32px 32px 48px;
   scroll-padding-block: 24px;
   overscroll-behavior: contain;
+  container: fsc-screen / inline-size;
 }
 
 .fsc-console__drawer {
@@ -505,16 +516,6 @@
   border-radius: var(--fs-radius-pill);
   background: var(--fs-plate);
   box-shadow: var(--fs-shadow-e1);
-}
-
-.fsc-pill__state {
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-  padding: 0 12px;
-  border-right: 1px solid var(--fs-rule);
-  color: var(--fs-ink-3);
-  white-space: nowrap;
 }
 
 .fsc-pill__next {
@@ -844,6 +845,8 @@
   box-shadow: none;
 }
 
+/* A person's avatar (round 4): white, a 1 px ink-2 ring and ink initials, like every avatar; the shown frame's
+   avatar takes the console nav's selected look (the pod wash under it). */
 .fsc-dock[data-folded] .fsc-dock__avatar {
   position: relative;
   display: grid;
@@ -851,19 +854,18 @@
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: var(--fs-plate-2);
-  box-shadow: inset 0 0 0 1px var(--fs-rule-strong);
-  color: var(--fs-ink-2);
+  background: var(--fs-plate);
+  box-shadow: inset 0 0 0 1px var(--fs-ink-2);
+  color: var(--fs-ink);
   font-stretch: 87.5%;
-  font-weight: 560;
+  font-weight: 600;
   font-size: 0.75rem;
   line-height: 1;
 }
 
-.fsc-dock[data-folded] .fsc-dock__tab[aria-selected="true"] .fsc-dock__avatar {
-  background: var(--fs-plate);
-  box-shadow: inset 0 0 0 1.5px var(--fs-ink);
-  color: var(--fs-ink);
+.fsc-dock[data-folded] .fsc-dock__tab[aria-selected="true"] {
+  border-radius: var(--fs-radius-control);
+  background: var(--fs-pod-wash);
 }
 
 .fsc-dock__dot {
@@ -1197,23 +1199,23 @@
 
 /* ---------------------------------------------------------------- toast and Log (round 3) */
 
-/* One toast, bottom left of the screen (beside the rail, never over its foot), 40 px: the newest live event for
-   3 s. It never takes a click or focus. Lifted by its e3 shadow alone (no border). */
+/* One toast (round 4), in the top bar's status area beside the run pill, 40 px: the newest live event for 3 s. It
+   sits in the bar, so it never covers a row of the screen; it never takes a click or focus. A flat plate-2 pill (the
+   bar is its surface: no shadow, no border), its words cut with an ellipsis before the pill would move. */
 .fsc-toast {
-  position: absolute;
-  bottom: calc(var(--fsc-gutter) + 16px);
-  left: calc(var(--fsc-gutter) + var(--fs-console-rail) + 24px);
-  z-index: var(--fs-z-snackbar);
+  position: relative;
   display: flex;
+  flex: 0 1 auto;
   align-items: center;
   gap: 8px;
-  max-width: min(560px, calc(100% - 64px));
+  min-width: 0;
+  max-width: 560px;
   height: var(--fs-console-toast);
   padding: 0 16px 0 14px;
   border-radius: var(--fs-radius-pill);
-  background: var(--fs-plate);
-  box-shadow: var(--fs-shadow-e3);
+  background: var(--fs-plate-2);
   color: var(--fs-ink);
+  white-space: nowrap;
   pointer-events: none;
   transition:
     opacity var(--fs-dur-popover) var(--fs-ease-out),
@@ -1221,21 +1223,17 @@
     visibility 0s linear;
 }
 
-.fsc-stage[data-rail="collapsed"] .fsc-toast {
-  left: calc(var(--fsc-gutter) + 64px + 24px);
-}
-
 @starting-style {
   .fsc-toast {
     opacity: 0;
-    transform: translateY(calc(8px * var(--fs-motion, 1)));
+    transform: translateY(calc(-4px * var(--fs-motion, 1)));
   }
 }
 
 .fsc-toast[data-state="out"] {
   opacity: 0;
   visibility: hidden;
-  transform: translateY(calc(8px * var(--fs-motion, 1)));
+  transform: translateY(calc(-4px * var(--fs-motion, 1)));
   transition:
     opacity var(--fs-dur-popover) var(--fs-ease-out),
     transform var(--fs-dur-popover) var(--fs-ease-out),
@@ -1311,6 +1309,14 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Below 1,440 px the bar's status area is narrow: the toast keeps its mark and words, and its time is in its title
+   (and the log). */
+@media (max-width: 1439px) {
+  .fsc-toast .fsc-log__time {
+    display: none;
+  }
 }
 
 /* The reading step's seed stand-in glyph, after the pill's words. */
@@ -1451,7 +1457,7 @@
   border-right: 0;
 }
 
-.fsc-stage[data-layout="phone-visit"] .fsc-bar > .fsc-bar__honest {
+.fsc-stage[data-layout="phone-visit"] .fsc-bar > .fsc-bar__status {
   grid-row: 2;
   grid-column: 2;
   flex-wrap: wrap;
@@ -1545,27 +1551,33 @@
   }
 }
 
-/* 1024-1279 px: "Fair Split" and the pill on row 1; the links on row 2; a mock chip on row 3. */
+/* 1024-1279 px: "Fair Split" and the pill on row 1; the status area (mock chip, toast) and the links on row 2, so a
+   toast never adds a row. The bar is two rows here, and the sheets start under both. */
 @media (min-width: 1024px) and (max-width: 1279px) {
+  :root {
+    --fsc-stage-top: calc(var(--fsc-stage-gutter) * 2 + var(--fs-console-bar) * 2 - 12px);
+  }
+
   .fsc-bar {
-    grid-template-columns: auto minmax(max-content, 1fr);
+    grid-template-columns: minmax(0, 1fr) max-content;
   }
 
   .fsc-bar > .fsc-bar__pill {
     grid-row: 1;
     grid-column: 2;
-    justify-content: flex-start;
+    justify-content: flex-end;
   }
 
   .fsc-bar > .fsc-bar__actions {
     grid-row: 2;
-    grid-column: 1 / -1;
+    grid-column: 2;
     min-width: 0;
   }
 
-  .fsc-bar > .fsc-bar__honest {
-    grid-row: 3;
-    grid-column: 1 / -1;
+  .fsc-bar > .fsc-bar__status {
+    grid-row: 2;
+    grid-column: 1;
+    justify-content: flex-start;
   }
 }
 
@@ -1578,14 +1590,6 @@
     overflow: hidden;
     clip-path: inset(50%);
     white-space: nowrap;
-  }
-}
-
-/* Narrower than the pill, its run state and the links side by side: the run state word gives way first, unless it
-   is the step's own (a settled run with cash still due says so at every width; round 3). */
-@media (max-width: 1599px) {
-  .fsc-bar .fsc-pill__state:not([data-keep]) {
-    display: none;
   }
 }
 

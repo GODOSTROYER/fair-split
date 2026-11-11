@@ -12,6 +12,7 @@ import { expectNoAxeViolations } from "../test/axe.js";
 import { focusAcrossRemoval } from "../test/focus.js";
 import { renderConsole } from "../test/render.js";
 import { recordRequests } from "../test/requests.js";
+import { clickStageMenuItem, closeStageMenu, queryStageMenuItem, stageMenuItem } from "../test/stage-menu.js";
 import { timersBeforeCommit } from "../test/timers.js";
 import { resizeTo } from "../test/viewport.js";
 import { createTestWorld } from "../test/world.js";
@@ -117,9 +118,9 @@ describe("Judge stage", () => {
     expect(screen.queryByTestId("W-JG-01.toast")).toBeNull();
     expect(screen.getByTestId("W-JG-01.runPill").dataset.step).toBe("mark-paid");
     expect(screen.getByTestId("W-JG-01.notice").textContent).toBe("Simulated PayPal sandbox");
-    await act(async () => {
-      fireEvent.click(screen.getByTestId("W-JG-01.logOpen"));
-    });
+    // No session yet: the chevron's menu offers no Reset.
+    expect(await queryStageMenuItem("W-JG-01.reset")).toBeNull();
+    await clickStageMenuItem("W-JG-01.logOpen");
     const log = await screen.findByTestId("W-JG-01.log");
     expect(log.textContent).toMatch(/\d\d:\d\d:\d\d PHT/);
     expect(within(log).getByTestId("W-JG-01.log.paypal").textContent).toMatch(/FS-2026A-r37/);
@@ -146,11 +147,9 @@ describe("Judge stage", () => {
     });
     await waitFor(() => expect(screen.getByTestId("W-JG-01.runPill").dataset.step).toBe("by-hand"));
     expect(screen.getByTestId("W-JG-01.runPill.state").textContent).toBe("In review");
-    // Each new event toasts once, bottom left; the whole timeline is behind Log.
+    // Each new event toasts once, in the bar's status area; the whole timeline is behind the menu's Run log.
     expect(screen.getByTestId("W-JG-01.toast").dataset.state).toBe("in");
-    await act(async () => {
-      fireEvent.click(screen.getByTestId("W-JG-01.logOpen"));
-    });
+    await clickStageMenuItem("W-JG-01.logOpen");
     const log = await screen.findByTestId("W-JG-01.log");
     expect(
       within(log)
@@ -162,7 +161,8 @@ describe("Judge stage", () => {
     await act(async () => {
       fireEvent.click(within(log).getByTestId("W-JG-01.log.close"));
     });
-    expect(screen.getByTestId("W-JG-01.reset")).toBeTruthy();
+    expect(await stageMenuItem("W-JG-01.reset")).toBeTruthy();
+    await closeStageMenu();
     // The rest of the loop arrives the same way: by events, never by timers.
     const runSlug = view.runtime.session.getState().session?.runSlug ?? "";
     act(() => {
@@ -236,9 +236,7 @@ describe("Judge stage", () => {
     await press("W-JG-01.markPaid");
     await waitFor(() => expect(screen.getByTestId("W-JG-01.stage").dataset.state).toBe("session"));
     const runSlug = view.runtime.session.getState().session?.runSlug ?? "";
-    await act(async () => {
-      fireEvent.click(screen.getByTestId("W-JG-01.reset"));
-    });
+    await clickStageMenuItem("W-JG-01.reset");
     await waitFor(() => expect(screen.getByTestId("W-JG-01.stage").dataset.state).toBe("ready"));
     expect(view.world.run.state).toBe("INVOICED");
     expect(view.world.events()).toEqual([]);
@@ -257,9 +255,7 @@ describe("Judge stage", () => {
     expect(starts()).toBe(1);
     // The press is over (the payment is recorded and the run funded): the slab is spent, drawn committed.
     await waitFor(() => expect(view.world.run.state).toBe("FUNDED"));
-    await act(async () => {
-      fireEvent.click(screen.getByTestId("W-JG-01.reset"));
-    });
+    await clickStageMenuItem("W-JG-01.reset");
     await waitFor(() => expect(stage.dataset.state).toBe("ready"));
     expect(view.router.state.location.pathname).toBe("/judge");
     // The slab is at rest, not the spent press: nothing says it can't be pressed.
@@ -336,7 +332,8 @@ describe("Judge stage", () => {
     await waitFor(() => expect(view.router.state.location.pathname).toBe("/judge"));
     expect(stage.dataset.state).toBe("session-ended");
     expect(screen.getByTestId("W-JG-01.notice.state").textContent).toMatch(/back at the first press/);
-    expect(screen.queryByTestId("W-JG-01.reset")).toBeNull();
+    expect(await queryStageMenuItem("W-JG-01.reset")).toBeNull();
+    await closeStageMenu();
   });
 
   it("a renewal that lands in another workspace ends the session and takes the stage back to /judge", async () => {
@@ -376,7 +373,8 @@ describe("Judge stage", () => {
     expect(stage.dataset.state).toBe("session-ended");
     expect(screen.getByTestId("W-JG-01.notice.state").textContent).toMatch(/back at the first press/);
     await waitFor(() => expect(screen.getByTestId("W-JG-01.runPill").dataset.step).toBe("mark-paid"));
-    expect(screen.queryByTestId("W-JG-01.reset")).toBeNull();
+    expect(await queryStageMenuItem("W-JG-01.reset")).toBeNull();
+    await closeStageMenu();
   });
 
   it("What's real separates real from simulated PayPal, and holds Try to break it", async () => {
@@ -409,17 +407,23 @@ describe("Judge stage", () => {
     await waitFor(() => expect(screen.queryByTestId("W-JG-01.whatsReal")).toBeNull());
   });
 
-  it("keeps sound off until the viewer turns it on", async () => {
+  it("keeps sound off until the viewer turns it on (round 4: a checkbox item in the chevron's menu)", async () => {
     await renderConsole({ path: "/judge" });
-    const toggle = screen.getByTestId("W-JG-01.sound");
-    expect(toggle.getAttribute("aria-pressed")).toBe("false");
+    const toggle = await stageMenuItem("W-JG-01.sound");
+    expect(toggle.getAttribute("role")).toBe("menuitemcheckbox");
+    expect(toggle.getAttribute("aria-checked")).toBe("false");
     await act(async () => {
       fireEvent.click(toggle);
     });
-    expect(toggle.getAttribute("aria-pressed")).toBe("true");
+    await waitFor(async () =>
+      expect((await stageMenuItem("W-JG-01.sound")).getAttribute("aria-checked")).toBe("true"),
+    );
     await act(async () => {
-      fireEvent.click(toggle);
+      fireEvent.click(await stageMenuItem("W-JG-01.sound"));
     });
+    await waitFor(async () =>
+      expect((await stageMenuItem("W-JG-01.sound")).getAttribute("aria-checked")).toBe("false"),
+    );
   });
 
   it("raises the phone from its rail and lowers it with Escape (1024–1439 px)", async () => {
@@ -903,7 +907,9 @@ describe("Judge stage", () => {
     expect(document.activeElement).not.toBe(frame);
   });
 
-  it("Reset after a press PayPal queued (429) hands focus to the press in its commit, never to <body>", async () => {
+  // Round 4: Reset is an item in the chevron's menu. Choosing it closes the menu and hands focus back to the chevron
+  // (which the first view keeps) or on to the press: focus never falls to <body>.
+  it("Reset from the menu after a press PayPal queued (429) keeps focus on a live control, never on <body>", async () => {
     const world = createTestWorld();
     world.failNext("markPaid", "QUEUED");
     world.failNext("markPaid", "QUEUED");
@@ -911,26 +917,15 @@ describe("Judge stage", () => {
     await press("W-JG-01.markPaid");
     await screen.findByTestId("W-JG-01.error");
     await waitFor(() => expect(screen.getByTestId("W-JG-01.markPaid").dataset.state).toBe("rest"));
-    const reset = screen.getByTestId("W-JG-01.reset");
-    reset.focus();
-    const sampled = focusAcrossRemoval("W-JG-01.reset");
-    try {
-      // Enter on Reset: its click.
-      await act(async () => {
-        fireEvent.click(reset);
-      });
-      // While it resets, the button stays focusable (a disabled one would lose its focus to <body>).
-      await waitFor(() => expect(screen.queryByTestId("W-JG-01.reset")).toBeNull());
-      await sampled.frame();
-    } finally {
-      sampled.restore();
-    }
-    const face = screen.getByTestId("W-JG-01.markPaid.face");
-    expect(screen.getByTestId("W-JG-01.stage").dataset.state).toBe("ready");
-    expect(sampled.removals()).toBe(1);
-    expect(sampled.samples).toEqual([face, face]);
-    expect(sampled.settled).toEqual([face]);
-    expect(document.activeElement).toBe(face);
+    await clickStageMenuItem("W-JG-01.reset");
+    await waitFor(() => expect(screen.getByTestId("W-JG-01.stage").dataset.state).toBe("ready"));
+    await waitFor(() => expect(screen.queryByTestId("W-JG-01.runPill.menuPopup")).toBeNull());
+    // The chevron, or the press the screen hands focus to once the first view is back: a live control either way.
+    expect(document.activeElement).not.toBe(document.body);
+    expect([
+      screen.getByTestId("W-JG-01.runPill.menu"),
+      screen.getByTestId("W-JG-01.markPaid.face"),
+    ]).toContain(document.activeElement);
   });
 
   // A retry pressed twice (a double click, Enter twice) after a press PayPal queued: the retry's own answer is
@@ -980,9 +975,7 @@ describe("Judge stage", () => {
         // Its own failure puts the slab back at rest, pressable, before any Reset.
         await waitFor(() => expect(slab().dataset.state).toBe("rest"));
         expect(screen.getByTestId("W-JG-01.markPaid.face").getAttribute("aria-disabled")).not.toBe("true");
-        await act(async () => {
-          fireEvent.click(screen.getByTestId("W-JG-01.reset"));
-        });
+        await clickStageMenuItem("W-JG-01.reset");
         await waitFor(() => expect(stage.dataset.state).toBe("ready"));
       } else {
         await waitFor(() => expect(stage.dataset.state).toBe("session-ended"));
@@ -996,30 +989,23 @@ describe("Judge stage", () => {
     },
   );
 
-  it("Reset after a session that failed to start hands focus to the press, never to <body>", async () => {
+  it("Reset from the menu after a session that failed to start keeps focus on a live control, never on <body>", async () => {
     const world = createTestWorld();
     world.failNext("createJudgeSession", "RATE_LIMITED");
     await renderConsole({ path: "/judge", world });
     await press("W-JG-01.markPaid");
     await waitFor(() => expect(screen.getByTestId("W-JG-01.stage").dataset.state).toBe("start-failed"));
-    const reset = screen.getByTestId("W-JG-01.reset");
-    reset.focus();
-    const sampled = focusAcrossRemoval("W-JG-01.reset");
-    try {
-      await act(async () => {
-        fireEvent.click(reset);
-      });
-      await waitFor(() => expect(screen.queryByTestId("W-JG-01.reset")).toBeNull());
-      await sampled.frame();
-    } finally {
-      sampled.restore();
-    }
-    const face = screen.getByTestId("W-JG-01.markPaid.face");
-    expect(sampled.samples).toEqual([face, face]);
-    expect(document.activeElement).toBe(face);
+    await clickStageMenuItem("W-JG-01.reset");
+    await waitFor(() => expect(screen.getByTestId("W-JG-01.stage").dataset.state).not.toBe("start-failed"));
+    await waitFor(() => expect(screen.queryByTestId("W-JG-01.runPill.menuPopup")).toBeNull());
+    expect(document.activeElement).not.toBe(document.body);
+    expect([
+      screen.getByTestId("W-JG-01.runPill.menu"),
+      screen.getByTestId("W-JG-01.markPaid.face"),
+    ]).toContain(document.activeElement);
   });
 
-  it("while Reset runs, its button can still hold the keyboard (aria-disabled, never disabled), and a second press sends nothing", async () => {
+  it("while Reset runs, its menu item says so (aria-disabled, aria-busy), and a second choice sends nothing", async () => {
     const view = await renderConsole({ path: "/judge" });
     // fs-api takes its time over the Reset: the request is held until the test lets it go.
     const pending = view.adapter.pending as { resetSession: (sid: string) => Promise<void> };
@@ -1034,14 +1020,10 @@ describe("Judge stage", () => {
     };
     await press("W-JG-01.markPaid");
     await waitFor(() => expect(screen.getByTestId("W-JG-01.stage").dataset.state).toBe("session"));
-    const reset = screen.getByTestId<HTMLButtonElement>("W-JG-01.reset");
-    reset.focus();
-    await act(async () => {
-      fireEvent.click(reset);
-    });
+    await clickStageMenuItem("W-JG-01.reset");
     await waitFor(() => expect(view.runtime.session.getState().status).toBe("resetting"));
-    // A disabled button loses its focus to <body> (a browser's focus fixup): this one stays focusable.
-    expect(reset.disabled).toBe(false);
+    // Opened again while it runs, the item says so and stays focusable (aria-disabled, never disabled).
+    const reset = await stageMenuItem("W-JG-01.reset");
     expect(reset.getAttribute("aria-disabled")).toBe("true");
     expect(reset.getAttribute("aria-busy")).toBe("true");
     await act(async () => {
@@ -1051,7 +1033,9 @@ describe("Judge stage", () => {
     await act(async () => {
       release();
     });
-    await waitFor(() => expect(screen.queryByTestId("W-JG-01.reset")).toBeNull());
+    await waitFor(() => expect(view.runtime.session.getState().status).not.toBe("resetting"));
+    expect(await queryStageMenuItem("W-JG-01.reset")).toBeNull();
+    await closeStageMenu();
     expect(sent).toBe(1);
   });
 

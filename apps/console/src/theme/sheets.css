@@ -13,17 +13,19 @@
   transition: opacity var(--fs-dur-drawer-in) var(--fs-ease-drawer);
 }
 
+/* Every sheet (What's real, the run log, shortcuts) starts under the top bar (round 4), like the hold drawer: it
+   stands in the stage's gutters, a panel at the panel radius, so the bar and what it says stay in view. */
 .fsc-sheet {
   position: fixed;
-  top: 0;
-  right: 0;
-  bottom: 0;
+  top: var(--fsc-stage-top);
+  right: var(--fsc-stage-gutter);
+  bottom: var(--fsc-stage-gutter);
   z-index: calc(var(--fs-z-dialog) + 1);
   display: flex;
   flex-direction: column;
-  width: min(var(--fs-console-drawer), 100vw);
+  width: min(var(--fs-console-drawer), calc(100vw - var(--fsc-stage-gutter) * 2));
   overflow: hidden auto;
-  border-radius: var(--fs-radius-panel) 0 0 var(--fs-radius-panel);
+  border-radius: var(--fs-radius-panel);
   background: var(--fs-plate);
   box-shadow: var(--fs-shadow-e3);
   color: var(--fs-ink);
@@ -34,7 +36,18 @@
 }
 
 .fsc-sheet--narrow {
-  width: min(440px, 100vw);
+  width: min(440px, calc(100vw - var(--fsc-stage-gutter) * 2));
+}
+
+/* The phone visit (under 1,024 px) has no stage bar to clear: a sheet takes the screen. */
+@media (max-width: 1023px) {
+  .fsc-sheet {
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 100vw;
+    border-radius: 0;
+  }
 }
 
 .fsc-sheet[data-starting-style],
@@ -52,6 +65,7 @@
   opacity: 0;
 }
 
+/* The drawer's head (round 4: one head for drawers and sheets): sticky, 56 px, the title and Close, on plate. */
 .fsc-sheet__head {
   position: sticky;
   top: 0;
@@ -60,9 +74,10 @@
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 20px 16px 16px 28px;
+  min-height: 56px;
+  padding: 8px 12px 8px 28px;
   border-bottom: 1px solid var(--fs-rule);
-  background: var(--fs-plate-2);
+  background: var(--fs-plate);
 }
 
 .fsc-sheet__close {
@@ -451,6 +466,16 @@
 
 .fsc-menu__item .fsc-kbd {
   margin-left: auto;
+}
+
+/* A toggle's state at the item's end ("Sound · Off"): ink-3, never a second control. */
+.fsc-menu__state {
+  margin-left: auto;
+  color: var(--fs-ink-3);
+}
+
+.fsc-menu__item[aria-disabled="true"] {
+  color: var(--fs-ink-3);
 }
 
 .fsc-menu__rule {

@@ -1,0 +1,191 @@
+/* One 12-column grid for every console screen (UI gate round 4, DESIGN.md §3). The screen panel is a size container
+   (`fsc-screen`, stage.css); a screen's root takes .fsc-screen and fills it: twelve columns and the 24 px gutter,
+   top-aligned, its title row first and its content 32 px under it. Nothing is centred in a tall panel, no band is
+   left empty above content, and a cell hugs its content unless it asks to stretch. A cell's span applies where the
+   panel is wide (1,040 px and up: 1,920 with the phone docked or folded), its md span from 720 px (1,280 and 1,470),
+   and below that every cell takes the row. chrome/ScreenGrid.tsx draws ScreenHead and Cell. */
+
+.fsc-screen {
+  display: grid;
+  grid-template-columns: repeat(var(--fs-console-columns), minmax(0, 1fr));
+  column-gap: var(--fs-console-gutter);
+  row-gap: var(--fs-console-head-gap);
+  align-content: start;
+  align-items: start;
+  justify-items: stretch;
+  min-width: 0;
+}
+
+/* Every child takes the whole row unless a span says otherwise. */
+.fsc-screen > * {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+
+.fsc-cell[data-stretch] {
+  align-self: stretch;
+}
+
+/* The title row: the title and its id line on one baseline, a quiet control at the end. */
+.fsc-screen__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 16px;
+  min-width: 0;
+}
+
+.fsc-screen__title {
+  margin: 0;
+  color: var(--fs-ink);
+}
+
+.fsc-screen__meta {
+  margin: 0;
+  color: var(--fs-ink-3);
+  white-space: nowrap;
+}
+
+.fsc-screen__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+/* A stack inside a cell: tight inside a group (12), generous between groups (24). */
+.fsc-stack {
+  display: grid;
+  align-content: start;
+  gap: 24px;
+  min-width: 0;
+}
+
+.fsc-stack[data-gap="tight"] {
+  gap: 12px;
+}
+
+@container fsc-screen (min-width: 720px) {
+  .fsc-screen > [data-span-md="1"] {
+    grid-column: span 1;
+  }
+  .fsc-screen > [data-span-md="2"] {
+    grid-column: span 2;
+  }
+  .fsc-screen > [data-span-md="3"] {
+    grid-column: span 3;
+  }
+  .fsc-screen > [data-span-md="4"] {
+    grid-column: span 4;
+  }
+  .fsc-screen > [data-span-md="5"] {
+    grid-column: span 5;
+  }
+  .fsc-screen > [data-span-md="6"] {
+    grid-column: span 6;
+  }
+  .fsc-screen > [data-span-md="7"] {
+    grid-column: span 7;
+  }
+  .fsc-screen > [data-span-md="8"] {
+    grid-column: span 8;
+  }
+  .fsc-screen > [data-span-md="9"] {
+    grid-column: span 9;
+  }
+  .fsc-screen > [data-span-md="10"] {
+    grid-column: span 10;
+  }
+  .fsc-screen > [data-span-md="11"] {
+    grid-column: span 11;
+  }
+  .fsc-screen > [data-span-md="12"] {
+    grid-column: span 12;
+  }
+}
+
+@container fsc-screen (min-width: 1040px) {
+  .fsc-screen > [data-span="1"] {
+    grid-column-end: span 1;
+  }
+  .fsc-screen > [data-span="2"] {
+    grid-column-end: span 2;
+  }
+  .fsc-screen > [data-span="3"] {
+    grid-column-end: span 3;
+  }
+  .fsc-screen > [data-span="4"] {
+    grid-column-end: span 4;
+  }
+  .fsc-screen > [data-span="5"] {
+    grid-column-end: span 5;
+  }
+  .fsc-screen > [data-span="6"] {
+    grid-column-end: span 6;
+  }
+  .fsc-screen > [data-span="7"] {
+    grid-column-end: span 7;
+  }
+  .fsc-screen > [data-span="8"] {
+    grid-column-end: span 8;
+  }
+  .fsc-screen > [data-span="9"] {
+    grid-column-end: span 9;
+  }
+  .fsc-screen > [data-span="10"] {
+    grid-column-end: span 10;
+  }
+  .fsc-screen > [data-span="11"] {
+    grid-column-end: span 11;
+  }
+  .fsc-screen > [data-span="12"] {
+    grid-column-end: span 12;
+  }
+
+  /* A span without a start flows after the cell before it. */
+  .fsc-screen > [data-span]:not([data-start]) {
+    grid-column-start: auto;
+  }
+
+  .fsc-screen > [data-start="1"] {
+    grid-column-start: 1;
+  }
+  .fsc-screen > [data-start="2"] {
+    grid-column-start: 2;
+  }
+  .fsc-screen > [data-start="3"] {
+    grid-column-start: 3;
+  }
+  .fsc-screen > [data-start="4"] {
+    grid-column-start: 4;
+  }
+  .fsc-screen > [data-start="5"] {
+    grid-column-start: 5;
+  }
+  .fsc-screen > [data-start="6"] {
+    grid-column-start: 6;
+  }
+  .fsc-screen > [data-start="7"] {
+    grid-column-start: 7;
+  }
+  .fsc-screen > [data-start="8"] {
+    grid-column-start: 8;
+  }
+  .fsc-screen > [data-start="9"] {
+    grid-column-start: 9;
+  }
+  .fsc-screen > [data-start="10"] {
+    grid-column-start: 10;
+  }
+  .fsc-screen > [data-start="11"] {
+    grid-column-start: 11;
+  }
+  .fsc-screen > [data-start="12"] {
+    grid-column-start: 12;
+  }
+
+  /* A start without a span keeps to the row's end. */
+  .fsc-screen > [data-start]:not([data-span]) {
+    grid-column-end: -1;
+  }
+}

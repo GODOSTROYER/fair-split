@@ -1,6 +1,6 @@
 import { getSnapshot } from "@fairsplit/api-client/seed";
 import { webRoutes } from "@fairsplit/contracts";
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import { expect, it } from "vitest";
 import { nextStep } from "../chrome/next-step.js";
 import { applyRunEvent, emptyRunView, type RunView } from "../data/run-view.js";
@@ -10,6 +10,7 @@ import { countItems } from "../features/proof/model.js";
 import { APPROVE } from "../features/split/shared/copy.js";
 import { hourlyCapSession } from "../test/quota.js";
 import { renderConsole } from "../test/render.js";
+import { clickStageMenuItem } from "../test/stage-menu.js";
 import { createTestWorld } from "../test/world.js";
 import { FramePoster } from "./FramePoster.js";
 import { personaStatus } from "./personas.js";
@@ -101,9 +102,8 @@ it("inv.i8.replay SUCCESS never paints the Log's confirmed jade", async () => {
       view ? applyRunEvent(view, replayEvent) : view,
     ),
   );
-  await act(async () => {
-    fireEvent.click(screen.getByTestId("W-JG-01.logOpen"));
-  });
+  // Round 4: the run log opens from the chevron's menu.
+  await clickStageMenuItem("W-JG-01.logOpen");
   const paypal = () => within(screen.getByTestId("W-JG-01.log")).getAllByTestId("W-JG-01.log.paypal")[0];
   await waitFor(() => expect(paypal()?.textContent).toContain("Replayed"));
   expect(paypal()?.hasAttribute("data-landed")).toBe(false);

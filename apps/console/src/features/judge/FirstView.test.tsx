@@ -10,6 +10,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import type { RunView } from "../../data/run-view.js";
 import {
   clearMomentTrace,
+  clickStageMenuItem,
   createTestWorld,
   expectNoAxeViolations,
   momentPhase,
@@ -512,9 +513,8 @@ describe("server payment pacing", () => {
     });
     await press("W-JG-01.markPaid");
     await waitFor(() => expect(screen.getByTestId("W-JG-01.status").textContent).toContain("You're next"));
-    await act(async () => {
-      fireEvent.click(screen.getByTestId("W-JG-01.reset"));
-    });
+    // Round 4: Reset is in the chevron's menu.
+    await clickStageMenuItem("W-JG-01.reset");
     await waitFor(() =>
       expect(screen.getByTestId("W-JG-01.title").textContent).toContain("Awaiting payment"),
     );

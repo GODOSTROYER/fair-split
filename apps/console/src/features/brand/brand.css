@@ -1,6 +1,6 @@
 /* W-BR-01's header strip, above the same Proof column (Adlaw; UI gate rounds 2 and 3). One white card on a hairline
    ring, like Proof's own cards: who it is for, the invoice and the payouts as two facts, and the export. Tokens
-   only, on DESIGN.md's steps (the title step for the title, the label step for labels, 14 px secondary words, the
+   only, on docs/DESIGN.md's steps (the title step for the title, the label step for labels, 14 px secondary words, the
    mono id role for the invoice id), the 4 px spacing scale; no dashed line (dashed means simulated only). */
 
 .br-strip {

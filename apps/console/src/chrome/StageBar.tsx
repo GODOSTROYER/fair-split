@@ -1,8 +1,10 @@
-// The Judge stage's top bar (S1.6; UI gate round 3): one row. "Fair Split" leads at every width (the rail no longer
-// carries the lockup); then the mock-data chip when the build answers from a mock (I8); in the centre the run pill,
-// the one element that says what to do next, which never truncates; on the right the utilities (What's real, Log,
-// Sound, Reset) as one quiet cluster of line icons, the Proof counter on Proof's six checks ("Proof 0/6" until this
-// browser has checked, then "6/6"), and the stage's one quiet honesty indicator, "Simulated PayPal sandbox".
+// The Judge stage's top bar (S1.6; UI gate round 4): one row of six items at most. "Fair Split" leads at every width
+// (the rail no longer carries the lockup); then the status area, where the mock-data chip and the one event toast
+// live (the toast never floats over the screen); in the centre the run pill, "● Next: …" with "Play it for me" and
+// the chevron (whose menu holds the screens, the run log, sound, Reset and Shortcuts); on the right What's real, the
+// Proof counter on Proof's six checks ("Proof 0/6" until this browser has checked, then "6/6") and the stage's one
+// quiet honesty indicator, "Simulated PayPal sandbox". The phone visit (no pill, so no chevron) keeps the log, sound
+// and Reset as line icons beside What's real, with its own overflow menu.
 
 import { Glyph, HonestyTag, useT } from "@fairsplit/ui-web";
 import { type ReactNode, useRef } from "react";
@@ -16,8 +18,10 @@ import { Wordmark } from "./Wordmark.js";
 export interface StageBarProps {
   readonly rail: PaypalRail;
   readonly mock: boolean;
-  /** The run pill. */
+  /** The run pill (its chevron's menu holds the run log, sound and Reset). */
   readonly pill?: ReactNode;
+  /** The status area's live content: the one event toast (round 4: in the bar, never over a row). */
+  readonly status?: ReactNode;
   readonly proofHref: string | null;
   /** Proof's six checks: how many matched in this browser (0 until it has checked). */
   readonly checks: { readonly matched: number; readonly total: number };
@@ -34,9 +38,10 @@ export interface StageBarProps {
 }
 
 /**
- * Reset. While it runs it keeps the keyboard (aria-disabled: a disabled button loses its focus to <body>), and a
- * second press does nothing. It goes once the session has (the first view is back): in that commit, before its
- * DOM goes, focus moves to the screen's main control, the first press, so it never falls to <body> (WCAG 2.4.3).
+ * Reset as a line icon (the phone visit's bar; on the stage it is an item in the chevron's menu). While it runs it
+ * keeps the keyboard (aria-disabled: a disabled button loses its focus to <body>), and a second press does nothing.
+ * It goes once the session has (the first view is back): in that commit, before its DOM goes, focus moves to the
+ * screen's main control, the first press, so it never falls to <body> (WCAG 2.4.3).
  */
 function ResetButton({ resetting, onReset }: { readonly resetting: boolean; readonly onReset: () => void }) {
   const ref = useRef<HTMLButtonElement>(null);
@@ -83,6 +88,7 @@ export function StageBar({
   rail,
   mock,
   pill,
+  status,
   proofHref,
   checks,
   replayed = false,
@@ -95,10 +101,12 @@ export function StageBar({
 }: StageBarProps) {
   const t = useT();
   const proof = proofChipLabel(t, { ...checks, replayed });
+  // With the run pill on the bar, its chevron's menu holds the log, sound and Reset (round 4: six items at most).
+  const utilitiesInMenu = Boolean(pill);
   return (
     <header className="fsc-bar" data-testid="W-JG-01.bar">
       <Wordmark compact />
-      <div className="fsc-bar__honest">
+      <div className="fsc-bar__status">
         {mock && (
           <span
             className="fs-chip fsc-bar__mock"
@@ -109,6 +117,7 @@ export function StageBar({
             <span className="fs-t-label">{MOCK_DATA.chip}</span>
           </span>
         )}
+        {status}
       </div>
       {pill && <div className="fsc-bar__pill">{pill}</div>}
       <nav className="fsc-bar__actions" aria-label="Stage">
@@ -123,18 +132,22 @@ export function StageBar({
             <Glyph name="ms:visibility" size={16} />
             <span className="fs-t-label">{STAGE.whatsReal}</span>
           </button>
-          <button
-            type="button"
-            className="fsc-barlink fsc-barlink--fold"
-            title={LOG.title}
-            onClick={onLog}
-            data-testid="W-JG-01.logOpen"
-          >
-            <Glyph name="ms:schedule" size={16} />
-            <span className="fs-t-label">{LOG.open}</span>
-          </button>
-          <SoundToggle testId="W-JG-01.sound" className="fsc-barlink--fold" />
-          {canReset && <ResetButton resetting={resetting} onReset={onReset} />}
+          {!utilitiesInMenu && (
+            <>
+              <button
+                type="button"
+                className="fsc-barlink fsc-barlink--fold"
+                title={LOG.title}
+                onClick={onLog}
+                data-testid="W-JG-01.logOpen"
+              >
+                <Glyph name="ms:schedule" size={16} />
+                <span className="fs-t-label">{LOG.open}</span>
+              </button>
+              <SoundToggle testId="W-JG-01.sound" className="fsc-barlink--fold" />
+              {canReset && <ResetButton resetting={resetting} onReset={onReset} />}
+            </>
+          )}
           {overflow}
         </div>
         {proofHref && (
