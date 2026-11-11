@@ -77,10 +77,19 @@ describe("colour source", () => {
 
   it("keeps v2's contrast fixes (decision.md §3)", () => {
     expect(RESOLVED.adlaw["steel-line"].hex).toBe("#7E8898");
-    // Round 2: one amber for holds (the dot, the arc, the 3 px rule), no darker brownish edge.
-    expect(RESOLVED.adlaw["canary-border"].hex).toBe("#FFA41B");
+    // Round 6 (no amber on Hayag): a person's decision is the person's colour, ballpoint indigo, white on its face.
+    expect(RESOLVED.adlaw["canary-border"].hex).toBe("#4A2FD6");
     expect(RESOLVED.adlaw.pod.hex).toBe("#4A2FD6");
-    expect(RESOLVED.adlaw.canary.hex).toBe("#FFA41B");
+    expect(RESOLVED.adlaw.canary.hex).toBe(RESOLVED.adlaw.pod.hex);
+    expect(RESOLVED.adlaw["on-canary"].hex).toBe("#FFFFFF");
+    expect(RESOLVED.adlaw["canary-text"].hex).toBe(RESOLVED.adlaw.ink.hex);
+    // No amber, tan or brown on any Hayag token: nothing between hue 40° and 100° with any chroma to speak of
+    // (the evidence paper's yellow copy aside).
+    for (const name of COLOUR_NAMES) {
+      if (name === "copy-yellow") continue;
+      const [, c, h] = RESOLVED.adlaw[name].oklch;
+      expect(c > 0.06 && h > 40 && h < 100, `adlaw ${name}`).toBe(false);
+    }
     expect(RESOLVED.adlaw["ink-3"].hex).toBe("#5A6476");
     expect(RESOLVED.tablea["ink-3"].hex).toBe("#8E98AE");
     expect(RESOLVED.adlaw["rule-strong"].hex).toBe("#CBD2DC");
@@ -148,7 +157,9 @@ describe("colour source", () => {
       for (const name of COLOUR_NAMES) {
         const [, c, h] = RESOLVED[theme][name].oklch;
         const indigo = c > 0.1 && h > 260 && h < 340;
-        if (indigo) expect(hand.has(name), `${theme} ${name}`).toBe(true);
+        // Round 6: on Hayag what waits for a person (the canary role) is the person's colour too; nothing else is.
+        const waits = theme === "adlaw" && (name === "canary" || name === "canary-border");
+        if (indigo) expect(hand.has(name) || waits, `${theme} ${name}`).toBe(true);
       }
       for (const name of hand) {
         const [, c, h] = RESOLVED[theme][name as (typeof COLOUR_NAMES)[number]].oklch;
@@ -253,9 +264,9 @@ describe("type, space and layout", () => {
     expect(MATERIALS.statementMin).toBe(TEXT_FLOORS.body);
   });
 
-  it("one money style: every money hero and figure is FS Sans 87.5 at 500, the phone's semi-condensed cut", () => {
+  it("one numeral face: every money hero and figure is FS Sans at the text's width (100) and 500 on the web", () => {
     for (const role of ["hero", "amount-hero", "amount-l", "figure"] as const) {
-      expect(TYPE_ROLES[role], role).toMatchObject({ family: "ui", stretch: 87.5, weight: 500 });
+      expect(TYPE_ROLES[role], role).toMatchObject({ family: "ui", stretch: 100, weight: 500 });
       expect(TYPE_ROLES[role].native, role).toBe("FSSans-SemiCondMedium");
     }
     expect(TYPE_ROLES["amount-hero"]).toMatchObject({ size: 56, line: 60 });

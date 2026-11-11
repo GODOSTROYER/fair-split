@@ -644,7 +644,7 @@
 
     /* Money is never bold: the net is the numeral's width and weight on the body step. */
     .fs-receipt__item[data-kind="net"] .fs-receipt__value {
-      font-stretch: 87.5%;
+      font-stretch: 100%;
       font-weight: 500;
       font-size: 1rem;
       line-height: 1.25rem;
@@ -1453,16 +1453,23 @@
     stroke-linecap: round;
   }
 
+  /* The zone past the limit tick (round 6): a neutral arc, ink once the reading is in it, never amber or the
+     person's indigo. The dial is the machine's reading, so its over-limit state is the ink arc and the word "Over
+     limit" beside it. */
   .fs-dial__over {
     fill: none;
-    stroke: var(--fs-canary-border);
+    stroke: var(--fs-ink-3);
     stroke-width: 6;
     stroke-linecap: round;
   }
 
-  /* The old reading for its 1.2 s: a solid amber tick at half strength (dashed lines mean simulated only). */
+  .fs-dial[data-over] .fs-dial__over {
+    stroke: var(--fs-ink);
+  }
+
+  /* The old reading for its 1.2 s: a solid neutral tick at half strength (dashed lines mean simulated only). */
   .fs-dial__ghost {
-    stroke: var(--fs-canary-border);
+    stroke: var(--fs-ink-3);
     stroke-width: 2;
     stroke-linecap: round;
     opacity: 0.5;
@@ -1482,8 +1489,8 @@
     stroke-width: 2;
   }
 
-  /* The needle reads the machine's figure: ink inside the limit, amber over it (a person must decide). Indigo is
-     action and focus only (round 3). */
+  /* The needle reads the machine's figure, in ink inside the limit and over it (round 6: no amber on the dial).
+     Indigo is action and focus only (round 3). */
   .fs-dial__needle {
     stroke: var(--fs-ink);
     stroke-width: 2.5;
@@ -1492,14 +1499,6 @@
 
   .fs-dial__hub {
     fill: var(--fs-ink);
-  }
-
-  .fs-dial[data-over] .fs-dial__needle {
-    stroke: var(--fs-canary-border);
-  }
-
-  .fs-dial[data-over] .fs-dial__hub {
-    fill: var(--fs-canary-border);
   }
 
   .fs-dial__caption {
@@ -1518,10 +1517,6 @@
     color: var(--fs-ink);
   }
 
-  .fs-dial[data-over] .fs-dial__value {
-    color: var(--fs-canary-text);
-  }
-
   /* The bench's hero reading sits a little lower under the hub, clear of the needle. */
   .fs-dial__caption[data-role="amount-l"] {
     margin-top: -6px;
@@ -1532,7 +1527,7 @@
     display: inline-flex;
     align-items: baseline;
     gap: 8px;
-    color: var(--fs-canary-text);
+    color: var(--fs-ink-2);
   }
 
   .fs-dial__arrow {

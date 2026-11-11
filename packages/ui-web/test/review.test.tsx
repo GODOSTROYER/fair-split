@@ -262,9 +262,23 @@ describe("the stylesheet after round 3 (docs/DESIGN.md)", () => {
     }
   });
 
-  it("the dial's needle reads in ink and turns amber over the limit; indigo stays action and focus", () => {
+  it("the dial reads in ink inside the limit and over it: no amber on the dial (round 6); indigo stays action", () => {
     expect(declared(".fs-dial__needle")[0]?.stroke).toBe("var(--fs-ink)");
-    expect(declared(".fs-dial[data-over] .fs-dial__needle")[0]?.stroke).toBe("var(--fs-canary-border)");
+    // Over the limit is the machine's reading, not a person's decision: the arc past the tick is ink, the needle and
+    // its hub keep their ink, and the old reading's ghost is neutral. Amber stays a hold's dot and tag.
+    expect(declared(".fs-dial[data-over] .fs-dial__needle")).toEqual([]);
+    expect(declared(".fs-dial[data-over] .fs-dial__hub")).toEqual([]);
+    expect(declared(".fs-dial__over")[0]?.stroke).toBe("var(--fs-ink-3)");
+    expect(declared(".fs-dial[data-over] .fs-dial__over")[0]?.stroke).toBe("var(--fs-ink)");
+    expect(declared(".fs-dial__ghost")[0]?.stroke).toBe("var(--fs-ink-3)");
+  });
+
+  it("numerals keep the text's width (round 6: one numeral face, no condensed cut on a figure)", () => {
+    const sheet = readFileSync(resolve(__dirname, "../src/styles.css"), "utf8").replace(
+      /\/\*[\s\S]*?\*\//g,
+      "",
+    );
+    expect(sheet).not.toMatch(/font-stretch:\s*87\.5%/);
   });
 
   it("no dot-matrix rules are left", () => {

@@ -98,7 +98,9 @@ describe("token contrast (WCAG 2.x)", () => {
       }
     }
     expect(nearest(RESOLVED.adlaw.pod.hex)).toBeCloseTo(13.6, 1);
-    expect(nearest(RESOLVED.adlaw.canary.hex)).toBeCloseTo(7.4, 1);
+    // Round 6: Hayag's canary is the ballpoint indigo (no amber); Gabii keeps its marigold.
+    expect(nearest(RESOLVED.adlaw.canary.hex)).toBeCloseTo(13.6, 1);
+    expect(nearest(RESOLVED.tablea.canary.hex)).toBeCloseTo(7.4, 1);
     expect(nearest(RESOLVED.adlaw.jade.hex)).toBeCloseTo(20.6, 1);
   });
 

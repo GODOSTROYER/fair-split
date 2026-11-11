@@ -30,15 +30,15 @@ export interface FsColours {
   jadeFlushBorder: string;
   /** Grid flash for a PayPal-driven change */
   jadeWash: string;
-  /** Marigold: a person must decide. Never an error, never a button */
+  /** A person must decide: indigo on Hayag (round 6: no amber), marigold on Gabii. Never an error */
   canary: string;
-  /** Text on a marigold face */
+  /** Text on a canary face */
   onCanary: string;
-  /** Words beside a hold: ink on Hayag (the amber dot carries the meaning; amber is never text) */
+  /** Words beside a hold: ink on Hayag (the dot carries the meaning; the hue is never text) */
   canaryText: string;
-  /** Behind a held row or a You cell: no fill on Hayag (no cream); the amber rule carries it */
+  /** Behind a held row or a You cell: no fill on Hayag (no cream); the dot and the outline carry it */
   canaryWash: string;
-  /** The one amber: a held row's 3 px rule, a marigold face's edge, over-limit ticks */
+  /** A hold's outline and dot, a parked thread: the canary hue as a line */
   canaryBorder: string;
   /** Only PayPal DENIED, FAILED, BLOCKED, an unexpected RETURNED and ERRPYO codes */
   red: string;
@@ -211,11 +211,11 @@ export const adlaw: FsTheme = {
     jadeText: "#06724F",
     jadeFlushBorder: "#0A9467",
     jadeWash: "#DEF8EF",
-    canary: "#FFA41B",
-    onCanary: "#0B1220",
+    canary: "#4A2FD6",
+    onCanary: "#FFFFFF",
     canaryText: "#0B1220",
     canaryWash: "#FFFFFF",
-    canaryBorder: "#FFA41B",
+    canaryBorder: "#4A2FD6",
     red: "#CF2A27",
     redFace: "#D42A26",
     onRedFace: "#FFFFFF",

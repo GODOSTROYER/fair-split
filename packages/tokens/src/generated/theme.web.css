@@ -17,11 +17,11 @@
   --fs-jade-text: #06724f;
   --fs-jade-flush-border: #0a9467;
   --fs-jade-wash: #def8ef;
-  --fs-canary: #ffa41b;
-  --fs-on-canary: #0b1220;
+  --fs-canary: #4a2fd6;
+  --fs-on-canary: #ffffff;
   --fs-canary-text: #0b1220;
   --fs-canary-wash: #ffffff;
-  --fs-canary-border: #ffa41b;
+  --fs-canary-border: #4a2fd6;
   --fs-red: #cf2a27;
   --fs-red-face: #d42a26;
   --fs-on-red-face: #ffffff;
@@ -144,11 +144,11 @@
     --fs-jade-text: oklch(0.4892 0.1038 163.13);
     --fs-jade-flush-border: oklch(0.5904 0.126 162.79);
     --fs-jade-wash: oklch(0.9577 0.0296 172.88);
-    --fs-canary: oklch(0.7915 0.1672 68.93);
-    --fs-on-canary: oklch(0.1831 0.0309 263.38);
+    --fs-canary: oklch(0.4625 0.2354 279.25);
+    --fs-on-canary: oklch(1 0 0);
     --fs-canary-text: oklch(0.1831 0.0309 263.38);
     --fs-canary-wash: oklch(1 0 0);
-    --fs-canary-border: oklch(0.7915 0.1672 68.93);
+    --fs-canary-border: oklch(0.4625 0.2354 279.25);
     --fs-red: oklch(0.5562 0.2008 27.48);
     --fs-red-face: oklch(0.5652 0.2055 27.78);
     --fs-on-red-face: oklch(1 0 0);
@@ -309,8 +309,8 @@
   --fs-noise-opacity: 0;
   --fs-evidence-ballpoint: #2b4ba0;
   --fs-evidence-serial: #b23a2e;
-  --fs-evidence-form: #5f5a54;
-  --fs-evidence-stain: #b79f73;
+  --fs-evidence-form: #5a6476;
+  --fs-evidence-stain: #a4aebc;
   --fs-dur-press: 90ms;
   --fs-dur-press-60: 60ms;
   --fs-dur-retract-200: 200ms;
@@ -627,7 +627,7 @@
 
 .fs-t-hero {
   font-family: var(--fs-font-ui);
-  font-stretch: 87.5%;
+  font-stretch: 100%;
   font-weight: 500;
   font-size: 3.5rem;
   line-height: 3.75rem;
@@ -691,7 +691,7 @@
 
 .fs-t-amount-hero {
   font-family: var(--fs-font-ui);
-  font-stretch: 87.5%;
+  font-stretch: 100%;
   font-weight: 500;
   font-size: 3.5rem;
   line-height: 3.75rem;
@@ -701,7 +701,7 @@
 
 .fs-t-amount-l {
   font-family: var(--fs-font-ui);
-  font-stretch: 87.5%;
+  font-stretch: 100%;
   font-weight: 500;
   font-size: 1.5rem;
   line-height: 1.875rem;
@@ -739,7 +739,7 @@
 
 .fs-t-figure {
   font-family: var(--fs-font-ui);
-  font-stretch: 87.5%;
+  font-stretch: 100%;
   font-weight: 500;
   font-size: 0.875rem;
   line-height: 1.25rem;

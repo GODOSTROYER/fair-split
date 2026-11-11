@@ -9,9 +9,12 @@
 // Palette v2, "Hayag": white and porcelain surfaces with a cool blue-black ink, and one job per colour.
 // - Jade means money: raised, this control moves the co-op's money; flush, the simulated PayPal confirmed it;
 //   a dashed jade outline, it is in flight. Never decoration, a heading, the seal or a check result.
-// - Marigold (the canary role) means a person must decide. Never a button, never an error.
+// - The canary role means a person must decide. UI gate round 6 (the owner's rule: no brown, no amber): on Hayag
+//   it is the person's own colour, ballpoint indigo, so "a person did this" and "a person must do this" are one hue
+//   and no amber is left on any surface. Never an error. (Gabii, the film's night cards, keeps its marigold.)
 // - Ballpoint indigo (pod, the chalk slab) is a person's hand: their decision slabs, stamps, the seal's
-//   linework, the focus ring, the dial needle and a selection. Never money, never the machine.
+//   linework, the focus ring and a selection, and what waits for a person (the canary role). Never money, never
+//   the machine (the dial reads in ink).
 // - Graphite pencil is the machine; ink is a checked fact; red is only PayPal saying no.
 // - Hatch plus the word is cash or unavailable; dashed steel is "not real, or not yet" (honesty labels).
 // One morning wash behind the heroes, one jade halo for one beat after the simulated PayPal confirms, the film's
@@ -189,11 +192,12 @@ export const COLOUR_ROLES: Readonly<Record<ColourName, string>> = {
   "jade-text": "Jade as text",
   "jade-flush-border": "Border of flush jade faces; dashed 1.5 px, money in flight",
   "jade-wash": "Grid flash for a PayPal-driven change",
-  canary: "Marigold: a person must decide. Never an error, never a button",
-  "on-canary": "Text on a marigold face",
-  "canary-text": "Words beside a hold: ink on Hayag (the amber dot carries the meaning; amber is never text)",
-  "canary-wash": "Behind a held row or a You cell: no fill on Hayag (no cream); the amber rule carries it",
-  "canary-border": "The one amber: a held row's 3 px rule, a marigold face's edge, over-limit ticks",
+  canary: "A person must decide: indigo on Hayag (round 6: no amber), marigold on Gabii. Never an error",
+  "on-canary": "Text on a canary face",
+  "canary-text": "Words beside a hold: ink on Hayag (the dot carries the meaning; the hue is never text)",
+  "canary-wash":
+    "Behind a held row or a You cell: no fill on Hayag (no cream); the dot and the outline carry it",
+  "canary-border": "A hold's outline and dot, a parked thread: the canary hue as a line",
   red: "Only PayPal DENIED, FAILED, BLOCKED, an unexpected RETURNED and ERRPYO codes",
   "red-face": "A red face (the batch-denied banner)",
   "on-red-face": "Text on a red face",
@@ -297,11 +301,13 @@ export const COLOURS: Readonly<Record<ThemeName, Readonly<Record<ColourName, Col
     "jade-text": HAYAG_JADE_DEEP,
     "jade-flush-border": HAYAG_JADE_LIP,
     "jade-wash": mix("jade", 0.14),
-    canary: MARIGOLD,
-    "on-canary": HAYAG_INK,
+    // Round 6: a person's decision is the person's colour (no amber on Hayag): the held dot, a hold tag's outline,
+    // the parked thread, the "needs you" chip's ring. White on its face; its words stay ink.
+    canary: BALLPOINT,
+    "on-canary": WHITE,
     "canary-text": HAYAG_INK,
     "canary-wash": WHITE,
-    "canary-border": MARIGOLD,
+    "canary-border": BALLPOINT,
     red: ok("#CF2A27", 0.5562, 0.2008, 27.48),
     "red-face": ok("#D42A26", 0.5652, 0.2055, 27.78),
     "on-red-face": WHITE,
@@ -503,9 +509,12 @@ export interface TypeRole {
 }
 
 // The six roles on the five steps. Every other role below is an alias that keeps a name consumers already use.
+// Round 6: one numeral face. On the web every figure (hero, amount, grid figure) is FS Sans at the text's own width
+// (100) in tabular lining figures, so a number never reads as a second, condensed face beside its label; the phone
+// keeps its static semi-condensed cut (`native`) until WS-DS's font build cuts a 500 at width 100.
 const HERO = {
   family: "ui",
-  stretch: 87.5,
+  stretch: 100,
   weight: 500,
   size: TYPE_STEPS.web.hero,
   line: 60,
@@ -601,7 +610,7 @@ export const TYPE_ROLES = {
   lede: { ...BODY, use: "The panel's one line of prose (alias of body)" },
   figure: {
     ...SECONDARY,
-    stretch: 87.5,
+    stretch: 100,
     weight: 500,
     native: NATIVE_FONTS.semiCondMedium,
     use: "Amounts and quantities in grids and lists: the label step in the numeral's width and weight",
@@ -730,8 +739,10 @@ export const PAPER_DROP: Readonly<Record<ThemeName, string>> = {
 export const EVIDENCE = {
   ballpoint: "#2B4BA0",
   serial: "#B23A2E",
-  form: "#5F5A54",
-  stain: "#B79F73",
+  // Round 6 (film U2, the owner's no-brown rule): the printed form is a cool neutral (ink-3) and a water stain is the
+  // tokens' cool hatch grey, drawn as a hatch; no ochre, tan or warm grey on any evidence drawn in code.
+  form: "#5A6476",
+  stain: "#A4AEBC",
 } as const;
 
 export const LAYERS = {
