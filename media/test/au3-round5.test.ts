@@ -3,7 +3,17 @@ import { join } from "node:path";
 import { expect, it } from "vitest";
 import { MEDIA_ROOT } from "../src/util/env.js";
 
-const read = (file: string) => JSON.parse(readFileSync(join(MEDIA_ROOT, file), "utf8"));
+// Keep every round-five assertion against its immutable historical receipt.
+const read = (file: string) =>
+  JSON.parse(
+    readFileSync(
+      join(
+        MEDIA_ROOT,
+        file === "audio/statement-validation.json" ? "audio/history/round5-validation.json" : file,
+      ),
+      "utf8",
+    ),
+  );
 
 it("inv.i8.round5-reset: records a bounded retry after the approved reset", () => {
   const report = read("audio/statement-validation.json");

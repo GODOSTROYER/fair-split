@@ -996,6 +996,1121 @@
       "method": "per-sentence-asr",
       "verifiedAt": "2026-11-10T19:03:13.022Z",
       "synthetic": true
+    },
+    {
+      "file": "audio/M-018/ceb/s05-DEDUCTION-ff4fa9e5ec2f.m4a",
+      "textSha256": "ff4fa9e5ec2fe2cfd9fc3fc55323d88ee3bc8bfe5ffc3f0454143ae971ccdece",
+      "audioSha256": "d5e33660cb77c4fba89b6bd625749148fb52c24290d0fa6a6e424cc8c49030ab",
+      "asrModel": "gemini-2.5-flash",
+      "cer": 0.014,
+      "transcript": "Gikaltaan og eighty-nine cents para sa CBU R one resolusyon sa board",
+      "words": [
+        {
+          "text": "Gikaltaan",
+          "start": 0.048,
+          "end": 0.708
+        },
+        {
+          "text": "og",
+          "start": 0.818,
+          "end": 0.948
+        },
+        {
+          "text": "eighty-nine",
+          "start": 1.058,
+          "end": 1.768
+        },
+        {
+          "text": "cents",
+          "start": 1.838,
+          "end": 2.258
+        },
+        {
+          "text": "para",
+          "start": 2.768,
+          "end": 3.098
+        },
+        {
+          "text": "sa",
+          "start": 3.198,
+          "end": 3.328
+        },
+        {
+          "text": "CBU",
+          "start": 3.618,
+          "end": 4.098
+        },
+        {
+          "text": "R",
+          "start": 4.548,
+          "end": 4.678
+        },
+        {
+          "text": "one",
+          "start": 4.708,
+          "end": 4.818
+        },
+        {
+          "text": "resolusyon",
+          "start": 5.568,
+          "end": 6.258
+        },
+        {
+          "text": "sa",
+          "start": 6.348,
+          "end": 6.468
+        },
+        {
+          "text": "board",
+          "start": 6.648,
+          "end": 7.028
+        }
+      ],
+      "threshold": 0.12,
+      "method": "per-sentence-asr",
+      "verifiedAt": "2026-11-11T08:16:26.238Z",
+      "synthetic": true,
+      "round": 6,
+      "sourceRequestHash": "8edcdd78683261ac63a57377ec4b9c620d9f313731773a4a04463a93d665d6ea"
+    },
+    {
+      "file": "audio/M-014/en/s04-BONUS-1ab5768d7f45.m4a",
+      "textSha256": "1ab5768d7f45d39c450e3723e39ffb591472ce6c35ebf91f0ad173982da65026",
+      "audioSha256": "bc3b42fa6554fc266a713d64b8d36067092e00a9e8cc57a6b7b92fd018a80f84",
+      "asrModel": "gemini-2.5-flash",
+      "cer": 0,
+      "transcript": "Quality bonus twenty one dollars and eighty five cents",
+      "words": [
+        {
+          "text": "Quality",
+          "start": 0.354,
+          "end": 0.814
+        },
+        {
+          "text": "bonus",
+          "start": 0.814,
+          "end": 1.544
+        },
+        {
+          "text": "twenty",
+          "start": 2.064,
+          "end": 2.454
+        },
+        {
+          "text": "one",
+          "start": 2.514,
+          "end": 2.764
+        },
+        {
+          "text": "dollars",
+          "start": 3.194,
+          "end": 3.654
+        },
+        {
+          "text": "and",
+          "start": 3.654,
+          "end": 3.864
+        },
+        {
+          "text": "eighty",
+          "start": 4.094,
+          "end": 4.474
+        },
+        {
+          "text": "five",
+          "start": 4.634,
+          "end": 5.094
+        },
+        {
+          "text": "cents",
+          "start": 5.094,
+          "end": 5.484
+        }
+      ],
+      "threshold": 0.12,
+      "method": "per-sentence-asr",
+      "verifiedAt": "2026-11-11T08:25:26.291Z",
+      "synthetic": true,
+      "round": 6,
+      "sourceRequestHash": "284d18954ff64f95f809cecec6f140fd1ee77a2edf48d6b1a8c8b3408ea4863e"
+    },
+    {
+      "file": "audio/M-007/ceb/s01-GREETING-8754aa02c388.m4a",
+      "textSha256": "8754aa02c388cb73ec5ddd9d95e890692675576991082af403160ce5c475fc15",
+      "audioSha256": "000a3d245dcca66710bf8a91330b197c376a7e155fe05ddd9a63d7db7888b1f8",
+      "asrModel": "gemini-2.5-flash",
+      "cer": 0.019,
+      "transcript": "Maayong adlaw nung dioning Salamat sa inyong paghago",
+      "words": [
+        {
+          "text": "Maayong",
+          "start": 0,
+          "end": 0.54
+        },
+        {
+          "text": "adlaw",
+          "start": 0.57,
+          "end": 0.95
+        },
+        {
+          "text": "nung",
+          "start": 1,
+          "end": 1.25
+        },
+        {
+          "text": "dioning",
+          "start": 1.29,
+          "end": 1.87
+        },
+        {
+          "text": "Salamat",
+          "start": 2.65,
+          "end": 3.16
+        },
+        {
+          "text": "sa",
+          "start": 3.23,
+          "end": 3.39
+        },
+        {
+          "text": "inyong",
+          "start": 3.53,
+          "end": 3.86
+        },
+        {
+          "text": "paghago",
+          "start": 3.89,
+          "end": 4.39
+        }
+      ],
+      "threshold": 0.12,
+      "method": "per-sentence-asr",
+      "verifiedAt": "2026-11-11T08:26:10.209Z",
+      "synthetic": true,
+      "round": 6,
+      "sourceRequestHash": "2be19eec4f5fbcac859108d749b310cae8f1d746df83143d8a9aaf0ca3aa3291"
+    },
+    {
+      "file": "audio/M-007/ceb/s07-PAY-34f3c502c632.m4a",
+      "textSha256": "34f3c502c632f09aef80ccd397dc46561d36ef93895a52622a0d64ef42fbe189",
+      "audioSha256": "b5dc5ec3d02a4d3cae511eec974b00fe5bf3d891e8d319144c17dc324778ee46",
+      "asrModel": "gemini-2.5-flash",
+      "cer": 0.009,
+      "transcript": "Ang inyong bayad karong season sixty-two dollars and seventy-one cents sa inyong PayPal Sa peso mga three thousand nine hundred nineteen pesos gibanabana sa lili pa ang three porsyento nga bayad sa PayPal sa pag-ilis",
+      "words": [
+        {
+          "text": "Ang",
+          "start": 0,
+          "end": 0.23
+        },
+        {
+          "text": "inyong",
+          "start": 0.23,
+          "end": 0.52
+        },
+        {
+          "text": "bayad",
+          "start": 0.52,
+          "end": 0.88
+        },
+        {
+          "text": "karong",
+          "start": 0.97,
+          "end": 1.25
+        },
+        {
+          "text": "season",
+          "start": 1.25,
+          "end": 1.76
+        },
+        {
+          "text": "sixty-two",
+          "start": 2.81,
+          "end": 3.73
+        },
+        {
+          "text": "dollars",
+          "start": 3.73,
+          "end": 4.19
+        },
+        {
+          "text": "and",
+          "start": 4.19,
+          "end": 4.39
+        },
+        {
+          "text": "seventy-one",
+          "start": 4.39,
+          "end": 5.09
+        },
+        {
+          "text": "cents",
+          "start": 5.09,
+          "end": 5.57
+        },
+        {
+          "text": "sa",
+          "start": 5.93,
+          "end": 6.07
+        },
+        {
+          "text": "inyong",
+          "start": 6.07,
+          "end": 6.36
+        },
+        {
+          "text": "PayPal",
+          "start": 6.36,
+          "end": 6.94
+        },
+        {
+          "text": "Sa",
+          "start": 7.5,
+          "end": 7.64
+        },
+        {
+          "text": "peso",
+          "start": 7.64,
+          "end": 8.16
+        },
+        {
+          "text": "mga",
+          "start": 8.48,
+          "end": 8.76
+        },
+        {
+          "text": "three",
+          "start": 9.07,
+          "end": 9.49
+        },
+        {
+          "text": "thousand",
+          "start": 9.49,
+          "end": 9.94
+        },
+        {
+          "text": "nine",
+          "start": 9.94,
+          "end": 10.22
+        },
+        {
+          "text": "hundred",
+          "start": 10.22,
+          "end": 10.51
+        },
+        {
+          "text": "nineteen",
+          "start": 10.51,
+          "end": 11.08
+        },
+        {
+          "text": "pesos",
+          "start": 11.08,
+          "end": 11.66
+        },
+        {
+          "text": "gibanabana",
+          "start": 11.75,
+          "end": 12.44
+        },
+        {
+          "text": "sa",
+          "start": 12.92,
+          "end": 13.04
+        },
+        {
+          "text": "lili",
+          "start": 13.04,
+          "end": 13.31
+        },
+        {
+          "text": "pa",
+          "start": 13.31,
+          "end": 13.43
+        },
+        {
+          "text": "ang",
+          "start": 13.62,
+          "end": 13.88
+        },
+        {
+          "text": "three",
+          "start": 14.28,
+          "end": 14.73
+        },
+        {
+          "text": "porsyento",
+          "start": 14.73,
+          "end": 15.34
+        },
+        {
+          "text": "nga",
+          "start": 15.34,
+          "end": 15.52
+        },
+        {
+          "text": "bayad",
+          "start": 15.52,
+          "end": 15.91
+        },
+        {
+          "text": "sa",
+          "start": 16.03,
+          "end": 16.17
+        },
+        {
+          "text": "PayPal",
+          "start": 16.17,
+          "end": 16.63
+        },
+        {
+          "text": "sa",
+          "start": 16.63,
+          "end": 16.78
+        },
+        {
+          "text": "pag-ilis",
+          "start": 16.78,
+          "end": 17.51
+        }
+      ],
+      "threshold": 0.12,
+      "method": "per-sentence-asr",
+      "verifiedAt": "2026-11-11T08:26:44.865Z",
+      "synthetic": true,
+      "round": 6,
+      "sourceRequestHash": "bdd845a5a401b60b93224a4e13bf7b4202082d75fbbe0c972f802a922c10c716"
+    },
+    {
+      "file": "audio/M-060/fil/s07-PAY-9567827aaede.m4a",
+      "textSha256": "9567827aaede3e44d1c6e2e56978fdc106507e19e710a1d18d7fdae49fc161d0",
+      "audioSha256": "e1972520e7049ead8db684097c0262a1f6db0c933e344dc878f7b53455660d4e",
+      "asrModel": "gemini-2.5-flash",
+      "cer": 0.022,
+      "transcript": "Ang inyong bayad ngayong season fifty five dollars and ninety six cents sa inyong PayPal Sa piso humigit kumulang three thousand four hundred ninety seven peso Tancha bago ang three porsyento na singil ng PayPal sa pagpapalit",
+      "words": [
+        {
+          "text": "Ang",
+          "start": 0.054,
+          "end": 0.284
+        },
+        {
+          "text": "inyong",
+          "start": 0.314,
+          "end": 0.654
+        },
+        {
+          "text": "bayad",
+          "start": 0.704,
+          "end": 1.054
+        },
+        {
+          "text": "ngayong",
+          "start": 1.084,
+          "end": 1.454
+        },
+        {
+          "text": "season",
+          "start": 1.574,
+          "end": 2.214
+        },
+        {
+          "text": "fifty",
+          "start": 2.504,
+          "end": 2.874
+        },
+        {
+          "text": "five",
+          "start": 2.904,
+          "end": 3.204
+        },
+        {
+          "text": "dollars",
+          "start": 3.494,
+          "end": 3.864
+        },
+        {
+          "text": "and",
+          "start": 3.894,
+          "end": 4.094
+        },
+        {
+          "text": "ninety",
+          "start": 4.124,
+          "end": 4.494
+        },
+        {
+          "text": "six",
+          "start": 4.544,
+          "end": 4.794
+        },
+        {
+          "text": "cents",
+          "start": 4.884,
+          "end": 5.484
+        },
+        {
+          "text": "sa",
+          "start": 5.614,
+          "end": 5.764
+        },
+        {
+          "text": "inyong",
+          "start": 5.864,
+          "end": 6.134
+        },
+        {
+          "text": "PayPal",
+          "start": 6.164,
+          "end": 6.844
+        },
+        {
+          "text": "Sa",
+          "start": 7.644,
+          "end": 7.794
+        },
+        {
+          "text": "piso",
+          "start": 7.824,
+          "end": 8.324
+        },
+        {
+          "text": "humigit",
+          "start": 8.844,
+          "end": 9.274
+        },
+        {
+          "text": "kumulang",
+          "start": 9.384,
+          "end": 10.024
+        },
+        {
+          "text": "three",
+          "start": 10.284,
+          "end": 10.824
+        },
+        {
+          "text": "thousand",
+          "start": 10.974,
+          "end": 11.374
+        },
+        {
+          "text": "four",
+          "start": 11.404,
+          "end": 11.754
+        },
+        {
+          "text": "hundred",
+          "start": 11.784,
+          "end": 12.114
+        },
+        {
+          "text": "ninety",
+          "start": 12.144,
+          "end": 12.554
+        },
+        {
+          "text": "seven",
+          "start": 12.634,
+          "end": 12.984
+        },
+        {
+          "text": "peso",
+          "start": 13.044,
+          "end": 13.564
+        },
+        {
+          "text": "Tancha",
+          "start": 14.124,
+          "end": 14.774
+        },
+        {
+          "text": "bago",
+          "start": 15.284,
+          "end": 15.654
+        },
+        {
+          "text": "ang",
+          "start": 15.704,
+          "end": 15.894
+        },
+        {
+          "text": "three",
+          "start": 16.144,
+          "end": 16.484
+        },
+        {
+          "text": "porsyento",
+          "start": 16.594,
+          "end": 17.154
+        },
+        {
+          "text": "na",
+          "start": 17.194,
+          "end": 17.334
+        },
+        {
+          "text": "singil",
+          "start": 17.394,
+          "end": 17.754
+        },
+        {
+          "text": "ng",
+          "start": 17.794,
+          "end": 17.924
+        },
+        {
+          "text": "PayPal",
+          "start": 18.064,
+          "end": 18.524
+        },
+        {
+          "text": "sa",
+          "start": 18.604,
+          "end": 18.734
+        },
+        {
+          "text": "pagpapalit",
+          "start": 18.784,
+          "end": 19.464
+        }
+      ],
+      "threshold": 0.12,
+      "method": "per-sentence-asr",
+      "verifiedAt": "2026-11-11T08:27:32.998Z",
+      "synthetic": true,
+      "round": 6,
+      "sourceRequestHash": "12f214fd664509d3cf76fa92689effea4c8d8277c0d0a5a754e67108b58d0736"
+    },
+    {
+      "file": "audio/M-018/ceb/s07-PAY-8dd779afb9f9.m4a",
+      "textSha256": "8dd779afb9f9305e912fd2b4b404383b0e0a6731a5bdd2b77823015abe5f7b42",
+      "audioSha256": "7e9e70428e19f25ab0808e1f26873d0fe01fd99295288515cc4411cc37f243c0",
+      "asrModel": "gemini-2.5-flash",
+      "cer": 0.005,
+      "transcript": "Ang inyong bayad karong season fifty-five dollars and sixty-three cents sa inyong PayPal Sa peso mga three thousand four hundred seventy-six pesos gibana-bana sa dili pa ang three porsyento nga bayad sa PayPal sa pag-ilis",
+      "words": [
+        {
+          "text": "Ang",
+          "start": 0.003,
+          "end": 0.173
+        },
+        {
+          "text": "inyong",
+          "start": 0.243,
+          "end": 0.533
+        },
+        {
+          "text": "bayad",
+          "start": 0.593,
+          "end": 0.963
+        },
+        {
+          "text": "karong",
+          "start": 1.003,
+          "end": 1.343
+        },
+        {
+          "text": "season",
+          "start": 1.453,
+          "end": 2.053
+        },
+        {
+          "text": "fifty-five",
+          "start": 2.813,
+          "end": 3.733
+        },
+        {
+          "text": "dollars",
+          "start": 3.743,
+          "end": 4.193
+        },
+        {
+          "text": "and",
+          "start": 4.323,
+          "end": 4.493
+        },
+        {
+          "text": "sixty-three",
+          "start": 4.503,
+          "end": 5.283
+        },
+        {
+          "text": "cents",
+          "start": 5.293,
+          "end": 5.753
+        },
+        {
+          "text": "sa",
+          "start": 5.853,
+          "end": 5.963
+        },
+        {
+          "text": "inyong",
+          "start": 6.063,
+          "end": 6.373
+        },
+        {
+          "text": "PayPal",
+          "start": 6.423,
+          "end": 6.943
+        },
+        {
+          "text": "Sa",
+          "start": 7.593,
+          "end": 7.723
+        },
+        {
+          "text": "peso",
+          "start": 7.823,
+          "end": 8.323
+        },
+        {
+          "text": "mga",
+          "start": 8.543,
+          "end": 8.873
+        },
+        {
+          "text": "three",
+          "start": 9.323,
+          "end": 9.693
+        },
+        {
+          "text": "thousand",
+          "start": 9.733,
+          "end": 10.163
+        },
+        {
+          "text": "four",
+          "start": 10.193,
+          "end": 10.423
+        },
+        {
+          "text": "hundred",
+          "start": 10.453,
+          "end": 10.743
+        },
+        {
+          "text": "seventy-six",
+          "start": 10.823,
+          "end": 11.473
+        },
+        {
+          "text": "pesos",
+          "start": 11.513,
+          "end": 11.963
+        },
+        {
+          "text": "gibana-bana",
+          "start": 12.383,
+          "end": 13.393
+        },
+        {
+          "text": "sa",
+          "start": 13.563,
+          "end": 13.683
+        },
+        {
+          "text": "dili",
+          "start": 13.793,
+          "end": 14.073
+        },
+        {
+          "text": "pa",
+          "start": 14.203,
+          "end": 14.333
+        },
+        {
+          "text": "ang",
+          "start": 14.413,
+          "end": 14.593
+        },
+        {
+          "text": "three",
+          "start": 14.623,
+          "end": 14.933
+        },
+        {
+          "text": "porsyento",
+          "start": 14.943,
+          "end": 15.633
+        },
+        {
+          "text": "nga",
+          "start": 15.673,
+          "end": 15.823
+        },
+        {
+          "text": "bayad",
+          "start": 15.863,
+          "end": 16.273
+        },
+        {
+          "text": "sa",
+          "start": 16.323,
+          "end": 16.483
+        },
+        {
+          "text": "PayPal",
+          "start": 16.513,
+          "end": 16.963
+        },
+        {
+          "text": "sa",
+          "start": 17.063,
+          "end": 17.183
+        },
+        {
+          "text": "pag-ilis",
+          "start": 17.223,
+          "end": 17.803
+        }
+      ],
+      "threshold": 0.12,
+      "method": "per-sentence-asr",
+      "verifiedAt": "2026-11-11T08:28:38.271Z",
+      "synthetic": true,
+      "round": 6,
+      "sourceRequestHash": "fba95477f81e97076128e44925dc05cda9b65cecd84bf83e72cbb10dd8cdeaf5"
+    },
+    {
+      "file": "audio/M-022/ceb/s02-DELIVERY-f31db268d517.m4a",
+      "textSha256": "f31db268d51758f1afc1f6a515c80189629c903fb5941938fa4b8129c643a31d",
+      "audioSha256": "12b4afcfe1444f85711127b3ff4828c1f72c60ffdf2c13372e9c775b8627e8b2",
+      "asrModel": "gemini-2.5-flash",
+      "cer": 0.034,
+      "transcript": "Nagdala mo og ninety-six point five kilos nga uga nga kakaw. Eighty kilos niini grade one.",
+      "words": [
+        {
+          "text": "Nagdala",
+          "start": 0.672,
+          "end": 1.072
+        },
+        {
+          "text": "mo",
+          "start": 1.122,
+          "end": 1.272
+        },
+        {
+          "text": "og",
+          "start": 1.552,
+          "end": 1.712
+        },
+        {
+          "text": "ninety-six",
+          "start": 1.892,
+          "end": 2.592
+        },
+        {
+          "text": "point",
+          "start": 2.622,
+          "end": 2.902
+        },
+        {
+          "text": "five",
+          "start": 3.012,
+          "end": 3.352
+        },
+        {
+          "text": "kilos",
+          "start": 3.492,
+          "end": 3.952
+        },
+        {
+          "text": "nga",
+          "start": 4.282,
+          "end": 4.532
+        },
+        {
+          "text": "uga",
+          "start": 4.602,
+          "end": 4.992
+        },
+        {
+          "text": "nga",
+          "start": 5.042,
+          "end": 5.152
+        },
+        {
+          "text": "kakaw.",
+          "start": 5.292,
+          "end": 5.772
+        },
+        {
+          "text": "Eighty",
+          "start": 6.332,
+          "end": 6.662
+        },
+        {
+          "text": "kilos",
+          "start": 6.742,
+          "end": 7.132
+        },
+        {
+          "text": "niini",
+          "start": 7.172,
+          "end": 7.492
+        },
+        {
+          "text": "grade",
+          "start": 7.562,
+          "end": 7.972
+        },
+        {
+          "text": "one.",
+          "start": 8.062,
+          "end": 8.382
+        }
+      ],
+      "threshold": 0.12,
+      "method": "per-sentence-asr",
+      "verifiedAt": "2026-11-11T08:28:48.520Z",
+      "synthetic": true,
+      "round": 6,
+      "sourceRequestHash": "46ed04b884453a59d8014015a89a24a2dc87b58bd021380d799d3d171d31179c"
+    },
+    {
+      "file": "audio/M-002/ceb/s02-DELIVERY-5149103b0a1f.m4a",
+      "textSha256": "5149103b0a1f5f4f83cc56d8e7dec9041ed58d79bf7dc4519029adf5ab0147ab",
+      "audioSha256": "c0924cea4272506e94353a24cadd0266daf8be86d1605d354bf9317c0bbd1c9b",
+      "asrModel": "gemini-2.5-flash",
+      "cer": 0.038,
+      "transcript": "Nagdala mo og seventy-four kilos nga uga nga kakaw. Sixty kilos niini, grade one.",
+      "words": [
+        {
+          "text": "Nagdala",
+          "start": 0.672,
+          "end": 1.122
+        },
+        {
+          "text": "mo",
+          "start": 1.122,
+          "end": 1.372
+        },
+        {
+          "text": "og",
+          "start": 1.692,
+          "end": 1.892
+        },
+        {
+          "text": "seventy-four",
+          "start": 2.042,
+          "end": 2.822
+        },
+        {
+          "text": "kilos",
+          "start": 3.012,
+          "end": 3.442
+        },
+        {
+          "text": "nga",
+          "start": 3.622,
+          "end": 3.792
+        },
+        {
+          "text": "uga",
+          "start": 3.952,
+          "end": 4.282
+        },
+        {
+          "text": "nga",
+          "start": 4.422,
+          "end": 4.582
+        },
+        {
+          "text": "kakaw.",
+          "start": 4.762,
+          "end": 5.292
+        },
+        {
+          "text": "Sixty",
+          "start": 5.742,
+          "end": 6.112
+        },
+        {
+          "text": "kilos",
+          "start": 6.272,
+          "end": 6.652
+        },
+        {
+          "text": "niini,",
+          "start": 6.772,
+          "end": 7.242
+        },
+        {
+          "text": "grade",
+          "start": 7.472,
+          "end": 7.822
+        },
+        {
+          "text": "one.",
+          "start": 7.992,
+          "end": 8.312
+        }
+      ],
+      "threshold": 0.12,
+      "method": "per-sentence-asr",
+      "verifiedAt": "2026-11-11T08:29:47.467Z",
+      "synthetic": true,
+      "round": 6,
+      "sourceRequestHash": "eb1faed4db9d8f94cd5079065ea415daa5bb9b91ae0a52f6b03aa5ca79ccb226"
+    },
+    {
+      "file": "audio/M-031/en/s01-GREETING-5001953557bd.m4a",
+      "textSha256": "5001953557bdbe230894f918a0cca79b09b611e3ed6c7ae4c43bd1c8f7c0aed2",
+      "audioSha256": "9370c929d07a6bb2ea49b12a737520b95921376b709e18c7a0939e0f15406e92",
+      "asrModel": "gemini-2.5-flash",
+      "cer": 0,
+      "transcript": "Good day, Mrs. Jumawan. Thank you for your hard work.",
+      "words": [
+        {
+          "text": "Good",
+          "start": 0,
+          "end": 0.283
+        },
+        {
+          "text": "day,",
+          "start": 0.283,
+          "end": 0.723
+        },
+        {
+          "text": "Mrs.",
+          "start": 0.993,
+          "end": 1.383
+        },
+        {
+          "text": "Jumawan.",
+          "start": 1.383,
+          "end": 2.103
+        },
+        {
+          "text": "Thank",
+          "start": 2.663,
+          "end": 2.933
+        },
+        {
+          "text": "you",
+          "start": 3.043,
+          "end": 3.183
+        },
+        {
+          "text": "for",
+          "start": 3.293,
+          "end": 3.473
+        },
+        {
+          "text": "your",
+          "start": 3.543,
+          "end": 3.683
+        },
+        {
+          "text": "hard",
+          "start": 3.813,
+          "end": 4.053
+        },
+        {
+          "text": "work.",
+          "start": 4.053,
+          "end": 4.473
+        }
+      ],
+      "threshold": 0.12,
+      "method": "per-sentence-asr",
+      "verifiedAt": "2026-11-11T08:30:06.387Z",
+      "synthetic": true,
+      "round": 6,
+      "sourceRequestHash": "99bc624655b8e7947ef4646484df7c391e2bad835dc95457e857e08238b05daa"
+    },
+    {
+      "file": "audio/M-053/ceb/s05-DEDUCTION-5a12cd17b7af.m4a",
+      "textSha256": "5a12cd17b7afd62deeba04099f4989228f8b743ce55bc5dc636764219bd9c7a1",
+      "audioSha256": "f31abcf75b1838176493fa41bde21cd8e7a9e608163786684e05964900c596fe",
+      "asrModel": "gemini-2.5-flash",
+      "cer": 0.025,
+      "transcript": "Ikaltasan ug two dollars and seven cents para sa CBU. R one Resolusyon sa board.",
+      "words": [
+        {
+          "text": "Ikaltasan",
+          "start": 0,
+          "end": 0.67
+        },
+        {
+          "text": "ug",
+          "start": 0.83,
+          "end": 0.95
+        },
+        {
+          "text": "two",
+          "start": 1.21,
+          "end": 1.44
+        },
+        {
+          "text": "dollars",
+          "start": 1.59,
+          "end": 2.04
+        },
+        {
+          "text": "and",
+          "start": 2.16,
+          "end": 2.24
+        },
+        {
+          "text": "seven",
+          "start": 2.51,
+          "end": 2.81
+        },
+        {
+          "text": "cents",
+          "start": 3.11,
+          "end": 3.54
+        },
+        {
+          "text": "para",
+          "start": 3.73,
+          "end": 3.96
+        },
+        {
+          "text": "sa",
+          "start": 4.14,
+          "end": 4.28
+        },
+        {
+          "text": "CBU.",
+          "start": 4.38,
+          "end": 4.83
+        },
+        {
+          "text": "R",
+          "start": 5.14,
+          "end": 5.34
+        },
+        {
+          "text": "one",
+          "start": 5.47,
+          "end": 5.77
+        },
+        {
+          "text": "Resolusyon",
+          "start": 6.09,
+          "end": 6.66
+        },
+        {
+          "text": "sa",
+          "start": 6.75,
+          "end": 6.87
+        },
+        {
+          "text": "board.",
+          "start": 7.03,
+          "end": 7.45
+        }
+      ],
+      "threshold": 0.12,
+      "method": "per-sentence-asr",
+      "verifiedAt": "2026-11-11T08:31:48.184Z",
+      "synthetic": true,
+      "round": 6,
+      "sourceRequestHash": "f986200462542506904476854229ece5fb4846be568cf4b138c4f7d02adb0288"
     }
   ]
 }

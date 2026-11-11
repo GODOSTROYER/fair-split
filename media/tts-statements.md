@@ -1,4 +1,110 @@
-# AU3 round 5: 83/101 verified clips; exact remaining refusals recorded
+# AU3 round 6: 93/101 verified clips; all 18 variants disposed
+
+All people, payroll and audio are synthetic. PayPal-derived facts are **Simulated PayPal sandbox**.
+Seeded readings are a **Seed stand-in, not a Claude recording**. The audit agent is paused;
+nothing claims Claude drafted an invoice. Native pronunciation and naturalness review remains open.
+
+## Result
+
+Started **2026-11-11T08:11:42.173Z**, after the **11 November 2026 08:00 UTC** quota reset.
+Finished **2026-11-11T08:32:43.629Z**. **10 clips added; 93/101 published and verified;
+8 exact refusals**. Every one of the original 18 variants is either published or explicitly
+refused in audio/statement-validation.json. Missing clips retain the labelled device voice.
+M-014 Cebuano remains 9/9, and its API completion guard remains enabled.
+
+| Planned request, original order | Verified/planned |
+| ------------------------------- | ---------------: |
+| M-014:ceb                       |              9/9 |
+| M-014:fil                       |              8/9 |
+| M-014:en                        |              8/9 |
+| M-007:ceb                       |              9/9 |
+| M-060:fil                       |              8/9 |
+| M-018:ceb                       |             9/10 |
+| M-039:en                        |              8/9 |
+| M-022:ceb                       |              9/9 |
+| M-002:ceb                       |              8/9 |
+| M-031:en                        |             8/10 |
+| M-053:ceb                       |              9/9 |
+
+## Published this round
+
+- M-018:ceb DEDUCTION.default: `audio/M-018/ceb/s05-DEDUCTION-ff4fa9e5ec2f.m4a`, CER **0.014**, gemini-2.5-flash.
+- M-014:en BONUS.default: `audio/M-014/en/s04-BONUS-1ab5768d7f45.m4a`, CER **0**, gemini-2.5-flash.
+- M-007:ceb GREETING.default: `audio/M-007/ceb/s01-GREETING-8754aa02c388.m4a`, CER **0.019**, gemini-2.5-flash.
+- M-007:ceb PAY.paypal: `audio/M-007/ceb/s07-PAY-34f3c502c632.m4a`, CER **0.009**, gemini-2.5-flash.
+- M-060:fil PAY.paypal: `audio/M-060/fil/s07-PAY-9567827aaede.m4a`, CER **0.022**, gemini-2.5-flash.
+- M-018:ceb PAY.paypal: `audio/M-018/ceb/s07-PAY-8dd779afb9f9.m4a`, CER **0.005**, gemini-2.5-flash.
+- M-022:ceb DELIVERY.default: `audio/M-022/ceb/s02-DELIVERY-f31db268d517.m4a`, CER **0.034**, gemini-2.5-flash.
+- M-002:ceb DELIVERY.default: `audio/M-002/ceb/s02-DELIVERY-5149103b0a1f.m4a`, CER **0.038**, gemini-2.5-flash.
+- M-031:en GREETING.default: `audio/M-031/en/s01-GREETING-5001953557bd.m4a`, CER **0**, gemini-2.5-flash.
+- M-053:ceb DEDUCTION.default: `audio/M-053/ceb/s05-DEDUCTION-5a12cd17b7af.m4a`, CER **0.025**, gemini-2.5-flash.
+
+## Request and take accounting
+
+**70 physical requests**, including **1 interrupted reservation(s)**,
+all retained in media/audio/.quota.json. No refunds, paid model, higher cap or external host.
+All calls went through KeyPool; SDK retries were disabled and maxAttempts was one.
+
+| Model                | Round-six counted requests | Eligible reservations left |
+| -------------------- | -------------------------: | -------------------------: |
+| gemini-3.8-flash-tts |                         17 |                        103 |
+| gemini-3.8-flash     |                          7 |                        113 |
+| gemini-3.6-flash     |                          9 |                        111 |
+| gemini-2.5-flash     |                         37 |                         13 |
+
+At least **six eligible requests per model** remain untouched for the film. The 2.5 totals exclude
+the seven account/model pairs already refused with 404 in round five. Caps remain self-imposed,
+unmeasured entitlement guesses. Highest-first ASR order is 3.8, 3.6, then 2.5; bounded outages,
+transcripts and per-request key IDs (never key values) are retained in the report.
+
+The cached M-018 Cebuano DEDUCTION Achird take was checked before new generation. Every physical
+request is durably recorded before its client callback, including failures and interruptions;
+take limits carry across voices and restarts. The three historical overruns (M-007 Cebuano PAY,
+M-060 Filipino PAY and M-018 Cebuano PREMIUM) have at most **one** new take each; every other
+variant has at most **two**. No further automatic generation is authorized by this completed round.
+Before fresh speech, the runner checks that a non-open ASR model still has more than six eligible
+reservations. One restart installed that preflight and an outer transport deadline; interrupted
+provider outcome remains unknown, and its reservation stays counted.
+
+CER remains **0.12**. Frozen text, numeric and initialism anchors, unique contiguous alignment,
+measured timestamps, monotonicity, non-overlap and AAC-duration bounds are unchanged. No timestamp
+was clamped or guessed. Each new published proof includes its exact independently transcribed words,
+AAC hash, text hash and original request hash. All pre-existing manifest entries and bytes are preserved.
+
+## Exact refusals
+
+- **M-014:fil GREETING.default**: Invalid timestamp "pagsisikap." 4.708-5.478 s; previous end 4.708 s; AAC duration 5.28 s
+
+- **M-014:en HELP.default**: Invalid timestamp "Bodega" 4.14-4.67 s; previous end 4.1 s; AAC duration 4.16 s
+
+- **M-060:fil GREETING.default**: Failed unique contiguous exact-number/initialism anchor alignment: fact:HONORIFIC_NAME="G. Sumampao"
+
+- **M-018:ceb PREMIUM.default**: Failed unique contiguous exact-number/initialism anchor alignment: fact:PAYER="Lantern Bay Chocolate Co."
+
+- **M-039:en HELP.default**: Invalid timestamp "Bodega" 4.14-4.67 s; previous end 4.1 s; AAC duration 4.16 s
+
+- **M-002:ceb GREETING.default**: Failed unique contiguous exact-number/initialism anchor alignment: fact:HONORIFIC_NAME="Nang Ciay"
+
+- **M-031:en PAY.paypal**: Invalid timestamp "change" 18.73-19.01 s; previous end 18.6 s; AAC duration 19 s; Invalid timestamp "it." 19.11-19.29 s; previous end 19.01 s; AAC duration 19 s
+
+- **M-031:en HELP.default**: Invalid timestamp "Bodega" 4.14-4.67 s; previous end 4.1 s; AAC duration 4.16 s
+
+Full verbatim transcripts, words/times, CER, measured duration and failed anchor detail are in the
+round-six report's attempts/refusalEvidence. Unvisited variants, if any, explicitly say they were not
+attempted because of the exact bounded-run stop. Quality/service recovery time is unknown;
+the next quota reset is **2026-11-12T08:00:00.000Z**, which guarantees neither service nor correct speech.
+
+## Historical evidence and checks
+
+Round five's validation receipt is preserved at audio/history/round5-validation.json; its tests retain
+every original assertion against that historical receipt. The current report is round six. The new
+receipt tests check all 18 dispositions, bounded physical requests, six-request headroom, preserved
+baseline hashes and every new clip's strict measured alignment. Final verification results are recorded
+in the builder report. Local caches and the quota ledger remain ignored; no WAV is published.
+
+---
+
+# Historical round 5: 83/101 verified clips; exact remaining refusals recorded
 
 All people, payroll and audio are synthetic. PayPal-derived facts are **Simulated PayPal sandbox**.
 Seeded readings are a **Seed stand-in, not a Claude recording**. The audit agent is paused;
