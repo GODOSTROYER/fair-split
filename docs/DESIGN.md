@@ -1,4 +1,4 @@
-# Fair Split design system (UI gate round 5)
+# Fair Split design system (UI gate round 6)
 
 The single source for every surface: the console and judge stage, Proof, and the phone app. It refines the
 incumbent Hayag world (white and porcelain surfaces, blue-black ink, one job per colour, no brown); it does not
@@ -15,11 +15,14 @@ honesty meanings never change. It lives in `docs/` (main's ownership gate owns n
 - **The mono** (the platform's own: Cascadia Mono on Windows, SF Mono, Roboto Mono, Menlo) sets hashes, IDs and
   timestamps, and nothing else: `--fs-font-mono`, role `id`. Never words, never money, never a costume.
 - Gone: the dot-matrix numerals, the stencil, the condensed pixel display face, outline numerals, Atkinson.
+- **One numeral face** (round 6). On the web every figure (a money hero, an amount, a grid figure, a count) is FS Sans
+  at the text's own width (100) and 500, in tabular lining figures: no condensed cut, so a number never reads as a
+  second face beside its label. The mono never sets money or a count.
 - **Five steps.** Weight carries the rest: 430 reading, 520 labels, 600 titles and headings, 500 numerals.
 
 | Role (class `fs-t-*`) | Web px / line | Weight, width, tracking | Phone sp / line          | Use                                                              |
 | --------------------- | ------------- | ----------------------- | ------------------------ | ---------------------------------------------------------------- |
-| `hero`                | 56 / 60       | 500, 87.5 %, −0.02 em   | 48 / 52 (scale cap 1.5×) | The one hero number a screen: a money hero or the one hero count |
+| `hero`                | 56 / 60       | 500, 100 %, −0.02 em    | 48 / 52 (scale cap 1.5×) | The one hero number a screen: a money hero or the one hero count |
 | `title`               | 24 / 30       | 600, 100 %, −0.015 em   | 24 / 30                  | Screen, sheet and drawer titles; stage and Proof headlines       |
 | `heading`             | 16 / 24       | 600                     | 17 / 24                  | A heading inside a screen or drawer                              |
 | `body`                | 16 / 24       | 430                     | 17 / 24                  | Body text, the panel's one line, statement prose (16 px floor)   |
@@ -28,7 +31,7 @@ honesty meanings never change. It lives in `docs/` (main's ownership gate owns n
 
 Aliases keep working on these steps: `display` `title-1` `statement-lead` = title; `title-2` `statement-status` =
 heading; `lede` `statement-body` = body; `caption` `micro` = 14/20 at 430 (secondary words, short data joined by
-" · "); `figure` = 14/20 numerals at 87.5 %/500; `amount-hero` = hero; `amount-l` = 24/30 numerals; `slab` = 16/20
+" · "); `figure` = 14/20 numerals at 500 (the text's width); `amount-hero` = hero; `amount-l` = 24/30 numerals; `slab` = 16/20
 at 600 (button labels); `hash` `mark` = id; `stamp` = 12 px initials at 700. Floors: secondary text 13 px (it sits
 at 14), ids 12, body and statement 16. Prose measure 45–75 ch; a table may run wider. `US$` on a hero is `.fs-cur`
 (0.42 em, raised, ink-3). Proof reads the same roles in its FS Sans Proof subset.
@@ -45,21 +48,25 @@ It clips with `overflow: clip` (never `hidden`, which would drop its baseline of
 
 ## 2. Colour: one job each
 
-| Token                                      | Hayag                       | Job                                                                                                                                 | Never                                                  |
-| ------------------------------------------ | --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
-| `ink` / `ink-2` / `ink-3`                  | #0B1220 / #3A4456 / #5A6476 | Text, checked facts / secondary / meta and icons                                                                                    | ink-3 on a statement                                   |
-| `pencil`                                   | #4A5A73                     | The machine's figures before two keys sign                                                                                          | A fill                                                 |
-| `ground` `plate` `plate-2`                 | #F3F5F8 #FFF #F7F8FA        | Page / panels / headers, hover, inspectors, the "Earlier" tile                                                                      | Colour washes                                          |
-| `rule` `rule-strong`                       | #E3E7EE #CBD2DC             | Row separators / chip and control outlines                                                                                          | A control's only edge below 3:1                        |
-| `steel-line`                               | #7E8898                     | Dashed = simulated; input outlines; unsigned seal rings                                                                             | Anything real                                          |
-| `pod` (indigo)                             | #4A2FD6                     | **Action and focus**: the one primary, the focus ring, caret, selection and the selected nav or tab (`pod-wash`), signed seal rings | Money, the machine, a person's avatar, decoration      |
-| `jade` (+`jade-flush-border`, `jade-text`) | #14CC90                     | **Only money the simulated PayPal confirmed**: the paid pill and capsule, the paid dot, a confirmed thread or bar, one beat of halo | In flight, signed, a heading, a button, a check result |
-| `canary` (amber)                           | #FFA41B                     | **A person must decide**: hold dot, H-tag, You cell ring, over-limit tick and needle, the run pill's dot                            | Text (fails contrast), a button, an error              |
-| `red` (+`red-wash`)                        | #CF2A27                     | **Only PayPal saying no** (DENIED, FAILED, BLOCKED, unexpected RETURNED, ERRPYO)                                                    | Holds, cash, refusals by our own rules, a chip         |
-| `hatch`                                    | #A4AEBC                     | **Cash** at the bodega (or unavailable), always with the word                                                                       | Red, grey text, a tile that is not cash                |
-| copy-white/pink/yellow, `--fs-evidence-*`  |                             | Evidence paper only (the D swatch's pink)                                                                                           | Chrome, a chip about a slip                            |
+| Token                                      | Hayag                       | Job                                                                                                                                      | Never                                                  |
+| ------------------------------------------ | --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| `ink` / `ink-2` / `ink-3`                  | #0B1220 / #3A4456 / #5A6476 | Text, checked facts / secondary / meta and icons                                                                                         | ink-3 on a statement                                   |
+| `pencil`                                   | #4A5A73                     | The machine's figures before two keys sign                                                                                               | A fill                                                 |
+| `ground` `plate` `plate-2`                 | #F3F5F8 #FFF #F7F8FA        | Page / panels / headers, hover, inspectors, the "Earlier" tile                                                                           | Colour washes                                          |
+| `rule` `rule-strong`                       | #E3E7EE #CBD2DC             | Row separators / chip and control outlines                                                                                               | A control's only edge below 3:1                        |
+| `steel-line`                               | #7E8898                     | Dashed = simulated; input outlines; unsigned seal rings                                                                                  | Anything real                                          |
+| `pod` (indigo)                             | #4A2FD6                     | **Action and focus**: the one primary, the focus ring, caret, selection and the selected nav or tab (`pod-wash`), signed seal rings      | Money, the machine, a person's avatar, decoration      |
+| `jade` (+`jade-flush-border`, `jade-text`) | #14CC90                     | **Only money the simulated PayPal confirmed**: the paid pill and capsule, the paid dot, a confirmed thread or bar, one beat of halo      | In flight, signed, a heading, a button, a check result |
+| `canary` (the person's indigo, round 6)    | #4A2FD6                     | **A person must decide**: hold dot, the H-tag's outline, You cell ring, a parked thread, the "needs you" chips' ring, the run pill's dot | Amber (gone from Hayag), text, an error, the dial      |
+| `red` (+`red-wash`)                        | #CF2A27                     | **Only PayPal saying no** (DENIED, FAILED, BLOCKED, unexpected RETURNED, ERRPYO)                                                         | Holds, cash, refusals by our own rules, a chip         |
+| `hatch`                                    | #A4AEBC                     | **Cash** at the bodega (or unavailable), always with the word                                                                            | Red, grey text, a tile that is not cash                |
+| copy-white/pink/yellow, `--fs-evidence-*`  |                             | Evidence paper only (the D swatch's pink)                                                                                                | Chrome, a chip about a slip                            |
 
-No other hue appears: no blue chip, no red chip. No wash, gradient, glow or coloured shadow on a product surface
+**No amber anywhere on Hayag** (round 6, the owner's rule: no brown, no amber). What waits for a person wears the
+person's own colour: indigo is "a person did this" (a signed seal ring, the primary) and "a person must do this" (a
+held dot, a hold tag's outline, a parked thread, the "3 holds open" chip's ring), always with its word. The `canary`
+tokens keep their names and resolve to the indigo; the machine's readings (the dial) stay ink. No other hue appears:
+no blue chip, no red chip. No wash, gradient, glow or coloured shadow on a product surface
 (Hayag's `--fs-wash` is `none`). Contrast is CI-gated (`contrast.json`): UI text 4.5:1, statement text 7:1
 (`statement-ink`), non-text 3:1.
 
@@ -99,10 +106,10 @@ No other hue appears: no blue chip, no red chip. No wash, gradient, glow or colo
   screens, the run log, sound, Reset (while there is a session) and Shortcuts; the right holds What's real, the Proof
   counter and the simulated indicator. No grey status segment repeating the page title: the run's state word is
   spoken with the pill, never shown. The bar is `LAYOUT.console.bar` (56 px). The pill's words always start "Next:"
-  (`pillWords`) and are never underlined (hover is the plate-2 fill). At 1,280 and 1,470 What's real keeps its word;
-  the indicator keeps its dashed circle and "Simulated" on screen (its whole name for assistive technology and in its
-  title) and the lockup drops "co-op payroll". The phone visit (390) has two icons: What's real and the overflow,
-  which holds Proof, the laptop line, the link, the run log, sound and Reset.
+  (`pillWords`) and are never underlined (hover is the plate-2 fill). At 1,280 and 1,470 What's real keeps its word
+  and (round 6) the indicator keeps its whole name, "Simulated PayPal sandbox", at every width: the lockup drops
+  "co-op payroll" for the room, and the disclosure is never shortened. The phone visit (390) has two icons: What's
+  real and the overflow, which holds Proof, the laptop line, the link, the run log, sound and Reset.
 - **Buttons.** One primary per screen: `Slab` (indigo face, 48 px, radius 12, label 16/600, **hugs its label**;
   tone `jade` is the same indigo face). One secondary: `.fs-flat` (white, 1 px rule-strong, 40 px; `data-size="l"`
   48). Inline actions: `.fs-link`. A "Try" or "Why" control is `.fs-flat` or `.fs-link`, never a third style. A hold
@@ -125,19 +132,19 @@ No other hue appears: no blue chip, no red chip. No wash, gradient, glow or colo
   title ("Proof for Lantern Bay Chocolate Co.") it reads "Season 2026-A", so "Proof" is said once. The invoice's
   amount heads the money card it adds up to; a signer reads by name and role, the key behind "IDs".
 - **Status pills.** `StatusChip` / `Chip`: 28 px on the console, **32 px on the phone** (`LAYOUT.app.statusChip`,
-  the label step's 15/520), glyph and word, 1 px ring. Jade is the only filled pill (confirmed); `canary` an amber
+  the label step's 15/520), glyph and word, 1 px ring. Jade is the only filled pill (confirmed); `canary` an indigo
   ring; `flight` neutral; `hatch` a hatch swatch; `red` PayPal's no. ≤ 1 pill a row, ≤ 3 kinds a screen. The phone's
   "Bayad na" is this pill, never a 64 px slab. A checked fact gets no pill: ✓ glyph and the word in ink. No pill is a
   sentence with a full stop ("Blocks approval", never "Blocks approval. Changes kilos."; the catalog's `hold.gate.*`
   read "Blocks approval" and "Reserves this line").
 - **One marker vocabulary** (round 5), on the console, Proof and the phone alike (ui-web `vocabulary.tsx`):
   - state: `StateDot` 8 px, round, 8 px from its word: `pending` hollow ink-3, `waiting` hollow steel, `done` ink
-    (signed, checked), `paid` jade, `held` amber, `failed` red. `size={12}` only beside a hero's word, on its baseline.
+    (signed, checked), `paid` jade, `held` indigo (round 6: a person must decide), `failed` red. `size={12}` only beside a hero's word, on its baseline.
     Log lanes, fan-out ends, a held bullet, the phone's history rows: all 8 px dots. The Season pipeline strip uses
-    state colours only (pending hollow, done ink, held amber, paid jade): no indigo on it.
+    state colours only (pending hollow, done ink, held indigo, paid jade).
   - a check that held: `CheckMark`, a 16 px line ✓ in ink and its word in ink. Never a filled disc.
   - a chain step: `StepNumber`, a 24 px circle in a 1 px ink-2 outline with an ink numeral. Never a filled disc.
-  - squares only as a chart legend's key: `Swatch` (`paid` jade, `cash` hatch, `held` amber, `planned` a steel dashed
+  - squares only as a chart legend's key: `Swatch` (`paid` jade, `cash` hatch, `held` indigo, `planned` a steel dashed
     outline, `ink`), 8 px, 12 px beside a hero's word. Hatch only for cash; jade only for confirmed money.
 - **Avatars** (round 4). A person's initials (`Avatar`, the `.fs-stamp` a decision carries, the phone's `InkStamp`,
   the stage rail's frame avatars): white, a 1 px ink-2 ring, ink initials, round. Indigo is for action only.
@@ -149,7 +156,7 @@ No other hue appears: no blue chip, no red chip. No wash, gradient, glow or colo
   beside it say it). One `hero` per screen.
 - **Tables.** Header 14/520 ink-2 on plate-2, 36 px; rows 40 px with 1 px rule separators (48 px where a cell
   stacks two lines); numbers right-aligned tabular, IDs in `id`; no zebra; hide a column that is all zero; a footer
-  total says what it totals. A held row: the amber dot and the H-tag in its status cell, never a coloured side bar.
+  total says what it totals. A held row: the held dot and the H-tag's outline in its status cell, never a coloured side bar.
   A duplicate badge before resolution is a 1 px rule-strong outline with ink text; after it, "0457 counted once" in
   neutral ink. Pink lives only on the D evidence swatch.
 - **Toast and Log** (round 5). The toast folds into the Next pill (`usePillToast` → `RunPill toast`): for
@@ -160,7 +167,8 @@ No other hue appears: no blue chip, no red chip. No wash, gradient, glow or colo
   Consolacion Bacus · US$64.45". Never "success" while a payment is parked or cash is due. The pill's mark is the jade
   dot only while it shows a payment the simulated PayPal confirmed. Never focus, never a live region (the pill's name
   stays "Next: …"). Times live only in the `LogSheet` behind the chevron menu's "Run log".
-- **Seal.** `Seal` at `LAYOUT.console.seal` (180 px) on Approve and on the Chair's phone, `showHash` for the mono
+- **Seal.** `Seal` at `LAYOUT.console.seal` (180 px; 220 from 1,600 px wide and 280 on the 1,920 stage, round 6) on
+  Approve and on the Chair's phone, `showHash` for the mono
   hash beneath; **140 px** on the Chair's co-sign card (`LAYOUT.app.cosignSeal`), so the card ends at least 16 px
   above its sticky button. Unsigned rings: 1 px `--fs-unsigned`. Key 1 fills the inner half in indigo, key 2 the
   outer half. The phone draws the same state in the same colours.
@@ -207,8 +215,8 @@ No other hue appears: no blue chip, no red chip. No wash, gradient, glow or colo
   "Funding to confirmation" is the dot strip and one line, "Median 15 s". "Try to break it" is a list of rows, each
   with a Try button; a tried row reads "Refused · invoice must equal quote" and the number it blocked.
 - **Approve and Run title chips** (round 5). Approve's state is the keys signed ("0/2 signed", neutral, the seal
-  glyph), or what stops the signing ("3 holds open" amber, "Reading", "PayPal declined" red, "Paused", "Sent back").
-  Run's: "Not posted", "Confirming", "1 needs you" (amber), "PayPal complete · cash due" (hatch), "Settled" only once
+  glyph), or what stops the signing ("3 holds open" in the held indigo, "Reading", "PayPal declined" red, "Paused", "Sent back").
+  Run's: "Not posted", "Confirming", "1 needs you" (the held indigo), "PayPal complete · cash due" (hatch), "Settled" only once
   the cash is attested, "Replayed", "PayPal declined". Approve's money bar plans the PayPal segment as a steel dashed
   outline on the steel face (jade only once the simulated PayPal confirms every payout), its legend keyed by `Swatch`;
   at 1,920 (a window 1,600 by 1,000 or more) the eight PayPal recipients sit under it, two columns reading down, the
@@ -345,7 +353,7 @@ replayed stand-in reading of all 48 slips from Claude's real readings of the 10 
   the rest; Member is pinned at one width with no rule beside it; the scrollbar overlays the lines (`scrollbarWidth`
   0, a clear track), so lines, total and header end on one edge. A narrow grid (1,280) drops the hold notes' rows and
   keeps the arithmetic for screen readers, so filters, the check and "Columns" share one row. The title row's chip
-  is the review's state ("3 holds open · 1 by hand" amber, then "PayPal complete · cash due" in hatch); the bench's
+  is the review's state ("3 holds open · 1 by hand" in the held indigo, then "PayPal complete · cash due" in hatch); the bench's
   third column is "Next" and the link, with the 8 px held dot. The id line is the run id ("2026-A · r37", its title
   the lines, the engine and the rate card's hash), then "seeded slips" or, once PayPal statuses show, "simulated
   PayPal". Held dots, the held filter and pending amounts are 8 px dots.
@@ -359,14 +367,14 @@ replayed stand-in reading of all 48 slips from Claude's real readings of the 10 
   at its end (folded, the schedule takes the row in two columns). Refused, the refusal leads its column, the clause
   that refuses it ("No other deductions") holds the band on the board's page and scrolls into view, and next
   season's proposal is a `.fs-flat` secondary.
-- **By hand.** The title row's chip says "Needs a person" (amber) or "Entered"; the owner's line, the field or the
+- **By hand.** The title row's chip says "Needs a person" (the held indigo) or "Entered"; the owner's line, the field or the
   equation, and "Review 3 holds" (the one primary) span all twelve columns; the crop and the logbook strip sit side
   by side under it at one height (container units), each paper hugging its sheet. A panel under 1,040 px puts the
   decision in six columns and stacks the two witnesses in the other six.
 - **Reading room.** The photo takes the room's full height; the filmstrip and "Earlier" sit under the table. The
   count is truthful (`replayProgress`: a slip counts read once nothing waits for a person): "47/48 · read · 1 needs a
   person" with the held dot until slip 0462 is entered, then "48/48 slips read this run"; the status sentence counts
-  the same way. The chip: "Waits for payment", "Reading", "Needs a person" (amber), "All read".
+  the same way. The chip: "Waits for payment", "Reading", "Needs a person" (the held indigo), "All read".
 
 **Integration in round 5** (what the five surfaces needed once they met at 1,920 × 1,080, 1,470 × 956 and 1,280 × 800):
 - **One run id everywhere**: Approve and Run read "2026-A · r37" in the id line, as Season, Reading room and Split
@@ -389,7 +397,64 @@ replayed stand-in reading of all 48 slips from Claude's real readings of the 10 
   receipt's terms in the first viewport); the stage surface's sum line under the amount and its second voice helper
   were the same change twice and were not taken.
 
-## 11. The owner's reference reels
+## 11. Round 6 decisions (one builder's reconciliation of both round-5 reviews and film feedback v6)
+
+1. **Never a blank page.** index.html carries a boot shell (the bar's name, "Loading season 2026-A" or "Loading the
+   proof" beside a hollow dot, in literal Hayag values) and the router draws the same shell while a first loader
+   waits (`chrome/BootShell.tsx`). Captures wait for the screen's title row, never a fixed time.
+2. **Every width keeps the evidence.** The bar's indicator reads "Simulated PayPal sandbox" at 1,280, 1,470 and
+   1,920. Approve lists its eight PayPal recipients before anyone signs at every width: under the decision card on
+   the laptops (one column of 32 px rows), a row of their own under the money bar on the 1,920 stage (two columns of
+   72 px rows). Split review at 1,280 keeps Premium, Bonus and Deductions in their columns (the compact set: the
+   slip count steps aside) and the one sum beside the dial.
+3. **Season first view.** The pool's amount is a hero on the invoice's step, so the jade arc joins two equal heroes;
+   under it its micro-tag and the sum in words, then the pool's two parts drawn once as a bar in proportion (premium
+   ink, quality bonus ink-3, pending grey until funded) with each amount under its segment. The pipeline is the
+   second row; the slips end the screen as one 12-up strip a column wide each. No fixed spacers: on a tall window
+   the two cards take the spare height (to 500 px) and spread their own parts. The spent press is a record, never a
+   pill, and says whose money it is: "Lantern Bay's payment · recorded by Analyn · 18:58" (film U1). No link under
+   it: the pill is the one route forward.
+4. **No production wording where a judge reads.** The exhibit link reads "Claude's readings of 10 slips"; the reading
+   room's id line "Synthetic co-op · replayed readings"; What's real says "Ten slip images were made with OpenAI's
+   image model"; the last attack is "Change a payout after signing" and a Try that cannot be pressed says why
+   ("Only before the Chair signs"). The composed photos' baked-in notes (a header, a line under each slip, a footer)
+   are covered on the stage by strips in the desk's own tone (`.fsc-mat__veil`); the photo's accessible name and
+   What's real keep what it is. The pinned honesty phrase stays in titles and for assistive technology.
+5. **One numeral face** (§1): the text's width, 500, tabular; the mono only for ids, hashes and times.
+6. **Split review says each thing once.** One next action (the pill; the held rows' own buttons), one money summary
+   ("Pool − deductions = member net", each term its word over its figure, the balance check at its end; no Pool
+   block, no "Next" column), one held marker (the held dot and the hold's tag as an outline, both the person's indigo; "Held" only for
+   assistive technology). Net stops at 136 px, so no gap opens after Deductions. The dial is the machine's reading:
+   ink inside the limit and over it, the word "Over limit" beside an ink dot (film U3). A hold's drawer never dims
+   the screen: its scrim is clear and still closes it (film U6).
+7. **Approve.** The seal is the hero at 280 px on the 1,920 stage (220 from 1,600 px wide, 180 below), the amount
+   and the two signers centred against it; under the slab one line says whose key the press is ("Your key is the
+   first of two · the Chair signs next"). On the Chair's phone the seal's card takes the height above the pinned
+   slab, and the stepped-progress row is reserved so nothing moves during a hold (film U5).
+8. **Run: one layout in every state.** A parked payout's primary ("Pay in cash at the bodega") stands under the hero
+   count, where the settled run's "Review cash handover" does; its row under the fan is one line with "Re-send" as
+   its one quiet button. **What's real** is a full-height side sheet: three lead rows (Real code, Simulated PayPal
+   sandbox, Replayed: a name over one short line), then Synthetic and Not built, every row with the same 16 px slot.
+   **Rate card**, refused: the attempt is one struck row, the schedule's list ends the column (no page number, the
+   seal's card with the folded resolution), the pages stay at page 1's top when the banded clause is in view.
+   **Reading room**: while a slip waits for a person its entry is the room's one primary beside the count. A water
+   stain is a cool grey hatch and the printed form a cool neutral (film U2: `EVIDENCE.stain`, `EVIDENCE.form`); a
+   recorded slip's photo shows its paper in colour on a grey ground (film U4).
+9. **Proof.** "6 integrity checks passed" under the count; the money card says "7 confirmed on PayPal · 57 cash due"
+   (E-19: never "PayPal confirmed" bare) and
+   its cash row "Cash due at the bodega" until the clerk attests it, so a check result never reads as a payment.
+10. **By hand** (1,920): the two witnesses lead and the sum stands beneath them across the row ("Gross − tare =
+    net"), the screen's one primary at its end; the run id joins the id line.
+11. **No amber** (the film's 2× captures). Held, parked and "needs a person" states have one treatment: the person's
+    indigo as an 8 px dot, a 1 px outline or a fine thread, always beside the word (§2). The dial's zone past the
+    limit is a neutral arc, ink once the reading is in it. H1's serial underline, H3's wash behind the MULTA line
+    (14%), the H2 yield bar and Rhea's parked thread follow the token. The run pill never shows a dot without words
+    (an event with nothing to say leaves "Next: …"); the Run's latency panel never says "No confirmations yet" on a
+    settled run read back after a reload ("7 confirmed · timed only while the run is live"). On the phone the open
+    slip's sheet is opaque and its sample mark sits in the paper's empty corner.
+12. **This file records decisions 1–11.**
+
+## 12. The owner's reference reels
 
 Taken: one spacing scale; colour only where it means something (semantic dots, matching chart lines); thin line
 icons; a deliberate type ramp; tabular or mono numerals; factual headers instead of greetings; far fewer words;

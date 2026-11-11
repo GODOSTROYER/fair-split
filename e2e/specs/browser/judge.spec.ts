@@ -343,8 +343,8 @@ test("Try to break it: all four controls refuse attacks and the changed payout v
     }
     await page.getByTestId("W-JG-01.tamper.change_payout").click();
     const result = page.getByTestId("W-JG-01.tamper.result");
-    await expect(result).toContainText("Armed before key 2");
-    await expect(result).not.toContainText("Both approvals voided");
+    await expect(result).toContainText("Change set · the signatures will refuse it");
+    await expect(result).not.toContainText("both signatures voided");
     const keys = await officers(api, s);
     expect((await bothKeys(api, s, keys)).map((a) => a.status)).toEqual([201, 201]);
     const refused = await waitForRun(api, s, (run) => run.run.state === "IN_REVIEW", 30_000);
@@ -356,7 +356,7 @@ test("Try to break it: all four controls refuse attacks and the changed payout v
         (a) => a.voidedAt !== null,
       ),
     ).toEqual([true, true]);
-    await expect(result).toContainText("Both approvals voided");
+    await expect(result).toContainText("Refused · both signatures voided");
   } finally {
     await stopBrowserJudge(page, api, s);
   }
@@ -712,7 +712,7 @@ test("inv.i8.the last hourly slot stays live on the stage, Run and Proof after i
         .getByTestId("W-PF-01.verify")
         .getByRole("button", { name: /Verify in your browser/ })
         .click();
-      await expect(page.getByTestId("W-PF-01.verdict")).toContainText("6 of 6 integrity checks match", {
+      await expect(page.getByTestId("W-PF-01.verdict")).toContainText("6 integrity checks passed", {
         timeout: 30_000,
       });
       await expect(page.getByTestId("W-PF-01.check.payoutItems")).toHaveAttribute("data-state", "matches");
