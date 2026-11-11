@@ -138,17 +138,24 @@ export function EdgeFade({ color }: { color: string }) {
  * scrolled under it, so nothing is cut through a line at the top either. The inset itself is solid surface.
  */
 function TopFade({ color, inset }: { color: string; inset: number }) {
+  // Round 7: no ghost text under the inset. The first two thirds of the 24 px are plain surface (a line scrolled
+  // under it is clipped, never read through a veil); only the last third fades, so the cut has no hard edge.
+  const solid = Math.round((layout.fade * 2) / 3);
+  const soft = layout.fade - solid;
   return (
     <View pointerEvents="none" aria-hidden style={[styles.topFade, { height: inset + layout.fade }]}>
-      {inset > 0 ? (
-        <View style={[styles.fadeBand, { top: 0, height: inset, backgroundColor: color }]} />
-      ) : null}
-      {topFadeBands(layout.fade).map((band) => (
+      <View style={[styles.fadeBand, { top: 0, height: inset + solid, backgroundColor: color }]} />
+      {topFadeBands(soft).map((band) => (
         <View
           key={band.top}
           style={[
             styles.fadeBand,
-            { top: inset + band.top, height: band.height, opacity: band.opacity, backgroundColor: color },
+            {
+              top: inset + solid + band.top,
+              height: band.height,
+              opacity: band.opacity,
+              backgroundColor: color,
+            },
           ]}
         />
       ))}

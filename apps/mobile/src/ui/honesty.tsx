@@ -106,6 +106,11 @@ export interface MicroTagProps {
   label: string;
   /** The one word on screen. */
   word?: string;
+  /**
+   * Round 7: draw the whole label ("Simulated PayPal sandbox"), the console bar's wording. A phone screen is read on
+   * its own, with no top bar to carry the rail's name, so its tag beside a PayPal value says it in full.
+   */
+  full?: boolean;
   testID?: string;
   dataSet?: Record<string, string>;
 }
@@ -115,7 +120,7 @@ export interface MicroTagProps {
  * one over the console's 12 px), 20 px tall, ink 2 (it sits on a statement, where ink 3 never goes), no outline. At
  * most two a screen (TAG_BUDGET).
  */
-export function MicroTag({ label, word = MICRO_WORD, testID, dataSet }: MicroTagProps) {
+export function MicroTag({ label, word = MICRO_WORD, full = false, testID, dataSet }: MicroTagProps) {
   const { t } = useFs();
   return (
     <View
@@ -135,7 +140,7 @@ export function MicroTag({ label, word = MICRO_WORD, testID, dataSet }: MicroTag
         maxFontSizeMultiplier={1.5}
         style={styles.microWord}
       >
-        {word}
+        {full ? label : word}
       </Txt>
       <Hidden>{label}</Hidden>
     </View>

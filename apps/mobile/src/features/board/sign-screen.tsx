@@ -366,7 +366,11 @@ export function SignScreen() {
             {/* Round 3: the one micro-tag, under the PayPal amount it covers. */}
             {dto.rail === "simulated" ? (
               <View style={styles.tagRow}>
-                <MicroTag testID="M-BD-02.rail" label={railLabel(dto.rail, "simulated_rail", lang).chip} />
+                <MicroTag
+                  testID="M-BD-02.rail"
+                  full
+                  label={railLabel(dto.rail, "simulated_rail", lang).chip}
+                />
               </View>
             ) : null}
           </View>

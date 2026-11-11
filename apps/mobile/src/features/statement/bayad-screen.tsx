@@ -309,7 +309,14 @@ function Statement({
         {railLabel.chip}
       </Txt>
     ) : (
-      <MicroTag testID="M-MB-01.rail" dataSet={{ rail: railLabel.kind }} label={railLabel.chip} />
+      // Round 7: on the phone the tag says its whole name, "Simulated PayPal sandbox" (the statement is read on its
+      // own, with no top bar to carry it); a replayed rail keeps the one word, its sentence in the label.
+      <MicroTag
+        testID="M-MB-01.rail"
+        dataSet={{ rail: railLabel.kind }}
+        label={railLabel.chip}
+        full={railLabel.kind === "simulated"}
+      />
     );
   const kilos = format.kg(dto.kilos.netGrams);
   // Without a signal, what is on screen is the last copy, whether it came from this session or from the phone.
@@ -670,11 +677,15 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   /** Full-bleed on the white screen (round 2): no card, no shadow; sections 32 apart. */
   doc: { gap: space.s32 },
-  /** Name, amount, kilos and state, then Paminawa and the language row: tight inside, 24 to the reading. */
-  lead: { gap: space.s24 },
-  group: { gap: space.s16 },
+  /**
+   * Name, amount, kilos and state, then Paminawa and the language row. Round 7: the rail's whole tag takes a line
+   * under the pill, so the group closes by that much (16 between its parts, 12 inside the money block) and her
+   * total, "Inyong bayad", still rests whole above the tab bar on a 390 x 844 phone.
+   */
+  lead: { gap: space.s16 },
+  group: { gap: space.s12 },
   head: { gap: space.s4 },
-  amountBlock: { gap: space.s16 },
+  amountBlock: { gap: space.s12 },
   amount: { gap: space.s4 },
   /** The peso estimate and her kilos on one line under the amount (round 5), wrapping only on a narrow column. */
   facts: {
@@ -685,12 +696,10 @@ const styles = StyleSheet.create({
     rowGap: space.s4,
   },
   /** The pill and its time and tag on one row; a narrow column wraps the tag under the pill. */
+  /** Round 7: the pill, then one line under it in every state: the time and the rail's whole tag. */
   status: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    alignItems: "center",
-    columnGap: space.s8,
-    rowGap: space.s4,
+    alignItems: "flex-start",
+    gap: space.s2,
   },
   meta: { flexDirection: "row", alignItems: "center", gap: space.s4 + 2 },
   listen: { gap: space.s12 },

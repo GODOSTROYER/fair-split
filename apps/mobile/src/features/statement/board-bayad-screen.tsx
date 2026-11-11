@@ -90,7 +90,7 @@ export function BoardBayadScreen() {
           {tr("M-MB-01.runRequest", { season: seasonLabel(run.seasonCode), n: run.itemCount })}
         </Txt>
         {run.rail === "simulated" ? (
-          <MicroTag testID="M-MB-01.runRail" label={railLabel(run.rail, "simulated_rail", lang).chip} />
+          <MicroTag testID="M-MB-01.runRail" full label={railLabel(run.rail, "simulated_rail", lang).chip} />
         ) : null}
         <Rule />
         <SectionTitle>{tr("M-MB-01.runItems")}</SectionTitle>

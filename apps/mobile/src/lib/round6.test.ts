@@ -29,7 +29,9 @@ describe("UI gate round 6 on the phone", () => {
     expect(bar).not.toMatch(/BarSegment|styles\.bar\b|receiptBarWeights/);
     expect(bar).toMatch(/function Swatch\(/);
     // The fee row's label is the label role at width 100, never the condensed figure cut.
-    expect(bar).toMatch(/<Txt kind="label" color="statementInk2">\s*\{tr\("M-MB-01\.feesShort"/);
+    // Round 7: the row is named ("Bayad sa padala") in the label role, its two rates a caption under it.
+    expect(bar).toMatch(/<Txt kind="label">\{tr\("M-MB-01\.feesLabel"\)\}<\/Txt>/);
+    expect(bar).toMatch(/<Txt kind="caption" color="statementInk2">\s*\{tr\("M-MB-01\.feesShort"/);
     expect(bar).not.toMatch(/<Txt kind="figureS" color="statementInk2">\s*\{tr\("M-MB-01\.feesShort"/);
   });
 

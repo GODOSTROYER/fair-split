@@ -529,9 +529,12 @@ export function ReceiptBar({
             onPress={onSegment}
             label={
               // Round 6: a label is the label role at width 100, never the condensed figure cut.
-              <Txt kind="label" color="statementInk2">
-                {tr("M-MB-01.feesShort", { paypal: fees.paypal, gcash: fees.gcash })}
-              </Txt>
+              <View style={styles.feesLabel}>
+                <Txt kind="label">{tr("M-MB-01.feesLabel")}</Txt>
+                <Txt kind="caption" color="statementInk2">
+                  {tr("M-MB-01.feesShort", { paypal: fees.paypal, gcash: fees.gcash })}
+                </Txt>
+              </View>
             }
             srLabel={tr("M-MB-01.fees", { paypal: fees.paypal, gcash: fees.gcash })}
           >
@@ -545,6 +548,8 @@ export function ReceiptBar({
 
 const styles = StyleSheet.create({
   root: { gap: space.s12 },
+  /** The fees row's name over its two rates (round 7). */
+  feesLabel: { gap: space.s2, flexShrink: 1 },
   list: { borderTopWidth: 1 },
   rowWrap: { borderWidth: 1, borderRadius: radius.card, marginTop: -1 },
   // A narrow column (200% zoom, a 2× font) wraps the figure under its words, right-aligned: the receipt becomes a

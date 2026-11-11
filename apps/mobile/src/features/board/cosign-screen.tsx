@@ -63,7 +63,7 @@ export function CosignScreen() {
   const { t } = useFs();
   const footerEnd = useFooterEnd();
   const tr = useT();
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const compact = useCompact();
   const [openHold, setOpenHold] = useState<string | null>(null);
   const [sendBackOpen, setSendBackOpen] = useState(false);
@@ -169,7 +169,12 @@ export function CosignScreen() {
   const signed = c.status === "signed";
   // Round 4: 140 on the co-sign card (the console's 180 elsewhere), so the card ends at least 16 px above its sticky
   // button and no ring is cut; smaller only when the phone is narrower than the seal and its plate.
-  const sealSize = Math.min(layout.cosignSeal, width - 2 * space.s16 - 2 * space.s24);
+  // Round 7: on a tall screen with nothing above it but the request, the seal takes part of the height the card
+  // would leave empty above the sticky button (to 190 px, the card still ending well clear of the button); a
+  // shorter screen, or one with holds to read, keeps 140.
+  const roomy = dto.holds.length === 0 && !compact;
+  const sealTall = roomy ? Math.max(layout.cosignSeal, Math.min(190, height - 590)) : layout.cosignSeal;
+  const sealSize = Math.min(sealTall, width - 2 * space.s16 - 2 * space.s24);
   const showPush = Platform.OS === "web" && signable;
 
   const action = signable ? (

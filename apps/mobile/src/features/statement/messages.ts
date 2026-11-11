@@ -166,6 +166,8 @@ export const messages = defineMessages({
   },
   /** Round 2: the fees row folded to its two published rates; the sentence opens with the row. */
   "M-MB-01.feesShort": same("PayPal {paypal} · GCash {gcash}"),
+  /** Round 7: the folded fees row says what it is (the cost of moving her money), then its two rates. */
+  "M-MB-01.feesLabel": { ceb: "Bayad sa padala", fil: "Bayad sa padala", en: "Transfer fees" },
   "M-MB-01.tapHint": {
     ceb: "Tuplia aron makita kung asa kini gikan",
     fil: "Pindutin para makita kung saan ito galing",

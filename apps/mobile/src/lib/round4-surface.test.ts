@@ -69,11 +69,14 @@ describe("UI gate round 4 on the phone: whole rows above the bar, measured where
 });
 
 describe("UI gate round 4 on the phone: the confirmed status is one row", () => {
-  it("puts the time and the Simulated tag on the pill's row", () => {
+  it("keeps the time and the rail's tag together, one line under the pill (round 7: the tag says its whole name)", () => {
     const screen = src("features/statement/bayad-screen.tsx");
     const status = screen.slice(screen.indexOf("  status: {"), screen.indexOf("  meta: {"));
-    expect(status).toMatch(/flexDirection: "row"/);
-    expect(status).toMatch(/flexWrap: "wrap"/);
+    // Round 7: "Simulated PayPal sandbox" is too long for the pill's row at 360 px, so the time and the tag are one
+    // line under the pill in every state (never beside it in one state and under it in another).
+    expect(status).toMatch(/alignItems: "flex-start"/);
+    expect(status).not.toMatch(/flexWrap/);
+    expect(screen).toMatch(/full=\{railLabel\.kind === "simulated"\}/);
     // "05:20 · Simulated": the time keeps its own test hook; the dot is drawn apart, hidden from screen readers.
     expect(screen).toMatch(/testID="M-MB-01\.when">\n\s+\{when\}/);
     expect(screen).toMatch(/aria-hidden>\n\s+·/);
