@@ -1,5 +1,5 @@
 /**
- * The app's faces (design §2.3, S2.3; UI gate round 3, DESIGN.md §1: one family and one mono): WS-DS's native cuts
+ * The app's faces (design §2.3, S2.3; UI gate round 3, docs/DESIGN.md §1: one family and one mono): WS-DS's native cuts
  * in `assets/fonts/native` (assets/fonts/README.md), and the platform's own monospace.
  *
  * FS Sans is Mona Sans 2.027, renamed because its licence reserves "Mona", cut into static instances: React Native

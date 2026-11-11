@@ -34,7 +34,7 @@ import Animated, {
 } from "react-native-reanimated";
 import Svg, { Path } from "react-native-svg";
 import { scheduleOnRN } from "react-native-worklets";
-import { radius, slabDepth, space } from "../../_shims/tokens.native";
+import { layout, radius, slabDepth, space } from "../../_shims/tokens.native";
 import type { CapsuleState } from "../../lib/item-status";
 import { STATUS_GLYPH } from "../../lib/item-status";
 import { feedback } from "../../platform/feedback";
@@ -52,8 +52,11 @@ const EDGE = slabDepth.d2;
 /** The jade halo: one beat after the simulated PayPal confirms (TWEENS.halo, 520 ms, ease out). */
 const HALO_IN_MS = 180;
 const HALO_OUT_MS = 340;
-/** The capsule's least height: one line of the status word with its padding (round 2: a pill, not a plate). */
-const FACE_MIN = 40;
+/**
+ * The capsule's least height: the phone's status pill (UI gate round 4: the console's StatusChip at phone scale,
+ * 32 px on the label step's 15/520, never a 64 px slab beside the hero).
+ */
+const FACE_MIN = layout.statusChip;
 const T = TIMELINE["MM-1"];
 /** Confirmations already played on this phone: a remount never replays one (motion is evidence, MM-6). */
 const PLAYED = new Set<string>();
@@ -336,7 +339,7 @@ export function StatusCapsule({ view, mm1, testID }: { view: LineView; mm1: Mm1;
               {sentMs !== null ? (
                 <PendingRing color={t.color.ink} since={sentMs} spinning={view.capsule === "sent"} />
               ) : null}
-              <Txt kind="bodyStrong" style={styles.word}>
+              <Txt kind="label" style={styles.word}>
                 {text.before.word}
               </Txt>
               {text.before.clock ? (
@@ -355,8 +358,8 @@ export function StatusCapsule({ view, mm1, testID }: { view: LineView; mm1: Mm1;
           >
             {text.after ? (
               <>
-                <Glyph name="check" size={18} color={t.color.onJade} />
-                <Txt kind="statementStatus" style={[styles.word, { color: t.color.onJade }]}>
+                <Glyph name="check" size={14} color={t.color.onJade} />
+                <Txt kind="label" style={[styles.word, { color: t.color.onJade }]}>
                   {text.after}
                 </Txt>
               </>
@@ -383,9 +386,9 @@ export function StatusCapsule({ view, mm1, testID }: { view: LineView; mm1: Mm1;
       style={[styles.flat, { borderColor: t.color.ruleStrong, backgroundColor: t.color.plate }]}
     >
       <View style={styles.row} importantForAccessibility="no-hide-descendants">
-        <StatusDot tone={look} size={10} />
+        <StatusDot tone={look} size={8} />
         <View style={styles.word}>
-          <Txt kind="statementStatus" style={{ color: fg }}>
+          <Txt kind="label" style={{ color: fg }}>
             {view.word}
           </Txt>
         </View>
@@ -439,9 +442,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: space.s8,
-    paddingLeft: space.s12,
-    paddingRight: space.s16,
-    paddingVertical: space.s8,
+    paddingLeft: space.s8 + 2,
+    paddingRight: space.s12,
+    paddingVertical: space.s4,
   },
   overlay: { position: "absolute", left: 0, right: 0, top: 0, bottom: 0 },
   elapsed: { marginLeft: space.s4 },

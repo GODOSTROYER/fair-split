@@ -18,7 +18,7 @@
  * one mono line and the one honesty tag, one line of prose only when a person acts next, and Paminawa as one large
  * play button. The rail's sentence moves to the fine print at the foot.
  *
- * UI gate round 3 (DESIGN.md): her name, the amount, her kilos and the payment state sit together as one group, with
+ * UI gate round 3 (docs/DESIGN.md): her name, the amount, her kilos and the payment state sit together as one group, with
  * Paminawa right below; the language row follows the reading it changes. The rail is one micro-tag ("Sandbox")
  * beside the PayPal status; her kilos and the expected pay date are one line each, a label and its figure on the
  * label step; the season reads "2026-A"; the time PayPal confirmed is a timestamp in the mono.

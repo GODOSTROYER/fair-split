@@ -23,3 +23,12 @@ export function navFadeBands(height: number = NAV_FADE_PX, steps = 4): readonly 
     opacity: Math.round(((i + 1) / (steps + 1)) * 100) / 100,
   }));
 }
+
+/**
+ * The top fade under the status inset (UI gate round 4): the same bands upside down, nearly the surface at the top and
+ * faint at the bottom, so content scrolled up under the inset fades out instead of being cut through a line.
+ */
+export function topFadeBands(height: number, steps = 4): readonly FadeBand[] {
+  const bands = navFadeBands(height, steps);
+  return bands.map((b, i) => ({ ...b, opacity: bands[steps - 1 - i]?.opacity ?? b.opacity }));
+}

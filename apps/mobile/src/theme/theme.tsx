@@ -15,11 +15,11 @@ import { bootQuery } from "../platform/query";
 /** Every FS Sans role sets tabular lining figures (UI gate round 3: one money style, columns that line up). */
 const TABULAR: TextStyle["fontVariant"] = [...FIGURE_VARIANT];
 
-/** The one mono, for hashes, IDs and timestamps only: the platform's own (DESIGN.md §1, `monoFamily`). */
+/** The one mono, for hashes, IDs and timestamps only: the platform's own (docs/DESIGN.md §1, `monoFamily`). */
 export const MONO_FAMILY = Platform.select({ web: MONO_WEB, ios: MONO_IOS, default: MONO_NATIVE });
 
 /**
- * The phone's five size steps in sp (DESIGN.md §1, the generated tokens' `typeSteps`): hero 48, title 24, heading and
+ * The phone's five size steps in sp (docs/DESIGN.md §1, the generated tokens' `typeSteps`): hero 48, title 24, heading and
  * body 17, label 15, id 13. Weight carries the rest: 400 reading, 500 labels and numerals, 700 titles and headings.
  * One step over the console's 12/14/16 below the title, for members on budget phones in daylight; a member's
  * statement is body (17, never below 16) in statement ink (7:1).

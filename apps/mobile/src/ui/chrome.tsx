@@ -2,19 +2,30 @@
  * App chrome on Material 3 structure, themed from our tokens (design §6 "Navigation"; Android guidance): the
  * navigation bar with three destinations per role, a small top app bar, and the edge-to-edge screen frame that
  * carries the screen's test hooks (`testID` = its register ID, `data-state` from IC-01's list) and the labels that
- * keep it honest (demo data, machine translation).
+ * keep it honest (demo data, machine translation). UI gate round 4: the selected tab wears the console nav's pod wash,
+ * the frame fades 24 px under the status inset once content is under it, and a list that passes `snapRows` never
+ * rests with a row cut by the tab bar.
  */
 
 import { useFocusEffect } from "expo-router";
 import type { BottomTabBarProps } from "expo-router/tabs";
-import { type ReactNode, useCallback } from "react";
-import { Pressable, ScrollView, type ScrollViewProps, StyleSheet, View } from "react-native";
+import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
+import {
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
+  Pressable,
+  ScrollView,
+  type ScrollViewProps,
+  StyleSheet,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { ScreenStateOf, ScreenWithStates } from "../_shims/contracts";
-import { space, target } from "../_shims/tokens.native";
+import { layout, space, target } from "../_shims/tokens.native";
+import { type RowBox, rowSnapCover, SNAP_REST_MS } from "../lib/row-snap";
 import { stage } from "../services/frame-bridge";
 import { useFs } from "../theme/theme";
-import { NAV_FADE_PX, navFadeBands } from "./nav-fade";
+import { NAV_FADE_PX, navFadeBands, topFadeBands } from "./nav-fade";
 import { SurfaceLabels } from "./primitives";
 import { Txt } from "./text";
 
@@ -62,8 +73,9 @@ export function NavBar({ state, descriptors, emitter, navigateToTab }: BottomTab
             dataSet={{ state: focused ? "selected" : "idle" }}
             style={styles.item}
           >
-            <View style={[styles.indicator, { backgroundColor: focused ? t.color.ink : "transparent" }]}>
-              {options.tabBarIcon?.({ focused, color: focused ? t.color.plate : t.color.ink2, size: 24 })}
+            {/* Round 4: the console nav's selected look, the pod wash under an ink icon (never a black slab). */}
+            <View style={[styles.indicator, { backgroundColor: focused ? t.color.podWash : "transparent" }]}>
+              {options.tabBarIcon?.({ focused, color: focused ? t.color.ink : t.color.ink2, size: 24 })}
             </View>
             <Txt
               kind="label"
@@ -97,6 +109,43 @@ export function EdgeFade({ color }: { color: string }) {
         />
       ))}
     </View>
+  );
+}
+
+/**
+ * The 24 px fade under the status inset (UI gate round 4), in the screen's own surface: shown once the content has
+ * scrolled under it, so nothing is cut through a line at the top either. The inset itself is solid surface.
+ */
+function TopFade({ color, inset }: { color: string; inset: number }) {
+  return (
+    <View pointerEvents="none" aria-hidden style={[styles.topFade, { height: inset + layout.fade }]}>
+      {inset > 0 ? (
+        <View style={[styles.fadeBand, { top: 0, height: inset, backgroundColor: color }]} />
+      ) : null}
+      {topFadeBands(layout.fade).map((band) => (
+        <View
+          key={band.top}
+          style={[
+            styles.fadeBand,
+            { top: inset + band.top, height: band.height, opacity: band.opacity, backgroundColor: color },
+          ]}
+        />
+      ))}
+    </View>
+  );
+}
+
+/**
+ * Rows never end under the tab bar (UI gate round 4): at rest, the row the viewport's bottom edge would cut is covered
+ * from its top down in the screen's surface (whole row or none). Nothing is covered while the list moves.
+ */
+function SnapCover({ from, height, color }: { from: number; height: number; color: string }) {
+  return (
+    <View
+      pointerEvents="none"
+      aria-hidden
+      style={[styles.snapCover, { top: from, height: Math.max(0, height - from), backgroundColor: color }]}
+    />
   );
 }
 
@@ -141,6 +190,11 @@ export interface ScreenProps<S extends ScreenWithStates> {
    * member's statement (UI gate round 2: no card inside the phone, the statement is the screen).
    */
   surface?: "ground" | "plate";
+  /**
+   * The list's rows, in the scrolled content's coordinates (UI gate round 4): at rest, the row the bottom edge would
+   * cut is covered, so a row never ends under the tab bar. Measure each row with `onLayout` against the content.
+   */
+  snapRows?: readonly RowBox[];
 }
 
 /**
@@ -159,6 +213,7 @@ export function Screen<S extends ScreenWithStates>({
   contentStyle,
   refreshControl,
   surface = "ground",
+  snapRows,
 }: ScreenProps<S>) {
   const { t } = useFs();
   const insets = useSafeAreaInsets();
@@ -168,13 +223,38 @@ export function Screen<S extends ScreenWithStates>({
     }, [testID]),
   );
   const pad = { paddingTop: topInset ? insets.top + space.s16 : space.s16 };
+  // Round 4: the top fade shows once content is under it; the snap cover is placed when the list is at rest. Both
+  // change state only when they change (a scroll does not re-render the screen on every frame).
+  const [scrolled, setScrolled] = useState(false);
+  const [viewport, setViewport] = useState(0);
+  const [restY, setRestY] = useState<number | null>(0);
+  const restTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (restTimer.current) clearTimeout(restTimer.current);
+    },
+    [],
+  );
+  const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const y = e.nativeEvent.contentOffset.y;
+    setScrolled(y > 0);
+    if (!snapRows) return;
+    setRestY(null);
+    if (restTimer.current) clearTimeout(restTimer.current);
+    restTimer.current = setTimeout(() => setRestY(y), SNAP_REST_MS);
+  };
+  const cover = snapRows && restY !== null ? rowSnapCover(snapRows, restY, viewport) : null;
+  const surfaceColor = t.color[surface];
   return (
-    <View testID={testID} dataSet={{ state }} style={[styles.screen, { backgroundColor: t.color[surface] }]}>
+    <View testID={testID} dataSet={{ state }} style={[styles.screen, { backgroundColor: surfaceColor }]}>
       {scroll ? (
         <ScrollView
           refreshControl={refreshControl}
           contentContainerStyle={[styles.content, pad, contentStyle]}
           keyboardShouldPersistTaps="handled"
+          onScroll={onScroll}
+          scrollEventThrottle={32}
+          onLayout={(e) => setViewport(e.nativeEvent.layout.height)}
         >
           <SurfaceLabels screen={testID} />
           {children}
@@ -185,6 +265,8 @@ export function Screen<S extends ScreenWithStates>({
           {children}
         </View>
       )}
+      {scroll && scrolled ? <TopFade color={surfaceColor} inset={topInset ? insets.top : 0} /> : null}
+      {cover !== null ? <SnapCover from={cover} height={viewport} color={surfaceColor} /> : null}
       {footer}
     </View>
   );
@@ -198,6 +280,8 @@ const styles = StyleSheet.create({
   },
   fade: { position: "absolute", left: 0, right: 0, top: -NAV_FADE_PX, height: NAV_FADE_PX },
   fadeBand: { position: "absolute", left: 0, right: 0 },
+  topFade: { position: "absolute", left: 0, right: 0, top: 0 },
+  snapCover: { position: "absolute", left: 0, right: 0 },
   item: { flex: 1, alignItems: "center", gap: space.s4, minHeight: target.min },
   indicator: {
     width: 64,

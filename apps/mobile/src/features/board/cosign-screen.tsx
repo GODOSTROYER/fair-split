@@ -160,8 +160,9 @@ export function CosignScreen() {
     ? { n: lines.count, cash: lines.cash.count, amount: format.usd(lines.cash.cents) }
     : null;
   const signed = c.status === "signed";
-  // Round 3: the console's seal size (180), smaller only when the phone is narrower than the seal and its plate.
-  const sealSize = Math.min(layout.seal, width - 2 * space.s16 - 2 * space.s24);
+  // Round 4: 140 on the co-sign card (the console's 180 elsewhere), so the card ends at least 16 px above its sticky
+  // button and no ring is cut; smaller only when the phone is narrower than the seal and its plate.
+  const sealSize = Math.min(layout.cosignSeal, width - 2 * space.s16 - 2 * space.s24);
   const showPush = Platform.OS === "web" && signable;
 
   const action = signable ? (

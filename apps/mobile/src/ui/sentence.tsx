@@ -9,7 +9,7 @@ export { figures, type Segment } from "./figures";
 
 /**
  * Statement prose in FS Sans with every engine figure set in the figure role: tabular, the slashed zero and FS Sans's
- * own ₱ (DESIGN.md §1).
+ * own ₱ (docs/DESIGN.md §1).
  */
 export function Sentence({
   segments,

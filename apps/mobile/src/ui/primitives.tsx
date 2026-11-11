@@ -16,7 +16,7 @@ import {
 import Svg, { Path } from "react-native-svg";
 import type { MemberStatus } from "../_shims/contracts";
 import { pendingReview } from "../_shims/i18n";
-import { radius, space, target } from "../_shims/tokens.native";
+import { layout, radius, space, target } from "../_shims/tokens.native";
 import { MARK_KIND } from "../lib/honesty";
 import { STATUS_GLYPH, STATUS_TONE, type StatusTone } from "../lib/item-status";
 import { useApp } from "../state/app";
@@ -144,8 +144,8 @@ export function Chip({
 /* ------------------------------------------------------------------ Ink stamp */
 
 /**
- * A 24 px indigo stamp (radius 6) with a person's initials in white at the id step (13 sp, never the old 9): every
- * human decision carries one (ADR-0016).
+ * A person's initials at the id step (13 sp, never the old 9): every human decision carries one (ADR-0016). UI gate
+ * round 4: the console's avatar, white with a 1 px ink-2 ring and ink initials; indigo is for action only.
  */
 export function InkStamp({ initials, label }: { initials: string; label?: string }) {
   const { t } = useFs();
@@ -153,9 +153,9 @@ export function InkStamp({ initials, label }: { initials: string; label?: string
     <View
       accessible
       accessibilityLabel={label ?? initials}
-      style={[styles.stamp, { backgroundColor: t.slab.chalk.face }]}
+      style={[styles.stamp, { backgroundColor: t.color.plate, borderColor: t.color.ink2 }]}
     >
-      <Txt kind="stamp" style={{ color: t.slab.chalk.label }} maxFontSizeMultiplier={1}>
+      <Txt kind="stamp" style={{ color: t.color.ink }} maxFontSizeMultiplier={1}>
         {initials}
       </Txt>
     </View>
@@ -302,7 +302,7 @@ export function StatusChip({
 }) {
   const { t } = useFs();
   // UI gate round 2 (the console's pill): white with a 1 px rule, and the colour lives only in the dot. Confirmed
-  // money is the one filled pill (jade, ✓). Round 3 (DESIGN.md §2, §4): jade is only money the simulated PayPal
+  // money is the one filled pill (jade, ✓). Round 3 (docs/DESIGN.md §2, §4): jade is only money the simulated PayPal
   // confirmed and dashed means simulated only, so money in flight is the neutral pill: a solid ring, the hollow
   // pending dot and its word in ink.
   const look = {
@@ -332,7 +332,7 @@ export function StatusChip({
 }
 
 /**
- * A status as a dot (the console's `StateDot`, DESIGN.md §4): amber when a person decides, red only when PayPal
+ * A status as a dot (the console's `StateDot`, docs/DESIGN.md §4): amber when a person decides, red only when PayPal
  * failed, jade only when PayPal confirmed, a hatch swatch for cash, a hollow ink-3 ring while the money is with
  * PayPal (pending), a hollow steel ring otherwise (waiting). Always beside its word.
  */
@@ -478,7 +478,14 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     borderWidth: 1,
   },
-  stamp: { width: 24, height: 24, borderRadius: radius.cell, alignItems: "center", justifyContent: "center" },
+  stamp: {
+    width: 24,
+    height: 24,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   banner: {
     flexDirection: "row",
     alignItems: "flex-start",
@@ -493,10 +500,11 @@ const styles = StyleSheet.create({
     alignSelf: "flex-start",
     maxWidth: "100%",
     gap: space.s8,
-    minHeight: 28,
+    // Round 4: the phone's scale of the console's pill (32 px, the label step's 15/520), the same for every status.
+    minHeight: layout.statusChip,
     paddingLeft: space.s8 + 2,
     paddingRight: space.s12,
-    paddingVertical: space.s2,
+    paddingVertical: space.s4,
     borderWidth: 1,
     borderRadius: radius.pill,
     overflow: "hidden",

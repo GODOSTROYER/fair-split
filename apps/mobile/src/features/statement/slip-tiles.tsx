@@ -1,7 +1,8 @@
 /**
- * Her slips as a row of small papers (S1.9 "slip chips"; design §6 M1): each is the slip itself in miniature, the
- * serial in red and the kilos in the clerk's hand, and each opens MM-7's zoom about the point it was tapped. When
- * Paminawa's voice names a slip, its paper rises 8 dp (`settle`) and is framed in ink for 1.2 s (S1.9 M-MB-03).
+ * Her slips as a row of receipt chips (S1.9 "slip chips"; design §6 M1; UI gate round 4: data, not paper): each is
+ * the serial in the mono at ink 3 and the verified kilos in ink, flat on a 1 px rule, and each opens MM-7's zoom (the
+ * slip itself, as paper) about the point it was tapped. When Paminawa's voice names a slip, its chip rises 8 dp
+ * (`settle`) and is framed in ink for 1.2 s (S1.9 M-MB-03).
  */
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import {
@@ -22,9 +23,11 @@ import Animated, {
 import type { StatementSlip } from "../../_shims/api-client";
 import { format } from "../../_shims/domain";
 import { space, target } from "../../_shims/tokens.native";
+import { slipFigures } from "../../lib/figures";
 import { useFs } from "../../theme/theme";
 import { spring, TIMELINE } from "../../ui/motion";
-import { type SlipOwner, SlipPaper } from "./slip-paper";
+import { ReceiptChip } from "../../ui/receipt-chip";
+import type { SlipOwner } from "./slip-paper";
 import { useT } from "./use-t";
 
 const MAX_TILE = 104;
@@ -63,7 +66,6 @@ function Lift({ lit, children }: { lit: number; children: ReactNode }) {
 
 export function SlipTiles({
   slips,
-  owner,
   onOpen,
   testPrefix,
   lit,
@@ -71,6 +73,7 @@ export function SlipTiles({
   columns = 4,
 }: {
   slips: readonly StatementSlip[];
+  /** Whose slips they are (the zoom's paper prints it; the chips need only serial and kilos). */
   owner: SlipOwner;
   onOpen?(serial: string, at: TapPoint): void;
   testPrefix: string;
@@ -102,9 +105,15 @@ export function SlipTiles({
     <View style={styles.grid} onLayout={onLayout}>
       {tile > 0
         ? slips.map((s) => {
+            // Round 4: a receipt chip is data, not paper (the serial in the mono at ink 3, the kilos in ink, a 1 px
+            // rule); the zoom still shows the slip itself.
             const paper = (
               <Lift lit={lit?.[s.serial] ?? 0}>
-                <SlipPaper slip={s} owner={owner} width={tile} />
+                <ReceiptChip
+                  serial={tr("M-MB-02.formNo", { serial: s.serial })}
+                  kilos={slipFigures(s, "en").written}
+                  width={tile}
+                />
               </Lift>
             );
             const label = tr("M-MB-02.slipLabel", {

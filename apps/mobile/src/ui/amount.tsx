@@ -73,7 +73,7 @@ function spoken(srLabel: string | undefined) {
 }
 
 /**
- * The hero amount's "US$" small and raised, as the console's `.fs-cur` (0.42 em, DESIGN.md §1); the text and its
+ * The hero amount's "US$" small and raised, as the console's `.fs-cur` (0.42 em, docs/DESIGN.md §1); the text and its
  * spoken label stay whole.
  */
 const CUR = { size: 0.42, rise: 0.38 } as const;
@@ -144,7 +144,7 @@ function LargeAmount({
     fontSize: box.fontSize,
     // The role's face (round 2: the figure cut, 87.5/500), so the drawn figure is the measured one.
     fontFamily: typeScale[role].fontFamily,
-    // Round 3: one money style, tabular lining figures everywhere (DESIGN.md §1).
+    // Round 3: one money style, tabular lining figures everywhere (docs/DESIGN.md §1).
     fontFeatureSettings: "'tnum' 1, 'lnum' 1",
   } as const;
   const raise = size === "hero";

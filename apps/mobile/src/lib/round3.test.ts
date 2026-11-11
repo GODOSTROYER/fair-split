@@ -53,8 +53,8 @@ describe("UI gate round 3 on the phone: honesty marks with a budget", () => {
     expect(MARK_KIND.realCode).toBe("real");
   });
 
-  it("keeps the micro-tag's one word and the console's budget", () => {
-    expect(MICRO_WORD).toBe("Sandbox");
+  it("keeps the micro-tag's one word (round 4: 'Simulated', the console's) and the console's budget", () => {
+    expect(MICRO_WORD).toBe("Simulated");
     expect(TAG_BUDGET).toEqual({ perScreen: 3, microPerScreen: 2 });
   });
 

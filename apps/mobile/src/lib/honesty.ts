@@ -2,7 +2,7 @@
  * Honesty marks with a budget (UI gate round 3, the console's `@fairsplit/ui-web` honesty marks, drawn for the phone).
  * Pure, tested in Node; `ui/honesty.tsx` draws them.
  *
- * - One micro-tag, a 12 px dashed circle and the word "Sandbox" at 13 sp, 20 px tall, only beside a PayPal money
+ * - One micro-tag, a 12 px dashed circle and the word "Simulated" at 13 sp, 20 px tall, only beside a PayPal money
  *   value; a screen reader hears its whole label ("Simulated PayPal sandbox", or the replayed rail's words).
  * - Every other provenance pill becomes a bare legend glyph whose words are its accessible name: a hatched square for
  *   synthetic data, a dashed circle for a simulated system, a solid square for real code.
@@ -26,8 +26,11 @@ export const MARK_KIND = {
 
 export type MarkName = keyof typeof MARK_KIND;
 
-/** The micro-tag's one word, the same in Cebuano, Filipino and English (a product term). */
-export const MICRO_WORD = "Sandbox";
+/**
+ * The micro-tag's one word, the same in Cebuano, Filipino and English (a product term). Round 4: "Simulated" (it read
+ * "Sandbox"), the console's word, which says what the dashed circle means; the label stays the whole phrase.
+ */
+export const MICRO_WORD = "Simulated";
 
 /** The console's budget: three tags a screen at most, two of them micro-tags. */
 export const TAG_BUDGET = { perScreen: 3, microPerScreen: 2 } as const;

@@ -1,6 +1,6 @@
 /**
  * Splits plain UI copy into words and figures so `<Sentence>` can set figures in the figure face, tabular, with the
- * slashed zero, inside the prose (DESIGN.md §1). A figure is taken whole, unit and all: "US$300", "₱4,028", "30 Okt 2026", "148.0 kg", "1.62%", "09:12",
+ * slashed zero, inside the prose (docs/DESIGN.md §1). A figure is taken whole, unit and all: "US$300", "₱4,028", "30 Okt 2026", "148.0 kg", "1.62%", "09:12",
  * "2026-A", "M-014", "R1", so a date or a weight never changes face halfway through.
  */
 export interface Segment {

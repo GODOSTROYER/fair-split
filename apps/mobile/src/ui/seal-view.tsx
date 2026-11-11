@@ -3,7 +3,7 @@
  * the inner three rings, key 2 (the Chair) the outer two. A ring engraves (600 ms linear, staggered 120 ms) when its
  * key signs; low-tier phones and reduced motion fade the rings in.
  *
- * UI gate round 3 (DESIGN.md §4 "Seal"), the same state in the same colours as the console's `Seal`: an unsigned
+ * UI gate round 3 (docs/DESIGN.md §4 "Seal"), the same state in the same colours as the console's `Seal`: an unsigned
  * ring is its band's 1 px circle in neutral 400 (`--fs-unsigned`, steel line, 3:1 on white), and each key fills its
  * half in indigo (a person's hand): key 1 the inner three rings, key 2 the outer two. Nothing else colours the seal.
  */

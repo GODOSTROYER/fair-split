@@ -112,7 +112,7 @@ export function Paper({
 /* ------------------------------------------------------------------ the season and lot marks */
 
 /**
- * "2026-A", "LB-PH-2026-03": the season and the lot as ids. UI gate round 3 (DESIGN.md §1): a mark is the id role, the one mono at 13 sp, like every
+ * "2026-A", "LB-PH-2026-03": the season and the lot as ids. UI gate round 3 (docs/DESIGN.md §1): a mark is the id role, the one mono at 13 sp, like every
  * other id on the phone. Read as one label by a screen reader.
  */
 export function IdMark({

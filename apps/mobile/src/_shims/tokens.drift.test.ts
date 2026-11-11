@@ -80,6 +80,15 @@ describe("tokens shim against @fairsplit/tokens' generated native module", () =>
     expect(layout.seal).toBe(180);
   });
 
+  it("round 4: the co-sign seal, the status pill and the fades are the generated layout's", () => {
+    const block = /export const layout = \{([^}]+)\}/.exec(source)?.[1] ?? "";
+    const value = (key: string) => Number(new RegExp(`\\b${key}: (\\d+)`).exec(block)?.[1]);
+    expect(layout.cosignSeal).toBe(value("cosignSeal"));
+    expect(layout.statusChip).toBe(value("statusChip"));
+    expect(layout.fade).toBe(value("fade"));
+    expect(layout).toMatchObject({ cosignSeal: 140, statusChip: 32, fade: 24 });
+  });
+
   it("sets type on the generated five steps (round 3: id 13, label 15, body 17, title 24, hero 48)", () => {
     const block = /export const typeSteps = \{([^}]+)\}/.exec(source)?.[1] ?? "";
     const generated = Object.fromEntries(
