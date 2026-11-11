@@ -321,6 +321,15 @@ describe("history in her words", () => {
     expect(rows[0]?.copy).toEqual({ key: "M-MB-01.historyApproved", args: { a: "AS", b: "EC" } });
   });
 
+  it("says a plain 'Giaprobahan na' when the history does not name the officers (never 'ni ug')", () => {
+    const dto: StatementDTO = {
+      ...at("paid"),
+      history: at("paid").history.map((h) => (h.kind === "approved" ? { kind: h.kind, at: h.at } : h)),
+    };
+    const approved = historyRows(dto, trackOf(dto)).find((r) => r.kind === "approved");
+    expect(approved?.copy).toEqual({ key: "M-MB-01.historyApprovedPlain" });
+  });
+
   it("shows a confirmation that arrived by event before the server's history caught up", () => {
     const dto = at("sent");
     const rows = historyRows(dto, { status: "SUCCESS", updatedAt: "2026-10-30T01:20:00Z", seen: [] });

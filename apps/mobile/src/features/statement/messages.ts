@@ -223,6 +223,7 @@ export const messages = defineMessages({
     fil: "Inaprubahan nina {a} at {b}",
     en: "Approved by {a} and {b}",
   },
+  "M-MB-01.historyApprovedPlain": { ceb: "Giaprobahan na", fil: "Inaprubahan na po", en: "Approved" },
   "M-MB-01.historySent": { ceb: "Gipadala", fil: "Ipinadala", en: "Sent" },
   "M-MB-01.historyPaid": { ceb: "Bayad na", fil: "Bayad na po", en: "Paid" },
   "M-MB-01.historyUnclaimed": {
