@@ -1,0 +1,321 @@
+<!doctype html>
+<!-- Fair Split film v7, section 2: Problem, film 17 to 38 s (SCENES A).
+     The first frame is section 1's last frame (the STAGE block is the same numbers as s1-scenario.html).
+     One payment, 64 farmers; split by hand from a box of slips; a carbon copy counted twice; a fine no rule
+     allows; farmers can't check; the buyer can't prove. The last frame (the summary line among scattered slips)
+     is section 3's first frame (the SCATTER block is the same numbers as s3-solution.html). -->
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+  </head>
+  <body>
+    <template>
+      <style>
+        #root {
+          position: absolute;
+          inset: 0;
+          overflow: hidden;
+          background: #f7f8fb;
+        }
+        .s2-cap {
+          position: absolute;
+          left: 120px;
+          top: 84px;
+          white-space: nowrap;
+        }
+        .s2-cap-2 {
+          top: 192px;
+        }
+        .s2-svg {
+          position: absolute;
+          left: 0;
+          top: 0;
+          overflow: visible;
+        }
+        .s2-q {
+          position: absolute;
+          width: 40px;
+          height: 40px;
+          margin: -20px 0 0 -20px;
+          font-size: 32px;
+          font-weight: 700;
+          line-height: 40px;
+          text-align: center;
+          color: #0e1525;
+        }
+        .s2-sum {
+          position: absolute;
+          left: 0;
+          top: 502px;
+          width: 1920px;
+          margin: 0;
+          text-align: center;
+          font-size: 76px;
+          font-weight: 680;
+          line-height: 1;
+          letter-spacing: -0.03em;
+          color: #0e1525;
+          white-space: nowrap;
+        }
+        .s2-sum span {
+          display: inline-block;
+          margin: 0 14px;
+        }
+      </style>
+
+      <div id="root" data-composition-id="s2-problem" data-width="1920" data-height="1080" data-duration="21">
+        <svg id="s2-coop" class="s2-svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+          <title>The co-op</title>
+          <path d="M1380 500H1547A28 28 0 0 1 1575 528V862A28 28 0 0 1 1547 890H1213A28 28 0 0 1 1185 862V528A28 28 0 0 1 1213 500Z" pathLength="1" stroke-dasharray="1 1" stroke-dashoffset="0" fill="none" stroke="#0e1525" stroke-width="2" />
+        </svg>
+        <svg id="s2-threads" class="s2-svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+          <title>One payment split across 64 farmers</title>
+          <defs>
+            <clipPath id="s2-thread-clip"><rect id="s2-thread-clip-rect" x="1180" y="352" width="400" height="0" /></clipPath>
+            <clipPath id="s2-proof-clip-a"><rect id="s2-proof-rect-a" x="1560" y="720" width="170" height="0" /></clipPath>
+            <clipPath id="s2-proof-clip-b"><rect id="s2-proof-rect-b" x="1490" y="372" width="240" height="0" /></clipPath>
+          </defs>
+          <g id="s2-thread-g" clip-path="url(#s2-thread-clip)" fill="none" stroke="#5b6475" stroke-width="1.75" stroke-dasharray="5 8" stroke-linecap="round"></g>
+          <path id="s2-thread-one" d="M1407 356L1440 496V542" pathLength="1" fill="none" stroke="#4a2fd6" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" />
+          <g id="s2-proof" fill="none" stroke="#0e1525" stroke-width="2" stroke-dasharray="7 9" stroke-linecap="round">
+            <path clip-path="url(#s2-proof-clip-a)" d="M1575 695H1676A24 24 0 0 0 1700 671V468" />
+            <path clip-path="url(#s2-proof-clip-b)" d="M1700 372V140A24 24 0 0 0 1676 116H1520" />
+          </g>
+          <path id="s2-proof-head" d="M1532 103L1515 116L1532 129" pathLength="1" fill="none" stroke="#0e1525" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" />
+        </svg>
+        <h1 id="s2-cap-a" class="s2-cap t-head-s">One payment</h1>
+        <h1 id="s2-cap-a2" class="s2-cap s2-cap-2 t-head-s">64 farmers</h1>
+        <h1 id="s2-cap-b" class="s2-cap t-head-s">Split by hand</h1>
+        <h1 id="s2-cap-c" class="s2-cap t-head-s">Counted twice</h1>
+        <h1 id="s2-cap-d" class="s2-cap t-head-s">A fine</h1>
+        <h1 id="s2-cap-d2" class="s2-cap s2-cap-2 t-head-s">No rule</h1>
+        <h1 id="s2-cap-e" class="s2-cap t-head-s">Can&rsquo;t check</h1>
+        <h1 id="s2-cap-f" class="s2-cap t-head-s">Can&rsquo;t prove</h1>
+        <h1 id="s2-sum" class="s2-sum"><span>Mistakes.</span><span>Surprise deductions.</span><span>No proof.</span></h1>
+      </div>
+
+      <script>
+        (() => {
+          const tl = gsap.timeline({ paused: true });
+          const root = document.querySelector('[data-composition-id="s2-problem"]');
+          const at = (text, nth, offset) => FILM.at("s2", text, nth ?? 1, offset ?? 0);
+          const E = FILM.ease;
+          const INK = "#0e1525";
+          const INDIGO = "#4a2fd6";
+
+          /* ---- STAGE (the same numbers in s1-scenario.html) ---- */
+          const COL = 1380;
+          const BUYER = { x: COL, y: 116, size: 40 };
+          const TOKEN = { x: COL, y: 320, h: 64 };
+          const FARM = { x: COL - 149, y: 546, gap: 40, r: 9 };
+          const SLIP = { x: 390, y: 540, w: 280 };
+          const STACK = 5;
+
+          /* ---- SCATTER (the same numbers in s3-solution.html): centre x, centre y, rotation ---- */
+          const SCATTER_W = 72;
+          const SCATTER = [
+            [250, 240, -18], [520, 170, 12], [800, 290, -8], [1090, 180, 20], [1370, 280, -13], [1650, 200, 9],
+            [290, 780, 14], [570, 850, -10], [850, 740, 7], [1120, 860, -19], [1400, 750, 15], [1650, 830, -7],
+          ];
+          const SCATTER_PINK = 4;
+
+          /* ---- this section's own layout ---- */
+          const BOX = { x: 380, y: 659, w: 300 };
+          const BOOK = { x: 810, y: 515, w: 300 };
+          const PAIR = { w: 170, y: 396, white: 352, pink: 538 };
+          const FINE = { x: 400, y: 318, w: 260 };
+          const FAV = 5; // the farmer whose slip is counted twice
+
+          /* ---- the right column: farmers, threads, buyer, payment ---- */
+          const farmers = FSO.put(root, FSO.farmers({ x: FARM.x, y: FARM.y, gap: FARM.gap, r: FARM.r }));
+          const centre = (index) => {
+            const home = farmers.fsoAt(index);
+            return { x: FARM.x + home.x, y: FARM.y + home.y };
+          };
+          const ORIGIN = { x: COL, y: TOKEN.y + TOKEN.h / 2 };
+          const STOP = 496;
+          const threadGroup = document.getElementById("s2-thread-g");
+          // eight strands, one toward each column of eight; they stop at the co-op's edge
+          for (let column = 0; column < 8; column += 1)
+            threadGroup.appendChild(FSO.svg("path", { d: `M${ORIGIN.x + (column - 3.5) * 18} ${ORIGIN.y + 4}L${centre(column).x} ${STOP}` }));
+          const marks = farmers.fsoDots.map((dot, index) => {
+            const mark = document.createElement("span");
+            mark.className = "s2-q";
+            mark.textContent = "?";
+            const to = centre(index);
+            mark.style.left = `${to.x}px`;
+            mark.style.top = `${to.y}px`;
+            root.appendChild(mark);
+            return mark;
+          });
+
+          /* ---- the left column: the stack (inside the box's slot, so it can drop in), the notebook ---- */
+          const box = FSO.put(root, FSO.box({ x: BOX.x, y: BOX.y, w: BOX.w, slips: 0 }));
+          const boxFront = box.fsoIn.lastElementChild;
+          const stack = [];
+          for (let index = STACK; index >= 1; index -= 1)
+            stack.push(FSO.put(box.fsoSlot, FSO.slip({ detail: "mini", w: SLIP.w, x: SLIP.x + index * 14 - BOX.x, y: SLIP.y - index * 12 - BOX.y, serial: String(403 + index * 16) })));
+          stack.push(FSO.put(box.fsoSlot, FSO.slip({ w: SLIP.w, x: SLIP.x - BOX.x, y: SLIP.y - BOX.y, serial: "0403", kg: "38.45" })));
+          // section 1 wrote these strokes on; keep the very same stroke state so the cut is pixel-exact
+          stack.at(-1).fsoStrokes.forEach((stroke) => {
+            stroke.setAttribute("stroke-dasharray", "1 1");
+            stroke.setAttribute("stroke-dashoffset", "0");
+          });
+          const book = FSO.put(
+            root,
+            FSO.notebook({
+              x: BOOK.x,
+              y: BOOK.y,
+              w: BOOK.w,
+              rows: [
+                { name: 0.55, value: "38.45" },
+                { name: 0.85, value: "60.80" },
+                { name: 0.35, value: "42.00", seed: 9 },
+                { name: 0.35, value: "42.00", seed: 9 },
+              ],
+            }),
+          );
+          const white = FSO.put(root, FSO.slip({ w: PAIR.w, x: PAIR.white, y: PAIR.y, serial: "0457", kg: "42.00", name: false }));
+          const pink = FSO.put(root, FSO.slip({ w: PAIR.w, x: PAIR.pink, y: PAIR.y, serial: "0457", kg: "42.00", copy: true, name: false }));
+          const tickWhite = FSO.put(root, FSO.tick({ size: 40, x: PAIR.white + PAIR.w / 2 - 20, y: PAIR.y + PAIR.w * 1.25 + 10 }));
+          const tickPink = FSO.put(root, FSO.tick({ size: 40, x: PAIR.pink + PAIR.w / 2 - 20, y: PAIR.y + PAIR.w * 1.25 + 10 }));
+          const fineSlip = FSO.put(root, FSO.slip({ w: FINE.w, x: FINE.x, y: FINE.y, serial: "0458", kg: "60.80", name: false }));
+          const fine = FSO.put(fineSlip.fsoIn, FSO.hand("−₱200", { size: 46, color: FSO.C.red, weight: 1.8, x: 52, y: 252 }));
+          fine.fsoIn.style.transform = "rotate(-5deg)";
+
+          const buyer = FSO.put(root, FSO.buyer({ x: BUYER.x, y: BUYER.y, size: BUYER.size, anchor: "center" }));
+          const token = FSO.put(root, FSO.token({ x: TOKEN.x, y: TOKEN.y, h: TOKEN.h, anchor: "center" }));
+          const ask = FSO.put(root, FSO.hand("?", { size: 60, weight: 1.7, x: 1700, y: 420, anchor: "center" }));
+
+          const scatter = SCATTER.map(([x, y], index) =>
+            FSO.put(root, FSO.slip({ detail: "mini", w: SCATTER_W, x, y, anchor: "center", copy: index === SCATTER_PINK, serial: String(407 + index * 9) })),
+          );
+          root.appendChild(document.getElementById("s2-sum"));
+
+          const show = (target, position) => tl.fromTo(target, { opacity: 0, y: 28 }, { opacity: 1, y: 0, duration: 0.6, ease: E }, position);
+          const hide = (target, position, duration = 0.25) =>
+            tl.fromTo(target, { opacity: 1 }, { opacity: 0, duration, ease: "power2.out", immediateRender: false }, position);
+
+          /* ---- 1. "One payment. Sixty-four farmers." ---- */
+          const tokenRing = FILM.outline(tl, root, { x: COL - 124, y: TOKEN.y - TOKEN.h / 2, w: 248, h: TOKEN.h }, at("One"), { radius: 40, grow: 9, duration: 0.45 });
+          const tFarmers = at("Sixty-four");
+          show("#s2-cap-a2", tFarmers);
+          hide(tokenRing, tFarmers - 0.1);
+          tl.fromTo("#s2-thread-clip-rect", { attr: { height: 0 } }, { attr: { height: STOP - ORIGIN.y + 2 }, duration: 0.8, ease: E }, tFarmers);
+
+          /* ---- 2. "The split is done by hand, from a box of slips." ---- */
+          const tSplit = at("split");
+          hide("#s2-cap-a", tSplit - 0.3);
+          hide("#s2-cap-a2", tSplit - 0.3);
+          show("#s2-cap-b", tSplit);
+          tl.fromTo(book, { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.6, ease: E }, at("done", 1, -0.15));
+          FSO.write(tl, book.fsoRules, at("done", 1, 0.1), 0.6, { overlap: 0.6 });
+          FSO.write(tl, book.fsoRows[0].strokes, at("hand"), 0.6);
+          FSO.write(tl, book.fsoRows[1].strokes, at("hand", 1, 0.7), 0.6);
+          const tBox = at("box");
+          const K = BOX.w / 260;
+          const lean = [-7, 3, -2, 8, -5, 6];
+          const SMALL = (62 * K) / SLIP.w;
+          tl.fromTo(boxFront, { opacity: 0 }, { opacity: 1, duration: 0.35, ease: "power2.out" }, tBox - 0.25);
+          stack.forEach((slip, j) => {
+            const left = Number.parseFloat(slip.style.left);
+            const top = Number.parseFloat(slip.style.top);
+            const dx = (58 + 28.8 * j) * K - (left + SLIP.w / 2);
+            const dyIn = (24 + ((j * 7) % 10) + 38.75) * K - (top + SLIP.w * 0.625);
+            const dyUp = -64 - (top + SLIP.w * 0.625);
+            const start = tBox - 0.6 + j * 0.04;
+            tl.fromTo(slip, { x: 0, y: 0, scale: 1, rotation: 0 }, { x: dx, y: dyUp, scale: SMALL, rotation: lean[j] * 1.6, duration: 0.5, ease: E }, start);
+            tl.to(slip, { y: dyIn, rotation: lean[j], duration: 0.45, ease: "power2.in" }, tBox - 0.05 + j * 0.06);
+          });
+
+          /* ---- 3. "A carbon copy gets counted twice." ---- */
+          hide("#s2-cap-b", at("carbon", 1, -0.37));
+          const rise = (slip, position) => {
+            const left = Number.parseFloat(slip.style.left);
+            const top = Number.parseFloat(slip.style.top);
+            const width = Number.parseFloat(slip.style.width);
+            tl.fromTo(slip, { opacity: 0 }, { opacity: 1, duration: 0.15, ease: "none" }, position);
+            tl.fromTo(
+              slip,
+              { x: BOX.x + BOX.w / 2 - (left + width / 2), y: BOX.y + 70 - (top + width * 0.625), scale: 0.36 },
+              { x: 0, y: 0, scale: 1, duration: 0.6, ease: E },
+              position,
+            );
+          };
+          const sink = (slip, position) => {
+            const left = Number.parseFloat(slip.style.left);
+            const top = Number.parseFloat(slip.style.top);
+            const width = Number.parseFloat(slip.style.width);
+            tl.to(slip, { x: BOX.x + BOX.w / 2 - (left + width / 2), y: BOX.y + 70 - (top + width * 0.625), scale: 0.36, duration: 0.45, ease: "power2.in" }, position);
+            tl.to(slip, { opacity: 0, duration: 0.12, ease: "none" }, position + 0.33);
+          };
+          rise(white, at("carbon", 1, -0.3));
+          rise(pink, at("copy", 1, -0.25));
+          FSO.write(tl, tickWhite, at("gets"), 0.3);
+          FSO.write(tl, book.fsoRows[2].strokes, at("gets"), 0.5);
+          FSO.write(tl, tickPink, at("counted"), 0.3);
+          FSO.write(tl, book.fsoRows[3].strokes, at("counted"), 0.5);
+          const k = BOOK.w / 320;
+          const twice = FILM.outline(tl, root, { x: BOOK.x + 50 * k, y: BOOK.y + 146 * k, w: BOOK.w - 62 * k, h: 86 * k }, at("twice"), { duration: 0.4 });
+          show("#s2-cap-c", at("twice"));
+          // what it does to the split: one farmer's share grows, the other 63 shrink
+          const tSkew = at("twice", 1, 0.45);
+          FSO.write(tl, [document.getElementById("s2-thread-one")], tSkew, 0.5);
+          farmers.fsoDots.forEach((dot, index) => {
+            if (index === FAV) tl.fromTo(dot, { scale: 1, backgroundColor: INK }, { scale: 1.9, backgroundColor: INDIGO, duration: 0.6, ease: E, immediateRender: false }, tSkew + 0.2);
+            else tl.fromTo(dot, { scale: 1 }, { scale: 0.72, duration: 0.6, ease: E, immediateRender: false }, tSkew + 0.2);
+          });
+
+          /* ---- 4. "A fine appears that no rule allows." ---- */
+          const tFine = at("fine");
+          hide("#s2-cap-c", tFine - 0.35);
+          hide(twice, tFine - 0.4);
+          tl.to([tickWhite, tickPink], { opacity: 0, duration: 0.2, ease: "power2.out" }, tFine - 0.5);
+          sink(white, tFine - 0.5);
+          sink(pink, tFine - 0.44);
+          rise(fineSlip, tFine - 0.3);
+          show("#s2-cap-d", tFine);
+          FSO.write(tl, fine, tFine + 0.32, 0.6);
+          show("#s2-cap-d2", at("no"));
+
+          /* ---- 5. "Farmers can't check their share." ---- */
+          const tCheck = at("Farmers", 2);
+          hide("#s2-cap-d", tCheck - 0.35);
+          hide("#s2-cap-d2", tCheck - 0.35);
+          sink(fineSlip, tCheck - 0.45);
+          tl.to("#s2-thread-one", { opacity: 0, duration: 0.3, ease: "power2.out" }, tCheck - 0.1);
+          farmers.fsoDots.forEach((dot, index) => {
+            const start = tCheck + (index % 8) * 0.035 + Math.floor(index / 8) * 0.035;
+            tl.to(dot, { opacity: 0, scale: 0.3, duration: 0.3, ease: "power2.out" }, start);
+            tl.fromTo(marks[index], { opacity: 0, scale: 0.4 }, { opacity: 1, scale: 1, duration: 0.4, ease: E }, start + 0.05);
+          });
+          show("#s2-cap-e", at("can't"));
+
+          /* ---- 6. "The buyer can't prove it reached them." ---- */
+          const tProve = at("buyer");
+          hide("#s2-cap-e", tProve - 0.3);
+          // proof should travel from the farmers back up to the buyer: the path reaches her mark, but it is broken
+          tl.fromTo("#s2-proof-rect-a", { attr: { y: 720, height: 0 } }, { attr: { y: 460, height: 260 }, duration: 0.45, ease: "power1.inOut" }, tProve);
+          tl.fromTo("#s2-proof-rect-b", { attr: { y: 372, height: 0 } }, { attr: { y: 100, height: 272 }, duration: 0.45, ease: "power1.out" }, tProve + 0.42);
+          FSO.write(tl, [document.getElementById("s2-proof-head")], tProve + 0.8, 0.2);
+          show("#s2-cap-f", at("can't", 2));
+          FSO.write(tl, ask, at("prove"), 0.35);
+
+          /* ---- 7. the summary: the paper scatters, three words ---- */
+          const lastWord = FILM.words("s2").at(-1); // whatever the last word is: the summary starts as it is spoken
+          const tSum = Math.round((lastWord.start - FILM.section("s2").start) * 1000) / 1000;
+          tl.to(["#s2-coop", "#s2-threads", marks, box, book, buyer, token, ask, "#s2-cap-f"], { opacity: 0, duration: 0.3, ease: "power2.out" }, tSum);
+          scatter.forEach((slip, index) => {
+            const [x, y, turn] = SCATTER[index];
+            const start = tSum + 0.05 + ((index * 5) % 12) * 0.015;
+            tl.fromTo(slip, { opacity: 0 }, { opacity: 1, duration: 0.12, ease: "none" }, start);
+            tl.fromTo(slip, { x: BOX.x + BOX.w / 2 - x, y: BOX.y + 60 - y, scale: 0.5, rotation: 0 }, { x: 0, y: 0, scale: 1, rotation: turn, duration: 0.75, ease: E }, start);
+          });
+          tl.fromTo("#s2-sum span", { opacity: 0, y: 26 }, { opacity: 1, y: 0, duration: 0.5, ease: E, stagger: 0.12 }, tSum + 0.2);
+
+          window.__timelines["s2-problem"] = tl;
+        })();
+      </script>
+    </template>
+  </body>
+</html>

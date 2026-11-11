@@ -1,0 +1,435 @@
+<!doctype html>
+<!-- Fair Split film v7, section 4: Working today, film 55 to 109 s (SCENES B).
+     Eight product steps, one narration line each (4a to 4h). One stage for all eight:
+       the step label at 120,84 (film.css .step), one line of big words at 120,150,
+       and the product in the area x 120..1800, y 292..996 (two phones run off the bottom edge).
+     Every product pixel is a still from stills/ (4x crops wherever a viewer must read); two states of the
+     product change by a crossfade in place. Nothing is retyped, dimmed or blurred.
+     First frame = section 3's last frame: the title "Working today" (t-head-s at 120,84) on the ground.
+     Last frame = the plain ground. -->
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+  </head>
+  <body>
+    <template>
+      <style>
+        #root {
+          position: absolute;
+          inset: 0;
+          overflow: hidden;
+          background: #f7f8fb;
+        }
+        .s4-title {
+          position: absolute;
+          left: 120px;
+          top: 84px;
+          white-space: nowrap;
+        }
+        /* the step label: number and word are stacks of eight, so the dots never move */
+        .s4-step {
+          opacity: 0;
+        }
+        .s4-step .step-n,
+        .s4-step .step-w {
+          position: relative;
+          height: 1em;
+        }
+        .s4-step .step-n {
+          width: 0.62em;
+        }
+        .s4-step .step-w {
+          width: 200px;
+        }
+        /* the eight dots sit at the right margin, so they never move as the word changes */
+        .s4-step {
+          width: 1680px;
+        }
+        .s4-step .step-dots {
+          margin-left: auto;
+        }
+        .s4-step .step-n span,
+        .s4-step .step-w span {
+          position: absolute;
+          left: 0;
+          top: 0;
+          opacity: 0;
+        }
+        /* the big words: one line, always here */
+        .s4-h {
+          position: absolute;
+          left: 120px;
+          top: 150px;
+          white-space: nowrap;
+        }
+        .s4-hs {
+          opacity: 0;
+        }
+        .s4-p {
+          display: inline-block;
+          opacity: 0;
+        }
+        /* a step's picture */
+        .s4-g {
+          position: absolute;
+          inset: 0;
+          opacity: 0;
+        }
+        .s4-o {
+          opacity: 0;
+        }
+        .s4-clip {
+          position: absolute;
+          overflow: hidden;
+        }
+        .s4-in {
+          position: absolute;
+        }
+        .s4-in > img {
+          position: absolute;
+          display: block;
+          max-width: none;
+        }
+        .s4-top {
+          opacity: 0;
+        }
+        /* a phone: the product's own phone frame, no card around it */
+        .s4-ph {
+          position: absolute;
+          overflow: hidden;
+        }
+        .s4-mv {
+          position: absolute;
+          left: 0;
+          top: 0;
+        }
+      </style>
+
+      <div id="root" data-composition-id="s4-demo" data-width="1920" data-height="1080" data-duration="54">
+        <!-- the hand-off from section 3 -->
+        <h1 id="s4-title" class="s4-title t-head-s">Working today</h1>
+
+        <div id="s4-step" class="step s4-step">
+          <span id="s4-step-n" class="step-n"></span>
+          <span id="s4-step-w" class="step-w"></span>
+          <span id="s4-step-dots" class="step-dots"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+        </div>
+
+        <!-- big words -->
+        <h1 id="s4-h1" class="s4-h s4-hs t-head-s">One invoice</h1>
+        <h1 id="s4-h2a" class="s4-h s4-hs t-head-s">Read twice</h1>
+        <h1 id="s4-h2b" class="s4-h t-head-s"><span id="s4-h2b1" class="s4-p">Unsure?</span> <span id="s4-h2b2" class="s4-p">A person decides.</span></h1>
+        <h1 id="s4-h3a" class="s4-h s4-hs t-head-s">Code, not AI</h1>
+        <h1 id="s4-h3b" class="s4-h s4-hs t-head-s">Unexplained? Held.</h1>
+        <h1 id="s4-h4a" class="s4-h s4-hs t-head-s">Counted twice</h1>
+        <h1 id="s4-h4b" class="s4-h s4-hs t-head-s">Counted once</h1>
+        <h1 id="s4-h5" class="s4-h t-head-s"><span id="s4-h51" class="s4-p">Two signatures.</span> <span id="s4-h52" class="s4-p">One batch.</span></h1>
+        <h1 id="s4-h6" class="s4-h s4-hs t-head-s">PayPal or cash</h1>
+        <h1 id="s4-h7a" class="s4-h t-head-s"><span id="s4-h7a1" class="s4-p">Her pay.</span> <span id="s4-h7a2" class="s4-p">Her language.</span></h1>
+        <h1 id="s4-h7b" class="s4-h s4-hs t-head-s">From peso to slip</h1>
+        <h1 id="s4-h8" class="s4-h t-head-s"><span id="s4-h81" class="s4-p">Every line,</span> <span id="s4-h82" class="s4-p">checked.</span></h1>
+
+        <!-- 1 Fund -->
+        <div id="s4-g1" class="s4-g"><div id="s4-w1" class="window"></div></div>
+        <!-- 2 Read -->
+        <div id="s4-g2a" class="s4-g">
+          <div id="s4-w2s" class="window"></div>
+          <div id="s4-w2t" class="window"></div>
+        </div>
+        <div id="s4-g2b" class="s4-g">
+          <div id="s4-w2c" class="window"></div>
+          <div id="s4-w2i" class="window s4-o"></div>
+        </div>
+        <!-- 3 Compute -->
+        <div id="s4-g3" class="s4-g">
+          <div id="s4-w3g" class="window"></div>
+          <div id="s4-w3r" class="window s4-o"></div>
+        </div>
+        <!-- 4 Check -->
+        <div id="s4-g4" class="s4-g">
+          <div id="s4-w4t" class="window"></div>
+          <div id="s4-w4r" class="window s4-o"></div>
+        </div>
+        <!-- 5 Sign -->
+        <div id="s4-g5" class="s4-g">
+          <div id="s4-w5s" class="window"></div>
+          <div id="s4-w5k" class="window"></div>
+          <div id="s4-p5" class="s4-ph"></div>
+        </div>
+        <!-- 6 Pay -->
+        <div id="s4-g6a" class="s4-g"><div id="s4-w6f" class="window"></div></div>
+        <div id="s4-g6b" class="s4-g"><div id="s4-w6m" class="window"></div></div>
+        <!-- 7 Explain -->
+        <div id="s4-g7" class="s4-g">
+          <div id="s4-m7" class="s4-mv"><div id="s4-p7" class="s4-ph"></div></div>
+          <div id="s4-w7s" class="window s4-o"></div>
+          <div id="s4-w7t" class="window s4-o"></div>
+          <div id="s4-w7p" class="window s4-o"></div>
+        </div>
+        <!-- 8 Prove -->
+        <div id="s4-g8" class="s4-g">
+          <div id="s4-w8c" class="window"></div>
+          <div id="s4-w8v" class="window s4-o"></div>
+        </div>
+      </div>
+
+      <script>
+        (() => {
+          const tl = gsap.timeline({ paused: true });
+          const $ = (selector) => document.querySelector(selector);
+          const E = FILM.ease;
+          const at = (text, nth, offset) => FILM.at("s4", text, nth ?? 1, offset ?? 0);
+          const T = Object.fromEntries(["4a", "4b", "4c", "4d", "4e", "4f", "4g", "4h"].map((id) => [id, FILM.line(id).localStart]));
+          const INDIGO = "#4a2fd6";
+
+          /* ---- helpers ---- */
+          // Put a still (or a rectangle of it, in the still's own CSS px) into a window at x,y on the canvas.
+          // options: x, y, and k (display scale) or w (display width); crop { x, y, w, h }; pad (card margin).
+          // FILM.mountStill refuses a still above its native pixels.
+          const put = (selector, id, options) => {
+            const element = $(selector);
+            const record = FILM.still(id);
+            const crop = options.crop ?? { x: 0, y: 0, w: record.width, h: record.height };
+            const k = options.k ?? options.w / crop.w;
+            const pad = options.pad ?? 0;
+            // the still is clipped to its crop, so nothing outside the crop shows in the card's margin
+            const clip = document.createElement("div");
+            clip.className = "s4-clip";
+            clip.style.left = `${pad}px`;
+            clip.style.top = `${pad}px`;
+            clip.style.width = `${crop.w * k}px`;
+            clip.style.height = `${crop.h * k}px`;
+            element.appendChild(clip);
+            const layer = (stillId, top) => {
+              const host = document.createElement("div");
+              host.className = top ? "s4-in s4-top" : "s4-in";
+              host.style.left = `${-crop.x * k}px`;
+              host.style.top = `${-crop.y * k}px`;
+              clip.appendChild(host);
+              FILM.mountStill(host, stillId, { width: FILM.still(stillId).width * k });
+              return host;
+            };
+            layer(id, false);
+            const w = crop.w * k + pad * 2;
+            const h = crop.h * k + pad * 2;
+            element.style.left = `${options.x}px`;
+            element.style.top = `${options.y}px`;
+            element.style.width = `${w}px`;
+            element.style.height = `${h}px`;
+            if (options.radius) element.style.borderRadius = `${options.radius * k}px`;
+            if (options.ownEdge) element.style.border = "0"; // the crop ends on the product card's own border
+            return {
+              element,
+              x: options.x,
+              y: options.y,
+              w,
+              h,
+              k,
+              /** a second state of the same element, stacked on top and hidden: fade it in to change state */
+              add: (stillId) => layer(stillId, true),
+              /** a named box (or { x, y, w, h } in the still's CSS px) in canvas px, grown by `grow` */
+              rect: (name, grow = 0) => {
+                const b = typeof name === "string" ? FILM.box(id, name) : name;
+                return {
+                  x: options.x + pad + (b.x - crop.x) * k - grow,
+                  y: options.y + pad + (b.y - crop.y) * k - grow,
+                  w: b.w * k + grow * 2,
+                  h: b.h * k + grow * 2,
+                };
+              },
+            };
+          };
+          const rise = (target, position, o = {}) =>
+            tl.fromTo(target, { opacity: 0, y: o.y ?? 36 }, { opacity: 1, y: 0, duration: o.d ?? 0.6, ease: E, stagger: o.stagger ?? 0 }, position);
+          const fadeIn = (target, position, duration = 0.35) =>
+            tl.fromTo(target, { opacity: 0 }, { opacity: 1, duration, ease: "power2.out" }, position);
+          const out = (target, position, duration = 0.28) =>
+            tl.fromTo(target, { opacity: 1 }, { opacity: 0, duration, ease: "power2.out", immediateRender: false }, position);
+          // an outline stays hidden until it draws (an undrawn outline leaves a speck at its start point)
+          const mark = (parent, rect, position, options) => {
+            const svg = FILM.outline(tl, parent, rect, position, { grow: 0, ...options });
+            tl.fromTo(svg, { opacity: 0 }, { opacity: 1, duration: 0.02, ease: "none" }, position);
+            return svg;
+          };
+
+          /* ---- the step label ---- */
+          const STEPS = ["Fund", "Read", "Compute", "Check", "Sign", "Pay", "Explain", "Prove"];
+          const numbers = STEPS.map((word, index) => {
+            const span = document.createElement("span");
+            span.textContent = String(index + 1);
+            $("#s4-step-n").appendChild(span);
+            return span;
+          });
+          const names = STEPS.map((word) => {
+            const span = document.createElement("span");
+            span.textContent = word;
+            $("#s4-step-w").appendChild(span);
+            return span;
+          });
+          const dots = [...document.querySelectorAll("#s4-step-dots i")];
+          const label = (step, position) => {
+            const index = step - 1;
+            if (index > 0) out([numbers[index - 1], names[index - 1]], position - 0.1, 0.2);
+            fadeIn([numbers[index], names[index]], position + 0.1, 0.3);
+            tl.fromTo(
+              dots[index],
+              { backgroundColor: "#f7f8fb", borderColor: "#d9dee7" },
+              { backgroundColor: INDIGO, borderColor: INDIGO, duration: 0.3, ease: "power2.out" },
+              position + 0.1,
+            );
+          };
+          // a step's picture arrives in the silence before its line, and leaves just before the next one arrives
+          const arrive = (line) => T[line] - 0.46;
+          const leave = (line) => T[line] - 0.7;
+
+          /* ================= 1 Fund: "The buyer pays one PayPal invoice." ================= */
+          const invoice = put("#s4-w1", "03-funded.invoice-pool-row-nosource", { x: 120, y: 421, w: 1680 });
+          out("#s4-title", 0.1, 0.3);
+          tl.fromTo("#s4-step", { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.5, ease: E }, 0.3);
+          label(1, 0.3);
+          rise("#s4-h1", 0.36, { y: 28 });
+          rise("#s4-g1", 0.42);
+          mark("#s4-g1", invoice.rect({ x: 27, y: 124, w: 264, h: 70 }), at("one"));
+          out(["#s4-h1", "#s4-g1"], leave("4b"));
+
+          /* ================= 2 Read: "Claude reads every slip, twice. If the readings disagree, a person decides." ================= */
+          const paper = put("#s4-w2s", "07a-claude-reads-0403.paper-source", { x: 399, y: 364, w: 484 });
+          const table = put("#s4-w2t", "07b-claude-reads-0403-table.table", { x: 963, y: 307, k: 1.7, crop: { x: 0, y: 0, w: 331, h: 397 } });
+          label(2, arrive("4b"));
+          rise("#s4-g2a", arrive("4b"));
+          rise("#s4-h2a", arrive("4b") + 0.05, { y: 28 });
+          mark("#s4-g2a", paper.rect({ x: 15.3, y: 170.6, w: 269.5, h: 17.2 }, 2), at("twice"));
+          mark("#s4-g2a", table.rect({ x: 6, y: 360, w: 316, h: 34 }), at("twice", 1, 0.12));
+          // the stained digit, typed by a person
+          const tDecide = at("If the readings");
+          const stain = put("#s4-w2c", "10a-by-hand-empty.slip", { x: 361, y: 332, k: 1.6, crop: { x: 2, y: 2, w: 378, h: 389 } });
+          // (the empty input, 10a, is left out: its border is the product's amber)
+          const typed = put("#s4-w2i", "10b-by-hand-filled.input", { x: 1057, y: 547, k: 2 });
+          out(["#s4-h2a", "#s4-g2a"], tDecide - 0.6, 0.25);
+          rise("#s4-g2b", tDecide - 0.42, { d: 0.55 });
+          rise("#s4-h2b1", tDecide - 0.38, { y: 28 });
+          rise("#s4-h2b2", at("a person"), { y: 28 });
+          rise("#s4-w2i", at("a person"), { y: 24, d: 0.5 });
+          mark("#s4-g2b", typed.rect("W-TR-04.input", 10), at("person", 1, 0.4), { radius: 26 });
+          out(["#s4-h2b", "#s4-g2b"], leave("4c"));
+
+          /* ================= 3 Compute: "Code, not AI, works out every share, to the cent, and stops what it can't explain." ================= */
+          const GRID = { x: 0, y: 0, w: 1550, h: 519 };
+          const grid = put("#s4-w3g", "16-split-balanced.grid", { x: 185, y: 329, k: 1, crop: GRID });
+          const gridHeld = grid.add("11-split-three-holds.grid");
+          put("#s4-w3r", "16-split-balanced.reconcile", { x: 308, y: 880, k: 2 });
+          label(3, arrive("4c"));
+          rise("#s4-g3", arrive("4c"));
+          rise("#s4-h3a", arrive("4c") + 0.05, { y: 28 });
+          const netColumn = mark("#s4-g3", grid.rect({ x: 1184, y: 8, w: 80, h: 504 }), at("every share"));
+          rise("#s4-w3r", at("to the cent"), { y: 24, d: 0.5 });
+          const tStops = at("stops");
+          out([netColumn, "#s4-w3r", "#s4-h3a"], tStops - 0.4, 0.25);
+          fadeIn(gridHeld, tStops - 0.3, 0.3);
+          rise("#s4-h3b", tStops - 0.1, { y: 28 });
+          [
+            { x: 1316, y: 48, w: 100, h: 28 },
+            { x: 1316, y: 144, w: 100, h: 28 },
+            { x: 1316, y: 240, w: 130, h: 28 },
+          ].forEach((held, index) => {
+            mark("#s4-g3", grid.rect(held, 6), tStops + 0.1 + index * 0.14);
+          });
+          out(["#s4-h3b", "#s4-g3"], leave("4d"));
+
+          /* ================= 4 Check: "This slip was counted twice: once from its pink copy. Once fixed, almost eighteen
+             dollars goes back to sixty-three farmers." ================= */
+          const twin = put("#s4-w4t", "12-h1-open.twin-slips", { x: 496, y: 300, k: 2, pad: 16 });
+          const result = put("#s4-w4r", "13-h1-resolved.result", { x: 496, y: 916, w: 928 });
+          label(4, arrive("4d"));
+          rise("#s4-g4", arrive("4d"));
+          rise("#s4-h4a", arrive("4d") + 0.05, { y: 28 });
+          const pink = mark("#s4-g4", twin.rect("crop:twin-pink", 2), at("pink"));
+          const tFixed = at("Once fixed");
+          out([pink, "#s4-h4a"], tFixed - 0.1, 0.25);
+          fadeIn("#s4-h4b", tFixed, 0.3);
+          rise("#s4-w4r", tFixed, { y: 24, d: 0.5 });
+          mark("#s4-g4", { x: result.x - 8, y: result.y - 8, w: result.w + 16, h: result.h + 16 }, at("eighteen"), { radius: 22 });
+          out(["#s4-h4b", "#s4-g4"], leave("4e"));
+
+          /* ================= 5 Sign: "Two officers sign the same batch: the treasurer at her desk, the chair on his phone." ================= */
+          // one row on the seal's own axis: who signed, her console's seal, his phone's seal (the two seals the same size)
+          const PHONE = { x: 2, y: 0, w: 376, h: 796 }; // the phone's frame inside its crop; its corner radius is 45
+          const chair = put("#s4-p5", "19-chair-sign-screen.phone", { x: 1198, y: 292, k: 1.6, crop: PHONE, radius: 45 });
+          const AXIS = 292 + 210 * 1.6; // the phone seal's centre
+          const keys = put("#s4-w5k", "18a-key-1-signed.keys", { x: 120, y: AXIS - 111, k: 1.5 });
+          const keysBoth = keys.add("20a-approved-by-both.keys");
+          const seal = put("#s4-w5s", "18a-key-1-signed.seal-block", { x: 829, y: AXIS - 165, k: 1.4 });
+          const sealBoth = seal.add("20a-approved-by-both.seal-block");
+          label(5, arrive("4e"));
+          rise("#s4-g5", arrive("4e"));
+          rise("#s4-h51", arrive("4e") + 0.05, { y: 28 });
+          rise("#s4-h52", at("same"), { y: 28 });
+          mark("#s4-g5", seal.rect("W-TR-07.batchHash", 10), at("same"));
+          mark("#s4-g5", chair.rect("W-JG-01.frame.chair>M-BD-02.hash", 6), at("same", 1, 0.12));
+          fadeIn([sealBoth, keysBoth], at("chair", 1, 0.1), 0.4);
+          out(["#s4-h5", "#s4-g5"], leave("4f") + 0.06);
+
+          /* ================= 6 Pay: "PayPal pays the farmers who have an account. The rest get cash, on the same statement." ================= */
+          const fan = put("#s4-w6f", "22b-fanout-settled.fan", { x: 335, y: 404, k: 1, pad: 32 });
+          const money = put("#s4-w6m", "27b-proof-6-of-6.money", { x: 562, y: 317, k: 1.9, crop: { x: 8.7, y: 8, w: 419.3, h: 344 }, radius: 20, ownEdge: true });
+          label(6, arrive("4f"));
+          rise("#s4-g6a", arrive("4f"));
+          rise("#s4-h6", arrive("4f") + 0.05, { y: 28 });
+          mark("#s4-g6a", fan.rect({ x: 0, y: 4, w: 108, h: 54 }, 8), at("PayPal pays", 1, 0.1));
+          const tRest = at("The rest");
+          out("#s4-g6a", tRest - 0.4, 0.25);
+          rise("#s4-g6b", tRest - 0.25, { y: 24, d: 0.55 });
+          mark("#s4-g6b", money.rect({ x: 25, y: 169, w: 387, h: 64 }), at("cash", 1, 0.1));
+          out(["#s4-h6", "#s4-g6b"], leave("4g"));
+
+          /* ================= 7 Explain: "Nang Celing reads her pay in her own language, or listens. One tap shows the slip
+             behind each peso." ================= */
+          const PHONE7 = { x: 656, y: 292, k: 1.6, shift: -456 };
+          const member = put("#s4-p7", "23b-member-paid-en.phone", { x: PHONE7.x, y: PHONE7.y, k: PHONE7.k, crop: PHONE, radius: 45 });
+          const memberCebuano = member.add("23a-member-bayad-na-ceb.phone");
+          put("#s4-w7s", "26-listen.sentence", { x: 968, y: 474, k: 2 });
+          const trace = put("#s4-w7t", "24-tap-a-peso.trace", { x: 968, y: 325, k: 2, crop: { x: 4, y: 0, w: 322, h: 118 }, pad: 6 });
+          // the card ends on the Net kg row's own border (the product draws that row's box without a bottom edge)
+          put("#s4-w7p", "25a-slip-0403-on-her-phone.slip-to-net", { x: 968, y: 589, k: 2, crop: { x: 0, y: 0, w: 328, h: 185 } });
+          label(7, arrive("4g"));
+          rise("#s4-g7", arrive("4g"));
+          rise("#s4-h7a1", arrive("4g") + 0.05, { y: 28 });
+          rise("#s4-h7a2", at("her own language"), { y: 28 });
+          fadeIn(memberCebuano, at("her own language", 1, 0.02), 0.35);
+          const tongue = mark("#s4-m7", member.rect("W-JG-01.frame.member>M-MB-01.lang", 4), at("language", 1, -0.05), { radius: 40 });
+          const tListen = at("or listens");
+          out(tongue, tListen - 0.42, 0.2);
+          tl.fromTo("#s4-m7", { x: 0 }, { x: PHONE7.shift, duration: 0.7, ease: E }, tListen - 0.37);
+          rise("#s4-w7s", tListen + 0.08, { y: 28, d: 0.5 });
+          const listen = mark("#s4-m7", member.rect({ x: 26, y: 247, w: 163.5, h: 48 }, 8), tListen + 0.38, { radius: 46 });
+          const tTap = at("One tap");
+          out([listen, "#s4-w7s", "#s4-h7a"], tTap - 0.25, 0.22);
+          rise("#s4-h7b", tTap, { y: 28 });
+          rise("#s4-w7t", tTap, { y: 28, d: 0.5 });
+          mark("#s4-g7", trace.rect("W-JG-01.frame.member>M-MB-01.slip.0403", 4), at("tap", 1, 0.2), { radius: 14 });
+          rise("#s4-w7p", at("slip behind"), { y: 28, d: 0.5 });
+          out(["#s4-h7b", "#s4-g7"], leave("4h"));
+
+          /* ================= 8 Prove: "And the buyer checks every line, in her own browser." ================= */
+          const checks = put("#s4-w8c", "27a-proof-idle.checks", { x: 120, y: 534, w: 1680 });
+          const checksMatch = checks.add("27b-proof-6-of-6.checks");
+          const verdict = put("#s4-w8v", "27b-proof-6-of-6.verdict", { x: 220, y: 294, w: 1480 });
+          label(8, arrive("4h"));
+          rise("#s4-g8", arrive("4h"));
+          rise("#s4-h81", arrive("4h") + 0.05, { y: 28 });
+          fadeIn(checksMatch, at("checks"), 0.35);
+          rise("#s4-h82", at("checks"), { y: 28 });
+          const tBrowser = at("in her own browser");
+          out("#s4-w8c", tBrowser - 0.44, 0.22);
+          rise("#s4-w8v", tBrowser - 0.2, { y: 24, d: 0.55 });
+          mark("#s4-g8", verdict.rect({ x: 232, y: 140, w: 207, h: 23 }, 3), at("browser", 1, 0.1));
+
+          /* ---- hold the Proof result, then clear to the plain ground (the next section opens on it) ---- */
+          out(["#s4-step", "#s4-h8", "#s4-g8"], 53.6, 0.35);
+
+          window.__timelines["s4-demo"] = tl;
+        })();
+      </script>
+    </template>
+  </body>
+</html>

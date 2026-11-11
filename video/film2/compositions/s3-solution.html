@@ -1,0 +1,231 @@
+<!doctype html>
+<!-- Fair Split film v7, section 3: Solution and vision, film 38 to 55 s (SCENES A).
+     The first frame is section 2's last frame (the SCATTER block is the same numbers as s2-problem.html).
+     38.0, the music hit: the scattered slips snap into the underline of "Fair Split". Then one picture of the
+     whole idea (paper, pay, proof), the vision in three lines, and the title "Working today".
+     The last frame is the title alone: class t-head-s at left 120, top 84, on the ground. -->
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+  </head>
+  <body>
+    <template>
+      <style>
+        #root {
+          position: absolute;
+          inset: 0;
+          overflow: hidden;
+          background: #f7f8fb;
+        }
+        .s3-svg {
+          position: absolute;
+          left: 0;
+          top: 0;
+          overflow: visible;
+        }
+        .s3-sum {
+          position: absolute;
+          left: 0;
+          top: 502px;
+          width: 1920px;
+          margin: 0;
+          text-align: center;
+          font-size: 76px;
+          font-weight: 680;
+          line-height: 1;
+          letter-spacing: -0.03em;
+          color: #0e1525;
+          white-space: nowrap;
+        }
+        .s3-sum span {
+          display: inline-block;
+          margin: 0 14px;
+        }
+        .s3-label {
+          position: absolute;
+          top: 792px;
+          width: 400px;
+          text-align: center;
+          font-weight: 620;
+          color: #0e1525;
+        }
+        .s3-phone {
+          position: absolute;
+          left: 870px;
+          top: 400px;
+          width: 180px;
+          height: 320px;
+          border: 2.5px solid #0e1525;
+          border-radius: 30px;
+          background: #ffffff;
+        }
+        .s3-phone i {
+          position: absolute;
+          display: block;
+          border-radius: 3px;
+          background: #c3cad6;
+        }
+        .s3-title {
+          position: absolute;
+          left: 120px;
+          top: 84px;
+          white-space: nowrap;
+        }
+        .s3-line {
+          position: absolute;
+          left: 120px;
+          white-space: nowrap;
+        }
+        .s3-line span {
+          display: inline-block;
+        }
+      </style>
+
+      <div id="root" data-composition-id="s3-solution" data-width="1920" data-height="1080" data-duration="17">
+        <h1 id="s3-sum" class="s3-sum"><span>Mistakes.</span><span>Surprise deductions.</span><span>No proof.</span></h1>
+
+        <!-- the whole idea in one picture -->
+        <svg id="s3-flow" class="s3-svg" width="1920" height="1080" viewBox="0 0 1920 1080" fill="none" stroke="#0e1525" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <title>Paper, pay, proof</title>
+          <path id="s3-arrow-1" d="M630 560H808M792 544L808 560L792 576" pathLength="1" />
+          <path id="s3-arrow-2" d="M1131 560H1309M1293 544L1309 560L1293 576" pathLength="1" />
+          <path id="s3-seal" d="M1480 472A88 88 0 1 1 1479.9 472" pathLength="1" stroke="#4a2fd6" stroke-width="5" />
+        </svg>
+        <div id="s3-phone" class="s3-phone">
+          <i style="left: 68px; top: 16px; width: 44px; height: 6px"></i>
+          <i style="left: 26px; top: 70px; width: 72px; height: 7px"></i>
+          <i style="left: 26px; top: 212px; width: 128px; height: 5px"></i>
+          <i style="left: 26px; top: 238px; width: 96px; height: 5px"></i>
+          <i style="left: 26px; top: 264px; width: 112px; height: 5px"></i>
+        </div>
+        <p id="s3-label-1" class="s3-label t-sub-l" style="left: 240px">Paper</p>
+        <p id="s3-label-2" class="s3-label t-sub-l" style="left: 760px">Pay</p>
+        <p id="s3-label-3" class="s3-label t-sub-l" style="left: 1280px">Proof</p>
+
+        <!-- the vision -->
+        <p id="s3-vision" class="s3-title t-sub-l muted">The vision</p>
+        <h1 id="s3-line-1" class="s3-line t-head-s">Every co-op.</h1>
+        <h1 id="s3-line-2" class="s3-line t-head-s"><span id="s3-line-2a">Every farmer.</span> <span id="s3-line-2b">PayPal or cash.</span></h1>
+        <h1 id="s3-line-3" class="s3-line t-head-s">Proof for every buyer.</h1>
+
+        <!-- the hand-off to the demo -->
+        <h1 id="s3-today" class="s3-title t-head-s">Working today</h1>
+      </div>
+
+      <script>
+        (() => {
+          const tl = gsap.timeline({ paused: true });
+          const root = document.querySelector('[data-composition-id="s3-solution"]');
+          const at = (text, nth, offset) => FILM.at("s3", text, nth ?? 1, offset ?? 0);
+          const E = FILM.ease;
+
+          /* true: the three vision lines build into one list (the storyboard's lines, as section 7 brings them back).
+             false: one line at a time, so no more than five big words are ever on screen. */
+          const VISION_STACK = true;
+
+          /* ---- SCATTER (the same numbers in s2-problem.html): centre x, centre y, rotation ---- */
+          const SCATTER_W = 72;
+          const SCATTER = [
+            [250, 240, -18], [520, 170, 12], [800, 290, -8], [1090, 180, 20], [1370, 280, -13], [1650, 200, 9],
+            [290, 780, 14], [570, 850, -10], [850, 740, 7], [1120, 860, -19], [1400, 750, 15], [1650, 830, -7],
+          ];
+          const SCATTER_PINK = 4;
+
+          /* ---- 38.0: the slips snap into the underline of the wordmark ---- */
+          const MARK = { size: 200, y: 420 };
+          const mark = FSO.wordmark({ size: MARK.size, n: SCATTER.length });
+          const markLeft = Math.round(960 - mark.fsoW / 2);
+          FSO.put(root, mark, markLeft, MARK.y);
+          mark.fsoText.textContent = "";
+          mark.fsoText.style.overflow = "hidden";
+          mark.fsoText.style.paddingBottom = "0.11em";
+          const words = ["Fair", "Split"].map((text, index) => {
+            const word = document.createElement("span");
+            word.textContent = text;
+            word.style.display = "inline-block";
+            if (index > 0) mark.fsoText.appendChild(document.createTextNode(" "));
+            mark.fsoText.appendChild(word);
+            return word;
+          });
+          const slips = SCATTER.map(([x, y], index) =>
+            FSO.put(root, FSO.slip({ detail: "mini", w: SCATTER_W, x, y, anchor: "center", copy: index === SCATTER_PINK, serial: String(407 + index * 9) })),
+          );
+          const order = SCATTER.map((spot, index) => index).sort((a, b) => SCATTER[a][0] - SCATTER[b][0] || SCATTER[a][1] - SCATTER[b][1]);
+          const hit = 0;
+          tl.fromTo("#s3-sum", { opacity: 1 }, { opacity: 0, duration: 0.18, ease: "power2.out" }, hit);
+          order.forEach((slipIndex, place) => {
+            const [x, y, turn] = SCATTER[slipIndex];
+            const seg = mark.fsoSeg(place);
+            const slip = slips[slipIndex];
+            const start = hit + place * 0.012;
+            const flat = seg.h / (SCATTER_W * 1.25);
+            const dx = markLeft + seg.x + seg.w / 2 - x;
+            const dy = MARK.y + seg.y + seg.h / 2 - y;
+            // fly in as paper (upright, standing on the line), then fold flat into the line
+            tl.fromTo(
+              slip,
+              { x: 0, y: 0, rotation: turn, scaleX: 1 },
+              { x: dx, y: dy - (SCATTER_W * 1.25 * 0.5 - seg.h / 2), rotation: 0, scaleX: seg.w / SCATTER_W, duration: 0.34, ease: "power3.out" },
+              start,
+            );
+            tl.fromTo(slip, { scaleY: 1 }, { scaleY: flat, y: dy, duration: 0.14, ease: "power2.in", immediateRender: false }, start + 0.3);
+            tl.fromTo(mark.fsoSegs[place], { opacity: 0 }, { opacity: 1, duration: 0.06, ease: "none" }, start + 0.4);
+            tl.fromTo(slip, { opacity: 1 }, { opacity: 0, duration: 0.05, ease: "none" }, start + 0.43);
+          });
+          const name = FILM.mark("fairSplit", "s3").localStart;
+          tl.fromTo(words[0], { yPercent: 115 }, { yPercent: 0, duration: 0.55, ease: E }, name - 0.08);
+          tl.fromTo(words[1], { yPercent: 115 }, { yPercent: 0, duration: 0.55, ease: E }, at("Split", 1, -0.06));
+
+          /* ---- "turns a season of paper into pay anyone can check." ---- */
+          const tTurn = at("turns");
+          tl.fromTo(mark, { y: 0, scale: 1, transformOrigin: "50% 0%" }, { y: 96 - MARK.y, scale: 0.6, duration: 0.7, ease: E }, tTurn - 0.1);
+          const PAPER = { x: 340, y: 435, w: 200 };
+          const paper = [];
+          for (let index = 3; index >= 1; index -= 1)
+            paper.push(FSO.put(root, FSO.slip({ detail: "mini", w: PAPER.w, x: PAPER.x + index * 11, y: PAPER.y - index * 10, serial: String(403 + index * 16) })));
+          paper.push(FSO.put(root, FSO.slip({ w: PAPER.w, x: PAPER.x, y: PAPER.y, serial: "0403", kg: "38.45" })));
+          const pay = FSO.put("#s3-phone", FSO.token({ amount: "₱4,028", h: 46, x: 87.5, y: 132, anchor: "center" }));
+          const proof = FSO.put(root, FSO.tick({ size: 112, weight: 3.2, x: 1480, y: 562, anchor: "center" }));
+          const rise = (target, position, extra = {}) =>
+            tl.fromTo(target, { opacity: 0, y: 30 }, { opacity: 1, y: 0, duration: 0.6, ease: E, ...extra }, position);
+          rise(paper, at("season"), { stagger: 0.06 });
+          rise("#s3-label-1", at("paper"));
+          FSO.write(tl, [document.getElementById("s3-arrow-1")], at("into"), 0.4);
+          rise("#s3-phone", at("pay", 1, -0.12));
+          tl.fromTo(pay, { opacity: 0, scale: 0.6 }, { opacity: 1, scale: 1, duration: 0.5, ease: E }, at("pay", 1, 0.2));
+          rise("#s3-label-2", at("pay"));
+          FSO.write(tl, [document.getElementById("s3-arrow-2")], at("anyone"), 0.4);
+          FSO.write(tl, [document.getElementById("s3-seal")], at("can", 1, -0.05), 0.5);
+          FSO.write(tl, proof, at("check"), 0.35);
+          rise("#s3-label-3", at("check"));
+
+          /* ---- "The vision: every co-op, every farmer, paid fairly, by PayPal or in cash, with proof for the buyer." ---- */
+          const tVision = at("The");
+          tl.to([mark, paper, "#s3-flow", "#s3-phone", proof, "#s3-label-1", "#s3-label-2", "#s3-label-3"], { opacity: 0, duration: 0.3, ease: "power2.out" }, tVision - 0.4);
+          rise("#s3-vision", tVision);
+          const lines = ["#s3-line-1", "#s3-line-2", "#s3-line-3"];
+          const tops = VISION_STACK ? [362, 492, 622] : [492, 492, 492];
+          lines.forEach((line, index) => {
+            document.querySelector(line).style.top = `${tops[index]}px`;
+          });
+          const tLine = [at("every"), at("every", 2), at("with")];
+          rise("#s3-line-1", tLine[0]);
+          rise("#s3-line-2a", tLine[1]);
+          rise("#s3-line-2b", at("PayPal", 1, -0.08));
+          rise("#s3-line-3", tLine[2]);
+          if (!VISION_STACK) {
+            tl.to("#s3-line-1", { opacity: 0, duration: 0.25, ease: "power2.out" }, tLine[1] - 0.3);
+            tl.to("#s3-line-2", { opacity: 0, duration: 0.25, ease: "power2.out" }, tLine[2] - 0.3);
+          }
+
+          /* ---- "Here's what works today." ---- */
+          const tToday = at("Here's");
+          tl.to(["#s3-vision", ...lines], { opacity: 0, duration: 0.3, ease: "power2.out" }, tToday - 0.1);
+          rise("#s3-today", at("works", 1, -0.2));
+
+          window.__timelines["s3-solution"] = tl;
+        })();
+      </script>
+    </template>
+  </body>
+</html>

@@ -1,0 +1,633 @@
+{
+  "note": "Film v7 effects: the director's cue lists of 11 Nov, part 1 (sections 1-3 and 5-7) and part 2 (the demo, kept lighter: a cue that lands on a spoken word's start or its consonants is left out and listed under `dropped`). Every sound is a CC0 1.0 file from the Barty-Bart motion-graphics sound-effects kit, copied byte for byte into audio/sfx/ by tools/sound-sfx.mjs; Mixkit files are never used. Chosen by measurement (length, level, spectrum, onsets), not by ear. `at` is the film second of the picture's event (the director's cue list, 11 Nov); a hit is { s: sound, t: seconds after `at`, g: dB against the cue's other hits, len: seconds kept, from: seconds into the file }. `under` is how far the cue's loudest moment sits under the voice (dB; never less than 12): the tool sets one gain per cue from it.",
+  "minUnder": 12,
+  "peakCap": -10,
+  "sounds": {
+    "pop": {
+      "kit": "kit/pop.ogg",
+      "title": "POP SFX Neutral",
+      "author": "ethernel0",
+      "source": "https://freesound.org/people/ethernel0/sounds/776016/"
+    },
+    "tick": {
+      "kit": "kit/tick.ogg",
+      "title": "Click / Tick",
+      "author": "Squirrel_404",
+      "source": "https://freesound.org/people/Squirrel_404/sounds/683048/"
+    },
+    "click": {
+      "kit": "kit/click.ogg",
+      "title": "Classic Click",
+      "author": "adh.dreaming",
+      "source": "https://freesound.org/people/adh.dreaming/sounds/671105/"
+    },
+    "riser": {
+      "kit": "kit/riser.ogg",
+      "title": "Cinematic Riser #3 subtle",
+      "author": "BeaconStudio",
+      "source": "https://freesound.org/people/BeaconStudio/sounds/859482/"
+    },
+    "impact": {
+      "kit": "kit/impact.ogg",
+      "title": "soft_impact3",
+      "author": "peoplearehappy",
+      "source": "https://freesound.org/people/peoplearehappy/sounds/841274/"
+    },
+    "impact-drum": {
+      "kit": "impact/fs524817.ogg",
+      "title": "Oil Drum Soft Impact",
+      "author": "DeVern",
+      "source": "https://freesound.org/people/DeVern/sounds/524817/"
+    },
+    "tap": {
+      "kit": "impact/fs745291.ogg",
+      "title": "Freesound 745291 (a light tap)",
+      "author": "SamsterBirdies",
+      "source": "https://freesound.org/people/SamsterBirdies/sounds/745291/"
+    },
+    "swish": {
+      "kit": "whoosh/fs393811.ogg",
+      "title": "Freesound 393811 (a short swish)",
+      "author": "deleted_user_6479820",
+      "source": "https://freesound.org/people/deleted_user_6479820/sounds/393811/"
+    },
+    "rustle": {
+      "kit": "whoosh/fs810485.ogg",
+      "title": "Freesound 810485 (a rustling whoosh)",
+      "author": "CVLTIV8R",
+      "source": "https://freesound.org/people/CVLTIV8R/sounds/810485/"
+    },
+    "whoosh-quick": {
+      "kit": "whoosh/fs-683101-quick-woosh.ogg",
+      "title": "quick woosh",
+      "author": "florianreichelt",
+      "source": "https://freesound.org/people/florianreichelt/sounds/683101/"
+    },
+    "swipe": {
+      "kit": "transition/fs-702773-swipe-wav.ogg",
+      "title": "swipe",
+      "author": "LilMati",
+      "source": "https://freesound.org/people/LilMati/sounds/702773/"
+    },
+    "scratch": {
+      "kit": "transition/kenney-interface-scroll-001.ogg",
+      "title": "scroll_001 (Interface Sounds)",
+      "author": "Kenney",
+      "source": "https://kenney.nl/assets/interface-sounds"
+    },
+    "drop-a": {
+      "kit": "pop/kenney-interface-drop-002.ogg",
+      "title": "drop_002 (Interface Sounds)",
+      "author": "Kenney",
+      "source": "https://kenney.nl/assets/interface-sounds"
+    },
+    "drop-b": {
+      "kit": "pop/kenney-interface-drop-003.ogg",
+      "title": "drop_003 (Interface Sounds)",
+      "author": "Kenney",
+      "source": "https://kenney.nl/assets/interface-sounds"
+    },
+    "drop-small": {
+      "kit": "pop/kenney-interface-drop-001.ogg",
+      "title": "drop_001 (Interface Sounds)",
+      "author": "Kenney",
+      "source": "https://kenney.nl/assets/interface-sounds"
+    },
+    "pen-tick": {
+      "kit": "tick/fs384187.ogg",
+      "title": "Click Tick",
+      "author": "malle99",
+      "source": "https://freesound.org/people/malle99/sounds/384187/"
+    },
+    "glass": {
+      "kit": "ding/kenney-interface-glass-001.ogg",
+      "title": "glass_001 (Interface Sounds)",
+      "author": "Kenney",
+      "source": "https://kenney.nl/assets/interface-sounds"
+    },
+    "glass-short": {
+      "kit": "ding/kenney-interface-glass-002.ogg",
+      "title": "glass_002 (Interface Sounds)",
+      "author": "Kenney",
+      "source": "https://kenney.nl/assets/interface-sounds"
+    },
+    "bell": {
+      "kit": "ding/fs-571513-soft-notifications-bell-ding-d.ogg",
+      "title": "Soft-Notifications - Bell - Ding-Dong",
+      "author": "LegitCheese",
+      "source": "https://freesound.org/people/LegitCheese/sounds/571513/"
+    },
+    "bong": {
+      "kit": "ding/kenney-interface-bong-001.ogg",
+      "title": "bong_001 (Interface Sounds)",
+      "author": "Kenney",
+      "source": "https://kenney.nl/assets/interface-sounds"
+    },
+    "note": {
+      "kit": "ding/kenney-interface-confirmation-001.ogg",
+      "title": "confirmation_001 (Interface Sounds)",
+      "author": "Kenney",
+      "source": "https://kenney.nl/assets/interface-sounds"
+    },
+    "pluck-a": {
+      "kit": "pop/kenney-interface-pluck-001.ogg",
+      "title": "pluck_001 (Interface Sounds)",
+      "author": "Kenney",
+      "source": "https://kenney.nl/assets/interface-sounds"
+    },
+    "pluck-b": {
+      "kit": "pop/kenney-interface-pluck-002.ogg",
+      "title": "pluck_002 (Interface Sounds)",
+      "author": "Kenney",
+      "source": "https://kenney.nl/assets/interface-sounds"
+    },
+    "blip": {
+      "kit": "ui-blip/kenney-ui-rollover2.ogg",
+      "title": "rollover2 (UI Audio)",
+      "author": "Kenney",
+      "source": "https://kenney.nl/assets/ui-audio"
+    },
+    "pop-in": {
+      "kit": "pop/fs-824189-pop-in-sfx.ogg",
+      "title": "Pop-in SFX",
+      "author": "Sadiquecat",
+      "source": "https://freesound.org/people/Sadiquecat/sounds/824189/"
+    },
+    "select": {
+      "kit": "click/kenney-interface-select-001.ogg",
+      "title": "select_001 (Interface Sounds)",
+      "author": "Kenney",
+      "source": "https://kenney.nl/assets/interface-sounds"
+    },
+    "key": {
+      "kit": "click/kenney-interface-click-001.ogg",
+      "title": "click_001 (Interface Sounds)",
+      "author": "Kenney",
+      "source": "https://kenney.nl/assets/interface-sounds"
+    },
+    "confirm": {
+      "kit": "ding/kenney-interface-confirmation-002.ogg",
+      "title": "confirmation_002 (Interface Sounds)",
+      "author": "Kenney",
+      "source": "https://kenney.nl/assets/interface-sounds"
+    }
+  },
+  "cues": [
+    { "id": "s1-pin", "at": 0.5, "picture": "the pin lands on Davao", "under": 20, "hits": [{ "s": "pop" }] },
+    {
+      "id": "s1-dots",
+      "at": 3.0,
+      "picture": "the 64 dots scatter (3.0) and settle (3.9)",
+      "under": 20,
+      "hits": [{ "s": "whoosh-quick" }, { "s": "drop-small", "t": 0.85, "g": -2 }]
+    },
+    {
+      "id": "s1-slip-slide",
+      "at": 7.85,
+      "picture": "the weigh-slip slides in",
+      "under": 18,
+      "hits": [{ "s": "swipe", "len": 0.7 }]
+    },
+    {
+      "id": "s1-pen-weight",
+      "at": 8.81,
+      "picture": "the pen writes the weight (8.81-9.55)",
+      "under": 20,
+      "hits": [{ "s": "scratch", "len": 0.74 }]
+    },
+    {
+      "id": "s1-flicks",
+      "at": 10.0,
+      "picture": "five more slips flick onto the stack, 0.11 s apart",
+      "under": 18,
+      "hits": [
+        { "s": "swish" },
+        { "s": "swish", "t": 0.11, "g": -2 },
+        { "s": "swish", "t": 0.22, "g": -1 },
+        { "s": "swish", "t": 0.33, "g": -3 },
+        { "s": "swish", "t": 0.44, "g": -1.5 }
+      ]
+    },
+    {
+      "id": "s1-token",
+      "at": 13.1,
+      "picture": "the one payment's token lands (soft, bright)",
+      "under": 16,
+      "hits": [{ "s": "glass" }]
+    },
+
+    {
+      "id": "s2-pen-row-1",
+      "at": 22.7,
+      "picture": "a notebook row is written",
+      "under": 20,
+      "hits": [{ "s": "scratch", "len": 0.35 }]
+    },
+    {
+      "id": "s2-pen-row-2",
+      "at": 23.4,
+      "picture": "a second notebook row",
+      "under": 20,
+      "hits": [{ "s": "scratch", "from": 0.4, "len": 0.33 }]
+    },
+    {
+      "id": "s2-slips-box",
+      "at": 23.75,
+      "picture": "slips drop into the box (23.75-24.5)",
+      "under": 18,
+      "hits": [{ "s": "drop-a" }, { "s": "drop-b", "t": 0.3, "g": -2 }, { "s": "drop-a", "t": 0.6, "g": -3 }]
+    },
+    {
+      "id": "s2-counted-twice",
+      "at": 26.64,
+      "picture": "the white slip and its pink copy are each ticked: +1, +1",
+      "under": 18,
+      "hits": [{ "s": "pen-tick" }, { "s": "pen-tick", "t": 0.24 }]
+    },
+    {
+      "id": "s2-fine",
+      "at": 29.3,
+      "picture": "the red ballpoint writes the fine: a harder stroke (29.3-29.9)",
+      "under": 16,
+      "hits": [{ "s": "scratch", "len": 0.6 }]
+    },
+    {
+      "id": "s2-question-dots",
+      "at": 32.3,
+      "picture": "the dots flip to question marks (32.3-32.9)",
+      "under": 20,
+      "hits": [
+        { "s": "blip" },
+        { "s": "blip", "t": 0.18, "g": -1 },
+        { "s": "blip", "t": 0.36, "g": -2 },
+        { "s": "blip", "t": 0.54, "g": -1 }
+      ]
+    },
+    {
+      "id": "s2-question",
+      "at": 35.8,
+      "picture": "the '?' on the broken line to the buyer",
+      "under": 18,
+      "hits": [{ "s": "bong" }]
+    },
+    {
+      "id": "s2-scatter",
+      "at": 36.5,
+      "picture": "the slips scatter",
+      "under": 18,
+      "hits": [{ "s": "rustle" }]
+    },
+    {
+      "id": "s2-riser",
+      "at": 38.0,
+      "anchor": "end",
+      "picture": "the rise into the turn, ending on 38.0 (it runs through the bed's 0.2 s of silence), then the hit",
+      "under": 14,
+      "hits": [{ "s": "riser", "fade": 0.01 }]
+    },
+
+    {
+      "id": "s3-paper-run",
+      "at": 38.0,
+      "picture": "the slips snap into one line: a tight run of paper ticks into the hit",
+      "under": 16,
+      "hits": [
+        { "s": "swish", "g": -3, "len": 0.11 },
+        { "s": "swish", "t": 0.13, "g": -2, "len": 0.1 },
+        { "s": "swish", "t": 0.24, "g": -1, "len": 0.09 },
+        { "s": "swish", "t": 0.33, "len": 0.09 }
+      ]
+    },
+    {
+      "id": "s3-hit",
+      "at": 38.42,
+      "picture": "the slips land flat (38.42) and the wordmark 'Fair Split' arrives (38.45)",
+      "under": 12,
+      "hits": [
+        { "s": "tap", "g": -4 },
+        { "s": "impact", "t": 0.03 },
+        { "s": "impact-drum", "t": 0.03, "g": -2 }
+      ]
+    },
+    {
+      "id": "s3-jade",
+      "at": 41.2,
+      "picture": "the jade amount on the phone statement",
+      "under": 16,
+      "hits": [{ "s": "bell" }]
+    },
+    { "id": "s3-tick", "at": 42.02, "picture": "the buyer's tick", "under": 18, "hits": [{ "s": "tick" }] },
+    {
+      "id": "s3-title",
+      "at": 52.45,
+      "picture": "the title 'Working today'",
+      "under": 18,
+      "hits": [{ "s": "pop-in" }]
+    },
+
+    {
+      "id": "s4-step-2",
+      "at": 58.44,
+      "picture": "step 2 Read arrives",
+      "under": 20,
+      "hits": [{ "s": "pop-in" }]
+    },
+    {
+      "id": "s4-readings",
+      "at": 61.53,
+      "picture": "the stained digit's card arrives",
+      "under": 20,
+      "hits": [{ "s": "drop-small" }]
+    },
+    {
+      "id": "s4-key",
+      "at": 63.36,
+      "picture": "the digit is typed by hand: one key press (the picture's 63.44, sounded 0.08 s early so it sits in the pause before 'a person')",
+      "under": 20,
+      "hits": [{ "s": "key" }]
+    },
+    {
+      "id": "s4-outline-1",
+      "at": 63.88,
+      "picture": "outline: the hand-typed 64.50",
+      "under": 22,
+      "hits": [{ "s": "tick" }]
+    },
+    {
+      "id": "s4-step-3",
+      "at": 65.05,
+      "picture": "step 3 Compute arrives",
+      "under": 20,
+      "hits": [{ "s": "pop-in" }]
+    },
+    {
+      "id": "s4-holds",
+      "at": 69.57,
+      "picture": "the held rows arrive",
+      "under": 20,
+      "hits": [{ "s": "drop-small" }]
+    },
+    {
+      "id": "s4-outline-2",
+      "at": 69.97,
+      "picture": "outline: the three held rows (one tick of the three)",
+      "under": 22,
+      "hits": [{ "s": "tick" }]
+    },
+    {
+      "id": "s4-step-4",
+      "at": 72.0,
+      "picture": "step 4 Check arrives",
+      "under": 20,
+      "hits": [{ "s": "pop-in" }]
+    },
+    {
+      "id": "s4-money-back",
+      "at": 77.04,
+      "picture": "+US$17.94 back to 63 members: the money chime, once",
+      "under": 18,
+      "hits": [{ "s": "bell" }]
+    },
+    {
+      "id": "s4-step-5",
+      "at": 81.61,
+      "picture": "step 5 Sign arrives",
+      "under": 20,
+      "hits": [{ "s": "pop-in" }]
+    },
+    {
+      "id": "s4-signed",
+      "at": 86.45,
+      "picture": "the second signature: both signed",
+      "under": 18,
+      "hits": [{ "s": "confirm" }]
+    },
+    {
+      "id": "s4-step-6",
+      "at": 87.98,
+      "picture": "step 6 Pay arrives",
+      "under": 20,
+      "hits": [{ "s": "pop-in" }]
+    },
+    {
+      "id": "s4-outline-3",
+      "at": 88.54,
+      "picture": "outline: 7 PayPal",
+      "under": 22,
+      "hits": [{ "s": "tick" }]
+    },
+    {
+      "id": "s4-cash",
+      "at": 90.85,
+      "picture": "the cash figures arrive",
+      "under": 20,
+      "hits": [{ "s": "drop-small" }]
+    },
+    {
+      "id": "s4-outline-4",
+      "at": 91.72,
+      "picture": "outline: 57 cash",
+      "under": 22,
+      "hits": [{ "s": "tick" }]
+    },
+    {
+      "id": "s4-step-7",
+      "at": 94.28,
+      "picture": "step 7 Explain arrives",
+      "under": 20,
+      "hits": [{ "s": "pop-in" }]
+    },
+    {
+      "id": "s4-phone",
+      "at": 97.25,
+      "picture": "her phone slides",
+      "under": 20,
+      "hits": [{ "s": "whoosh-quick" }]
+    },
+    {
+      "id": "s4-outline-5",
+      "at": 98.0,
+      "picture": "outline: the listen control",
+      "under": 22,
+      "hits": [{ "s": "tick" }]
+    },
+    {
+      "id": "s4-step-8",
+      "at": 102.43,
+      "picture": "step 8 Prove arrives",
+      "under": 20,
+      "hits": [{ "s": "pop-in" }]
+    },
+    {
+      "id": "s4-checks",
+      "at": 103.32,
+      "picture": "the six checks: the confirm tone (on the start of 'checks', as cued; kept 20 dB under)",
+      "under": 20,
+      "hits": [{ "s": "confirm" }]
+    },
+    {
+      "id": "s4-browser",
+      "at": 104.75,
+      "picture": "the buyer's checks card settles",
+      "under": 20,
+      "hits": [{ "s": "drop-small" }]
+    },
+    {
+      "id": "s4-outline-6",
+      "at": 105.4,
+      "picture": "outline: 6 of 6 checks",
+      "under": 22,
+      "hits": [{ "s": "tick" }]
+    },
+
+    {
+      "id": "s5-box",
+      "at": 110.5,
+      "picture": "the box of slips (Before)",
+      "under": 18,
+      "hits": [{ "s": "whoosh-quick" }]
+    },
+    {
+      "id": "s5-ticks",
+      "at": 114.31,
+      "picture": "five ticks draw: Read, Computed, Signed, Paid, Proven; the fourth (Paid) a little brighter",
+      "under": 18,
+      "hits": [
+        { "s": "tick" },
+        { "s": "tick", "t": 0.38 },
+        { "s": "tick", "t": 0.76 },
+        { "s": "tick", "t": 1.14 },
+        { "s": "glass-short", "t": 1.14, "g": -5 },
+        { "s": "tick", "t": 1.52 }
+      ]
+    },
+    {
+      "id": "s5-53-6",
+      "at": 118.05,
+      "picture": "'53.6 s': one clean low note",
+      "under": 16,
+      "hits": [{ "s": "note" }]
+    },
+
+    {
+      "id": "s6-stage-1",
+      "at": 123.22,
+      "picture": "stage 1 READ arrives",
+      "under": 20,
+      "hits": [{ "s": "pluck-a" }]
+    },
+    {
+      "id": "s6-leg-1",
+      "at": 126.8,
+      "picture": "the slip token slides along the first lane leg",
+      "under": 20,
+      "hits": [{ "s": "whoosh-quick" }]
+    },
+    {
+      "id": "s6-stage-2",
+      "at": 130.15,
+      "picture": "stage 2 COMPUTE arrives",
+      "under": 20,
+      "hits": [{ "s": "pluck-b" }]
+    },
+    {
+      "id": "s6-leg-2",
+      "at": 131.1,
+      "picture": "the second lane leg",
+      "under": 20,
+      "hits": [{ "s": "whoosh-quick" }]
+    },
+    {
+      "id": "s6-stage-3",
+      "at": 135.24,
+      "picture": "stage 3 APPROVE arrives",
+      "under": 20,
+      "hits": [{ "s": "pluck-a" }]
+    },
+    {
+      "id": "s6-leg-3",
+      "at": 136.5,
+      "picture": "the third lane leg",
+      "under": 20,
+      "hits": [{ "s": "whoosh-quick" }]
+    },
+    {
+      "id": "s6-seal-rings",
+      "at": 137.76,
+      "picture": "the two keys draw the seal's rings (137.76, 138.16)",
+      "under": 20,
+      "hits": [{ "s": "scratch", "len": 0.28 }, { "s": "scratch", "t": 0.4, "from": 0.4, "len": 0.28 }]
+    },
+    {
+      "id": "s6-stage-4",
+      "at": 141.19,
+      "picture": "stage 4 PAY arrives",
+      "under": 20,
+      "hits": [{ "s": "pluck-b" }]
+    },
+    {
+      "id": "s6-seal-match",
+      "at": 148.4,
+      "picture": "the seal travels to stage 4 (148.40) and matches PayPal's request: a clean click (149.20)",
+      "under": 16,
+      "hits": [{ "s": "swipe", "len": 0.8, "g": -3 }, { "s": "click", "t": 0.8 }]
+    },
+    {
+      "id": "s6-money",
+      "at": 150.2,
+      "picture": "the money moves: the chime",
+      "under": 16,
+      "hits": [{ "s": "bell" }]
+    },
+    {
+      "id": "s6-links",
+      "at": 153.28,
+      "picture": "four links of the record chain close, 0.12 s apart",
+      "under": 20,
+      "hits": [
+        { "s": "select" },
+        { "s": "select", "t": 0.12 },
+        { "s": "select", "t": 0.24 },
+        { "s": "select", "t": 0.36 }
+      ]
+    },
+
+    {
+      "id": "s7-hit",
+      "at": 168.7,
+      "picture": "the wordmark 'Fair Split' on the final crest: the impact carries the hit (Aurora has none)",
+      "under": 12,
+      "hits": [{ "s": "impact" }, { "s": "impact-drum", "g": -2 }]
+    }
+  ],
+  "dropped": [
+    {
+      "at": 27.14,
+      "picture": "the outline around the double-counted slip",
+      "why": "0.26 s after the second pen tick and on the word 'twice.': the two ticks carry the beat"
+    },
+    {
+      "at": 55.42,
+      "picture": "step 1 Fund arrives",
+      "why": "0.08 s before the section's first word, 'The': the sound's body would sit on it"
+    },
+    { "at": 56.17, "picture": "outline tick", "why": "on the start of 'one'" },
+    { "at": 60.47, "picture": "outline tick", "why": "on the start of 'twice.'" },
+    { "at": 67.49, "picture": "outline tick", "why": "on the start of 'every'" },
+    { "at": 68.66, "picture": "card arrives", "why": "on the start of 'to' (to the cent)" },
+    {
+      "at": 70.11,
+      "picture": "second of three quick ticks",
+      "why": "on the end of 'stops', 0.08 s before 'what'"
+    },
+    { "at": 70.25, "picture": "third of three quick ticks", "why": "0.06 s into 'what'" },
+    { "at": 75.13, "picture": "outline tick", "why": "on the start of 'pink'" },
+    { "at": 78.09, "picture": "outline tick", "why": "on the start of 'eighteen'" },
+    { "at": 83.29, "picture": "outline tick", "why": "on the start of 'same'" },
+    { "at": 96.55, "picture": "outline tick", "why": "0.05 s before 'language,'" },
+    { "at": 97.7, "picture": "card arrives", "why": "0.02 s before 'listens.'" },
+    { "at": 99.31, "picture": "card arrives (the tap)", "why": "on the start of 'One'" },
+    { "at": 99.71, "picture": "outline tick", "why": "on the end of 'tap', 0.08 s before 'shows'" },
+    { "at": 100.33, "picture": "card arrives (the slip opens)", "why": "on the start of 'slip'" }
+  ]
+}

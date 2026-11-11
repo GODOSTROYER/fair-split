@@ -1,0 +1,287 @@
+/* Fair Split film v7: the one visual system (research/film-1111/storyboard.md, "Visual system (binding)").
+   Linked once by index.html; every section inherits it. Sections add only their own s<N>- prefixed rules.
+   Nothing here blurs, veils, dims or tints the frame. tools/lint.mjs enforces that on every file. */
+
+/* FS Sans for the film: the product's file with the slash cut out of its tabular zero (tools/unslash-zero.py), so
+   figures stay tabular and "US$4,333.50", "No. 0403" and "5,000+" show a plain zero. The mono keeps its own zero. */
+@font-face {
+  font-family: "FS Sans";
+  src: url("assets/fonts/FSSans-VF-film.woff2") format("woff2");
+  font-weight: 200 900;
+  font-stretch: 75% 125%;
+  font-style: normal;
+}
+/* the peso sign (U+20B1) is grafted from Noto, as in the product (assets/fonts/README.md) */
+@font-face {
+  font-family: "FS Sans";
+  src: url("assets/fonts/FSSansPeso.woff2") format("woff2");
+  font-weight: 200 900;
+  font-stretch: 75% 125%;
+  unicode-range: U+20B1;
+  font-style: normal;
+}
+/* the product's mono is the system stack (packages/tokens --fs-font-mono). No mono file is bundled: "FS Mono" is
+   the installed Cascadia Mono, then the rest of that stack, so the mono captions match the product on the machine
+   that renders the film (Cascadia Mono ships with Windows 11). */
+@font-face {
+  font-family: "FS Mono";
+  src:
+    local("Cascadia Mono"), local("CascadiaMono-Regular"), local("SF Mono"), local("Roboto Mono"),
+    local("Menlo"), local("Consolas");
+  font-weight: 400;
+  font-style: normal;
+}
+
+:root {
+  /* colour: storyboard "Colour"; indigo and jade are packages/tokens BALLPOINT and HAYAG_JADE */
+  --ground: #f7f8fb;
+  --ink: #0e1525;
+  --muted: #5b6475;
+  --hairline: #d9dee7;
+  --card: #ffffff;
+  --indigo: #4a2fd6; /* the one accent: highlights, the underline, a person's hand */
+  --jade: #14cc90; /* money that has arrived: fills and tokens */
+  --jade-ink: #06724f; /* the same jade as text on the light ground (tokens jade-text) */
+  --pink: #f4c9d4; /* the carbon-copy slip only (tokens COPY_PINK) */
+  --red-pen: #cf2a27; /* the unruled fine's ballpoint and the slip's serial only (tokens red) */
+
+  /* type */
+  --font-sans: "FS Sans", system-ui, sans-serif;
+  --font-mono: "FS Mono", ui-monospace, monospace;
+  --t-head-l: 150px;
+  --t-head: 120px;
+  --t-head-s: 96px;
+  --t-sub-l: 56px;
+  --t-sub: 48px;
+  --t-sub-s: 40px;
+  --t-label: 34px; /* architecture plain labels, 30 to 36 */
+  --t-small: 28px; /* the end card's paragraph, at least 26 */
+  --t-mono: 24px; /* mono captions, at least 22 */
+
+  /* frame */
+  --safe-x: 120px;
+  --safe-y: 84px;
+  --radius-window: 16px;
+  --radius-hl: 10px;
+  --shadow-window: 0 8px 30px rgba(14, 21, 37, 0.08);
+
+  /* motion: a move takes 0.5 to 0.9 s, ease-out, then the frame holds still */
+  --move: 0.7s;
+}
+
+* {
+  box-sizing: border-box;
+}
+html,
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: #f7f8fb;
+}
+body {
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-weight: 500;
+  font-size: var(--t-sub);
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums lining-nums;
+  font-kerning: normal;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: geometricPrecision;
+}
+
+/* the root and the one ground */
+#root {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+#film-ground,
+.ground {
+  position: absolute;
+  inset: 0;
+  background: var(--ground);
+}
+#root > div[data-composition-src] {
+  position: absolute;
+  inset: 0;
+}
+
+/* colour utilities */
+.ink {
+  color: var(--ink);
+}
+.muted {
+  color: var(--muted);
+}
+.indigo {
+  color: var(--indigo);
+}
+.money {
+  color: var(--jade-ink);
+}
+
+/* type utilities */
+.t-head,
+.t-head-l,
+.t-head-s {
+  margin: 0;
+  font-size: var(--t-head);
+  font-weight: 680;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  color: var(--ink);
+}
+.t-head-l {
+  font-size: var(--t-head-l);
+}
+.t-head-s {
+  font-size: var(--t-head-s);
+}
+.t-sub,
+.t-sub-l,
+.t-sub-s {
+  margin: 0;
+  font-size: var(--t-sub);
+  font-weight: 500;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+}
+.t-sub-l {
+  font-size: var(--t-sub-l);
+}
+.t-sub-s {
+  font-size: var(--t-sub-s);
+}
+.t-label {
+  margin: 0;
+  font-size: var(--t-label);
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.005em;
+}
+.t-small {
+  margin: 0;
+  font-size: var(--t-small);
+  font-weight: 450;
+  line-height: 1.45;
+}
+.t-mono {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--t-mono);
+  font-weight: 400;
+  line-height: 1.3;
+  letter-spacing: 0;
+  color: var(--muted);
+}
+.num {
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+/* a hairline rule */
+.hairline {
+  background: var(--hairline);
+  height: 1px;
+  border: 0;
+  margin: 0;
+}
+.hairline-box {
+  border: 1px solid var(--hairline);
+}
+
+/* a product window: a flat card, no browser chrome, no cursor. Fill it with FILM.mountStill(). */
+.window {
+  position: absolute;
+  overflow: hidden;
+  background: var(--card);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-window);
+  box-shadow: var(--shadow-window);
+}
+.window > img {
+  position: absolute;
+  display: block;
+  max-width: none;
+}
+
+/* the outline highlight: a 3 px indigo outline, radius 10, drawn on in 0.3 s by FILM.outline().
+   It sits on top of the element; nothing else in the frame changes brightness. */
+svg.hl {
+  position: absolute;
+  overflow: visible;
+  pointer-events: none;
+}
+svg.hl rect {
+  fill: none;
+  stroke: var(--indigo);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+/* the underline highlight: tween its scaleX from 0 (origin left) */
+.ul {
+  position: absolute;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--indigo);
+  transform-origin: 0 50%;
+}
+
+/* section 4's step label, top-left for the whole section: "1 Fund" and eight progress dots.
+   <div class="step"><span class="step-n">1</span><span class="step-w">Fund</span>
+     <span class="step-dots"><i class="on"></i><i></i> ... eight in all</span></div> */
+.step {
+  position: absolute;
+  left: var(--safe-x);
+  top: var(--safe-y);
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  font-size: var(--t-sub-s);
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  white-space: nowrap;
+}
+.step-n {
+  display: inline-block;
+  min-width: 0.62em;
+  color: var(--indigo);
+}
+.step-w {
+  display: inline-block;
+}
+.step-dots {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: 14px;
+}
+.step-dots i {
+  display: block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid var(--hairline);
+  background: var(--ground);
+}
+.step-dots i.on {
+  border-color: var(--indigo);
+  background: var(--indigo);
+}
+
+/* a stub section's title (the foundation's placeholder; scene builders delete it) */
+.stub {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 24px;
+  padding: 0 var(--safe-x);
+}

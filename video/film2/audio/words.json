@@ -1,0 +1,2032 @@
+{
+  "version": 1,
+  "unit": "film seconds",
+  "duration": 175,
+  "measured": true,
+  "sections": {
+    "s1": {
+      "start": 0,
+      "end": 17,
+      "clip": "narration/s1.m4a",
+      "speech": [0.5, 15.65],
+      "text": "Davao, in the Philippines. Sixty-four farmers grow cacao for one co-op. Every delivery is weighed, and written on a paper slip. Then a chocolate maker overseas pays one premium, for the whole harvest.",
+      "words": [
+        {
+          "w": "Davao,",
+          "start": 0.5,
+          "end": 1.02
+        },
+        {
+          "w": "in",
+          "start": 1.02,
+          "end": 1.24
+        },
+        {
+          "w": "the",
+          "start": 1.24,
+          "end": 1.34
+        },
+        {
+          "w": "Philippines.",
+          "start": 1.34,
+          "end": 1.76
+        },
+        {
+          "w": "Sixty-four",
+          "start": 3.13,
+          "end": 3.58
+        },
+        {
+          "w": "farmers",
+          "start": 3.58,
+          "end": 4.18
+        },
+        {
+          "w": "grow",
+          "start": 4.18,
+          "end": 4.6
+        },
+        {
+          "w": "cacao",
+          "start": 4.6,
+          "end": 4.98
+        },
+        {
+          "w": "for",
+          "start": 4.98,
+          "end": 5.44
+        },
+        {
+          "w": "one",
+          "start": 5.44,
+          "end": 5.7
+        },
+        {
+          "w": "co-op.",
+          "start": 5.7,
+          "end": 6.11
+        },
+        {
+          "w": "Every",
+          "start": 7.21,
+          "end": 7.39
+        },
+        {
+          "w": "delivery",
+          "start": 7.39,
+          "end": 7.73
+        },
+        {
+          "w": "is",
+          "start": 7.73,
+          "end": 7.99
+        },
+        {
+          "w": "weighed,",
+          "start": 7.99,
+          "end": 8.35
+        },
+        {
+          "w": "and",
+          "start": 8.35,
+          "end": 8.81
+        },
+        {
+          "w": "written",
+          "start": 8.81,
+          "end": 9.03
+        },
+        {
+          "w": "on",
+          "start": 9.03,
+          "end": 9.25
+        },
+        {
+          "w": "a",
+          "start": 9.25,
+          "end": 9.37
+        },
+        {
+          "w": "paper",
+          "start": 9.37,
+          "end": 9.55
+        },
+        {
+          "w": "slip.",
+          "start": 9.55,
+          "end": 9.89
+        },
+        {
+          "w": "Then",
+          "start": 11.01,
+          "end": 11.11
+        },
+        {
+          "w": "a",
+          "start": 11.11,
+          "end": 11.23
+        },
+        {
+          "w": "chocolate",
+          "start": 11.23,
+          "end": 11.49
+        },
+        {
+          "w": "maker",
+          "start": 11.49,
+          "end": 11.89
+        },
+        {
+          "w": "overseas",
+          "start": 11.89,
+          "end": 12.37
+        },
+        {
+          "w": "pays",
+          "start": 12.37,
+          "end": 13.15
+        },
+        {
+          "w": "one",
+          "start": 13.15,
+          "end": 13.49
+        },
+        {
+          "w": "premium,",
+          "start": 13.49,
+          "end": 13.95
+        },
+        {
+          "w": "for",
+          "start": 14.53,
+          "end": 14.61
+        },
+        {
+          "w": "the",
+          "start": 14.61,
+          "end": 14.73
+        },
+        {
+          "w": "whole",
+          "start": 14.73,
+          "end": 15.07
+        },
+        {
+          "w": "harvest.",
+          "start": 15.07,
+          "end": 15.65
+        }
+      ]
+    },
+    "s2": {
+      "start": 17,
+      "end": 38,
+      "clip": "narration/s2.m4a",
+      "speech": [17.5, 36.94],
+      "text": "One payment. Sixty-four farmers. The split is done by hand, from a box of slips. A carbon copy gets counted twice. A fine appears that no rule allows. Farmers can't check their share. The buyer can't prove the money arrived.",
+      "words": [
+        {
+          "w": "One",
+          "start": 17.5,
+          "end": 17.74
+        },
+        {
+          "w": "payment.",
+          "start": 17.74,
+          "end": 18.06
+        },
+        {
+          "w": "Sixty-four",
+          "start": 19.32,
+          "end": 19.72
+        },
+        {
+          "w": "farmers.",
+          "start": 19.72,
+          "end": 20.34
+        },
+        {
+          "w": "The",
+          "start": 21.67,
+          "end": 21.74
+        },
+        {
+          "w": "split",
+          "start": 21.74,
+          "end": 22.08
+        },
+        {
+          "w": "is",
+          "start": 22.08,
+          "end": 22.34
+        },
+        {
+          "w": "done",
+          "start": 22.34,
+          "end": 22.52
+        },
+        {
+          "w": "by",
+          "start": 22.52,
+          "end": 22.68
+        },
+        {
+          "w": "hand,",
+          "start": 22.68,
+          "end": 23.18
+        },
+        {
+          "w": "from",
+          "start": 23.54,
+          "end": 23.66
+        },
+        {
+          "w": "a",
+          "start": 23.66,
+          "end": 23.8
+        },
+        {
+          "w": "box",
+          "start": 23.8,
+          "end": 24.04
+        },
+        {
+          "w": "of",
+          "start": 24.04,
+          "end": 24.18
+        },
+        {
+          "w": "slips.",
+          "start": 24.18,
+          "end": 24.69
+        },
+        {
+          "w": "A",
+          "start": 25.79,
+          "end": 25.91
+        },
+        {
+          "w": "carbon",
+          "start": 25.91,
+          "end": 26.16
+        },
+        {
+          "w": "copy",
+          "start": 26.16,
+          "end": 26.64
+        },
+        {
+          "w": "gets",
+          "start": 26.64,
+          "end": 26.88
+        },
+        {
+          "w": "counted",
+          "start": 26.88,
+          "end": 27.14
+        },
+        {
+          "w": "twice.",
+          "start": 27.14,
+          "end": 27.6
+        },
+        {
+          "w": "A",
+          "start": 28.89,
+          "end": 28.95
+        },
+        {
+          "w": "fine",
+          "start": 28.95,
+          "end": 29.29
+        },
+        {
+          "w": "appears",
+          "start": 29.29,
+          "end": 29.61
+        },
+        {
+          "w": "that",
+          "start": 29.61,
+          "end": 29.93
+        },
+        {
+          "w": "no",
+          "start": 29.93,
+          "end": 30.27
+        },
+        {
+          "w": "rule",
+          "start": 30.27,
+          "end": 30.57
+        },
+        {
+          "w": "allows.",
+          "start": 30.57,
+          "end": 30.99
+        },
+        {
+          "w": "Farmers",
+          "start": 32.27,
+          "end": 32.71
+        },
+        {
+          "w": "can't",
+          "start": 32.71,
+          "end": 33.01
+        },
+        {
+          "w": "check",
+          "start": 33.01,
+          "end": 33.15
+        },
+        {
+          "w": "their",
+          "start": 33.15,
+          "end": 33.33
+        },
+        {
+          "w": "share.",
+          "start": 33.33,
+          "end": 33.63
+        },
+        {
+          "w": "The",
+          "start": 34.81,
+          "end": 34.87
+        },
+        {
+          "w": "buyer",
+          "start": 34.87,
+          "end": 35.21
+        },
+        {
+          "w": "can't",
+          "start": 35.21,
+          "end": 35.81
+        },
+        {
+          "w": "prove",
+          "start": 35.81,
+          "end": 36.05
+        },
+        {
+          "w": "the",
+          "start": 36.05,
+          "end": 36.25
+        },
+        {
+          "w": "money",
+          "start": 36.25,
+          "end": 36.45
+        },
+        {
+          "w": "arrived.",
+          "start": 36.45,
+          "end": 36.94
+        }
+      ]
+    },
+    "s3": {
+      "start": 38,
+      "end": 55,
+      "clip": "narration/s3.m4a",
+      "speech": [38.5, 53.19],
+      "text": "Fair Split turns a season of paper into pay anyone can check. The vision: every co-op, every farmer, paid fairly, by PayPal or in cash, with proof for the buyer. Here's what works today.",
+      "words": [
+        {
+          "w": "Fair",
+          "start": 38.5,
+          "end": 38.633
+        },
+        {
+          "w": "Split",
+          "start": 38.633,
+          "end": 39.07
+        },
+        {
+          "w": "turns",
+          "start": 39.23,
+          "end": 39.4
+        },
+        {
+          "w": "a",
+          "start": 39.4,
+          "end": 39.58
+        },
+        {
+          "w": "season",
+          "start": 39.58,
+          "end": 39.94
+        },
+        {
+          "w": "of",
+          "start": 39.94,
+          "end": 40.16
+        },
+        {
+          "w": "paper",
+          "start": 40.16,
+          "end": 40.58
+        },
+        {
+          "w": "into",
+          "start": 40.58,
+          "end": 40.98
+        },
+        {
+          "w": "pay",
+          "start": 40.98,
+          "end": 41.28
+        },
+        {
+          "w": "anyone",
+          "start": 41.28,
+          "end": 41.64
+        },
+        {
+          "w": "can",
+          "start": 41.64,
+          "end": 42.02
+        },
+        {
+          "w": "check.",
+          "start": 42.02,
+          "end": 42.36
+        },
+        {
+          "w": "The",
+          "start": 43.54,
+          "end": 43.64
+        },
+        {
+          "w": "vision:",
+          "start": 43.64,
+          "end": 43.88
+        },
+        {
+          "w": "every",
+          "start": 44.66,
+          "end": 44.86
+        },
+        {
+          "w": "co-op,",
+          "start": 44.86,
+          "end": 45.4
+        },
+        {
+          "w": "every",
+          "start": 45.8,
+          "end": 46.04
+        },
+        {
+          "w": "farmer,",
+          "start": 46.04,
+          "end": 46.52
+        },
+        {
+          "w": "paid",
+          "start": 46.86,
+          "end": 47.08
+        },
+        {
+          "w": "fairly,",
+          "start": 47.08,
+          "end": 47.6
+        },
+        {
+          "w": "by",
+          "start": 48.18,
+          "end": 48.26
+        },
+        {
+          "w": "PayPal",
+          "start": 48.26,
+          "end": 48.56
+        },
+        {
+          "w": "or",
+          "start": 48.56,
+          "end": 49.02
+        },
+        {
+          "w": "in",
+          "start": 49.02,
+          "end": 49.18
+        },
+        {
+          "w": "cash,",
+          "start": 49.18,
+          "end": 49.52
+        },
+        {
+          "w": "with",
+          "start": 50.08,
+          "end": 50.16
+        },
+        {
+          "w": "proof",
+          "start": 50.16,
+          "end": 50.48
+        },
+        {
+          "w": "for",
+          "start": 50.48,
+          "end": 50.72
+        },
+        {
+          "w": "the",
+          "start": 50.72,
+          "end": 50.8
+        },
+        {
+          "w": "buyer.",
+          "start": 50.8,
+          "end": 51.08
+        },
+        {
+          "w": "Here's",
+          "start": 52.27,
+          "end": 52.55
+        },
+        {
+          "w": "what",
+          "start": 52.55,
+          "end": 52.65
+        },
+        {
+          "w": "works",
+          "start": 52.65,
+          "end": 52.91
+        },
+        {
+          "w": "today.",
+          "start": 52.91,
+          "end": 53.19
+        }
+      ]
+    },
+    "s4": {
+      "start": 55,
+      "end": 109,
+      "clip": "narration/s4.m4a",
+      "speech": [55.5, 105.74],
+      "text": "The buyer pays one PayPal invoice. Claude reads every slip, twice. If the readings disagree, a person decides. Code, not AI, works out every share, to the cent, and stops what it can't explain. This slip was counted twice: once from its pink copy. Once fixed, almost eighteen dollars goes back to sixty-three farmers. Two officers sign the same batch: the treasurer at her desk, the chair on his phone. PayPal pays the farmers who have an account. The rest get cash, on the same statement. Nang Celing reads her pay in her own language, or listens. One tap shows the slip behind each peso. And the buyer checks every line, in her own browser.",
+      "lines": {
+        "4a": {
+          "start": 55.5,
+          "end": 57.51,
+          "text": "The buyer pays one PayPal invoice."
+        },
+        "4b": {
+          "start": 58.9,
+          "end": 64.06,
+          "text": "Claude reads every slip, twice. If the readings disagree, a person decides."
+        },
+        "4c": {
+          "start": 65.51,
+          "end": 71.15,
+          "text": "Code, not AI, works out every share, to the cent, and stops what it can't explain."
+        },
+        "4d": {
+          "start": 72.46,
+          "end": 80.61,
+          "text": "This slip was counted twice: once from its pink copy. Once fixed, almost eighteen dollars goes back to sixty-three farmers."
+        },
+        "4e": {
+          "start": 82.07,
+          "end": 87.23,
+          "text": "Two officers sign the same batch: the treasurer at her desk, the chair on his phone."
+        },
+        "4f": {
+          "start": 88.44,
+          "end": 93.44,
+          "text": "PayPal pays the farmers who have an account. The rest get cash, on the same statement."
+        },
+        "4g": {
+          "start": 94.74,
+          "end": 101.53,
+          "text": "Nang Celing reads her pay in her own language, or listens. One tap shows the slip behind each peso."
+        },
+        "4h": {
+          "start": 102.89,
+          "end": 105.74,
+          "text": "And the buyer checks every line, in her own browser."
+        }
+      },
+      "words": [
+        {
+          "w": "The",
+          "start": 55.5,
+          "end": 55.57,
+          "line": "4a"
+        },
+        {
+          "w": "buyer",
+          "start": 55.57,
+          "end": 55.85,
+          "line": "4a"
+        },
+        {
+          "w": "pays",
+          "start": 55.85,
+          "end": 56.17,
+          "line": "4a"
+        },
+        {
+          "w": "one",
+          "start": 56.17,
+          "end": 56.55,
+          "line": "4a"
+        },
+        {
+          "w": "PayPal",
+          "start": 56.55,
+          "end": 57.01,
+          "line": "4a"
+        },
+        {
+          "w": "invoice.",
+          "start": 57.01,
+          "end": 57.51,
+          "line": "4a"
+        },
+        {
+          "w": "Claude",
+          "start": 58.9,
+          "end": 59.18,
+          "line": "4b"
+        },
+        {
+          "w": "reads",
+          "start": 59.18,
+          "end": 59.38,
+          "line": "4b"
+        },
+        {
+          "w": "every",
+          "start": 59.38,
+          "end": 59.74,
+          "line": "4b"
+        },
+        {
+          "w": "slip,",
+          "start": 59.74,
+          "end": 60.08,
+          "line": "4b"
+        },
+        {
+          "w": "twice.",
+          "start": 60.47,
+          "end": 60.62,
+          "line": "4b"
+        },
+        {
+          "w": "If",
+          "start": 61.95,
+          "end": 62.04,
+          "line": "4b"
+        },
+        {
+          "w": "the",
+          "start": 62.04,
+          "end": 62.18,
+          "line": "4b"
+        },
+        {
+          "w": "readings",
+          "start": 62.18,
+          "end": 62.42,
+          "line": "4b"
+        },
+        {
+          "w": "disagree,",
+          "start": 62.42,
+          "end": 62.86,
+          "line": "4b"
+        },
+        {
+          "w": "a",
+          "start": 63.44,
+          "end": 63.48,
+          "line": "4b"
+        },
+        {
+          "w": "person",
+          "start": 63.48,
+          "end": 63.78,
+          "line": "4b"
+        },
+        {
+          "w": "decides.",
+          "start": 63.78,
+          "end": 64.06,
+          "line": "4b"
+        },
+        {
+          "w": "Code,",
+          "start": 65.51,
+          "end": 65.83,
+          "line": "4c"
+        },
+        {
+          "w": "not",
+          "start": 65.83,
+          "end": 66.33,
+          "line": "4c"
+        },
+        {
+          "w": "AI,",
+          "start": 66.33,
+          "end": 66.61,
+          "line": "4c"
+        },
+        {
+          "w": "works",
+          "start": 67.11,
+          "end": 67.23,
+          "line": "4c"
+        },
+        {
+          "w": "out",
+          "start": 67.23,
+          "end": 67.49,
+          "line": "4c"
+        },
+        {
+          "w": "every",
+          "start": 67.49,
+          "end": 67.89,
+          "line": "4c"
+        },
+        {
+          "w": "share,",
+          "start": 67.89,
+          "end": 68.27,
+          "line": "4c"
+        },
+        {
+          "w": "to",
+          "start": 68.66,
+          "end": 68.81,
+          "line": "4c"
+        },
+        {
+          "w": "the",
+          "start": 68.81,
+          "end": 68.93,
+          "line": "4c"
+        },
+        {
+          "w": "cent,",
+          "start": 68.93,
+          "end": 69.25,
+          "line": "4c"
+        },
+        {
+          "w": "and",
+          "start": 69.77,
+          "end": 69.87,
+          "line": "4c"
+        },
+        {
+          "w": "stops",
+          "start": 69.87,
+          "end": 70.19,
+          "line": "4c"
+        },
+        {
+          "w": "what",
+          "start": 70.19,
+          "end": 70.43,
+          "line": "4c"
+        },
+        {
+          "w": "it",
+          "start": 70.43,
+          "end": 70.55,
+          "line": "4c"
+        },
+        {
+          "w": "can't",
+          "start": 70.55,
+          "end": 70.83,
+          "line": "4c"
+        },
+        {
+          "w": "explain.",
+          "start": 70.83,
+          "end": 71.15,
+          "line": "4c"
+        },
+        {
+          "w": "This",
+          "start": 72.46,
+          "end": 72.65,
+          "line": "4d"
+        },
+        {
+          "w": "slip",
+          "start": 72.65,
+          "end": 72.89,
+          "line": "4d"
+        },
+        {
+          "w": "was",
+          "start": 72.89,
+          "end": 73.15,
+          "line": "4d"
+        },
+        {
+          "w": "counted",
+          "start": 73.15,
+          "end": 73.45,
+          "line": "4d"
+        },
+        {
+          "w": "twice:",
+          "start": 73.45,
+          "end": 73.77,
+          "line": "4d"
+        },
+        {
+          "w": "once",
+          "start": 74.45,
+          "end": 74.71,
+          "line": "4d"
+        },
+        {
+          "w": "from",
+          "start": 74.71,
+          "end": 74.99,
+          "line": "4d"
+        },
+        {
+          "w": "its",
+          "start": 74.99,
+          "end": 75.13,
+          "line": "4d"
+        },
+        {
+          "w": "pink",
+          "start": 75.13,
+          "end": 75.33,
+          "line": "4d"
+        },
+        {
+          "w": "copy.",
+          "start": 75.33,
+          "end": 75.69,
+          "line": "4d"
+        },
+        {
+          "w": "Once",
+          "start": 77.04,
+          "end": 77.21,
+          "line": "4d"
+        },
+        {
+          "w": "fixed,",
+          "start": 77.21,
+          "end": 77.53,
+          "line": "4d"
+        },
+        {
+          "w": "almost",
+          "start": 77.87,
+          "end": 78.09,
+          "line": "4d"
+        },
+        {
+          "w": "eighteen",
+          "start": 78.09,
+          "end": 78.389,
+          "line": "4d"
+        },
+        {
+          "w": "dollars",
+          "start": 78.389,
+          "end": 78.65,
+          "line": "4d"
+        },
+        {
+          "w": "goes",
+          "start": 78.65,
+          "end": 79.23,
+          "line": "4d"
+        },
+        {
+          "w": "back",
+          "start": 79.23,
+          "end": 79.47,
+          "line": "4d"
+        },
+        {
+          "w": "to",
+          "start": 79.47,
+          "end": 79.65,
+          "line": "4d"
+        },
+        {
+          "w": "sixty-three",
+          "start": 79.65,
+          "end": 80.17,
+          "line": "4d"
+        },
+        {
+          "w": "farmers.",
+          "start": 80.17,
+          "end": 80.61,
+          "line": "4d"
+        },
+        {
+          "w": "Two",
+          "start": 82.07,
+          "end": 82.23,
+          "line": "4e"
+        },
+        {
+          "w": "officers",
+          "start": 82.23,
+          "end": 82.61,
+          "line": "4e"
+        },
+        {
+          "w": "sign",
+          "start": 82.61,
+          "end": 83.07,
+          "line": "4e"
+        },
+        {
+          "w": "the",
+          "start": 83.07,
+          "end": 83.29,
+          "line": "4e"
+        },
+        {
+          "w": "same",
+          "start": 83.29,
+          "end": 83.57,
+          "line": "4e"
+        },
+        {
+          "w": "batch:",
+          "start": 83.57,
+          "end": 83.91,
+          "line": "4e"
+        },
+        {
+          "w": "the",
+          "start": 84.63,
+          "end": 84.67,
+          "line": "4e"
+        },
+        {
+          "w": "treasurer",
+          "start": 84.67,
+          "end": 85.13,
+          "line": "4e"
+        },
+        {
+          "w": "at",
+          "start": 85.13,
+          "end": 85.33,
+          "line": "4e"
+        },
+        {
+          "w": "her",
+          "start": 85.33,
+          "end": 85.49,
+          "line": "4e"
+        },
+        {
+          "w": "desk,",
+          "start": 85.49,
+          "end": 85.77,
+          "line": "4e"
+        },
+        {
+          "w": "the",
+          "start": 86.3,
+          "end": 86.35,
+          "line": "4e"
+        },
+        {
+          "w": "chair",
+          "start": 86.35,
+          "end": 86.57,
+          "line": "4e"
+        },
+        {
+          "w": "on",
+          "start": 86.57,
+          "end": 86.87,
+          "line": "4e"
+        },
+        {
+          "w": "his",
+          "start": 86.87,
+          "end": 86.99,
+          "line": "4e"
+        },
+        {
+          "w": "phone.",
+          "start": 86.99,
+          "end": 87.23,
+          "line": "4e"
+        },
+        {
+          "w": "PayPal",
+          "start": 88.44,
+          "end": 88.84,
+          "line": "4f"
+        },
+        {
+          "w": "pays",
+          "start": 88.84,
+          "end": 89.14,
+          "line": "4f"
+        },
+        {
+          "w": "the",
+          "start": 89.14,
+          "end": 89.34,
+          "line": "4f"
+        },
+        {
+          "w": "farmers",
+          "start": 89.34,
+          "end": 89.64,
+          "line": "4f"
+        },
+        {
+          "w": "who",
+          "start": 89.64,
+          "end": 89.94,
+          "line": "4f"
+        },
+        {
+          "w": "have",
+          "start": 89.94,
+          "end": 90.12,
+          "line": "4f"
+        },
+        {
+          "w": "an",
+          "start": 90.12,
+          "end": 90.2,
+          "line": "4f"
+        },
+        {
+          "w": "account.",
+          "start": 90.2,
+          "end": 90.5,
+          "line": "4f"
+        },
+        {
+          "w": "The",
+          "start": 91.1,
+          "end": 91.2,
+          "line": "4f"
+        },
+        {
+          "w": "rest",
+          "start": 91.2,
+          "end": 91.4,
+          "line": "4f"
+        },
+        {
+          "w": "get",
+          "start": 91.4,
+          "end": 91.62,
+          "line": "4f"
+        },
+        {
+          "w": "cash,",
+          "start": 91.62,
+          "end": 91.94,
+          "line": "4f"
+        },
+        {
+          "w": "on",
+          "start": 92.7,
+          "end": 92.8,
+          "line": "4f"
+        },
+        {
+          "w": "the",
+          "start": 92.8,
+          "end": 92.88,
+          "line": "4f"
+        },
+        {
+          "w": "same",
+          "start": 92.88,
+          "end": 93.08,
+          "line": "4f"
+        },
+        {
+          "w": "statement.",
+          "start": 93.08,
+          "end": 93.44,
+          "line": "4f"
+        },
+        {
+          "w": "Nang",
+          "start": 94.74,
+          "end": 94.98,
+          "line": "4g"
+        },
+        {
+          "w": "Celing",
+          "start": 94.98,
+          "end": 95.36,
+          "line": "4g"
+        },
+        {
+          "w": "reads",
+          "start": 95.36,
+          "end": 95.66,
+          "line": "4g"
+        },
+        {
+          "w": "her",
+          "start": 95.66,
+          "end": 95.86,
+          "line": "4g"
+        },
+        {
+          "w": "pay",
+          "start": 95.86,
+          "end": 96.16,
+          "line": "4g"
+        },
+        {
+          "w": "in",
+          "start": 96.16,
+          "end": 96.36,
+          "line": "4g"
+        },
+        {
+          "w": "her",
+          "start": 96.36,
+          "end": 96.48,
+          "line": "4g"
+        },
+        {
+          "w": "own",
+          "start": 96.48,
+          "end": 96.6,
+          "line": "4g"
+        },
+        {
+          "w": "language,",
+          "start": 96.6,
+          "end": 97.04,
+          "line": "4g"
+        },
+        {
+          "w": "or",
+          "start": 97.62,
+          "end": 97.72,
+          "line": "4g"
+        },
+        {
+          "w": "listens.",
+          "start": 97.72,
+          "end": 97.98,
+          "line": "4g"
+        },
+        {
+          "w": "One",
+          "start": 99.31,
+          "end": 99.51,
+          "line": "4g"
+        },
+        {
+          "w": "tap",
+          "start": 99.51,
+          "end": 99.79,
+          "line": "4g"
+        },
+        {
+          "w": "shows",
+          "start": 99.79,
+          "end": 100.09,
+          "line": "4g"
+        },
+        {
+          "w": "the",
+          "start": 100.09,
+          "end": 100.33,
+          "line": "4g"
+        },
+        {
+          "w": "slip",
+          "start": 100.33,
+          "end": 100.61,
+          "line": "4g"
+        },
+        {
+          "w": "behind",
+          "start": 100.61,
+          "end": 100.97,
+          "line": "4g"
+        },
+        {
+          "w": "each",
+          "start": 100.97,
+          "end": 101.23,
+          "line": "4g"
+        },
+        {
+          "w": "peso.",
+          "start": 101.23,
+          "end": 101.53,
+          "line": "4g"
+        },
+        {
+          "w": "And",
+          "start": 102.89,
+          "end": 102.96,
+          "line": "4h"
+        },
+        {
+          "w": "the",
+          "start": 102.96,
+          "end": 103.04,
+          "line": "4h"
+        },
+        {
+          "w": "buyer",
+          "start": 103.04,
+          "end": 103.32,
+          "line": "4h"
+        },
+        {
+          "w": "checks",
+          "start": 103.32,
+          "end": 103.68,
+          "line": "4h"
+        },
+        {
+          "w": "every",
+          "start": 103.68,
+          "end": 104.02,
+          "line": "4h"
+        },
+        {
+          "w": "line,",
+          "start": 104.02,
+          "end": 104.38,
+          "line": "4h"
+        },
+        {
+          "w": "in",
+          "start": 104.95,
+          "end": 105.04,
+          "line": "4h"
+        },
+        {
+          "w": "her",
+          "start": 105.04,
+          "end": 105.18,
+          "line": "4h"
+        },
+        {
+          "w": "own",
+          "start": 105.18,
+          "end": 105.3,
+          "line": "4h"
+        },
+        {
+          "w": "browser.",
+          "start": 105.3,
+          "end": 105.74,
+          "line": "4h"
+        }
+      ]
+    },
+    "s5": {
+      "start": 109,
+      "end": 120,
+      "clip": "narration/s5.m4a",
+      "speech": [109.5, 118.65],
+      "text": "Before: a box of slips, and trust. Now: one pay run that explains itself. In our demo, under a minute.",
+      "words": [
+        {
+          "w": "Before:",
+          "start": 109.5,
+          "end": 109.91
+        },
+        {
+          "w": "a",
+          "start": 110.52,
+          "end": 110.57
+        },
+        {
+          "w": "box",
+          "start": 110.57,
+          "end": 110.87
+        },
+        {
+          "w": "of",
+          "start": 110.87,
+          "end": 111.05
+        },
+        {
+          "w": "slips,",
+          "start": 111.05,
+          "end": 111.45
+        },
+        {
+          "w": "and",
+          "start": 111.45,
+          "end": 112.05
+        },
+        {
+          "w": "trust.",
+          "start": 112.05,
+          "end": 112.35
+        },
+        {
+          "w": "Now:",
+          "start": 113.34,
+          "end": 113.64
+        },
+        {
+          "w": "one",
+          "start": 114.31,
+          "end": 114.58
+        },
+        {
+          "w": "pay",
+          "start": 114.58,
+          "end": 114.86
+        },
+        {
+          "w": "run",
+          "start": 114.86,
+          "end": 115.12
+        },
+        {
+          "w": "that",
+          "start": 115.12,
+          "end": 115.4
+        },
+        {
+          "w": "explains",
+          "start": 115.4,
+          "end": 115.84
+        },
+        {
+          "w": "itself.",
+          "start": 115.84,
+          "end": 116.3
+        },
+        {
+          "w": "In",
+          "start": 117.19,
+          "end": 117.27
+        },
+        {
+          "w": "our",
+          "start": 117.27,
+          "end": 117.39
+        },
+        {
+          "w": "demo,",
+          "start": 117.39,
+          "end": 117.67
+        },
+        {
+          "w": "under",
+          "start": 118.15,
+          "end": 118.29
+        },
+        {
+          "w": "a",
+          "start": 118.29,
+          "end": 118.47
+        },
+        {
+          "w": "minute.",
+          "start": 118.47,
+          "end": 118.65
+        }
+      ]
+    },
+    "s6": {
+      "start": 120,
+      "end": 158,
+      "clip": "narration/s6.m4a",
+      "speech": [120.5, 155.1],
+      "text": "Under the hood, four rules. One: AI only reads. Claude turns slips into data, and never touches a number. Two: code does the math, under rules sealed before the season. Three: people approve. Two signatures lock one fingerprint of the batch. Four: PayPal moves the money. The invoice goes through PayPal's Agent Toolkit; payouts through our own tool, sent exactly once, and confirmed by signed notices. Every step is chained into a tamper-evident record.",
+      "lines": {
+        "one": {
+          "start": 123.221,
+          "end": 129.09,
+          "text": "One: AI only reads. Claude turns slips into data, and never touches a number."
+        },
+        "two": {
+          "start": 130.15,
+          "end": 134.24,
+          "text": "Two: code does the math, under rules sealed before the season."
+        },
+        "three": {
+          "start": 135.241,
+          "end": 140.12,
+          "text": "Three: people approve. Two signatures lock one fingerprint of the batch."
+        },
+        "four": {
+          "start": 141.19,
+          "end": 151.38,
+          "text": "Four: PayPal moves the money. The invoice goes through PayPal's Agent Toolkit; payouts through our own tool, sent exactly once, and confirmed by signed notices."
+        }
+      },
+      "words": [
+        {
+          "w": "Under",
+          "start": 120.5,
+          "end": 120.68
+        },
+        {
+          "w": "the",
+          "start": 120.68,
+          "end": 120.82
+        },
+        {
+          "w": "hood,",
+          "start": 120.82,
+          "end": 121.06
+        },
+        {
+          "w": "four",
+          "start": 121.44,
+          "end": 121.72
+        },
+        {
+          "w": "rules.",
+          "start": 121.72,
+          "end": 122.14
+        },
+        {
+          "w": "One:",
+          "start": 123.221,
+          "end": 123.411,
+          "line": "one"
+        },
+        {
+          "w": "AI",
+          "start": 124.03,
+          "end": 124.211,
+          "line": "one"
+        },
+        {
+          "w": "only",
+          "start": 124.211,
+          "end": 124.791,
+          "line": "one"
+        },
+        {
+          "w": "reads.",
+          "start": 124.791,
+          "end": 125.191,
+          "line": "one"
+        },
+        {
+          "w": "Claude",
+          "start": 126.07,
+          "end": 126.37,
+          "line": "one"
+        },
+        {
+          "w": "turns",
+          "start": 126.37,
+          "end": 126.73,
+          "line": "one"
+        },
+        {
+          "w": "slips",
+          "start": 126.73,
+          "end": 127.05,
+          "line": "one"
+        },
+        {
+          "w": "into",
+          "start": 127.05,
+          "end": 127.41,
+          "line": "one"
+        },
+        {
+          "w": "data,",
+          "start": 127.41,
+          "end": 127.65,
+          "line": "one"
+        },
+        {
+          "w": "and",
+          "start": 128.11,
+          "end": 128.19,
+          "line": "one"
+        },
+        {
+          "w": "never",
+          "start": 128.19,
+          "end": 128.43,
+          "line": "one"
+        },
+        {
+          "w": "touches",
+          "start": 128.43,
+          "end": 128.75,
+          "line": "one"
+        },
+        {
+          "w": "a",
+          "start": 128.75,
+          "end": 128.91,
+          "line": "one"
+        },
+        {
+          "w": "number.",
+          "start": 128.91,
+          "end": 129.09,
+          "line": "one"
+        },
+        {
+          "w": "Two:",
+          "start": 130.15,
+          "end": 130.36,
+          "line": "two"
+        },
+        {
+          "w": "code",
+          "start": 130.9,
+          "end": 131.14,
+          "line": "two"
+        },
+        {
+          "w": "does",
+          "start": 131.14,
+          "end": 131.56,
+          "line": "two"
+        },
+        {
+          "w": "the",
+          "start": 131.56,
+          "end": 131.72,
+          "line": "two"
+        },
+        {
+          "w": "math,",
+          "start": 131.72,
+          "end": 132,
+          "line": "two"
+        },
+        {
+          "w": "under",
+          "start": 132.55,
+          "end": 132.68,
+          "line": "two"
+        },
+        {
+          "w": "rules",
+          "start": 132.68,
+          "end": 132.96,
+          "line": "two"
+        },
+        {
+          "w": "sealed",
+          "start": 132.96,
+          "end": 133.42,
+          "line": "two"
+        },
+        {
+          "w": "before",
+          "start": 133.42,
+          "end": 133.78,
+          "line": "two"
+        },
+        {
+          "w": "the",
+          "start": 133.78,
+          "end": 133.98,
+          "line": "two"
+        },
+        {
+          "w": "season.",
+          "start": 133.98,
+          "end": 134.24,
+          "line": "two"
+        },
+        {
+          "w": "Three:",
+          "start": 135.241,
+          "end": 135.481,
+          "line": "three"
+        },
+        {
+          "w": "people",
+          "start": 136.041,
+          "end": 136.221,
+          "line": "three"
+        },
+        {
+          "w": "approve.",
+          "start": 136.221,
+          "end": 136.701,
+          "line": "three"
+        },
+        {
+          "w": "Two",
+          "start": 137.76,
+          "end": 137.9,
+          "line": "three"
+        },
+        {
+          "w": "signatures",
+          "start": 137.9,
+          "end": 138.26,
+          "line": "three"
+        },
+        {
+          "w": "lock",
+          "start": 138.26,
+          "end": 138.74,
+          "line": "three"
+        },
+        {
+          "w": "one",
+          "start": 138.74,
+          "end": 139.12,
+          "line": "three"
+        },
+        {
+          "w": "fingerprint",
+          "start": 139.12,
+          "end": 139.44,
+          "line": "three"
+        },
+        {
+          "w": "of",
+          "start": 139.44,
+          "end": 139.8,
+          "line": "three"
+        },
+        {
+          "w": "the",
+          "start": 139.8,
+          "end": 139.9,
+          "line": "three"
+        },
+        {
+          "w": "batch.",
+          "start": 139.9,
+          "end": 140.12,
+          "line": "three"
+        },
+        {
+          "w": "Four:",
+          "start": 141.19,
+          "end": 141.42,
+          "line": "four"
+        },
+        {
+          "w": "PayPal",
+          "start": 141.98,
+          "end": 142.2,
+          "line": "four"
+        },
+        {
+          "w": "moves",
+          "start": 142.2,
+          "end": 142.72,
+          "line": "four"
+        },
+        {
+          "w": "the",
+          "start": 142.72,
+          "end": 142.9,
+          "line": "four"
+        },
+        {
+          "w": "money.",
+          "start": 142.9,
+          "end": 143.08,
+          "line": "four"
+        },
+        {
+          "w": "The",
+          "start": 144.13,
+          "end": 144.22,
+          "line": "four"
+        },
+        {
+          "w": "invoice",
+          "start": 144.22,
+          "end": 144.44,
+          "line": "four"
+        },
+        {
+          "w": "goes",
+          "start": 144.44,
+          "end": 144.78,
+          "line": "four"
+        },
+        {
+          "w": "through",
+          "start": 144.78,
+          "end": 145,
+          "line": "four"
+        },
+        {
+          "w": "PayPal's",
+          "start": 145,
+          "end": 145.54,
+          "line": "four"
+        },
+        {
+          "w": "Agent",
+          "start": 145.54,
+          "end": 145.78,
+          "line": "four"
+        },
+        {
+          "w": "Toolkit;",
+          "start": 145.78,
+          "end": 146.14,
+          "line": "four"
+        },
+        {
+          "w": "payouts",
+          "start": 146.81,
+          "end": 147.12,
+          "line": "four"
+        },
+        {
+          "w": "through",
+          "start": 147.12,
+          "end": 147.42,
+          "line": "four"
+        },
+        {
+          "w": "our",
+          "start": 147.42,
+          "end": 147.54,
+          "line": "four"
+        },
+        {
+          "w": "own",
+          "start": 147.54,
+          "end": 147.72,
+          "line": "four"
+        },
+        {
+          "w": "tool,",
+          "start": 147.72,
+          "end": 147.98,
+          "line": "four"
+        },
+        {
+          "w": "sent",
+          "start": 148.4,
+          "end": 148.56,
+          "line": "four"
+        },
+        {
+          "w": "exactly",
+          "start": 148.56,
+          "end": 149.06,
+          "line": "four"
+        },
+        {
+          "w": "once,",
+          "start": 149.06,
+          "end": 149.4,
+          "line": "four"
+        },
+        {
+          "w": "and",
+          "start": 149.84,
+          "end": 149.92,
+          "line": "four"
+        },
+        {
+          "w": "confirmed",
+          "start": 149.92,
+          "end": 150.32,
+          "line": "four"
+        },
+        {
+          "w": "by",
+          "start": 150.32,
+          "end": 150.58,
+          "line": "four"
+        },
+        {
+          "w": "signed",
+          "start": 150.58,
+          "end": 150.98,
+          "line": "four"
+        },
+        {
+          "w": "notices.",
+          "start": 150.98,
+          "end": 151.38,
+          "line": "four"
+        },
+        {
+          "w": "Every",
+          "start": 152.53,
+          "end": 152.76
+        },
+        {
+          "w": "step",
+          "start": 152.76,
+          "end": 153.04
+        },
+        {
+          "w": "is",
+          "start": 153.04,
+          "end": 153.28
+        },
+        {
+          "w": "chained",
+          "start": 153.28,
+          "end": 153.68
+        },
+        {
+          "w": "into",
+          "start": 153.68,
+          "end": 153.92
+        },
+        {
+          "w": "a",
+          "start": 153.92,
+          "end": 154.12
+        },
+        {
+          "w": "tamper-evident",
+          "start": 154.12,
+          "end": 154.7
+        },
+        {
+          "w": "record.",
+          "start": 154.7,
+          "end": 155.1
+        }
+      ]
+    },
+    "s7": {
+      "start": 158,
+      "end": 175,
+      "clip": "narration/s7.m4a",
+      "speech": [158.5, 171.57],
+      "text": "Fair Split is a hackathon MVP: PayPal runs on our simulator, and the co-op is synthetic. The vision is real. Fair Split. Every peso, traced.",
+      "words": [
+        {
+          "w": "Fair",
+          "start": 158.5,
+          "end": 158.66
+        },
+        {
+          "w": "Split",
+          "start": 158.66,
+          "end": 159.12
+        },
+        {
+          "w": "is",
+          "start": 159.24,
+          "end": 159.36
+        },
+        {
+          "w": "a",
+          "start": 159.36,
+          "end": 159.5
+        },
+        {
+          "w": "hackathon",
+          "start": 159.5,
+          "end": 159.98
+        },
+        {
+          "w": "MVP:",
+          "start": 159.98,
+          "end": 160.48
+        },
+        {
+          "w": "PayPal",
+          "start": 161.3,
+          "end": 161.68
+        },
+        {
+          "w": "runs",
+          "start": 161.68,
+          "end": 162.02
+        },
+        {
+          "w": "on",
+          "start": 162.02,
+          "end": 162.2
+        },
+        {
+          "w": "our",
+          "start": 162.2,
+          "end": 162.32
+        },
+        {
+          "w": "simulator,",
+          "start": 162.32,
+          "end": 162.68
+        },
+        {
+          "w": "and",
+          "start": 162.68,
+          "end": 163.34
+        },
+        {
+          "w": "the",
+          "start": 163.34,
+          "end": 163.44
+        },
+        {
+          "w": "co-op",
+          "start": 163.44,
+          "end": 163.86
+        },
+        {
+          "w": "is",
+          "start": 163.86,
+          "end": 164.14
+        },
+        {
+          "w": "synthetic.",
+          "start": 164.14,
+          "end": 164.52
+        },
+        {
+          "w": "The",
+          "start": 165.56,
+          "end": 165.65
+        },
+        {
+          "w": "vision",
+          "start": 165.65,
+          "end": 165.95
+        },
+        {
+          "w": "is",
+          "start": 165.95,
+          "end": 166.75
+        },
+        {
+          "w": "real.",
+          "start": 166.75,
+          "end": 167.07
+        },
+        {
+          "w": "Fair",
+          "start": 168.7,
+          "end": 168.838
+        },
+        {
+          "w": "Split.",
+          "start": 168.838,
+          "end": 169.22
+        },
+        {
+          "w": "Every",
+          "start": 170.02,
+          "end": 170.28
+        },
+        {
+          "w": "peso,",
+          "start": 170.28,
+          "end": 170.64
+        },
+        {
+          "w": "traced.",
+          "start": 171.18,
+          "end": 171.57
+        }
+      ]
+    }
+  },
+  "marks": {
+    "fairSplit": {
+      "start": 38.5,
+      "end": 39.07,
+      "note": "section 3's first words: the music turn and the wordmark"
+    },
+    "fairSplitFinal": {
+      "start": 168.7,
+      "end": 169.22,
+      "note": "the last 'Fair Split.': the final hit"
+    },
+    "everyPesoTraced": {
+      "start": 170.02,
+      "end": 171.57
+    }
+  }
+}
