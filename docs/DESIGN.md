@@ -194,9 +194,10 @@ No other hue appears: no blue chip, no red chip. No wash, gradient, glow or colo
   readings) in the first 3 columns from 1,040 px. The pipeline is flat: five StateDots on one hairline track, each
   count ink on the title step, its unit the label role. What's real hugs its rows and marks only the simulated PayPal
   row (the dashed circle the screens carry); no hatch or square there.
-- **The member's statement** (round 5): her whole pay in the first view, "= 43.69 + 21.85 − 1.09" under the amount;
-  the header line "M-014 · 2026-A"; Paminawa a 48 dp row whose voice reads "Sintetikong tingog" (the engine's name in
-  the accessible name). On the receipt bar a deduction is an outline (1 px ink-3 on plate 2), never hatched.
+- **The member's statement** (round 5): her whole pay in the first view (the peso estimate and her kilos on one line
+  under the amount, then the receipt's premium, bonus and deduction above a compact Paminawa); the header line
+  "M-014 · 2026-A"; Paminawa a 48 dp row whose voice reads "Sintetikong tingog" (the engine's name in the accessible
+  name). On the receipt bar a deduction is an ink-2 outline on plate, never hatched (§10, decision 10).
 - **Hero moments.** Fan-out (round 5: the single hero, nothing restates it): every line ends on a round marker, Rhea's
   path at hers; cash is a 6 px hatched ribbon; rows sit 44 units apart. Before the move to cash the count is `Numeral`
   "7/8" beside the seal with the run's one micro-tag; after it the hero reads **"7 PayPal  57 cash"** (each count, then
@@ -366,6 +367,27 @@ replayed stand-in reading of all 48 slips from Claude's real readings of the 10 
   count is truthful (`replayProgress`: a slip counts read once nothing waits for a person): "47/48 · read · 1 needs a
   person" with the held dot until slip 0462 is entered, then "48/48 slips read this run"; the status sentence counts
   the same way. The chip: "Waits for payment", "Reading", "Needs a person" (amber), "All read".
+
+**Integration in round 5** (what the five surfaces needed once they met at 1,920 × 1,080, 1,470 × 956 and 1,280 × 800):
+- **One run id everywhere**: Approve and Run read "2026-A · r37" in the id line, as Season, Reading room and Split
+  review do.
+- **No dead band at 1,920**, by giving the spare height to the content, never by centring a screen:
+  - Season: on a tall window the slips and the pipeline stand 96 px apart (80 on the 1,470 laptop), and the pipeline
+    strip grows 16 px; "planned" rides on the step's verb ("Pay · planned"), so the counts keep one line at 1,280.
+  - Reading room: on a 1,920 window the filmstrip under the table becomes a contact sheet of two rows (seven a row,
+    "Earlier" last); the laptops keep the one strip.
+  - By hand: the crop's 1.85 : 1 fills the columns' width before the row's height, so on a tall window the papers
+    share the height they cannot take above and below them.
+  - Approve: the money bar, the eight recipients and Details are their own grid row (`.fsr-approve__money`, all
+    twelve columns on the wide panel, seven on the laptops), and the decision card packs back beside the batch
+    (`grid-auto-flow: row dense`); the reading order stays the batch, its money, then the decision.
+  - Run: once no payment waits for a decision, the log and the latency dots stand 48 px under the fan and the log's
+    four rows breathe at 12 px, still four rows and "All N events".
+- **E-19 on the toast**: a confirmed payout notice reads "Payment confirmed" (never "PayPal confirmed" bare); the
+  bar's simulated indicator and the jade mark carry the rail.
+- **The member's statement**: the phone surface's version stands (the peso estimate and her kilos on one line, the
+  receipt's terms in the first viewport); the stage surface's sum line under the amount and its second voice helper
+  were the same change twice and were not taken.
 
 ## 11. The owner's reference reels
 
