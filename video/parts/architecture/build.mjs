@@ -421,6 +421,10 @@ const LABELS = [
   { id: "paypal", node: "paypal", text: "PayPal", windows: [[T.paypalLb, T.retryOut]] },
 ];
 const LB = 40; // label size at camera scale 1; every label shows only on a push (1.6x or more), so 64 px and up
+/** Who PayPal pays (review v6 V6-18): 7 of the 64 members are on PayPal, 57 are paid in cash (the seed run). */
+const SPLIT_LABEL = "7 of 64 on PayPal · 57 in cash";
+/** Film 37.5-43.0 (local 7.5-13.0): from the PayPal node's push to just before the diagram dissolves. */
+const SPLIT_WINDOW = [7.5, 12.68];
 function nodeHtml(n) {
   const [x, y] = n.at;
   const ic = n.r === KR ? 40 : 56;
@@ -431,7 +435,13 @@ function nodeHtml(n) {
         `<div class="lb" id="arch-l-${l.id}" style="top:${l.top ?? n.r + 14}px"${n.id === "funded" ? " data-layout-allow-overlap" : ""}>${esc(l.text)}</div>`,
     )
     .join("");
-  return `<div class="node" id="arch-n-${n.id}" style="left:${r2(x)}px;top:${r2(y)}px"><div class="disc${n.sim ? " sim" : ""}" style="left:${-n.r}px;top:${-n.r}px;width:${2 * n.r}px;height:${2 * n.r}px"><div class="ic" style="left:${n.r - ic / 2}px;top:${n.r - ic / 2}px">${iconSvg(n.icon, ic)}</div></div>${labels}</div>`;
+  // above the PayPal node (clear of the step words below the line), the share it pays (review v6 V6-18): a
+  // micro-label in the tag's style, not a step word
+  const split =
+    n.id === "paypal"
+      ? `<div class="split" id="arch-split" style="top:${-n.r - 14 - 40}px" data-layout-allow-overlap><span>${esc(SPLIT_LABEL)}</span></div>`
+      : "";
+  return `<div class="node" id="arch-n-${n.id}" style="left:${r2(x)}px;top:${r2(y)}px"><div class="disc${n.sim ? " sim" : ""}" style="left:${-n.r}px;top:${-n.r}px;width:${2 * n.r}px;height:${2 * n.r}px"><div class="ic" style="left:${n.r - ic / 2}px;top:${n.r - ic / 2}px">${iconSvg(n.icon, ic)}</div></div>${labels}${split}</div>`;
 }
 
 // ---------- the SVG (lines under the discs) ----------
@@ -678,6 +688,9 @@ function labelState(l, t) {
   }
   return { v, y, b };
 }
+animate("#arch-split", {
+  opacity: (t) => opacity(labelState({ windows: [SPLIT_WINDOW] }, t).v),
+});
 for (const l of LABELS)
   animate(`#arch-l-${l.id}`, {
     opacity: (t) => opacity(labelState(l, t).v),
@@ -748,6 +761,8 @@ const css = `
 .disc.sim .ic{margin:-2.5px 0 0 -2.5px}
 .ic .ln{fill:none;stroke:${C.ink};stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:1 2;stroke-dashoffset:var(--icd)}
 #arch-n-claude .ic .ln{stroke:${C.pod}}
+.split{position:absolute;left:-360px;width:720px;text-align:center;opacity:0}
+.split span{display:inline-block;padding:3px 16px;border:2px dashed ${C.steel};border-radius:20px;background:rgb(255 255 255/.92);font-size:28px;line-height:36px;font-weight:600;color:${C.ink2};white-space:nowrap}
 .lb{position:absolute;left:-300px;width:600px;text-align:center;white-space:nowrap;opacity:0;font-size:${LB}px;line-height:48px;font-stretch:112.5%;font-weight:660;letter-spacing:-.02em;color:${C.ink}}
 #arch-head,#arch-pen{position:absolute;left:0;top:0;width:0;height:0;opacity:0}
 #arch-head i{position:absolute;left:-26px;top:-26px;width:52px;height:52px;border-radius:50%;background:radial-gradient(circle,#fff 0,rgb(255 255 255/.9) 25%,rgb(126 136 152/.42) 50%,rgb(126 136 152/0) 100%)}

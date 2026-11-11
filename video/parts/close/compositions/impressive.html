@@ -504,7 +504,7 @@
             const CAM = [
               { t: 0, x: 0, y: 0, s: 1 },
               { t: 2.35, x: 6, y: 0, s: 1.018 }, // 5,000+ automated tests
-              { t: 4.4, x: 2000, y: 0, s: 1, dip: 0.3 }, // glide
+              { t: 4.45, x: 2000, y: 0, s: 1, dip: 0.3 }, // glide (2.1 s: its peak stays under 36 px a frame, review v6 F17)
               { t: 5.45, x: 2006, y: 0, s: 1.012 }, // 3 kill switches
               // the exit glide is about a second (review v4 item 5): 794 px, so its peak stays under 36 px a frame; the slip
               // waits just outside the frame's right edge while the 3 holds, and everything after it sits 1,200 px nearer

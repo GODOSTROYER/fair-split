@@ -457,6 +457,32 @@
             0 44px 80px -34px rgb(11 18 32 / 0.45);
           opacity: 0;
         }
+        .cl-pesoTag {
+          position: absolute;
+          left: 432px;
+          top: 15px;
+          height: 32px;
+          padding: 0 6px;
+          background: #fff;
+          color: #5a6476;
+          font-weight: 600;
+          font-size: 18px;
+          line-height: 32px;
+          white-space: nowrap;
+        }
+        .cl-readTag {
+          position: absolute;
+          left: 436px;
+          top: 56px;
+          width: 500px;
+          height: 78px;
+          background: #fff;
+          color: #3a4456;
+          font-weight: 600;
+          font-size: 36px;
+          line-height: 78px;
+          white-space: nowrap;
+        }
         #cl-readIn img {
           position: absolute;
           left: -382px;
@@ -492,6 +518,8 @@
                 <div class="cl-back"></div>
                 <img class="fx-base" src="../assets/win-peso-quiet.png" alt="Peso card: paid US$64.45" />
                 <div class="fx-sharp is-peso"></div>
+                <!-- review v6 V6-16: the card names the payout simulated, not a bare "Paid" -->
+                <div class="cl-pesoTag">Simulated payout</div>
               </div>
             </div>
             <div id="cl-dots" class="cf-obj cl-dots" data-layout-allow-overflow>
@@ -507,7 +535,9 @@
             </div>
             <div id="cl-read" class="cf-obj cl-read" data-layout-allow-overflow>
               <div id="cl-readIn" class="cf-in">
-                <img src="../assets/win-read.png" alt="Reading card: 38.45, read by Claude" />
+                <img src="../assets/win-read.png" alt="Reading card: 38.45, the seed stand-in replayed" />
+              <!-- review v6 V6-17: under "replayed." the card says what it is, not a live-looking "Read by Claude" -->
+              <div class="cl-readTag">Replayed · seed stand-in</div>
               </div>
             </div>
             <div id="cl-wave" class="cf-obj cf-wave" data-layout-allow-overflow>
@@ -606,7 +636,7 @@
             const CAM = [
               { t: 0, x: 0, y: 0, s: 1 },
               { t: 2.35, x: 6, y: 0, s: 1.018 }, // 5,000+ automated tests
-              { t: 4.4, x: 2000, y: 0, s: 1, dip: 0.3 }, // glide
+              { t: 4.45, x: 2000, y: 0, s: 1, dip: 0.3 }, // glide (2.1 s: its peak stays under 36 px a frame, review v6 F17)
               { t: 5.45, x: 2006, y: 0, s: 1.012 }, // 3 kill switches
               // the exit glide is about a second (review v4 item 5): 794 px, so its peak stays under 36 px a frame; the slip
               // waits just outside the frame's right edge while the 3 holds, and everything after it sits 1,200 px nearer
