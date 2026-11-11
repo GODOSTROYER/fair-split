@@ -65,11 +65,27 @@ const node = (what, list) => step(what, process.execPath, list);
 const corepack = process.platform === "win32" ? "corepack.cmd" : "corepack";
 const npx = process.platform === "win32" ? "npx.cmd" : "npx";
 
+// The take is a real judge run; on a busy laptop its Proof can (honestly) read a mismatch when a payout item settled
+// by a status check before its verified event, and the take refuses to record that run. A fresh run is tried, up to
+// three in all.
 if (!args.includes("--skip-take"))
-  step("1. the slots take (real judge run, recorded)", corepack, ["pnpm", "e2e:film"], {
-    FILM_TAKE: "slots",
-    FILM_SLOTS_OUT: take,
-  });
+  for (let attempt = 1; ; attempt++) {
+    try {
+      step(
+        `1. the slots take (real judge run, recorded), attempt ${attempt}`,
+        corepack,
+        ["pnpm", "e2e:film"],
+        {
+          FILM_TAKE: "slots",
+          FILM_SLOTS_OUT: take,
+        },
+      );
+      break;
+    } catch (error) {
+      if (attempt >= 3) throw error;
+      process.stdout.write(`[recapture] the take failed (${error.message}); a fresh run\n`);
+    }
+  }
 node("2. cut every slot's clip", ["video/tools/cut-captures.mjs", take]);
 node("3a. build the film", ["video/build.mjs"]);
 node("3b. check the film", ["video/check.mjs"]);
