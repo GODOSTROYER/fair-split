@@ -292,7 +292,17 @@ export interface ScreenProps<S extends ScreenWithStates> {
    * Blocks inside the screen can instead register themselves (`SnapRow`, `useSnapRow`), measured at rest.
    */
   snapRows?: readonly RowBox[];
+  /**
+   * Round 8: one compact line that stays under the status inset once the screen's own header has scrolled away (the
+   * member's name and her payment's status), so an opened line never shows without whose statement it is. A revealed
+   * block starts under it.
+   */
+  pinned?: ReactNode;
 }
+
+/** The pinned line's height under the status inset, and how far the screen scrolls before it shows. */
+export const PIN_H = 44;
+const PIN_AFTER = 56;
 
 /**
  * Edge-to-edge screen on the ground colour with 16 dp gutters and 24 dp between sections (design §2.4), opened by its
@@ -311,6 +321,7 @@ export function Screen<S extends ScreenWithStates>({
   refreshControl,
   surface = "ground",
   snapRows,
+  pinned,
 }: ScreenProps<S>) {
   const { t, motion } = useFs();
   const insets = useSafeAreaInsets();
@@ -324,6 +335,8 @@ export function Screen<S extends ScreenWithStates>({
   // Round 4: the top fade shows once content is under it; the snap cover is placed when the list is at rest. Both
   // change state only when they change (a scroll does not re-render the screen on every frame).
   const [scrolled, setScrolled] = useState(false);
+  const [pinnedOn, setPinnedOn] = useState(false);
+  const hasPin = pinned !== undefined && pinned !== null;
   const [viewport, setViewport] = useState(0);
   const [restY, setRestY] = useState<number | null>(0);
   const [measuredCover, setMeasuredCover] = useState<number | null>(null);
@@ -380,18 +393,20 @@ export function Screen<S extends ScreenWithStates>({
         const box = root.current;
         if (!box) return;
         void Promise.all([measured(box), measured(node)]).then(([top, row]) => {
-          const y = scrollY.current + (row.y - top.y) - inset - gap;
+          // Under a pinned line the block starts 8 px below it (the line is opaque: no fade to clear).
+          const y = scrollY.current + (row.y - top.y) - inset - (hasPin ? PIN_H + space.s8 : gap);
           scroller.current?.scrollTo({ y: Math.max(0, y), animated: !motion.reduced });
         });
       },
     }),
-    [settle, inset, motion.reduced],
+    [settle, inset, motion.reduced, hasPin],
   );
 
   const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const y = e.nativeEvent.contentOffset.y;
     scrollY.current = y;
     setScrolled(y > 0);
+    if (hasPin) setPinnedOn(y > PIN_AFTER);
     // Nothing is covered while the list moves; the cover is placed again once it rests.
     setRestY(null);
     setMeasuredCover(null);
@@ -436,6 +451,22 @@ export function Screen<S extends ScreenWithStates>({
         </View>
       )}
       {scroll && scrolled ? <TopFade color={surfaceColor} inset={topInset ? insets.top : 0} /> : null}
+      {scroll && hasPin && pinnedOn ? (
+        <View
+          testID={`${testID}.pinned`}
+          style={[
+            styles.pinned,
+            {
+              paddingTop: inset,
+              height: inset + PIN_H,
+              backgroundColor: surfaceColor,
+              borderBottomColor: t.color.rule,
+            },
+          ]}
+        >
+          {pinned}
+        </View>
+      ) : null}
       {cover !== null ? <SnapCover from={cover} height={viewport} color={surfaceColor} /> : null}
       {footer}
     </View>
@@ -451,6 +482,18 @@ const styles = StyleSheet.create({
   fade: { position: "absolute", left: 0, right: 0, top: -NAV_FADE_PX, height: NAV_FADE_PX },
   fadeBand: { position: "absolute", left: 0, right: 0 },
   topFade: { position: "absolute", left: 0, right: 0, top: 0 },
+  pinned: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: space.s12,
+    paddingHorizontal: space.s16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
   snapCover: { position: "absolute", left: 0, right: 0 },
   item: { flex: 1, alignItems: "center", gap: space.s4, minHeight: target.min },
   indicator: {

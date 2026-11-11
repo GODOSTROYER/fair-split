@@ -337,7 +337,29 @@ function Statement({
 
   return (
     <View style={styles.fill}>
-      <Screen testID="M-MB-01" state={state} contentStyle={COLUMN} surface="plate">
+      <Screen
+        testID="M-MB-01"
+        state={state}
+        contentStyle={COLUMN}
+        surface="plate"
+        // Round 8: her name and her payment's status stay in view once the header scrolls away (an opened line, the
+        // traced total), in the header's own words.
+        pinned={
+          <>
+            <Txt kind="bodyStrong" color="statementInk" numberOfLines={1} style={styles.pinName}>
+              {dto.member.nameByLang[lang]}
+            </Txt>
+            <View style={styles.pinStatus}>
+              {/* The status word without its date ("Bayad na"), so her whole name fits beside it. */}
+              <Txt kind="label" color="statementInk" numberOfLines={1} testID="M-MB-01.pinnedStatus">
+                {view.word.split(",")[0]}
+              </Txt>
+              {/* The status is the simulated PayPal's: its tag stays beside it here too. */}
+              {paypalLine && railLabel.kind !== "unknown" ? <MicroTag label={railLabel.chip} /> : null}
+            </View>
+          </>
+        }
+      >
         {readOnlyUntil ? (
           <Banner icon="lock" testID="M-MB-01.readOnly">
             <Txt kind="body">{tr("M-MB-01.linkReadOnly", { date: format.date(readOnlyUntil, lang) })}</Txt>
@@ -673,6 +695,8 @@ function Statement({
 }
 
 const styles = StyleSheet.create({
+  pinName: { flexShrink: 1 },
+  pinStatus: { flexDirection: "row", alignItems: "center", gap: space.s8, flexShrink: 0 },
   fill: { flex: 1 },
   flex: { flex: 1 },
   /** Full-bleed on the white screen (round 2): no card, no shadow; sections 32 apart. */

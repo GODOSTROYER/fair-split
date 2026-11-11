@@ -63,7 +63,8 @@ describe("UI gate round 4 on the phone: whole rows above the bar, measured where
     // Round 5: 32 px under the top inset, the 24 px fade and 8 more (REVEAL_GAP), never against the inset.
     expect(chrome).toMatch(/reveal\(node, gap = REVEAL_GAP\)/);
     expect(chrome).toMatch(/REVEAL_GAP = layout\.fade \+ space\.s8/);
-    expect(chrome).toMatch(/- inset - gap/);
+    // Round 8: under a screen's pinned line (the member's name and status) the block starts 8 px below that line.
+    expect(chrome).toMatch(/- inset - \(hasPin \? PIN_H \+ space\.s8 : gap\)/);
     expect(code("features/statement/receipt-bar.tsx")).toMatch(/scroll\.reveal\(node\.current\)/);
   });
 });

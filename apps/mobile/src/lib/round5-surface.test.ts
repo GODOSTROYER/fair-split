@@ -102,8 +102,9 @@ describe("round 5: provenance once, no ids for people", () => {
 describe("round 5: one language a line on the Chair's phone", () => {
   it("puts the demo key's English note behind its mark at the caption's end, opened by a tap", () => {
     const sign = code("features/board/sign-screen.tsx");
-    expect(sign).toMatch(/<KeyNote line=\{demoKey \? keyLine : null\} testID="M-BD-02\.key">/);
-    expect(sign).toMatch(/\{line && open \? \(/);
+    // Round 8: on the sign sheet the mark is not drawn (no lone glyph after the caption); its hook and words stay.
+    expect(sign).toMatch(/<KeyNote line=\{demoKey \? keyLine : null\} testID="M-BD-02\.key" quiet>/);
+    expect(sign).toMatch(/\{line && open && !quiet \? \(/);
     expect(sign).not.toMatch(/<Txt kind="hash" color="ink2" selectable>\s*\{key\.keyId\}/);
   });
 

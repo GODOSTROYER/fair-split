@@ -199,9 +199,10 @@ export const messages = defineMessages({
     en: "The {written} deduction on slip {slip} is not on the rate card the Board approved, so it comes back to you.",
   },
   "M-MB-01.traceNet": {
-    ceb: "Gisusi niini nga telepono: eksakto ang suma hangtod sa sentimo.",
-    fil: "Sinuri ng teleponong ito: eksakto ang suma hanggang sentimo.",
-    en: "Checked on this phone: it adds up to the cent.",
+    // Round 8: a short label under the equation, not a second sentence (the equation and the slips say the rest).
+    ceb: "Eksakto hangtod sa sentimo",
+    fil: "Eksakto hanggang sentimo",
+    en: "Checked to the cent",
   },
   "M-MB-01.traceNetOff": {
     ceb: "Dili tugma ang suma niini nga linya. Si Treasurer {name} ang mosusi.",

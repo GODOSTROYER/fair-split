@@ -232,7 +232,10 @@ export function SignScreen() {
             // dashed mark at the caption's end, opened by a tap, never a line of its own under the Cebuano.
             below={
               blocked ? undefined : (
-                <KeyNote line={demoKey ? keyLine : null} testID="M-BD-02.key">
+                // Round 8: no lone dashed mark trails the caption (it read as a stray "simulated" glyph with no word; the
+                // sandbox is said in words under the amount). The demo key's label keeps its hook and its words for
+                // assistive technology, drawn at 1 px like the stage frames' other marks.
+                <KeyNote line={demoKey ? keyLine : null} testID="M-BD-02.key" quiet>
                   <Txt
                     kind="caption"
                     color="ink2"
@@ -406,11 +409,14 @@ function KeyNote({
   line,
   testID,
   align = "center",
+  quiet = false,
   children,
 }: {
   line: string | null;
   testID: string;
   align?: "center" | "left";
+  /** Round 8: draw no mark; keep the note's hook and its words for assistive technology only. */
+  quiet?: boolean;
   children?: ReactNode;
 }) {
   const { t } = useFs();
@@ -419,7 +425,18 @@ function KeyNote({
     <View style={[styles.keyNote, align === "left" ? styles.keyNoteLeft : null]}>
       <View style={[styles.captionRow, align === "left" ? styles.captionRowLeft : null]}>
         {children}
-        {line ? (
+        {line && quiet ? (
+          <View
+            testID={testID}
+            accessible
+            accessibilityRole="text"
+            accessibilityLabel={line}
+            dataSet={{ quiet: "" }}
+            pointerEvents="none"
+            style={styles.keyQuiet}
+          />
+        ) : null}
+        {line && !quiet ? (
           <Pressable
             testID={testID}
             accessibilityRole="button"
@@ -434,7 +451,7 @@ function KeyNote({
           </Pressable>
         ) : null}
       </View>
-      {line && open ? (
+      {line && open && !quiet ? (
         <Txt kind="micro" color="ink2" align={align} lang="en" selectable aria-hidden>
           {line}
         </Txt>
@@ -451,6 +468,7 @@ function KeyNote({
 const RESERVED_DP = 580;
 
 const styles = StyleSheet.create({
+  keyQuiet: { position: "absolute", width: 1, height: 1, overflow: "hidden", opacity: 0 },
   // Round 6: the seal's card takes the height the sheet has left above the pinned slab (the seal centred in it), so
   // no band stands empty between the card and the thumb zone.
   content: { maxWidth: 560, width: "100%", alignSelf: "center", paddingBottom: space.s24, flexGrow: 1 },
