@@ -417,7 +417,8 @@ export function Screen({ runSlug }: RunScreenProps) {
       suffix={runId.season || undefined}
       status={status}
       titleId="W-TR-07-title"
-      meta={runId.run}
+      // One run id everywhere (round 5): "2026-A · r37", as Season, Reading room and Split review read it.
+      meta={runId.text}
       provenance={PROVENANCE.seededSlips}
       testId="W-TR-07.head"
     />
@@ -750,7 +751,13 @@ export function Screen({ runSlug }: RunScreenProps) {
               />
             </div>
           </div>
+        </Cell>
 
+        {/* Where the money goes (round 5, no dead bands): the bar, and at 1,920 the eight PayPal recipients under it,
+            as a second grid row across all twelve columns once the batch and the decision card stand side by side (the
+            screen packs the card back beside the batch, .fsr-approve's dense flow); on the laptops it stays under the
+            batch (seven columns). The reading order stays the batch, its money, then the decision. */}
+        <Cell span={12} spanMd={7} className="fsr-approve__money">
           <MoneyBar
             testId="W-TR-07.rail"
             label={APPROVE.railLabel}

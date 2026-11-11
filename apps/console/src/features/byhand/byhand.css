@@ -94,6 +94,14 @@
   }
 }
 
+/* A tall, wide panel (1,920 x 1,080): the crop's 1.85 : 1 lets the papers fill the columns' width before the row's
+   height, so the height they cannot take is shared above and below them, never left as one band at the foot. */
+@media (min-height: 1000px) {
+  .fsc-hand__evidence {
+    align-content: center;
+  }
+}
+
 .fsc-hand__crop {
   padding: 10px;
 }

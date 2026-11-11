@@ -12,7 +12,8 @@ const NOTICE_TOAST: Readonly<Record<string, string>> = {
   "PAYMENT.PAYOUTSBATCH.SUCCESS": "PayPal accepted the batch",
   "PAYMENT.PAYOUTSBATCH.PROCESSING": "PayPal is processing the batch",
   "PAYMENT.PAYOUTSBATCH.DENIED": "PayPal declined the batch",
-  "PAYMENT.PAYOUTS-ITEM.SUCCEEDED": "PayPal confirmed a payment",
+  // E-19: the pill never says "PayPal confirmed" bare; the bar's simulated indicator and the jade mark carry the rail.
+  "PAYMENT.PAYOUTS-ITEM.SUCCEEDED": "Payment confirmed",
   "PAYMENT.PAYOUTS-ITEM.UNCLAIMED": "A payment is parked · needs a decision",
   "PAYMENT.PAYOUTS-ITEM.CANCELED": "Payment cancelled",
   "PAYMENT.PAYOUTS-ITEM.RETURNED": "Payment returned",

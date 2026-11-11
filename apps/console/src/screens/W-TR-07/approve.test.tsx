@@ -205,7 +205,9 @@ describe("W-TR-07 approve", () => {
       expect(screen.getByTestId("W-TR-07.head.provenance").textContent).toContain(
         "Synthetic co-op · seeded slips",
       );
-      expect(screen.getByTestId("W-TR-07.head").querySelector(".fsc-screen__id")?.textContent).toBe("r37");
+      expect(screen.getByTestId("W-TR-07.head").querySelector(".fsc-screen__id")?.textContent).toBe(
+        "2026-A · r37",
+      );
       // The seal is the screen's hero, 220 px from a 1,600 px window (round 4), beside "Two officers sign this batch"
       // and its two named signers, each waiting on a hollow circle.
       expect(screen.getByTestId("W-TR-07.seal").getAttribute("width")).toBe("220");

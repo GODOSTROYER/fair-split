@@ -186,16 +186,16 @@ export function StoryTiles({
             </span>
             <span className="fs-sr">{i + 1} </span>
             {tile.step}
-            <span className="fs-sr">{`, ${STATE_WORD[tile.state]}: `}</span>
-          </span>
-          <span className="fsc-tile__figure">
-            {tile.figure}
+            {/* Round 5: "planned" rides on the step's verb ("Pay · planned"), so the counts keep one line at every
+                width (at 1,280 it wrapped alone under "8 PayPal"); the figure still says it to a screen reader. */}
             {tile.phase === "planned" && (
               <span className="fsc-tile__planned fs-t-caption" aria-hidden>
-                planned
+                {" · planned"}
               </span>
             )}
+            <span className="fs-sr">{`, ${STATE_WORD[tile.state]}: `}</span>
           </span>
+          <span className="fsc-tile__figure">{tile.figure}</span>
         </li>
       ))}
     </ol>

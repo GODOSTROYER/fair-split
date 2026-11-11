@@ -492,6 +492,19 @@
   gap: var(--fs-space-16);
 }
 
+/* A tall window (1,920 x 1,080) once no payment waits for a decision: the log's four rows and the latency dots stand
+   further from the fan and each row breathes, so the settled run's panel ends near its 32 px foot instead of in a
+   band (round 5: still four rows and "All N events"). While Rhea's card shows, the screen is full as it is. */
+@media (min-height: 1000px) {
+  .fsr-fanout-screen:not(:has(.fsr-parked)) :is(.fsr-fanout__log, .fsr-fanout__side) {
+    margin-top: var(--fs-space-48);
+  }
+
+  .fsr-fanout-screen:not(:has(.fsr-parked)) .fsr-fanout__log .fsr-log__item {
+    padding: var(--fs-space-12) 0;
+  }
+}
+
 .fsr-fanout__fees {
   margin: var(--fs-space-12) 0 0;
   color: var(--fs-ink-3);

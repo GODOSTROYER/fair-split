@@ -198,7 +198,8 @@ export function Screen({ runSlug }: RunScreenProps) {
       suffix={runId.season || undefined}
       status={status}
       titleId="W-TR-08-title"
-      meta={runId.run}
+      // One run id everywhere (round 5): "2026-A · r37", as Season, Reading room and Split review read it.
+      meta={runId.text}
       provenance={PROVENANCE.simulatedPaypal}
       testId="W-TR-08.head"
     />

@@ -221,11 +221,33 @@
   color: var(--fs-ink-3);
 }
 
-/* A tall window (1,920 x 1,080): the slips and the pipeline take 64 px above them, the scale's widest step. */
+/* A tall window: the slips and the pipeline take the panel's spare height above them instead of leaving it as a band
+   under the pipeline (round 5: no dead band over 120 px). The 1,470 x 956 laptop gets 80 px (48 + the row's 32);
+   1,920 x 1,080 gets 96 (64 + 32), the scale's widest step on each. */
+@media (min-height: 900px) {
+  .fsc-first > .fsc-first__desk,
+  .fsc-first > .fsc-tiles {
+    margin-top: 48px;
+  }
+}
+
 @media (min-height: 1000px) {
   .fsc-first > .fsc-first__desk,
   .fsc-first > .fsc-tiles {
-    margin-top: 32px;
+    margin-top: 64px;
+  }
+
+  /* The larger pipeline strip the slips' 72 px prints hand their height to: 16 px between verb and count. */
+  .fsc-first > .fsc-tiles {
+    padding-top: 16px;
+  }
+
+  .fsc-first > .fsc-tiles::before {
+    top: 26px;
+  }
+
+  .fsc-first .fsc-tile {
+    gap: 16px;
   }
 }
 

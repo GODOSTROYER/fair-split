@@ -443,6 +443,16 @@
   list-style: none;
 }
 
+/* A tall, wide window (1,920 x 1,080): the column under the table would stand empty for a third of the panel, so the
+   prints grow into a contact sheet of two rows (seven a row, "Earlier" last), each print large enough to read its
+   slips (round 5: no dead band over 120 px). The laptop widths keep the one strip. */
+@media (min-width: 1800px) and (min-height: 1000px) {
+  .fsc-film__photos {
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 16px 12px;
+  }
+}
+
 .fsc-film__link {
   display: grid;
   gap: 6px;

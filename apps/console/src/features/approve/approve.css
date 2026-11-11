@@ -8,7 +8,11 @@
    scale; radii from the one scale; one elevation each (a 1 px ring, no glow); one focus ring (ui-web), none declared
    here. */
 
+/* Dense flow (round 5): the money's row comes after the batch in reading order, and the decision card packs back
+   beside the batch (columns 8–12), so on the wide panel the money bar and the recipients take a row of their own
+   across all twelve columns and no column stands empty under the card. */
 .fsr-approve {
+  grid-auto-flow: row dense;
   min-width: 0;
 }
 
@@ -27,9 +31,18 @@
 
 /* ------------------------------------------------------------------ the batch (columns 1–7) */
 
-/* The hero composition, the money bar, then Details, each 24 px apart and top-aligned. */
+/* The hero composition (the seal, the amount, the two signers), top-aligned. */
 .fsr-approve__batch {
   container: fsr-approve-hero / inline-size;
+  display: grid;
+  align-content: start;
+  gap: var(--fs-space-24);
+  min-width: 0;
+}
+
+/* Where the money goes (round 5): the money bar, at 1,920 the recipients, then Details, 24 px apart. Its own grid row
+   under the batch and the decision card on the wide panel (all twelve columns), under the batch on the laptops. */
+.fsr-approve__money {
   display: grid;
   align-content: start;
   gap: var(--fs-space-24);
