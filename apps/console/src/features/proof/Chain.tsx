@@ -10,7 +10,7 @@ import type {
   Provenance,
   SnapshotSlip,
 } from "@fairsplit/contracts";
-import { Chip, type ChipTone, Glyph, type GlyphName, LegendGlyph } from "@fairsplit/ui-web";
+import { Chip, type ChipTone, Glyph, type GlyphName, StepNumber } from "@fairsplit/ui-web";
 import { type CSSProperties, Fragment, type ReactNode, useEffect, useId, useState } from "react";
 import { ScrollRegion } from "../../chrome/ScrollRegion.js";
 import { SHOWCASE_LABEL } from "../../lib/display.js";
@@ -29,7 +29,7 @@ import {
   VERIFY_COPY,
 } from "./copy.js";
 import { davaoDateTime } from "./davao.js";
-import { KEY_ROOM, KEY_SHOWN, ProofId, SLOT_GLYPH, slotOf, slotWords } from "./Hero.js";
+import { CheckWords, KEY_ROOM, KEY_SHOWN, ProofId, slotOf, slotWords } from "./Hero.js";
 import { Lines, type MemberLabel, RailWord } from "./Lines.js";
 import {
   isSettled,
@@ -211,8 +211,9 @@ function FactLine({ parts }: { readonly parts: readonly FactPart[] }) {
   );
 }
 
-/** The plates whose fact is PayPal's (plate 1's status already names the simulated sandbox in words): each carries
- * the simulated legend glyph beside its title, its words as tooltip and name. */
+/** The plates whose fact is PayPal's (plate 1's status already names the simulated sandbox in words): each names
+ * the rail in its title to a screen reader. Round 5, provenance once: no legend glyph beside it on screen, where the
+ * page's quiet indicator says it. */
 const PAYPAL_PLATES: ReadonlySet<PlateName> = new Set(["payoutItems"]);
 
 export function Chain(props: ChainProps) {
@@ -247,7 +248,6 @@ export function Chain(props: ChainProps) {
           const isOpen = open.has(plate);
           const bodyId = `${baseId}-${plate}`;
           const waiting = plate === "payoutItems" && !settled;
-          const glyph = SLOT_GLYPH[slot.state];
           return (
             <li
               key={plate}
@@ -259,9 +259,9 @@ export function Chain(props: ChainProps) {
               data-testid={`W-PF-01.plate.${plate}`}
               style={{ "--pf-i": index } as CSSProperties}
             >
-              <span className="pf-plate__node" aria-hidden>
-                {index + 1}
-              </span>
+              {/* A chain step (round 5): the 24 px outlined numeral, never filled; the ✓ line under the title says
+                  whether the plate's check held. */}
+              <StepNumber n={index + 1} className="pf-plate__node" />
               <h3 className="pf-plate__head">
                 <button
                   type="button"
@@ -274,11 +274,9 @@ export function Chain(props: ChainProps) {
                   <span className="pf-plate__title fs-t-heading">
                     {t(PLATE_TITLE[plate])}
                     {PAYPAL_PLATES.has(plate) && (
-                      <LegendGlyph
-                        kind="simulated"
-                        label={railShort(props.rail)}
-                        testId={`W-PF-01.plate.${plate}.rail`}
-                      />
+                      <span className="fs-sr" data-testid={`W-PF-01.plate.${plate}.rail`}>
+                        {` (${railShort(props.rail)})`}
+                      </span>
                     )}
                   </span>
                   <span className="pf-plate__fact" data-testid={`W-PF-01.plate.${plate}.fact`}>
@@ -292,8 +290,10 @@ export function Chain(props: ChainProps) {
                 </button>
               </h3>
               <p className="pf-plate__check" data-state={slot.state} data-testid={`W-PF-01.check.${plate}`}>
-                {glyph && <Glyph name={glyph} size={16} />}
-                <span>{slot.state === "replay" && slot.reason ? slot.reason : slotWords(slot.state)}</span>
+                <CheckWords
+                  state={slot.state}
+                  words={slot.state === "replay" && slot.reason ? slot.reason : slotWords(slot.state)}
+                />
               </p>
               <div className="pf-plate__body" id={bodyId} hidden={!isOpen}>
                 {isOpen && (

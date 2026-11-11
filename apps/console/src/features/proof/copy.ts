@@ -63,6 +63,25 @@ export const PLATE_TITLE: Readonly<Record<PlateName, MessageKey>> = {
 /** The payer, as the catalog's Proof sentences name it (the header never waits on the seed). */
 export const PAYER = "Lantern Bay";
 
+/**
+ * Proof's one provenance phrase, on the title row's id line (round 5: provenance once a screen; the console's
+ * `PROVENANCE`, chrome/copy.ts). The quiet indicator beside it already says "Simulated PayPal sandbox", so the phrase
+ * names the rest; its whole sentence is its title and its hidden text.
+ */
+export const PROOF_PROVENANCE = {
+  text: "Synthetic co-op",
+  title: "Synthetic co-op and people. Every PayPal value comes from the simulated PayPal sandbox.",
+} as const;
+
+/** The run's state, one chip on the title's row (round 5): never "Settled", "Done" or "Paid" while cash is due. */
+export const RUN_CHIP = {
+  replayed: "Replayed (labelled)",
+  confirming: () => t("W-JG-01.pill.confirming"),
+  decide: (n: number) => (n === 1 ? "1 needs a decision" : `${n} need a decision`),
+  cashDue: () => t("W-JG-01.pill.stateCashDue"),
+  complete: "PayPal complete · cash received",
+} as const;
+
 /** Each check in a few words, for the six rows under the verdict (unslop spec §3.12). */
 export const CHECK_SHORT: Readonly<Record<PlateName, string>> = {
   paid: "Invoice ref carries the card hash",
@@ -134,6 +153,10 @@ export const VERIFY_COPY = {
   sampleTitle: "Signed with sample keys, so this Proof reads Sample, never Verified.",
   /** The officers who signed, one row each (round 4): the list's name. */
   signedBy: "Signed by",
+  /** A signer's key, as the row's title (round 5: no ids for people in view). */
+  keyTitle: (keyId: string) => `Key ${keyId}`,
+  /** Behind "IDs" when the keys are not samples: the keys that signed, whole. */
+  signingKeysRow: "Signing keys",
   partial: "Plate 6 needs the receivers, which the public Proof withholds.",
   /** Behind "IDs" (round 4: no file name in view): the sample keys in full, and where the keys came from. */
   sampleKeysRow: "Sample keys",

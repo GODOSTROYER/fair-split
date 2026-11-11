@@ -107,7 +107,7 @@ describe("the verdict card", () => {
     expect(verdict.querySelector(".pf-verify__meta time.fs-t-id")?.textContent).toMatch(/^\d\d:\d\d:\d\d$/);
     // The headline count is FS Sans on the hero step, never a drawing.
     expect(count().classList.contains("fs-t-hero")).toBe(true);
-    // The IDs wait behind a disclosure, with the simulated glyph (a glyph, not a tag: the page keeps its budget):
+    // The IDs wait behind a disclosure, the rail in words for a screen reader (round 5: no legend glyph, no tag):
     // the sample keys whole, one a line in the id role, and where the keys came from, the file's path cut to its
     // name and whole as its title.
     const anchors = screen.getByTestId("W-PF-01.verdict.anchors");
@@ -122,9 +122,10 @@ describe("the verdict card", () => {
     expect(trust.querySelector('[aria-hidden="true"]')?.textContent).toBe("…fairsplit-keys.json");
     expect(trust.querySelector(".fs-idtext")?.getAttribute("title")).toBe("/.well-known/fairsplit-keys.json");
     expect(anchors.querySelector(".fs-honesty")).toBeNull();
-    const glyph = anchors.querySelector(".fs-legend-glyph");
-    expect(glyph?.getAttribute("data-kind")).toBe("simulated");
-    expect(glyph?.getAttribute("title")).toBe("Simulated PayPal sandbox");
+    expect(anchors.querySelector(".fs-legend-glyph")).toBeNull();
+    expect(anchors.querySelector(".pf-verify__anchors-head .fs-sr")?.textContent).toBe(
+      "Simulated PayPal sandbox: ",
+    );
   });
 
   it("a verdict other than Sample keeps its own word, and the sample keys still sit beside it", () => {

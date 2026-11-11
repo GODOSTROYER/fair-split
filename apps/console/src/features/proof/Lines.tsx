@@ -15,7 +15,7 @@ import { payoutStatus } from "../../data/payout-replay.js";
 import type { MemberLineState, ProofBundle, ProofLine, SnapshotSlip } from "@fairsplit/contracts";
 import { translate } from "@fairsplit/i18n";
 import { spring } from "@fairsplit/motion/web";
-import { Chip, Glyph, HONESTY, LegendGlyph, MicroTag, StatusChip } from "@fairsplit/ui-web";
+import { CheckMark, Chip, Glyph, HONESTY, MicroTag, StatusChip, Swatch } from "@fairsplit/ui-web";
 import { animate, type MotionValue, motion, useMotionValue, useTransform } from "motion/react";
 import {
   type KeyboardEvent,
@@ -461,14 +461,19 @@ interface CropPanelProps {
 }
 
 /**
- * The slip: evidence, so it is paper with the only shadow and the synthetic glyph. The zoom buttons carry
- * the keys too: with one focused, the arrow keys pan and plus and minus zoom, so nothing needs a drag (WCAG 2.5.7).
+ * The slip: evidence, so it is paper with the only shadow. Round 5, provenance once: no corner glyph; "Synthetic
+ * sample" is its title and in its name (the page's id line says it once). The zoom buttons carry the keys too: with
+ * one focused, the arrow keys pan and plus and minus zoom, so nothing needs a drag (WCAG 2.5.7).
  */
 function CropPanel({ serial, slip, zoom, tiles, panX, panY, onKey, onZoom }: CropPanelProps) {
   return (
     <div className="pf-crop" data-testid="W-PF-01.trace.crop">
       {slip ? (
-        <figure className="fs-paper pf-crop__paper" data-testid="W-PF-01.trace.paper">
+        <figure
+          className="fs-paper pf-crop__paper"
+          data-testid="W-PF-01.trace.paper"
+          title={HONESTY.syntheticSample.label}
+        >
           <div className="pf-crop__focus" role="img" aria-label={`${slipAlt(slip)}. Synthetic sample.`}>
             <SlipCrop
               slip={slip}
@@ -479,9 +484,7 @@ function CropPanel({ serial, slip, zoom, tiles, panX, panY, onKey, onZoom }: Cro
               testId="W-PF-01.trace.slip"
             />
           </div>
-          <figcaption className="fs-paper__tag">
-            <LegendGlyph {...HONESTY.syntheticSample} />
-          </figcaption>
+          <figcaption className="fs-sr">{HONESTY.syntheticSample.label}</figcaption>
         </figure>
       ) : (
         <p className="pf-crop__missing">{LINES_COPY.cropMissing(serial)}</p>
@@ -593,15 +596,21 @@ function LineRows({
   // hatch swatch and the word, never a pill.
   const rail = (
     <span className="pf-rail" data-rail={cash ? "cash" : "paypal"}>
-      {cash && <span className="pf-rail__swatch" aria-hidden />}
+      {cash && <Swatch kind="cash" />}
       <span>{cash ? "Cash" : "PayPal"}</span>
     </span>
   );
   const cashWords = state === "OFF_RAIL_PAID" || state === "OFF_RAIL_DUE" ? CASH_WORDS[state] : null;
+  // Cash the clerk attested is a checked fact: the line ✓ and its word (round 5); cash due is its word alone.
   const status = cashWords ? (
     <span className="pf-cash-status" data-state={state}>
-      {state === "OFF_RAIL_PAID" && <Glyph name="ms:check" size={16} />}
-      <span className="fs-t-label">{cashWords}</span>
+      {state === "OFF_RAIL_PAID" ? (
+        <CheckMark>
+          <span className="fs-t-label">{cashWords}</span>
+        </CheckMark>
+      ) : (
+        <span className="fs-t-label">{cashWords}</span>
+      )}
     </span>
   ) : presentation.simulatedLabel ? (
     <Chip

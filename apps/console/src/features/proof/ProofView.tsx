@@ -5,7 +5,7 @@ import { PAYOUT_REPLAY_NOTE, payoutReplayed, payoutReplaySummary } from "../../d
 // state is drawn: loading (print beds at their final size), error, none, progress, verified and failed.
 
 import type { SeasonSnapshot } from "@fairsplit/contracts";
-import { Glyph } from "@fairsplit/ui-web";
+import { Chip, type ChipTone, Glyph, type GlyphName } from "@fairsplit/ui-web";
 import { useEffect, useMemo, useRef } from "react";
 import { AppLink } from "../../chrome/AppLink.js";
 import { CommandNotice } from "../../chrome/CommandNotice.js";
@@ -14,12 +14,22 @@ import { useAnnounce } from "../../lib/announce.js";
 import type { PaypalRail } from "../../lib/env.js";
 import { format } from "../../lib/format.js";
 import { Chain } from "./Chain.js";
-import { FAILURE_PLACE, FOOTER_COPY, PLATE_TITLE, provenanceWords, railName, STATE_COPY, t } from "./copy.js";
+import {
+  FAILURE_PLACE,
+  FOOTER_COPY,
+  PLATE_TITLE,
+  provenanceWords,
+  RUN_CHIP,
+  railName,
+  STATE_COPY,
+  t,
+} from "./copy.js";
 import { Distribution } from "./Distribution.js";
 import { Figures } from "./Figures.js";
 import { PROOF_SEAL, ProofHero, type SignerView } from "./Hero.js";
 import { type MemberLabel, shortRuleName } from "./Lines.js";
-import { isSettled } from "./model.js";
+import type { ProofFigures } from "./metrics.js";
+import { inFlight, isSettled, type ProgressCounts } from "./model.js";
 import { PlotField, plotTiers } from "./PlotField.js";
 import type { ProofPage } from "./useProof.js";
 import type { Verification } from "./useVerification.js";
@@ -93,6 +103,35 @@ export function signersOf(
   });
 }
 
+/** The run's state as the title row's one chip says it: a tone (what is true now), a line glyph and a few words. */
+export interface RunChip {
+  readonly tone: ChipTone;
+  readonly glyph: GlyphName;
+  readonly text: string;
+}
+
+/**
+ * The run's state for the title row (round 5, the Season's words): a replay says so; a payment parked or held for a
+ * person reads amber ("1 needs a decision"); PayPal still confirming is in flight; once PayPal has finished, the
+ * bodega's cash still due reads "PayPal complete · cash due" (hatch), never "Settled", "Done" or "Paid".
+ */
+export function runChip(
+  progress: ProgressCounts,
+  figures: Pick<ProofFigures, "tiers"> | null | undefined,
+  replayed: boolean,
+): RunChip {
+  if (replayed) return { tone: "neutral", glyph: "rail", text: RUN_CHIP.replayed };
+  const decide = progress.parked + progress.held;
+  if (decide > 0) return { tone: "canary", glyph: "ms:pause", text: RUN_CHIP.decide(decide) };
+  if (!isSettled(progress) || inFlight(progress) > 0)
+    return { tone: "flight", glyph: "rail", text: RUN_CHIP.confirming() };
+  // A returned item's line is cash due until the clerk attests it: the tiers already count it.
+  const due = (figures?.tiers.due.cash.members ?? 0) > 0;
+  return due
+    ? { tone: "hatch", glyph: "cash", text: RUN_CHIP.cashDue() }
+    : { tone: "neutral", glyph: "ms:check", text: RUN_CHIP.complete };
+}
+
 function marksOf(snapshot: SeasonSnapshot | undefined) {
   const marks = new Map<string, string>();
   for (const slip of snapshot?.slips ?? []) for (const m of slip.marks) marks.set(m.markId, m.text);
@@ -159,6 +198,7 @@ export function ProofView({ page, verification, rail, names = null, level = "h1"
   const state = proofState(page, verification);
   const failure = verification.state.kind === "done" ? verification.state.outcome.failure : null;
   const settled = isSettled(page.progress);
+  const chip = runChip(page.progress, figures, replayed);
   return (
     <>
       {failure && (
@@ -182,14 +222,28 @@ export function ProofView({ page, verification, rail, names = null, level = "h1"
         rail={rail}
         verification={verification}
         level={level}
+        noun={level === "h1" ? "Proof" : "Season"}
+        status={
+          <Chip tone={chip.tone} glyph={chip.glyph}>
+            {chip.text}
+          </Chip>
+        }
         signers={signersOf(snapshot, bundle)}
         money={
           <section className="pf-card pf-money" aria-labelledby="W-PF-01-money" data-testid="W-PF-01.money">
-            {/* The card's PayPal money carries the micro-tag beside its own figure (Distribution), not a pill here. */}
+            {/* The card's PayPal money carries the micro-tag beside its own figure (Distribution), not a pill here.
+                The invoice it adds up to heads it (round 5), cent for cent, on the amount-l step. */}
             <header className="pf-card__head">
               <SubHeading id="W-PF-01-money" className="pf-card__title fs-t-heading">
                 {MONEY_TITLE}
               </SubHeading>
+              <span
+                className="pf-money__amount fs-t-amount-l"
+                data-amount-state="landed"
+                data-testid="W-PF-01.invoice-amount"
+              >
+                {format.money(bundle.invoice.amountCents)}
+              </span>
             </header>
             {/* The run's line: counts on screen (the tag names the rail), the whole sentence for a screen reader.
                 A replay says so in full, in view: its statuses are not money anyone confirmed. */}

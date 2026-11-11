@@ -1,6 +1,6 @@
-// Proof and the brand view, UI gate round 4: who signed reads by name and role, readable without zooming, each key
-// on one line and cut in the middle (never broken mid-word); no developer word in view (file names and full ids
-// wait behind "IDs"); the hero row and the brand strip on the console's one 12-column grid, top-aligned; avatars
+// Proof and the brand view, UI gate round 4: who signed reads by name and role, readable without zooming (round 5:
+// the key is the row's title, never in view); an id never breaks mid-word; no developer word in view (file names
+// and full ids wait behind "IDs"); the hero row and the brand strip on the console's one 12-column grid, top-aligned; avatars
 // white on an ink-2 ring (indigo is for action only); a slip chip's serial in ink-3, its kilos in ink. Every figure
 // is the bundle's own; none changes.
 
@@ -71,23 +71,20 @@ function visibleText(root: Element): string {
 }
 
 describe("who signed", () => {
-  it("reads each officer by name and role, with the key on one line, cut in the middle, whole as its title", () => {
+  it("reads each officer by name and role; round 5, no ids for people: the key is the row's title", () => {
     render(<VerifyPanel verification={done} signers={signers} />);
     const list = screen.getByTestId("W-PF-01.verdict.stamps");
     expect(list.tagName).toBe("UL");
     expect(list.getAttribute("aria-label")).toBe("Signed by");
     const rows = within(list).getAllByTestId("W-PF-01.verdict.signer");
     expect(rows.map((row) => visibleText(row))).toEqual([
-      "AS Analyn R. Sumalinog · Treasurer fs-analyn…v9kuqr",
-      "EC Ernesto P. Cabahug · Chair fs-ernesto…mj2ng2",
+      "AS Analyn R. Sumalinog · Treasurer",
+      "EC Ernesto P. Cabahug · Chair",
     ]);
     for (const [i, row] of rows.entries()) {
-      const key = row.querySelector(".pf-signer__key");
-      // ui-web's IdText: the mono id role, one nowrap line, the whole key as its title and what a reader hears.
-      expect(key?.classList.contains("fs-idtext")).toBe(true);
-      expect(key?.classList.contains("fs-t-id")).toBe(true);
-      expect(key?.getAttribute("title")).toBe(signers[i]?.keyId);
-      expect(key?.querySelector(".fs-sr")?.textContent).toBe(signers[i]?.keyId);
+      // The key waits behind IDs (and in plate 5); here it is only the row's title.
+      expect(row.querySelector(".fs-t-id")).toBeNull();
+      expect(row.getAttribute("title")).toBe(`Key ${signers[i]?.keyId}`);
       // A person is never an indigo tile: ui-web's Avatar (white, an ink-2 ring), its name printed beside it.
       const avatar = row.querySelector(".pf-signer__avatar");
       expect(avatar?.classList.contains("fs-avatar")).toBe(true);
@@ -139,10 +136,10 @@ describe("no developer word in view", () => {
     fireEvent.click(screen.getByTestId("W-PF-01.plate.twoKeys.toggle"));
     expect(developerWords(visibleText(root))).toEqual([]);
     // Every key id and every id in a plate's fact line is one nowrap line: printed whole, or cut in the middle.
-    const ids = [
-      ...root.querySelectorAll(".pf-plate__fact .fs-t-id, .pf-signers .fs-t-id, .pf-keys .fs-t-id"),
-    ];
-    expect(ids.length).toBeGreaterThanOrEqual(8);
+    const ids = [...root.querySelectorAll(".pf-plate__fact .fs-t-id, .pf-keys .fs-t-id")];
+    expect(ids.length).toBeGreaterThanOrEqual(7);
+    // Round 5: no id beside a person.
+    expect(root.querySelectorAll(".pf-signers .fs-t-id")).toHaveLength(0);
     expect(ids.filter((id) => !id.matches(".pf-id, .fs-idtext")).map((id) => id.outerHTML)).toEqual([]);
     expect(screen.getAllByTestId("W-PF-01.verdict.signer")).toHaveLength(2);
     expect(screen.getByTestId("W-PF-01.keys").querySelectorAll(".pf-keys__id")).toHaveLength(2);

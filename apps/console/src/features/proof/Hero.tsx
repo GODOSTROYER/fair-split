@@ -1,25 +1,25 @@
-// Proof's hero (S1.8 P1, design §6; UI gate rounds 2 to 4). A factual header first: the headline on the title
-// step (the invoice as one money figure, its context in ink-3) with the lot's id under it in the mono, and the
-// page's one quiet "Simulated PayPal sandbox" indicator and the synthetic glyph. Then the verdict leads, beside the
-// 180 px seal grown from the batch hash: the six checks' count as the page's one hero number in FS Sans ("0/6",
-// then "6/6"), the explicit result under it ("6 of 6 integrity checks match", seen and heard the same way), the
-// sample-keys qualification on the body step right under it (a key glyph, never a check mark), who signed (round
-// 4: each officer by name and role, with the key they signed with on one line, cut in the middle), and "Verify in
-// your browser" as the one primary. Where every dollar went sits beside it (the money slot), and the six checks run
-// under both, so all six are in view on a laptop's first screen. A check that matches is ink, never jade (jade
-// means money); a mismatch is ink too, with its ✕ and the plate it names (red is only PayPal saying no). File names
-// and full ids wait behind "IDs" (round 4: no developer word in view). In Data mode the seal reads as its hash
-// (S1.7).
+// Proof's hero (S1.8 P1, design §6; UI gate rounds 2 to 5). The console's title row first (round 5): a noun title
+// with a grey suffix ("Proof 2026-A"; "Season 2026-A" under the brand's own title), the run's state in one chip on
+// the same row, then one id line (the payer, the lot in the mono, and the page's one provenance phrase, its sentence
+// its title) and the page's one quiet "Simulated PayPal sandbox" indicator at the row's end. Then the verdict leads,
+// beside the 180 px seal grown from the batch hash: the six checks' count as the page's one hero number in FS Sans
+// ("0/6", then "6/6"), the explicit result under it ("6 of 6 integrity checks match", seen and heard the same way),
+// the sample-keys qualification on the body step right under it (a key glyph, never a check mark), who signed (each
+// officer by name and role; round 5: no ids for people, the key waits behind "IDs"), and "Verify in your browser"
+// as the one primary. Where every dollar went sits beside it (the money slot, headed by the invoice it adds up to),
+// and the six checks run under both, so all six are in view on a laptop's first screen. A check that held is the
+// one marker vocabulary's line ✓ and its word in ink (round 5: never a filled disc, never jade, which means money);
+// a mismatch is ink too, with its ✕ and the plate it names (red is only PayPal saying no). File names and full ids
+// wait behind "IDs". In Data mode the seal reads as its hash (S1.7).
 
 import type { PlateName, ProofBundle } from "@fairsplit/contracts";
 import {
   Avatar,
+  CheckMark,
   Glyph,
   type GlyphName,
-  HONESTY,
   HonestyTag,
   IdText,
-  LegendGlyph,
   Numeral,
   Seal,
   Slab,
@@ -27,7 +27,6 @@ import {
 import { type CSSProperties, type ReactNode, useEffect, useRef } from "react";
 import { CommandNotice } from "../../chrome/CommandNotice.js";
 import { DataTable, Mirrored } from "../../chrome/DataTable.js";
-import { SeasonText } from "../../chrome/SeasonText.js";
 import type { PaypalRail } from "../../lib/env.js";
 import { format } from "../../lib/format.js";
 import {
@@ -35,6 +34,7 @@ import {
   FAILURE_PLACE,
   PAYER,
   PLATE_TITLE,
+  PROOF_PROVENANCE,
   railShort,
   t,
   VERIFY_COPY,
@@ -100,9 +100,16 @@ export interface ProofHeroProps {
   readonly verification: Verification;
   /** The page's own heading level: h1 on Proof, h2 under the brand view's strip. */
   readonly level?: "h1" | "h2";
+  /**
+   * The title's noun (round 5): "Proof" on its own page; "Season" under the brand view's strip, whose own title
+   * already says "Proof for ...", so the page never reads "Proof" twice.
+   */
+  readonly noun?: string;
+  /** The run's state, one chip on the title's row ("PayPal complete · cash due"). */
+  readonly status?: ReactNode;
   /** Where every dollar went: the run's live line and the money bar, beside the verdict. */
   readonly money?: ReactNode;
-  /** The officers whose keys signed the batch, each by name, role and key (treasurer, then Chair). */
+  /** The officers whose keys signed the batch, each by name and role (treasurer, then Chair). */
   readonly signers?: readonly SignerView[];
 }
 
@@ -118,6 +125,8 @@ export function ProofHero({
   rail,
   verification,
   level = "h1",
+  noun = "Proof",
+  status,
   money,
   signers = [],
 }: ProofHeroProps) {
@@ -125,8 +134,8 @@ export function ProofHero({
   const paid = bundle.invoice.status === "PAID";
   const amount = format.money(bundle.invoice.amountCents);
   const keys = sealKeys(bundle);
-  // ADR-0002, I8: an invoice marked paid on the simulator says the sandbox was simulated. The tag beside the
-  // header says it on screen; the heading says it in words to a screen reader.
+  // ADR-0002, I8: an invoice marked paid on the simulator says the sandbox was simulated. The indicator at the
+  // row's end says it on screen; the heading says it in words to a screen reader.
   const where = paid
     ? ""
     : rail === "simulator"
@@ -134,44 +143,55 @@ export function ProofHero({
       : " in PayPal’s own sandbox, a path not yet tested in this build";
   return (
     <section className="pf-hero" aria-labelledby="W-PF-01-title" data-testid="W-PF-01.hero">
-      <header className="pf-head">
-        <div className="pf-head__main">
-          {/* The headline on the title step: the invoice in its money figures, its context in ink-3. The verdict
-              below is the page's one hero number, so the amount is never a second one (round 3). */}
-          <Title id="W-PF-01-title" className="pf-hero__title fs-t-title">
-            <span
-              className="pf-hero__amount fs-t-amount-l"
-              data-amount-state="landed"
-              data-testid="W-PF-01.invoice-amount"
-            >
-              {amount}
-            </span>{" "}
-            <span className="pf-hero__context">
-              {PAYER} · <SeasonText text={`Season ${seasonLabel}`} season={seasonLabel} /> ·{" "}
-              {paid ? "paid" : "marked paid"}
-              {where && <span className="fs-sr">{where}</span>}
+      {/* The console's title row (round 5, grid.css): the noun and its grey season, the state's chip, the id line,
+          and the quiet indicator at the end. What the invoice was, and that it was marked paid in a simulated
+          sandbox, the heading says in words to a screen reader; on screen the money card carries the amount. */}
+      <header className="fsc-screen__head pf-head">
+        <Title id="W-PF-01-title" className="fsc-screen__title fs-t-title">
+          {noun} <span className="fsc-screen__suffix fsc-nowrap">{seasonLabel}</span>
+          <span className="fs-sr">{` · ${PAYER}’s ${amount} invoice, ${paid ? "paid" : "marked paid"}${where}`}</span>
+        </Title>
+        {status && (
+          <div className="fsc-screen__status" data-testid="W-PF-01.status">
+            {status}
+          </div>
+        )}
+        {/* One id line: the payer, the lot in the id role, the page's one provenance phrase (round 5: provenance
+            once; no legend glyph anywhere else). The lot's box is held from the first frame (proof.css): on a slow
+            link the bundle lands before the seed that names it, and the code fills in place. Empty, it says nothing
+            to a screen reader. */}
+        <p className="fsc-screen__meta pf-head__meta">
+          <span className="pf-head__payer fs-t-caption">{PAYER}</span>
+          {lotCode && (
+            <span className="fsc-screen__sep" aria-hidden>
+              {" · "}
             </span>
-          </Title>
-          {/* The headline's id line, under it (never an eyebrow above it): the lot, in the id role. Its line is held
-              from the first frame (proof.css reserves its box): on a slow link the bundle lands before the seed that
-              names the lot, and the code fills the line in place, so nothing under it moves. Empty, it says nothing
-              to a screen reader. */}
-          <p
+          )}
+          <span
             className="pf-hero__lot fs-t-id"
             data-testid="W-PF-01.lot"
             title={lotCode ? "Cacao lot" : undefined}
             aria-hidden={lotCode ? undefined : true}
           >
             {lotCode ?? ""}
-          </p>
-        </div>
-        {/* The page's one quiet indicator (Proof has no top bar), and the synthetic glyph: a bare mark whose words
-            are its tooltip and its name. The full legend lives in What's real. */}
-        <p className="pf-head__tags">
+          </span>
+          <span className="fsc-screen__sep" aria-hidden>
+            {" · "}
+          </span>
+          <span
+            className="fsc-screen__provenance fs-t-caption"
+            title={PROOF_PROVENANCE.title}
+            data-testid="W-PF-01.synthetic"
+          >
+            {PROOF_PROVENANCE.text}
+            <span className="fs-sr">{`. ${PROOF_PROVENANCE.title}`}</span>
+          </span>
+        </p>
+        {/* The page's one quiet indicator (Proof has no top bar), at the row's end. */}
+        <p className="fsc-screen__actions pf-head__tags">
           <span className="pf-head__rail" data-testid="W-PF-01.rail" data-rail={rail}>
             <HonestyTag quiet>{railShort(rail)}</HonestyTag>
           </span>
-          <LegendGlyph {...HONESTY.syntheticSample} testId="W-PF-01.synthetic" />
         </p>
       </header>
       <VerifyPanel
@@ -250,9 +270,8 @@ export function slotOf(plate: PlateName, verify: VerifyState): { state: SlotStat
   }
 }
 
+/** The line glyph beside a check that did not hold; a check that held is CheckMark's ✓ (CheckWords). */
 export const SLOT_GLYPH: Partial<Record<SlotState, GlyphName>> = {
-  matches: "ms:check",
-  server: "ms:check",
   differs: "ms:close",
   withheld: "ms:lock",
 };
@@ -281,6 +300,22 @@ export function slotWords(state: SlotState): string {
  * title says why). */
 function rowWords(state: SlotState): string {
   return state === "server" ? `${VERIFY_COPY.checkState.matches()} (server)` : slotWords(state);
+}
+
+/**
+ * A check's state in the one marker vocabulary (round 5): a check that held is ui-web's CheckMark, the 16 px line ✓
+ * and its word in ink, never a filled disc; a mismatch keeps its line ✕, a withheld plate its lock, and the rest
+ * their words alone. The six rows and the chain's plates draw it the same way.
+ */
+export function CheckWords({ state, words }: { readonly state: SlotState; readonly words: ReactNode }) {
+  if (state === "matches" || state === "server") return <CheckMark>{words}</CheckMark>;
+  const glyph = SLOT_GLYPH[state];
+  return (
+    <>
+      {glyph && <Glyph name={glyph} size={16} />}
+      <span>{words}</span>
+    </>
+  );
 }
 
 export function VerifyPanel({
@@ -367,17 +402,24 @@ export function VerifyPanel({
                       data-verdict={outcome.verdict}
                       data-testid="W-PF-01.verdict.word"
                     >
-                      <Glyph
-                        name={
-                          outcome.verdict === "failed"
-                            ? "ms:close"
-                            : outcome.verdict === "replay"
-                              ? "rail"
-                              : "ms:check"
-                        }
-                        size={16}
-                      />
-                      {verdictWord(outcome.verdict)}
+                      {/* A verdict that held is the line ✓ and its word (round 5); the rest keep their own glyph. */}
+                      {outcome.verdict === "verified" ? (
+                        <CheckMark>{verdictWord(outcome.verdict)}</CheckMark>
+                      ) : (
+                        <>
+                          <Glyph
+                            name={
+                              outcome.verdict === "failed"
+                                ? "ms:close"
+                                : outcome.verdict === "replay"
+                                  ? "rail"
+                                  : "ms:check"
+                            }
+                            size={16}
+                          />
+                          {verdictWord(outcome.verdict)}
+                        </>
+                      )}
                     </span>
                   )}
                   {sampleKeys && (
@@ -418,14 +460,19 @@ export function VerifyPanel({
               </>
             )}
           </div>
-          {/* Who signed (round 4): each officer by name and role, readable without zooming, and the key they signed
-              with on one line in the id role, cut in the middle, the whole id its title and name. The record says
-              who signed before any check (so the card keeps its shape when the verdict lands); the check row "2
+          {/* Who signed: each officer by name and role, readable without zooming (round 5: no ids for people; the
+              key they signed with is the row's title, and whole behind "IDs" and in plate 5). The record says who
+              signed before any check (so the card keeps its shape when the verdict lands); the check row "2
               signatures on the batch hash" says whether the signatures hold. */}
           {signers.length > 0 && (
             <ul className="pf-signers" aria-label={VERIFY_COPY.signedBy} data-testid="W-PF-01.verdict.stamps">
               {signers.map((signer) => (
-                <li key={signer.keyId} className="pf-signer" data-testid="W-PF-01.verdict.signer">
+                <li
+                  key={signer.keyId}
+                  className="pf-signer"
+                  data-testid="W-PF-01.verdict.signer"
+                  title={VERIFY_COPY.keyTitle(signer.keyId)}
+                >
                   {signer.initials ? (
                     <Avatar initials={signer.initials} className="pf-signer__avatar" />
                   ) : (
@@ -436,7 +483,6 @@ export function VerifyPanel({
                     {signer.name && " · "}
                     {signer.role}
                   </span>
-                  <ProofId value={signer.keyId} {...KEY_SHOWN} className="pf-signer__key" />
                 </li>
               ))}
             </ul>
@@ -462,10 +508,12 @@ export function VerifyPanel({
                   {VERIFY_COPY.ids}
                 </summary>
                 <div className="pf-verify__anchors" data-testid="W-PF-01.verdict.anchors">
+                  {/* PayPal's ids, said simulated in words to a screen reader (round 5: no inline legend glyph; the
+                      page's indicator says it on screen). */}
                   {outcome.anchors.invoiceNumber && outcome.anchors.senderBatchId && (
-                    <p className="pf-verify__anchors-head">
-                      <LegendGlyph kind="simulated" label={railShort(rail)} />
-                      <span className="fs-t-caption">{VERIFY_COPY.anchorsLead(rail)}</span>
+                    <p className="pf-verify__anchors-head fs-t-caption">
+                      <span className="fs-sr">{`${railShort(rail)}: `}</span>
+                      {VERIFY_COPY.anchorsLead(rail)}
                     </p>
                   )}
                   <dl className="pf-kv">
@@ -493,7 +541,7 @@ export function VerifyPanel({
                         <dd>{outcome.anchors.batchNote}</dd>
                       </div>
                     )}
-                    {sampleKeys && (
+                    {sampleKeys ? (
                       <div>
                         <dt>{VERIFY_COPY.sampleKeysRow}</dt>
                         <dd className="pf-kv__ids" data-testid="W-PF-01.verdict.keys">
@@ -502,6 +550,17 @@ export function VerifyPanel({
                           ))}
                         </dd>
                       </div>
+                    ) : (
+                      signers.length > 0 && (
+                        <div>
+                          <dt>{VERIFY_COPY.signingKeysRow}</dt>
+                          <dd className="pf-kv__ids">
+                            {signers.map((signer) => (
+                              <ProofId key={signer.keyId} value={signer.keyId} max={KEY_ROOM} />
+                            ))}
+                          </dd>
+                        </div>
+                      )
                     )}
                     <div>
                       <dt>{VERIFY_COPY.keysRow}</dt>
@@ -541,7 +600,6 @@ export function VerifyPanel({
       <ol className="pf-checks" aria-label="What Verify recomputes" data-testid="W-PF-01.checks">
         {PLATES.map((plate, index) => {
           const slot = slotOf(plate, state);
-          const glyph = SLOT_GLYPH[slot.state];
           return (
             <li
               key={plate}
@@ -557,12 +615,7 @@ export function VerifyPanel({
               </span>
               <span className="pf-checks__what">{CHECK_SHORT[plate]}</span>
               <span className="pf-checks__state">
-                {slot.state !== "idle" && (
-                  <>
-                    {glyph && <Glyph name={glyph} size={16} />}
-                    <span>{rowWords(slot.state)}</span>
-                  </>
-                )}
+                {slot.state !== "idle" && <CheckWords state={slot.state} words={rowWords(slot.state)} />}
               </span>
               {slot.state === "replay" && slot.reason && (
                 <span className="pf-checks__note pf-verify__note">{slot.reason}</span>

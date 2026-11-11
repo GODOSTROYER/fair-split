@@ -6,7 +6,7 @@ import { payoutStatus } from "../../data/payout-replay.js";
 // on the event's ID, and history never animates.
 
 import type { ProofBundle } from "@fairsplit/contracts";
-import { Glyph, LegendGlyph } from "@fairsplit/ui-web";
+import { Glyph, Swatch } from "@fairsplit/ui-web";
 import { type CSSProperties, useId, useRef } from "react";
 import { DataTable, Mirrored } from "../../chrome/DataTable.js";
 import type { PaypalRail } from "../../lib/env.js";
@@ -160,7 +160,7 @@ export function Figures({
             />
             <ul className="pf-tiers" data-replayed={replayed ? "" : undefined}>
               <li className="pf-tier" data-tier="paypal" data-testid="W-PF-01.tier.paypal">
-                <span className="pf-tier__swatch" aria-hidden />
+                <Swatch kind="paid" className="pf-tier__swatch" />
                 <span className="pf-tier__words">
                   {replayed
                     ? "Replayed payout statuses (simulated PayPal sandbox): successful in the source run"
@@ -184,7 +184,7 @@ export function Figures({
                 </span>
               </li>
               <li className="pf-tier" data-tier="attested" data-testid="W-PF-01.tier.attested">
-                <span className="pf-tier__swatch" aria-hidden />
+                <Swatch kind="cash" className="pf-tier__swatch" />
                 <span className="pf-tier__words">{FIGURE_COPY.tierAttested}</span>
                 <span className="pf-tier__count">
                   {FIGURE_COPY.attestedOf(tiers.attested.members, tiers.attested.ofMembers)}
@@ -198,7 +198,7 @@ export function Figures({
                 </span>
               </li>
               <li className="pf-tier" data-tier="due" data-testid="W-PF-01.tier.due">
-                <span className="pf-tier__swatch" aria-hidden />
+                <Swatch kind="cash" className="pf-tier__swatch" />
                 <span className="pf-tier__words">
                   {FIGURE_COPY.tierDue}
                   <span className="pf-tier__sub">
@@ -218,7 +218,7 @@ export function Figures({
               </li>
               {tiers.reserved.members > 0 && (
                 <li className="pf-tier" data-tier="reserved" data-testid="W-PF-01.tier.reserved">
-                  <span className="pf-tier__swatch" aria-hidden />
+                  <Swatch kind="held" className="pf-tier__swatch" />
                   <span className="pf-tier__words">{FIGURE_COPY.tierReserved}</span>
                   <span className="pf-tier__count">{FIGURE_COPY.members(tiers.reserved.members)}</span>
                   <span className="pf-tier__amount" data-amount-state="pencil">
@@ -259,7 +259,9 @@ export function Figures({
 
         <div className="pf-ledger__row pf-ledger__row--rails" data-testid="W-PF-01.metric.rails">
           <dt>
-            {FIGURE_COPY.rails()} <LegendGlyph kind="simulated" label={railShort(rail)} />
+            {FIGURE_COPY.rails()}
+            {/* Round 5, provenance once: the rail in words for a screen reader, no legend glyph in view. */}
+            <span className="fs-sr">{` (${railShort(rail)})`}</span>
           </dt>
           <dd>
             <span className="pf-ledger__value" data-testid="W-PF-01.metric.onPaypal">
@@ -331,7 +333,7 @@ export function Figures({
           <span className="pf-fees__lede">
             {replayed ? "Replayed simulated payout fees and this run’s invoice" : FEES_COPY.summary}
           </span>
-          {!replayed && <LegendGlyph kind="simulated" label={railShort(rail)} />}
+          {!replayed && <span className="fs-sr">{` (${railShort(rail)})`}</span>}
         </summary>
         <ul className="pf-fees__list">
           <li>

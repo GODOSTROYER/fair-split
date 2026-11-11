@@ -133,7 +133,7 @@ describe("W-PF-01 loads without waiting on the seed", () => {
       expect(lot.textContent).toBe("");
       expect(lot.getAttribute("aria-hidden")).toBe("true");
       const sentence = title.textContent;
-      expect(sentence).toContain("Season 2026-A");
+      expect(sentence).toContain("Proof 2026-A");
       await act(async () => {
         land(snapshot);
       });
@@ -148,8 +148,8 @@ describe("W-PF-01 loads without waiting on the seed", () => {
 
   it("reserves the lot's line box at its settled height: one 1rem id line under the headline, laptop and phone alike", async () => {
     const rules = readRules("src/features/proof/proof.css");
-    // Round 3: the lot is an id in the mono role (fs-t-id, 12 px), on the header's id line under the headline, never
-    // an eyebrow above it.
+    // Round 3: the lot is an id in the mono role (fs-t-id, 12 px), on the header's id line after the title, never
+    // an eyebrow above it (round 5: the title row's id line).
     await renderConsole({ path: webRoutes.proof(RUN) });
     const hero = await screen.findByTestId("W-PF-01.hero");
     const shown = within(hero).getByTestId("W-PF-01.lot");
@@ -213,10 +213,10 @@ function lengthPx(value: string, width: number, em: number): number {
 }
 
 describe("W-PF-01's hero reflows on a phone (WCAG 2.2 1.4.10)", () => {
-  // The amount never breaks (white-space: nowrap). Round 3 sets it on the headline's title step (the verdict's
-  // count is the page's one hero number), so it must fit a 320 px viewport at its one size. An upper bound for a
-  // twelve-character US$88,888.88, measured in Chromium in FS Sans Proof at stretch 75 % and weight 800 (wider than
-  // the 87.5 %/500 it now uses): 5.438 em.
+  // The amount never breaks (white-space: nowrap). Round 5 sets it at the head of the money card it adds up to, on
+  // the amount-l step (the verdict's count is the page's one hero number), so it must fit the card at 320 px at its
+  // one size. An upper bound for a twelve-character US$88,888.88, measured in Chromium in FS Sans Proof at stretch
+  // 75 % and weight 800 (wider than the 87.5 %/500 it now uses): 5.438 em.
   const TWELVE_CHARACTERS_EM = 5.438;
   const rules = [
     ...readRules("../../packages/tokens/src/generated/theme.web.css"),
@@ -224,13 +224,13 @@ describe("W-PF-01's hero reflows on a phone (WCAG 2.2 1.4.10)", () => {
     ...readRules("src/features/proof/proof.css").map((rule) => ({ ...rule, order: rule.order + 100_000 })),
   ];
 
-  it("keeps the header amount on the title step (24 px) at every width, whole and inside the column", () => {
+  it("keeps the invoice amount on the amount-l step (24 px) at every width, whole and inside the money card", () => {
     const hero = document.createElement("section");
-    hero.className = "pf-hero";
-    const title = document.createElement("h1");
-    title.className = "pf-hero__title";
+    hero.className = "pf-card pf-money";
+    const title = document.createElement("header");
+    title.className = "pf-card__head";
     const amount = document.createElement("span");
-    amount.className = "pf-hero__amount fs-t-amount-l";
+    amount.className = "pf-money__amount fs-t-amount-l";
     title.append(amount);
     hero.append(title);
     document.body.append(hero);
@@ -240,8 +240,8 @@ describe("W-PF-01's hero reflows on a phone (WCAG 2.2 1.4.10)", () => {
         expect(cascaded(rules, amount, "white-space", medium)).toBe("nowrap");
         const size = lengthPx(cascaded(rules, amount, "font-size", medium) ?? "", width, 16);
         const leading = lengthPx(cascaded(rules, amount, "line-height", medium) ?? "", width, size);
-        // The Proof surface's column: 680 px, inside a 16 px gutter on each side.
-        const column = Math.min(680, width - 2 * 16);
+        // The Proof surface's column (680 px, inside a 16 px gutter on each side), less the card's padding.
+        const column = Math.min(680, width - 2 * 16) - 2 * 24;
         expect(TWELVE_CHARACTERS_EM * size, `at ${width} px`).toBeLessThanOrEqual(column);
         // The title step's numerals: 24 px on a 30 px line, at every width.
         expect(size, `at ${width} px`).toBe(24);
@@ -297,18 +297,21 @@ describe("W-PF-01 Proof: the season's settled run", () => {
     expect(screen.getByTestId("W-PF-01.metric.kept").textContent).toContain("US$21.14");
     expect(screen.getByTestId("W-PF-01.metric.holds").textContent).toContain("3 caught");
     expect(screen.getByTestId("W-PF-01.metric.onPaypal").textContent).toBe("7 of 64 members, 8.1% of value");
-    // Each PayPal-derived container still names the rail (I8), now within the tag budget (UI gate round 3): the
-    // page's one quiet indicator, one micro-tag on the money card's PayPal money, and bare glyphs elsewhere, whose
-    // words are their tooltip and what a screen reader hears.
-    const simulatedGlyph = (testId: string) => {
-      const glyph = screen.getByTestId(testId).querySelector(".fs-legend-glyph");
-      expect(glyph?.getAttribute("data-kind"), testId).toBe("simulated");
-      expect(glyph?.getAttribute("title"), testId).toBe("Simulated PayPal sandbox");
-      expect(glyph?.textContent, testId).toBe("Simulated PayPal sandbox");
+    // Each PayPal-derived container still names the rail (I8), within the tag budget: the page's one quiet
+    // indicator and one micro-tag on the money card's PayPal money on screen; round 5, provenance once, no legend
+    // glyph elsewhere: the rail in words for a screen reader on each container.
+    const simulatedWords = (testId: string) => {
+      const container = screen.getByTestId(testId);
+      expect(container.querySelector(".fs-legend-glyph"), testId).toBeNull();
+      const heard = [...container.querySelectorAll(".fs-sr")].map((n) => n.textContent ?? "");
+      expect(
+        heard.some((words) => words.includes("Simulated PayPal sandbox")),
+        testId,
+      ).toBe(true);
     };
-    simulatedGlyph("W-PF-01.metric.rails");
-    simulatedGlyph("W-PF-01.plate.payoutItems");
-    simulatedGlyph("W-PF-01.fees");
+    simulatedWords("W-PF-01.metric.rails");
+    simulatedWords("W-PF-01.plate.payoutItems");
+    simulatedWords("W-PF-01.fees");
     expect(screen.getByTestId("W-PF-01.plate.payoutItems.fact").textContent).toBe(
       "7 of 8 confirmed · 1 returned, cash due",
     );
@@ -322,7 +325,10 @@ describe("W-PF-01 Proof: the season's settled run", () => {
     // Nothing PayPal is unlabelled (I8): the simulated rail is named on the page, by its one quiet indicator.
     expect(screen.getByTestId("W-PF-01.rail").textContent).toContain("Simulated PayPal sandbox");
     expect(screen.getByTestId("W-PF-01.rail").querySelector("[data-quiet]")).not.toBeNull();
-    expect(screen.getByTestId("W-PF-01.synthetic").getAttribute("title")).toBe("Synthetic sample");
+    // The synthetic co-op is said once, in the title row's id line, its sentence its title (round 5).
+    expect(screen.getByTestId("W-PF-01.synthetic").getAttribute("title")).toMatch(
+      /^Synthetic co-op and people\./,
+    );
     expect(tagBudget(document.body)).toMatchObject({ tags: 2, micro: 1, ok: true });
     // One truth for counts and ids: the slips say which count is which, and the showcase run's invoice says so.
     expect(screen.getByTestId("W-PF-01.plate.read.fact").textContent).toBe("48 this run · 264 season");
@@ -333,10 +339,10 @@ describe("W-PF-01 Proof: the season's settled run", () => {
     const paid = screen.getByTestId("W-PF-01.plate.paid.fact");
     expect(paid.querySelector(".fs-t-id")?.textContent).toBe("FS-2026A-r37");
     expect(paid.querySelector(".pf-fact__money")?.textContent).toBe("US$4,333.50");
-    // The header names the thing: the invoice, its context in grey, and in words for a screen reader that it was
-    // marked paid in a simulated sandbox (the tag beside it says so on screen).
+    // The title row names the thing (round 5): a noun and its grey season, and in words for a screen reader the
+    // invoice and that it was marked paid in a simulated sandbox (the indicator at the row's end says so on screen).
     expect(document.getElementById("W-PF-01-title")?.textContent).toBe(
-      "US$4,333.50 Lantern Bay · Season 2026-A · marked paid in a simulated PayPal sandbox",
+      "Proof 2026-A · Lantern Bay’s US$4,333.50 invoice, marked paid in a simulated PayPal sandbox",
     );
     // The money card: counts in view, the whole sentence for a screen reader.
     const progress = screen.getByTestId("W-PF-01.progress");

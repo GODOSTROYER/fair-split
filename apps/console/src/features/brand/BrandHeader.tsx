@@ -1,10 +1,14 @@
 // W-BR-01's header strip (S1.8 W-PF-02, design B1): who this Proof is for, the invoice's status, the payouts as
 // PayPal confirms them ("3 of 8 confirmed", live), and the export. Names and masked receivers show on screen
 // under the data-sharing agreement; complete receivers and plot details only in the export (C-23).
+// Round 5: the strip's title is the console's title row, a noun with a grey suffix ("Proof for Lantern Bay
+// Chocolate Co."), and the Proof column under it heads itself "Season 2026-A", so "Proof" is said once. The payouts
+// fact says its counts in view and the rail in words for a screen reader (the page's quiet indicator says it on
+// screen).
 
 import type { InvoiceStatus, ProofBundle, SeasonSnapshot } from "@fairsplit/contracts";
 import { Glyph, HonestyTag, StateDot } from "@fairsplit/ui-web";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { payoutReplaySummary } from "../../data/payout-replay.js";
 import { SHOWCASE_LABEL } from "../../lib/display.js";
 import type { PaypalRail } from "../../lib/env.js";
@@ -17,28 +21,54 @@ export type BrandState = "loading" | "error" | "unpaid" | "progress" | "mismatch
 
 export const FUNDED: readonly InvoiceStatus[] = ["PAID", "MARKED_AS_PAID"];
 
-/** The brand reads the rail in the count's own words (inv.i8), so the payouts fact needs no tag beside it. */
-function confirmedBy(rail: PaypalRail): string {
-  return rail === "simulator"
-    ? "confirmed by the simulated PayPal sandbox"
-    : "confirmed on PayPal's sandbox (not simulated)";
+/** The rail after "confirmed" (inv.i8): heard by a screen reader on the fact itself; the page's indicator shows it. */
+function byRail(rail: PaypalRail): string {
+  return rail === "simulator" ? " by the simulated PayPal sandbox" : " on PayPal's sandbox (not simulated)";
+}
+
+/** "7 of 8 confirmed" in view, the rail in words for a screen reader, then what follows (" · updating"). */
+function Confirmed({
+  confirmed,
+  total,
+  rail,
+  rest,
+}: {
+  readonly confirmed: number;
+  readonly total: number;
+  readonly rail: PaypalRail;
+  readonly rest: string;
+}): ReactNode {
+  // One span, so the fact's flex row never puts its gap around the hidden words.
+  return (
+    <span>
+      {`${confirmed} of ${total} confirmed`}
+      <span className="fs-sr">{byRail(rail)}</span>
+      {rest}
+    </span>
+  );
 }
 
 export const BRAND_COPY = {
-  title: (payer: string) => `Proof for ${payer}`,
-  for: (name: string, title: string) => `Shared with ${name} · ${title} · data-sharing agreement`,
+  title: "Proof",
+  /** The title's grey suffix: who the Proof is for. */
+  titleFor: (payer: string) => `for ${payer}`,
+  for: (name: string, title: string) => `Shared with ${name} · ${title}`,
+  /** Why names show here, as the line's title and to a screen reader (C-23). */
+  agreement: "Shared under the data-sharing agreement",
   invoice: "Invoice",
   payouts: "Payouts",
   unpaid: "Sent to Lantern Bay. Waiting for payment.",
-  progress: (confirmed: number, total: number, rail: PaypalRail) =>
-    `${confirmed} of ${total} ${confirmedBy(rail)} · updating`,
-  settled: (p: ProgressCounts, cashPaid: number, rail: PaypalRail) =>
-    [
-      `${p.confirmed} of ${p.total} ${confirmedBy(rail)}`,
-      p.returned > 0 ? STATE_COPY.returned(p.returned, cashPaid) : null,
-    ]
-      .filter(Boolean)
-      .join(" · "),
+  progress: (confirmed: number, total: number, rail: PaypalRail) => (
+    <Confirmed confirmed={confirmed} total={total} rail={rail} rest=" · updating" />
+  ),
+  settled: (p: ProgressCounts, cashPaid: number, rail: PaypalRail) => (
+    <Confirmed
+      confirmed={p.confirmed}
+      total={p.total}
+      rail={rail}
+      rest={p.returned > 0 ? ` · ${STATE_COPY.returned(p.returned, cashPaid)}` : ""}
+    />
+  ),
   notYet: "The payout batch isn't posted yet.",
   export: "Export",
   /** The two downloads name their formats, so the label says only what both carry (round 4: copy only shortens). */
@@ -109,12 +139,15 @@ export function BrandHeader({
   return (
     <header className="br-strip" data-testid="W-BR-01.header" data-state={state}>
       <div className="br-strip__who">
-        <h1 className="br-strip__title fs-t-title" id="W-BR-01-title">
-          {BRAND_COPY.title(payer?.name ?? "the brand")}
+        {/* The console's title row (round 5): a noun and its grey suffix, one heading. */}
+        <h1 className="fsc-screen__title br-strip__title fs-t-title" id="W-BR-01-title">
+          {BRAND_COPY.title}{" "}
+          <span className="fsc-screen__suffix">{BRAND_COPY.titleFor(payer?.name ?? "the brand")}</span>
         </h1>
         {payer && (
-          <p className="br-strip__for fs-t-caption">
+          <p className="br-strip__for fs-t-caption" title={BRAND_COPY.agreement}>
             {BRAND_COPY.for(payer.contactName, payer.contactTitle)}
+            <span className="fs-sr">{`. ${BRAND_COPY.agreement}`}</span>
           </p>
         )}
       </div>

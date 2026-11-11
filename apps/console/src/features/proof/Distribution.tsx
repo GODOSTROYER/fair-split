@@ -9,11 +9,18 @@
 // Proof opens at "0 of 8" with no jade in it. The card's PayPal money carries its one micro-tag (UI gate round 3).
 
 import type { ProofBundle } from "@fairsplit/contracts";
-import { MicroTag } from "@fairsplit/ui-web";
+import { MicroTag, Swatch, type SwatchKind } from "@fairsplit/ui-web";
 import { format } from "../../lib/format.js";
 import type { ProofFigures } from "./metrics.js";
 
 export type SegmentKind = "paypal" | "flight" | "cash" | "reserved" | "deductions" | "disbursement";
+
+/**
+ * A legend row's key in the one marker vocabulary (round 5): ui-web's 8 px Swatch where the vocabulary has the
+ * material (jade for confirmed money, hatch for cash, amber for a hold); the in-flight ring and the two neutral costs
+ * keep Proof's own 8 px key in the same shape.
+ */
+const SWATCH: Partial<Record<SegmentKind, SwatchKind>> = { paypal: "paid", cash: "cash", reserved: "held" };
 
 interface Segment {
   readonly kind: SegmentKind;
@@ -123,7 +130,11 @@ export function Distribution({
             data-kind={s.kind}
             data-testid={`proof-distribution.${s.kind}`}
           >
-            <span className="pf-dist__swatch" aria-hidden />
+            {SWATCH[s.kind] ? (
+              <Swatch kind={SWATCH[s.kind] as SwatchKind} />
+            ) : (
+              <span className="pf-dist__swatch" aria-hidden />
+            )}
             <span className="pf-dist__label">
               {s.label}
               {s.kind === tagged && <MicroTag testId="W-PF-01.money.tag" />}

@@ -12,7 +12,11 @@
    glyph and its words. Dashed lines mean simulated only: a pending amount is neutral, never dashed.
    Round 4: the hero row sits on the console's 12-column grid, top-aligned; who signed reads by name and role with
    each key on one line, cut in the middle (IdText), never broken mid-word; file names and full ids wait behind
-   "IDs"; a slip chip's serial is ink-3 in the id role and its kilos ink. Proof has no top bar and no drawer. */
+   "IDs"; a slip chip's serial is ink-3 in the id role and its kilos ink. Proof has no top bar and no drawer.
+   Round 5 (docs/DESIGN.md §10): the head is the console's title row ("Proof 2026-A", the run's state in one chip, one
+   id line with one provenance phrase, the quiet indicator at its end); one marker vocabulary (a check that held is
+   the line ✓ and its word, a chain step the 24 px outlined numeral, squares only as a legend's 8 px key); no legend
+   glyph anywhere but that indicator and the "Simulated" micro-tags beside PayPal money; no key id beside a person. */
 
 /* Proof's ground is plate (decision.md §5). No wash behind the hero (UI gate round 2: a check result never
    glows, and colour only where it means something). */
@@ -65,59 +69,43 @@
   padding-bottom: 8px;
 }
 
-/* The headline and its id line on the left, the page's one quiet indicator on the right; they wrap on a phone. */
+/* Round 5: the head is the console's title row (theme/grid.css: .fsc-screen__head and its title, suffix, status,
+   meta and actions): "Proof 2026-A" with the state's chip on its row, the id line, the quiet indicator at the end.
+   It wraps on a phone: the title and chip, then the id line, then the indicator. */
 .pf-head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 8px 24px;
+  row-gap: 4px;
 }
 
-.pf-head__main {
-  display: grid;
-  gap: 4px;
-  min-width: 0;
+/* The id line's pieces are flex items, so the " · " between them would lose its spaces: the gap draws them. */
+.pf-head__meta {
+  column-gap: 6px;
 }
 
-/* The header's id line, under the headline: the lot in the id role (the mono, 12 px), ink-3. Its line box is held
-   at its settled height while the seed that names the lot is still on its way. */
+/* The id line's words (the payer) in ink-3 on the caption step, like the provenance phrase after it. */
+.pf-head__payer {
+  color: var(--fs-ink-3);
+}
+
+/* The id line's lot in the id role (the mono, 12 px), ink-3. Its box is held at its settled height while the seed
+   that names the lot is still on its way. */
 .pf-hero__lot {
+  display: inline-block;
   min-block-size: 1rem;
   margin: 0;
   color: var(--fs-ink-3);
   line-height: 1rem;
 }
 
-/* The headline names the thing on the title step (fs-t-title): the invoice in its money figures (fs-t-amount-l),
-   its context in ink-3 at reading weight. The verdict's count is the page's one hero number. */
-.pf-hero__title {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 4px 12px;
-  margin: 0;
+/* Waiting for the seed, the empty lot takes no gap in the line (the row's height is the title's either way). */
+.pf-hero__lot:empty {
+  display: none;
 }
 
-/* Money is never bold: weight 500, solid ink, and never broken across lines. */
-.pf-hero__amount {
-  color: var(--fs-ink);
-  white-space: nowrap;
-}
-
-.pf-hero__context {
-  color: var(--fs-ink-3);
-  font-weight: 430;
-  letter-spacing: -0.01em;
-}
-
+/* The quiet indicator at the row's end (grid.css's actions keep it there with an auto start margin). */
 .pf-head__tags {
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
-  min-height: 30px;
-  margin: 0;
+  margin-block: 0;
 }
 
 .pf-head__rail {
@@ -246,12 +234,12 @@
   gap: 8px;
 }
 
-/* The verdict word is a checked fact, so no pill: its glyph and the word in ink, on the label step. Never jade
-   (jade means money) and never red (red is PayPal's no). */
+/* The verdict word is a checked fact, so no pill: its glyph (the line ✓ for a verdict that held) and the word in
+   ink, on the label step. Never jade (jade means money) and never red (red is PayPal's no). */
 .pf-verdict {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   min-height: 28px;
   color: var(--fs-ink);
   font-weight: 520;
@@ -292,12 +280,12 @@
   white-space: nowrap;
 }
 
-/* Who signed (round 4): a row per officer, readable without zooming. The avatar (white, a 1 px ink-2 ring, ink
-   initials: indigo is for action only) at the rail's 32 px; the person in ink and the role in ink-2 on the label
-   step; under them the key they signed with in the id role, on one line and cut in the middle (IdText). */
+/* Who signed: a row per officer, readable without zooming. The avatar (white, a 1 px ink-2 ring, ink initials:
+   indigo is for action only) at the rail's 32 px; the person in ink and the role in ink-2 on the label step. Round
+   5, no ids for people: the key they signed with is the row's title, and whole behind "IDs" and in plate 5. */
 .pf-signers {
   display: grid;
-  gap: 12px;
+  gap: 8px;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -312,7 +300,6 @@
 
 .pf-signer__avatar {
   --fs-stamp-size: 32px;
-  grid-row: 1 / span 2;
   width: 32px;
   height: 32px;
 }
@@ -333,11 +320,6 @@
 .pf-signer__name {
   color: var(--fs-ink);
   font-weight: 520;
-}
-
-.pf-signer__key {
-  grid-column: 2;
-  color: var(--fs-ink-3);
 }
 
 .pf-verify__meta {
@@ -505,10 +487,12 @@
   line-height: 1.25rem;
 }
 
+/* A check's state in the one marker vocabulary (round 5): a check that held is ui-web's CheckMark (the 16 px line ✓
+   and its word in ink); a mismatch its line ✕ and its word, 8 px apart. */
 .pf-checks__state {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   color: var(--fs-ink-3);
   font-weight: 520;
   font-size: 0.875rem;
@@ -557,7 +541,7 @@
 .pf-card__head {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
+  align-items: baseline;
   justify-content: space-between;
   gap: 8px 16px;
 }
@@ -565,6 +549,13 @@
 /* The card's heading is the heading step (fs-t-heading). */
 .pf-card__title {
   margin: 0;
+}
+
+/* Round 5: the invoice the card adds up to, cent for cent, at its head on the amount-l step (24/30 numerals). Money
+   is never bold and never broken across lines. The verdict's count stays the page's one hero number. */
+.pf-money__amount {
+  color: var(--fs-ink);
+  white-space: nowrap;
 }
 
 /* The run's line: counts in secondary words, the whole sentence for a screen reader. A replay prints its
@@ -644,16 +635,17 @@
   padding-top: 4px;
 }
 
+/* A legend's key (round 5): 8 px, ui-web's Swatch where the vocabulary has the material, this key in the same shape
+   for the in-flight ring and the two neutral costs. */
 .pf-dist__swatch {
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
   border-radius: var(--fs-radius-2);
 }
 
 /* Confirmed by the simulated PayPal: flush jade. On its way: a hollow neutral ring (pending, never dashed).
    Cash: hatch. */
-.pf-dist__seg[data-kind="paypal"],
-.pf-dist__key[data-kind="paypal"] .pf-dist__swatch {
+.pf-dist__seg[data-kind="paypal"] {
   background: var(--fs-jade);
   box-shadow: inset 0 0 0 1px var(--fs-jade-flush-border);
 }
@@ -664,16 +656,14 @@
   box-shadow: inset 0 0 0 1.5px var(--fs-pending);
 }
 
-.pf-dist__seg[data-kind="cash"],
-.pf-dist__key[data-kind="cash"] .pf-dist__swatch {
+.pf-dist__seg[data-kind="cash"] {
   background:
     repeating-linear-gradient(-45deg, var(--fs-hatch) 0 1.5px, transparent 1.5px 5px), var(--fs-plate);
   box-shadow: inset 0 0 0 1px var(--fs-rule-strong);
 }
 
 /* A line a hold reserved for its member: marigold, a person decides. */
-.pf-dist__seg[data-kind="reserved"],
-.pf-dist__key[data-kind="reserved"] .pf-dist__swatch {
+.pf-dist__seg[data-kind="reserved"] {
   background: var(--fs-canary-wash);
   box-shadow: inset 0 0 0 1.5px var(--fs-canary-border);
 }
@@ -703,7 +693,7 @@
    the five-column card. */
 .pf-dist__key {
   display: grid;
-  grid-template-columns: 10px minmax(0, 1fr) 2rem minmax(5.5rem, auto);
+  grid-template-columns: 8px minmax(0, 1fr) 2rem minmax(5.5rem, auto);
   align-items: center;
   gap: 8px;
   min-height: 32px;
@@ -849,58 +839,39 @@
   list-style: none;
 }
 
+/* The rule the six steps sit on, through their centres (12 px into the 24 px column). */
 .pf-chain__list::before {
   content: "";
   position: absolute;
   top: 16px;
   bottom: 24px;
-  left: 15.5px;
+  left: 11.5px;
   width: 1px;
-  background: var(--fs-ink-3);
+  background: var(--fs-rule-strong);
 }
 
 .pf-plate {
   position: relative;
   display: grid;
-  grid-template-columns: 32px minmax(0, 1fr);
+  grid-template-columns: 24px minmax(0, 1fr);
   column-gap: 16px;
   padding-bottom: 20px;
 }
 
+/* A chain step (round 5, the one marker vocabulary): ui-web's StepNumber, a 24 px circle in a 1 px ink-2 outline
+   with an ink numeral on plate, centred on the title's line. It stays outlined once its plate matches: the ✓ line
+   under the title says the check held, so no step is ever a filled disc. */
 .pf-plate__node {
   position: relative;
   z-index: 1;
   grid-row: 1 / span 3;
-  display: grid;
-  place-items: center;
-  width: 32px;
-  height: 32px;
-  border: 1px solid var(--fs-ink);
-  border-radius: 50%;
-  background: var(--fs-ground);
-  color: var(--fs-ink);
-  font-weight: 520;
-  font-size: 0.875rem;
+  align-self: start;
+  margin-top: 4px;
 }
 
-/* An ink node once this browser has re-checked the plate: a person can see six marks, top to bottom. */
-.pf-plate:is([data-state="matches"], [data-state="server"]) .pf-plate__node {
-  background: var(--fs-ink);
-  color: var(--fs-ground);
-  transition:
-    background-color var(--fs-dur-reduced) var(--fs-ease-out),
-    color var(--fs-dur-reduced) var(--fs-ease-out);
-}
-
-/* A plate that does not match keeps an open ink node: no fill (only a match fills it), never red. */
-.pf-plate[data-state="differs"] .pf-plate__node {
-  border-color: var(--fs-ink);
-  color: var(--fs-ink);
-}
-
-/* Still waiting on PayPal: a hollow neutral node (pending), never dashed (dashed means simulated only). */
+/* Still waiting on PayPal: the step in the pending neutral (never dashed: dashed means simulated only). */
 .pf-plate[data-waiting] .pf-plate__node {
-  border-color: var(--fs-pending);
+  box-shadow: inset 0 0 0 1px var(--fs-pending);
   color: var(--fs-pending);
 }
 
@@ -986,7 +957,7 @@
   grid-column: 2;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   margin-top: 2px;
   color: var(--fs-ink-3);
   font-size: 0.875rem;
@@ -1180,32 +1151,22 @@
   font-weight: 400;
 }
 
-/* The rail in one word. Cash is a 10 px hatch swatch and the word, never a pill (unslop spec §1.8). */
+/* The rail in one word. Cash is ui-web's 8 px hatch Swatch and the word, never a pill (unslop spec §1.8). */
 .pf-rail {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   color: var(--fs-ink-2);
   font-weight: 520;
   font-size: 0.875rem;
   line-height: 1.25rem;
 }
 
-.pf-rail__swatch {
-  flex: none;
-  width: 10px;
-  height: 10px;
-  border-radius: var(--fs-radius-2);
-  background:
-    repeating-linear-gradient(-45deg, var(--fs-hatch) 0 1.5px, transparent 1.5px 4px), var(--fs-plate);
-  box-shadow: inset 0 0 0 1px var(--fs-rule-strong);
-}
-
-/* A cash line's status: the words, no pill; a ✓ once the clerk attested it. */
+/* A cash line's status: the words, no pill; the line ✓ (CheckMark) once the clerk attested it. */
 .pf-cash-status {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   min-height: 24px;
   color: var(--fs-ink-2);
 }
@@ -1656,33 +1617,22 @@
 
 .pf-tier {
   display: grid;
-  grid-template-columns: 12px minmax(0, 1fr) auto minmax(6.5rem, auto);
+  grid-template-columns: 8px minmax(0, 1fr) auto minmax(6.5rem, auto);
   gap: 10px;
   align-items: baseline;
   font-size: 0.875rem;
   line-height: 1.25rem;
 }
 
+/* Each tier's key is ui-web's 8 px Swatch (round 5): jade for what the simulated PayPal confirmed, hatch for cash,
+   amber for a line a hold reserved. Hatch means cash: attested cash is the hatch on an ink line (a checked fact),
+   cash still due the hatch alone. */
 .pf-tier__swatch {
-  width: 12px;
-  height: 12px;
   align-self: center;
-  border: 1px solid var(--fs-ink-3);
-}
-
-.pf-tier[data-tier="paypal"] .pf-tier__swatch {
-  border-color: var(--fs-jade-flush-border);
-  background: var(--fs-jade);
-}
-
-/* Hatch means cash: attested cash is the hatch on an ink line (a checked fact), cash still due the hatch alone. */
-.pf-tier:is([data-tier="attested"], [data-tier="due"], [data-tier="reserved"]) .pf-tier__swatch {
-  background:
-    repeating-linear-gradient(-45deg, var(--fs-hatch) 0 1.5px, transparent 1.5px 4px), var(--fs-plate);
 }
 
 .pf-tier[data-tier="attested"] .pf-tier__swatch {
-  border-color: var(--fs-ink);
+  box-shadow: inset 0 0 0 1px var(--fs-ink);
 }
 
 .pf-tier__words {
@@ -1938,20 +1888,14 @@ details[open] > summary > .pf-summary__chevron {
     animation-duration: var(--fs-dur-reduced);
     animation-delay: 0ms;
   }
-
-  .pf-plate:is([data-state="matches"], [data-state="server"]) .pf-plate__node {
-    transition: none;
-  }
 }
 
 /* ------------------------------------------------------------------ narrow screens */
 
 @media (max-width: 560px) {
-  /* The headline's context drops to the body step under the amount, so a phone reads it in two short lines. */
-  .pf-hero__context {
-    font-size: 1rem;
-    line-height: 1.5rem;
-    letter-spacing: 0;
+  /* The title row wraps: the quiet indicator starts its own line at the left, under the id line. */
+  .pf-head__tags {
+    margin-left: 0;
   }
 
   /* The seal sits above the verdict, so the count, the result and the sample keys get the card's whole width. */
@@ -1974,7 +1918,7 @@ details[open] > summary > .pf-summary__chevron {
   }
 
   .pf-tier {
-    grid-template-columns: 12px minmax(0, 1fr) auto;
+    grid-template-columns: 8px minmax(0, 1fr) auto;
   }
 
   .pf-tier__count {
@@ -2014,15 +1958,6 @@ details[open] > summary > .pf-summary__chevron {
   background: var(--fs-ink-3);
   border-color: var(--fs-ink-3);
   box-shadow: none;
-}
-
-/* Matches: a white check in an ink circle, and the word in ink. A checked fact, never jade. */
-.pf-checks__row:is([data-state="matches"], [data-state="server"]) .pf-checks__state .fs-glyph {
-  box-sizing: content-box;
-  padding: 2px;
-  border-radius: 50%;
-  background: var(--fs-ink);
-  color: var(--fs-plate);
 }
 
 /* ------------------------------------------------------------------ wide (from 1120 px), last in the cascade */
