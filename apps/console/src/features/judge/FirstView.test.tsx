@@ -151,11 +151,16 @@ describe("W-JG-01 first view", { timeout: 60_000 }, () => {
       `${getSnapshot().run.invoice.invoiceNumber} · showcase run`,
     );
     // The pool as one line, true to the cent: the invoice, minus the payout costs, is the pool. Pending until the
-    // simulated PayPal funds it: grey, with a hollow dot, and no tag yet.
+    // simulated PayPal funds it: grey, and no tag yet. Round 4: the hollow dot and its word sit in the card's head
+    // ("Pool · 64 members", "Not funded"), never inside the sum, where it read as the letter o.
     const eq = screen.getByTestId("W-JG-01.pool.eq");
     expect(eq.dataset.state).toBe("pending");
     expect(eq.textContent).toContain("Invoice US$4,333.50 minus costs US$60.00 equals the pool");
-    expect(eq.querySelector('.fs-state-dot[data-kind="pending"]')).toBeTruthy();
+    expect(eq.querySelector(".fs-state-dot")).toBeNull();
+    const poolState = screen.getByTestId("W-JG-01.pool.state");
+    expect(poolState.textContent).toBe("Not funded");
+    expect(poolState.querySelector('.fs-state-dot[data-kind="pending"]')).toBeTruthy();
+    expect(screen.getByRole("heading", { name: /^Pool\W+64 members$/ })).toBeTruthy();
     expect(screen.getByTestId("W-JG-01.pool.disbursement").textContent).toBe("US$60.00");
     expect(screen.queryByTestId("W-JG-01.pool.tag")).toBeNull();
     const draft = screen.getByTestId("W-JG-01.invoice.draft");
@@ -220,16 +225,37 @@ describe("W-JG-01 first view", { timeout: 60_000 }, () => {
   it("leads with the paper: at 1470 × 956 the desk lies beside the invoice, under the pool's strip", async () => {
     await renderConsole({ path: "/judge", viewport: { width: 1470, height: 956 } });
     const funding = await screen.findByTestId("W-JG-01.funding");
-    // The composition: the invoice on the left; the pool as one strip and the desk under it on the right, all
-    // inside the one grid (never a row of its own after the money, which put the paper under the ribbon).
+    // Round 4: the first view sits on the one twelve-column grid, and the desk is two top-aligned stacks on it: the
+    // money (the invoice, then the rate card under it) and the paper (the pool's strip, then the slips under it).
+    expect(screen.getByTestId("W-JG-01").classList.contains("fsc-screen")).toBe(true);
     expect(funding.dataset.layout).toBe("desk");
     expect(screen.getByTestId("W-JG-01.pool").dataset.variant).toBe("strip");
     const desk = screen.getByTestId("W-JG-01.desk");
-    expect(desk.parentElement?.parentElement).toBe(funding);
-    const order = [screen.getByTestId("W-JG-01.invoice"), screen.getByTestId("W-JG-01.pool"), desk];
+    const money = screen.getByTestId("W-JG-01.invoice").parentElement;
+    const paper = screen.getByTestId("W-JG-01.pool").parentElement;
+    expect(money?.dataset.col).toBe("money");
+    expect(paper?.dataset.col).toBe("paper");
+    expect(money?.parentElement).toBe(funding);
+    expect(paper?.parentElement).toBe(funding);
+    expect(screen.getByTestId("W-JG-01.rules").parentElement).toBe(money);
+    expect(desk.parentElement?.parentElement).toBe(paper);
+    const order = [
+      screen.getByTestId("W-JG-01.invoice"),
+      screen.getByTestId("W-JG-01.rules"),
+      screen.getByTestId("W-JG-01.pool"),
+      desk,
+    ];
     for (let i = 1; i < order.length; i++) {
       expect(order[i - 1]?.compareDocumentPosition(order[i] as Node)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     }
+    // The title row keeps the heading and its one meta line only; the five steps follow the desk.
+    expect(within(screen.getByTestId("W-JG-01")).getAllByRole("heading", { level: 1 })).toHaveLength(1);
+    expect(
+      screen.getByTestId("W-JG-01").querySelector(".fsc-first__head [data-testid='W-JG-01.rules']"),
+    ).toBeNull();
+    expect(funding.compareDocumentPosition(screen.getByTestId("story-tiles"))).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
     // Where the desk lands against the fold is a layout fact jsdom cannot measure (it lays nothing out): the
     // browser checks it. Hand-written pixel budgets here could not fail for a CSS change, so none is kept.
   });

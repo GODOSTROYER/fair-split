@@ -324,12 +324,37 @@ function Desk() {
     </div>
   );
 
+  // The rate card as the quiet card under the invoice (round 4): its name, its hash in the mono and its seal date,
+  // then "Open". The title row keeps only the heading and its one meta line.
+  const rateCard = (
+    <AppLink
+      href={webRoutes.rateCard(season)}
+      className="fsc-first__card"
+      aria-label={`${FIRST_VIEW_COPY.openCard}: ${sealedText(snapshot.rateCard)}`}
+      data-testid="W-JG-01.rules"
+    >
+      <Glyph name="ms:lock" size={16} />
+      <span className="fs-t-label">{FIRST_VIEW_COPY.card}</span>
+      {/* The hash in the mono (an id), its seal date in words. */}
+      <span className="fsc-first__card-hash" data-testid="W-JG-01.rules.sealed">
+        <span className="fs-t-id">{format.hashGroups(snapshot.rateCard.sha256)}</span>
+        <span className="fs-t-caption">
+          {FIRST_VIEW_COPY.cardSealedOn(format.dateShort(snapshot.rateCard.canonical.ratifiedOn))}
+        </span>
+      </span>
+      <span className="fsc-first__card-open fs-t-label" aria-hidden>
+        {FIRST_VIEW_COPY.open}
+      </span>
+    </AppLink>
+  );
+
   return (
     <ScreenRoot
       id="W-JG-01"
       state={inSession ? "session" : "ready"}
       labelledBy="fsc-first-title"
       className="fsc-first"
+      grid
     >
       <header className="fsc-first__head">
         <div className="fsc-first__titles">
@@ -367,25 +392,6 @@ function Desk() {
             </span>
           </p>
         </div>
-        <AppLink
-          href={webRoutes.rateCard(season)}
-          className="fsc-first__card"
-          aria-label={`${FIRST_VIEW_COPY.openCard}: ${sealedText(snapshot.rateCard)}`}
-          data-testid="W-JG-01.rules"
-        >
-          <Glyph name="ms:lock" size={16} />
-          <span className="fs-t-label">{FIRST_VIEW_COPY.card}</span>
-          {/* The hash in the mono (an id), its seal date in words. */}
-          <span className="fsc-first__card-hash" data-testid="W-JG-01.rules.sealed">
-            <span className="fs-t-id">{format.hashGroups(snapshot.rateCard.sha256)}</span>
-            <span className="fs-t-caption">
-              {FIRST_VIEW_COPY.cardSealedOn(format.dateShort(snapshot.rateCard.canonical.ratifiedOn))}
-            </span>
-          </span>
-          <span className="fsc-first__card-open fs-t-label" aria-hidden>
-            {FIRST_VIEW_COPY.open}
-          </span>
-        </AppLink>
       </header>
 
       <FundingBlock
@@ -398,6 +404,7 @@ function Desk() {
         totalRole="amount-hero"
         action={action}
         compact
+        under={rateCard}
         desk={
           <section className="fsc-first__desk" aria-labelledby="fsc-first-desk" data-testid="W-JG-01.desk">
             <header className="fsc-first__desk-head" title={FIRST_VIEW_COPY.deskNote(photos.length, funded)}>

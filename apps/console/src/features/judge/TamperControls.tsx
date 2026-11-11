@@ -1,7 +1,8 @@
-// What's real's "Try to break it" (UI gate round 3): a list of four left-aligned rows, each the attack's name and a
-// "Try" button (the shared .fs-flat). The row tried last expands in place to its result, a title: "Refused · <rule
-// id>" (the id in the mono) beside an ink dot (a checked fact; amber is only for a person's decision), and the one
-// number the attack would have changed ("+US$1,000.00 blocked"), with the policy's own words behind "Why". A row tried earlier keeps one word, "Refused". The 1-cent payout change is armed
+// What's real's "Try to break it" (UI gate rounds 3 and 4): a list of four left-aligned rows, each the attack's name
+// and a "Try" button (the shared .fs-flat). The row tried last expands in place to its result, a title in plain
+// words, "Refused · invoice must equal quote", beside an ink dot (a checked fact; amber is only for a person's
+// decision), and the one number the attack would have changed ("+US$1,000.00 blocked"), with the policy's own words
+// and the rule ids (in the mono) behind "Why". A row tried earlier keeps one word, "Refused". The 1-cent payout change is armed
 // before key 2 and refused by both keys: its row says so, then that both approvals were voided. No model or
 // PayPal call is made by these controls; the sheet's lede says so, and its PayPal row is the simulated sandbox's.
 
@@ -13,6 +14,7 @@ import { TRY_TO_BREAK } from "../../chrome/copy.js";
 import { ChromePortal } from "../../chrome/slots.js";
 import { useAdapter, useJudgeSession, useStageRun } from "../../data/hooks.js";
 import { format } from "../../lib/format.js";
+import { refusalTitle, ruleWords, tellingRule } from "../../lib/plain.js";
 import { liveApprovals, voidedByChange } from "../approve/model.js";
 
 type TamperResult = RouteData<"tamper">;
@@ -30,6 +32,17 @@ const VERDICT_WORD: Readonly<Record<string, string>> = {
   REQUIRE_APPROVAL: "Needs a person",
   ALLOW: "Allowed",
 };
+
+/**
+ * The verdict's title in a farmer's or a judge's words (UI gate round 4): a refusal names its most telling rule,
+ * "Refused · invoice must equal quote"; the rule ids stay in the mono behind "Why".
+ */
+export function verdictTitle(verdict: string | null | undefined, decidedBy: readonly string[]): string {
+  const word = VERDICT_WORD[verdict ?? ""] ?? verdict ?? "";
+  if (verdict === "DENY") return refusalTitle(decidedBy, word);
+  const rule = tellingRule(decidedBy);
+  return rule ? `${word} · ${ruleWords(rule)}` : word;
+}
 
 /**
  * The one number an attack would have changed, read from the server's own description of it (its label names the
@@ -134,17 +147,10 @@ export function TamperControls() {
                       <p className="fsc-tamper__verdict">
                         {/* A refusal is a checked fact, the ink dot: no person decides it (never amber). */}
                         <StateDot kind={open.verdict === "DENY" ? "done" : "pending"} />
+                        {/* Round 4: the verdict in plain words, "Refused · invoice must equal quote"; the rule's
+                            own id waits in the mono behind "Why". */}
                         <span className="fsc-tamper__title fs-t-heading">
-                          {VERDICT_WORD[open.verdict ?? ""] ?? open.verdict}
-                          {open.decidedBy.length > 0 && (
-                            <>
-                              <span className="fsc-tamper__sep" aria-hidden>
-                                ·
-                              </span>
-                              <span className="fs-sr">, by </span>
-                              <span className="fsc-tamper__rule fs-t-id">{open.decidedBy.join(" · ")}</span>
-                            </>
-                          )}
+                          {verdictTitle(open.verdict, open.decidedBy)}
                         </span>
                         {blocked && open.verdict === "DENY" && (
                           <span className="fsc-tamper__figure fs-t-figure">
@@ -152,11 +158,11 @@ export function TamperControls() {
                           </span>
                         )}
                       </p>
-                      {open.reasons.length > 0 && (
-                        <details className="fsc-truth__more fsc-tamper__why">
+                      {(open.reasons.length > 0 || open.decidedBy.length > 0) && (
+                        <details className="fsc-tamper__why">
                           <summary className="fs-t-label">
                             {TRY_TO_BREAK.why}
-                            <span className="fsc-truth__chev" aria-hidden>
+                            <span className="fsc-tamper__chev" aria-hidden>
                               <Glyph name="ms:expand-more" size={16} />
                             </span>
                           </summary>
@@ -164,6 +170,12 @@ export function TamperControls() {
                             {open.reasons.map((reason) => (
                               <li key={reason}>{reason}</li>
                             ))}
+                            {open.decidedBy.length > 0 && (
+                              <li>
+                                <span className="fs-sr">Rules: </span>
+                                <span className="fsc-tamper__rule fs-t-id">{open.decidedBy.join(" · ")}</span>
+                              </li>
+                            )}
                           </ul>
                         </details>
                       )}

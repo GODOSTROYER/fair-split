@@ -15,13 +15,15 @@ export const GATE_COPY = {
 
 export const SEASON_COPY = {
   title: (season: string) => `Season ${season}`,
-  lot: (lot: string, kg: string, buyer: string, sacks: number) =>
-    `Lot ${lot}: ${sacks} jute sacks, ${kg}, shipped to ${buyer}.`,
+  /** The lot's facts under the co-op (round 4): data joined by " · ", the lot's code already beside the season. */
+  lotFacts: (kg: string, buyer: string, sacks: number) => `${sacks} jute sacks · ${kg} · shipped to ${buyer}`,
   strip: "Run stages",
   stripDone: "done",
   stripNext: "next",
   stripNextWord: "Next",
   stripLater: "not yet",
+  /** Paid's note on a run that settled on PayPal while cash is still due at the bodega (round 4). */
+  stripCashDue: "Cash due",
   /** The last stage on a run that settled on replayed payout statuses: never "Paid". */
   stripReplayed: "Replayed",
   pool: "The pool",
@@ -44,13 +46,10 @@ export const SEASON_COPY = {
   sentBy: (name: string) => `Sent by ${name}`,
   funded: "Funded",
   waiting: "Waiting for payment",
-  photos: (count: number) => `The desk: ${count} photos to read`,
-  photosNote: "Four synthetic slips a photo, composed in code. Open one in the reading room.",
   photoLabel: (id: string, serials: string, read: boolean) =>
     `Photo ${id}: slips ${serials}${read ? ", read" : ""}. Synthetic sample.`,
   evalTitle: "Reading eval",
-  evalEmpty:
-    "No payroll eval report is served here. The reading room separately shows the ten real hero-slip readings with provisional, agent-checked labels.",
+  evalEmpty: "No eval report is served here.",
   evalCaption: (exact: string, baseline: string, unsafe: number, date: string) =>
     `40 labelled synthetic cases. Exact rows ${exact} against an OCR-only baseline of ${baseline}. Unsafe auto-accepts ${unsafe}. Run ${date}.`,
   evalCase: "Case",
@@ -139,6 +138,8 @@ export const FIRST_VIEW_COPY = {
   /** The pool's strip and the desk's head (W-JG-01). */
   pool: "Pool",
   members: (n: number) => `${n} members`,
+  /** The pool's state before the simulated PayPal funds it, beside its hollow dot (round 4). */
+  notFunded: "Not funded",
   /** The pool as one line (round 3): "Invoice US$4,333.50 − costs US$60.00 = US$4,273.50". */
   eqInvoice: "Invoice",
   eqCosts: "costs",

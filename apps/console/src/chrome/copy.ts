@@ -182,7 +182,7 @@ export interface WhatsRealSection {
   readonly title: string;
   /** The row's one line (UI gate round 2): ten words or so. */
   readonly line: string;
-  /** The details, behind the row's "More". */
+  /** The details, under the sentence once the row is opened (round 4: no "More"). */
   readonly items: readonly string[];
 }
 
@@ -200,7 +200,7 @@ export interface WhatsRealFacts {
 
 /**
  * W-JG-02 (S1.6; UI gate round 2): five rows, Real code, the simulated PayPal sandbox, Replayed, Synthetic and
- * Not built, each one line with its details behind "More". Seeded entries sit under Replayed; the simulated phone
+ * Not built, each one sentence, the row opening to its details. Seeded entries sit under Replayed; the simulated phone
  * features, accounts, the merchant of record and the visitor's privacy sit under the row they belong to.
  */
 export function whatsReal(f: WhatsRealFacts): readonly WhatsRealSection[] {
@@ -209,12 +209,6 @@ export function whatsReal(f: WhatsRealFacts): readonly WhatsRealSection[] {
     : [];
   return [...build, ...whatsRealSections(f)];
 }
-
-/** The sheet's legend words, in the honesty row's order. */
-export const WHATS_REAL = {
-  more: "More",
-  less: "Less",
-} as const;
 
 function whatsRealSections(f: WhatsRealFacts): readonly WhatsRealSection[] {
   const simulated = f.rail === "simulator";
@@ -227,7 +221,7 @@ function whatsRealSections(f: WhatsRealFacts): readonly WhatsRealSection[] {
     ? {
         id: "simulated-paypal",
         title: "Simulated PayPal sandbox",
-        line: "Invoice, payment, payouts, notices. PayPal's own sandbox is untested.",
+        line: "Invoice, payment, payouts, notices, untested on PayPal's own sandbox.",
         items: [
           "PayPal runs only on our simulated PayPal sandbox, contract-tested against PayPal's published OpenAPI specs. The calls use Agent Toolkit 1.11.0 and Server SDK code; this integration is untested against PayPal's own sandbox.",
           "Simulated: the invoice, record-payment, the payout batch, item notices signed the way PayPal signs them, Rhea's unclaimed item and its cancel, and one repeated delivery.",
@@ -250,7 +244,7 @@ function whatsRealSections(f: WhatsRealFacts): readonly WhatsRealSection[] {
     {
       id: "real",
       title: "Real code",
-      line: "Engine, holds, signatures, Proof. Claude never writes a number.",
+      line: "Engine, holds, signatures, Proof: Claude never writes a number.",
       items: [
         "Your presses, the holds you resolve and the approvals you sign. Signatures are Ed25519, made in your browser with a demo key for this session.",
         "Every amount, computed by the engine in integer cents. Claude never writes a number into a line, a payout or a statement.",
@@ -272,7 +266,7 @@ function whatsRealSections(f: WhatsRealFacts): readonly WhatsRealSection[] {
     {
       id: "synthetic",
       title: "Synthetic",
-      line: `Co-op, ${f.members} people, slips, voices. No real farmer is paid.`,
+      line: `Co-op, ${f.members} people, slips, voices: no real farmer is paid.`,
       items: [
         `The ${f.members} members, the co-op and the brand are fictional. The 10 hero slips are Codex-made (OpenAI's image model via Codex CLI). The photos A–L are composed in code from hero flats and code-drawn slips. All images are synthetic. Voice clips, where served, use Gemini TTS; device voice is labelled separately. No real farmer is paid.`,
       ],

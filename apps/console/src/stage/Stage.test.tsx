@@ -8,6 +8,7 @@ import { act, configure, fireEvent, screen, waitFor, within } from "@testing-lib
 import { getResponse, HttpResponse, http } from "msw";
 import { describe, expect, it, vi } from "vitest";
 import { screenControl } from "../lib/focus.js";
+import { developerWords } from "../lib/plain.js";
 import { expectNoAxeViolations } from "../test/axe.js";
 import { focusAcrossRemoval } from "../test/focus.js";
 import { renderConsole } from "../test/render.js";
@@ -384,11 +385,17 @@ describe("Judge stage", () => {
     });
     const sheet = await screen.findByTestId("W-JG-01.whatsReal");
     expect(sheet.dataset.rail).toBe("simulator");
-    // Five rows, each one line, the details behind "More".
+    // Five rows, each one short sentence; the whole row opens to its details (round 4: no repeated "More").
     const rows = within(sheet).getByTestId("W-JG-01.whatsReal.rows");
-    expect(rows.querySelector('[data-section="simulated-paypal"] dt')?.textContent).toBe(
+    expect(rows.querySelector('[data-section="simulated-paypal"] .fsc-truth__term')?.textContent).toBe(
       "Simulated PayPal sandbox",
     );
+    const lines = [...rows.querySelectorAll(".fsc-truth__line")].map((l) => l.textContent ?? "");
+    expect(lines).toHaveLength(6);
+    for (const line of lines) expect(line, line).not.toMatch(/[.;]\s+\S/);
+    expect(within(sheet).queryByText("More")).toBeNull();
+    for (const summary of rows.querySelectorAll("summary"))
+      expect(developerWords(summary.textContent ?? "")).toEqual([]);
     // A mock-data build says so first (I8); then the five rows.
     expect([...rows.querySelectorAll("[data-section]")].map((r) => r.getAttribute("data-section"))).toEqual([
       "build",

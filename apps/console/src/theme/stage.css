@@ -1416,6 +1416,9 @@
   --fsc-gutter: 8px;
   height: auto;
   min-height: 100dvh;
+  /* Round 4: the statement runs to the window's foot; the last gutter clears the home indicator where there is one
+     (layout.ts useVisitHeight reads it). */
+  padding-bottom: max(var(--fsc-gutter), env(safe-area-inset-bottom));
   overflow: visible;
   overflow-x: clip;
   background: var(--fs-ground);
@@ -1475,7 +1478,12 @@
   padding: 0;
 }
 
-/* The statement, full width: the device's bezel and corners give way to the page. */
+/* The statement, full width: the device's bezel and corners give way to the page, and the frame keeps to the
+   page's column, edge to edge with the bar (round 4). */
+.fsc-stage[data-layout="phone-visit"] .fs-phone {
+  max-width: 100%;
+}
+
 .fsc-stage[data-layout="phone-visit"] .fs-phone__bezel {
   padding: 0;
   border-radius: var(--fs-radius-panel);

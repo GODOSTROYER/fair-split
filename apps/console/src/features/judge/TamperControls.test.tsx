@@ -1,6 +1,7 @@
 import { act, fireEvent, screen, waitFor } from "@testing-library/react";
 import { HttpResponse, http } from "msw";
 import { expect, it } from "vitest";
+import { developerWords } from "../../lib/plain.js";
 import { renderConsole } from "../../test/index.js";
 import { blockedFigure } from "./TamperControls.js";
 import { tamperWasRefused } from "./tamper-state.js";
@@ -68,15 +69,21 @@ it("offers all four simulator tampers as rows, and the tried row opens in place 
   expect(screen.getAllByTestId("W-JG-01.tamper.result")).toHaveLength(1);
   expect(result.dataset.verdict).toBe("DENY");
   expect(result.closest(".fsc-tamper")?.getAttribute("data-kind")).toBe("amount");
-  expect(result.textContent).toContain("Refused");
-  expect(result.textContent).toContain("invoiceEqualsQuote");
-  // The refusal is a title with its rule id in the mono, beside an ink dot: no person decides it, so never amber.
-  expect(result.querySelector(".fsc-tamper__title")?.classList.contains("fs-t-heading")).toBe(true);
-  expect(result.querySelector(".fsc-tamper__rule.fs-t-id")?.textContent).toBe("invoiceEqualsQuote");
+  // Round 4: the refusal is a title in a farmer's or a judge's words, beside an ink dot (no person decides it, so
+  // never amber), and the one number it blocked. The rule's id waits in the mono behind "Why", never in the title.
+  const title = result.querySelector(".fsc-tamper__title");
+  expect(title?.classList.contains("fs-t-heading")).toBe(true);
+  expect(title?.textContent).toBe("Refused · invoice must equal quote");
+  expect(developerWords(title?.textContent ?? "")).toEqual([]);
+  expect(title?.querySelector(".fs-t-id")).toBeNull();
+  expect(result.querySelector("details .fsc-tamper__rule.fs-t-id")?.textContent).toBe("invoiceEqualsQuote");
   expect(result.querySelector('.fs-state-dot[data-kind="done"]')).toBeTruthy();
   expect(result.querySelector('.fs-state-dot[data-kind="held"]')).toBeNull();
-  expect(result.textContent).toContain("+US$1,000.00 blocked");
+  expect(result.querySelector(".fsc-tamper__figure")?.textContent).toBe("+US$1,000.00 blocked");
   expect(result.querySelector("details summary")?.textContent).toBe("Why");
+  // Everything shown before "Why" opens is free of developer words.
+  const shown = [...result.children].filter((el) => el.tagName !== "DETAILS");
+  expect(developerWords(shown.map((el) => el.textContent).join(" "))).toEqual([]);
   // The row tried earlier keeps one word.
   expect(rows[2]?.querySelector(".fsc-tamper__was")?.textContent).toBe("Refused");
 });

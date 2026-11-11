@@ -204,32 +204,49 @@
 
 /* ---------------------------------------------------------------- What's real: five rows (UI gate round 2) */
 
-/* Each row: its mark and name on the left, one line beside them, the details behind "More". The marks are the
-   honesty row's: real code a solid ink square, the simulated PayPal sandbox the dashed steel ring, replayed a
-   graphite square, synthetic hatched, not built an outline. */
+/* Each row is one disclosure (round 4): its mark and name on the left, its one sentence beside them, a chevron at
+   the end; the details open under the sentence. The marks are the honesty row's: real code a solid ink square, the
+   simulated PayPal sandbox the dashed steel ring, replayed a graphite square, synthetic hatched, not built an
+   outline. */
 .fsc-truth {
   display: grid;
-  margin: 8px 0 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
 .fsc-truth__row {
-  display: grid;
-  grid-template-columns: 200px minmax(0, 1fr);
-  align-items: start;
-  gap: 4px 16px;
-  padding: 16px 28px;
-  border-top: 1px solid var(--fs-rule);
+  border-bottom: 1px solid var(--fs-rule);
 }
 
-.fsc-truth__row:last-child {
-  border-bottom: 1px solid var(--fs-rule);
+.fsc-truth__summary {
+  display: grid;
+  grid-template-columns: 184px minmax(0, 1fr) 16px;
+  align-items: start;
+  gap: 4px 16px;
+  padding: 16px 20px 16px 28px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.fsc-truth__summary::-webkit-details-marker {
+  display: none;
+}
+
+.fsc-truth__summary:hover {
+  background: var(--fs-plate-2);
+}
+
+/* The one ring sits inside the row, never clipped by the sheet's edge. */
+.fsc-truth__summary:focus-visible {
+  outline-offset: -2px;
 }
 
 .fsc-truth__term {
   display: flex;
   align-items: center;
   gap: 10px;
-  min-height: 20px;
+  min-height: 24px;
   color: var(--fs-ink);
 }
 
@@ -261,58 +278,48 @@
 }
 
 .fsc-truth__line {
-  display: grid;
-  justify-items: start;
-  gap: 6px;
   min-width: 0;
-  margin: 0;
-}
-
-.fsc-truth__line > p {
-  margin: 0;
-  color: var(--fs-ink);
-}
-
-.fsc-truth__more > summary {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  min-height: 24px;
-  color: var(--fs-ink-2);
-  cursor: pointer;
-  list-style: none;
-}
-
-.fsc-truth__more > summary::-webkit-details-marker {
-  display: none;
-}
-
-.fsc-truth__more > summary:hover {
   color: var(--fs-ink);
 }
 
 .fsc-truth__chev {
   display: inline-flex;
+  align-self: center;
+  color: var(--fs-ink-3);
+  transition: transform var(--fs-dur-crossfade) var(--fs-ease-out);
 }
 
 .fsc-truth__more[open] .fsc-truth__chev {
   transform: rotate(180deg);
 }
 
-.fsc-truth__more > ul {
+/* The details, under the sentence (aligned to it), in secondary ink. */
+.fsc-truth__items {
   display: grid;
   gap: 8px;
-  max-width: 60ch;
-  margin: 6px 0 0;
-  padding: 0;
+  margin: 0;
+  padding: 0 52px 16px 228px;
   list-style: none;
   color: var(--fs-ink-2);
 }
 
 @media (max-width: 639px) {
-  .fsc-truth__row {
-    grid-template-columns: minmax(0, 1fr);
-    padding: 14px 20px;
+  .fsc-truth__summary {
+    grid-template-columns: minmax(0, 1fr) 16px;
+    padding: 14px 16px 14px 20px;
+  }
+
+  .fsc-truth__line {
+    grid-column: 1;
+  }
+
+  .fsc-truth__chev {
+    grid-row: 1;
+    grid-column: 2;
+  }
+
+  .fsc-truth__items {
+    padding: 0 20px 14px;
   }
 }
 

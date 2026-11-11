@@ -1,5 +1,6 @@
-// W-JG-02 "What's real" (S1.6; UI gate rounds 2 and 3): a sheet of five rows (Real code, the simulated PayPal
-// sandbox, Replayed, Synthetic, Not built), each its mark, its name and one line, with the details behind "More";
+// W-JG-02 "What's real" (S1.6; UI gate rounds 2 to 4): a sheet of five rows (Real code, the simulated PayPal
+// sandbox, Replayed, Synthetic, Not built), each its mark, its name and one sentence, the whole row opening to its
+// details (round 4: no "More" on every row); it starts under the top bar;
 // then "Try to break it", four rows each with "Try". This sheet is where the stage's explanations live: the screens
 // keep only the marks. The PayPal row follows the rail the API runs (ADR-0002). Opened from the stage bar. The
 // attempts' controls are the season slice's (ChromePortal "whatsReal.tryToBreak"); the rows' names stand in until
@@ -8,7 +9,7 @@
 import { Dialog } from "@base-ui/react/dialog";
 import { Glyph, type HonestyKind, LegendMark } from "@fairsplit/ui-web";
 import { FocusReturn } from "../lib/focus.js";
-import { stageCaption, TRY_TO_BREAK, WHATS_REAL, type WhatsRealFacts, whatsReal } from "./copy.js";
+import { stageCaption, TRY_TO_BREAK, type WhatsRealFacts, whatsReal } from "./copy.js";
 import { ChromeSlot } from "./slots.js";
 
 /**
@@ -56,38 +57,37 @@ export function WhatsRealSheet({ open, onOpenChange, facts }: WhatsRealSheetProp
           </header>
           {/* The stage's honesty caption, for assistive technology: the rows below say it on screen. */}
           <Dialog.Description className="fs-sr">{stageCaption(facts.recordedOn)}</Dialog.Description>
-          <dl className="fsc-truth" data-testid="W-JG-01.whatsReal.rows">
+          {/* Round 4: each row is one disclosure, its mark, its name and its one sentence, with a chevron at the
+              end; the details open under the sentence (no "More" repeated five times). */}
+          <ul className="fsc-truth" data-testid="W-JG-01.whatsReal.rows">
             {sections.map((section) => (
-              <div key={section.id} className="fsc-truth__row" data-section={section.id}>
-                <dt className="fsc-truth__term fs-t-label">
-                  {/* The legend: the same glyph the screens carry bare (round 3), hidden here beside its words. */}
-                  {SECTION_GLYPH[section.id] ? (
-                    <LegendMark kind={SECTION_GLYPH[section.id] ?? "real"} />
-                  ) : (
-                    <span className="fsc-truth__mark" aria-hidden />
-                  )}
-                  {section.title}
-                </dt>
-                <dd className="fsc-truth__line">
-                  <p className="fs-t-body">{section.line}</p>
-                  <details className="fsc-truth__more">
-                    <summary className="fs-t-label">
-                      {WHATS_REAL.more}
-                      <span className="fs-sr"> about {section.title}</span>
-                      <span className="fsc-truth__chev" aria-hidden>
-                        <Glyph name="ms:expand-more" size={16} />
-                      </span>
-                    </summary>
-                    <ul className="fs-t-caption">
-                      {section.items.map((item) => (
-                        <li key={item}>{item}</li>
-                      ))}
-                    </ul>
-                  </details>
-                </dd>
-              </div>
+              <li key={section.id} className="fsc-truth__row" data-section={section.id}>
+                <details className="fsc-truth__more">
+                  <summary className="fsc-truth__summary">
+                    <span className="fsc-truth__term fs-t-label">
+                      {/* The legend: the same glyph the screens carry bare (round 3), hidden here beside its words. */}
+                      {SECTION_GLYPH[section.id] ? (
+                        <LegendMark kind={SECTION_GLYPH[section.id] ?? "real"} />
+                      ) : (
+                        <span className="fsc-truth__mark" aria-hidden />
+                      )}
+                      {section.title}
+                    </span>
+                    <span className="fs-sr">: </span>
+                    <span className="fsc-truth__line fs-t-body">{section.line}</span>
+                    <span className="fsc-truth__chev" aria-hidden>
+                      <Glyph name="ms:expand-more" size={16} />
+                    </span>
+                  </summary>
+                  <ul className="fsc-truth__items fs-t-caption">
+                    {section.items.map((item) => (
+                      <li key={item}>{item}</li>
+                    ))}
+                  </ul>
+                </details>
+              </li>
             ))}
-          </dl>
+          </ul>
           <section
             className="fsc-sheet__break"
             aria-labelledby="fsc-break-title"

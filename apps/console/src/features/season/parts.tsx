@@ -115,12 +115,13 @@ export function RunStrip({
                 {ratified}
               </span>
             ) : state === "current" ? (
+              // Settled with cash still due (round 4): Paid waits, and its note names what it waits for.
               <span className="fsc-strip__note fs-t-caption" aria-hidden>
-                {SEASON_COPY.stripNextWord}
+                {stage.cashDue ? SEASON_COPY.stripCashDue : SEASON_COPY.stripNextWord}
               </span>
             ) : null}
             <span className="fs-sr">
-              {`, ${state === "lit" ? SEASON_COPY.stripDone : state === "current" ? SEASON_COPY.stripNext : SEASON_COPY.stripLater}`}
+              {`, ${state === "lit" ? SEASON_COPY.stripDone : stage.cashDue ? SEASON_COPY.stripCashDue.toLowerCase() : state === "current" ? SEASON_COPY.stripNext : SEASON_COPY.stripLater}`}
             </span>
           </li>
         );

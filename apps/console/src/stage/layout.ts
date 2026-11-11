@@ -7,7 +7,7 @@
 // content aside below 1600 px (full width below 1280) and overlay at 560 px from 1600. Split review drops to five
 // columns in containers under 1,180 px. Playwright snapshots run at 390, 1280, 1470, 1536, 1920 and 2560 px.
 
-import { useSyncExternalStore } from "react";
+import { useLayoutEffect, useState, useSyncExternalStore } from "react";
 import type { RailItem } from "../chrome/rail-items.js";
 
 export type PhoneLayout = "phone-visit" | "tab" | "dock";
@@ -79,17 +79,32 @@ export interface PhoneSize {
   readonly height: number;
 }
 
-/** Vertical space the stage's own chrome takes around the phone screen, per layout (px): no ribbon since round 3. */
-const PHONE_CHROME_PX = { dock: 250, tab: 280, visit: 184 } as const;
+/**
+ * Vertical space the stage's own chrome takes around the phone screen, per layout (px): no ribbon since round 3. The
+ * phone visit's is its bar (88 px with the honesty line under the lockup) and three 8 px gutters, until the bar is
+ * measured (useVisitHeight).
+ */
+const PHONE_CHROME_PX = { dock: 250, tab: 280, visit: 112 } as const;
 
-export function phoneSizeFor(layout: StageLayout, viewportHeight: number): PhoneSize {
+/** The phone visit's side gutters (the stage's 8 px each side): the statement is edge to edge with the bar. */
+const VISIT_GUTTERS_PX = 16;
+
+/**
+ * @param visitHeight On the phone visit, the height the window leaves under the bar to its foot, measured
+ *   (useVisitHeight); until then the bar's usual height stands in.
+ */
+export function phoneSizeFor(
+  layout: StageLayout,
+  viewportHeight: number,
+  visitHeight?: number | null,
+): PhoneSize {
   const clamp = (n: number, lo: number, hi: number) => Math.round(Math.max(lo, Math.min(hi, n)));
-  // The phone visit: the member's statement, the page's full width (less the stage's 8 px gutters and the frame's
-  // 10 px sides), as tall as the window leaves under the bar and the laptop line.
+  // The phone visit (round 4): the member's statement edge to edge with the bar, and down to the window's foot, so
+  // its tab bar sits at the bottom of the screen (above the safe area) and no grey band is left under it.
   if (layout.phone === "phone-visit")
     return {
-      width: clamp(layout.width - 36, 260, 988),
-      height: clamp(viewportHeight - PHONE_CHROME_PX.visit, 480, 1200),
+      width: clamp(layout.width - VISIT_GUTTERS_PX, 260, 1008),
+      height: clamp(visitHeight ?? viewportHeight - PHONE_CHROME_PX.visit, 480, 1200),
     };
   if (layout.phone === "tab")
     return { width: 360, height: clamp(viewportHeight - PHONE_CHROME_PX.tab, 400, 720) };
@@ -124,4 +139,38 @@ export function useViewportHeight(): number {
 
 export function useStageLayout(): StageLayout {
   return stageLayoutFor(useViewportWidth());
+}
+
+/**
+ * The phone visit's statement height (round 4): from the phone's top (under the bar, whose height follows its
+ * honesty line and any mock chip) to the window's foot, less the stage's bottom padding (its gutter, or the safe area
+ * when that is taller). Measured on mount, on resize and whenever the bar changes size; null off the visit.
+ */
+export function useVisitHeight(enabled: boolean): number | null {
+  const [height, setHeight] = useState<number | null>(null);
+  useLayoutEffect(() => {
+    if (!enabled || typeof window === "undefined") {
+      setHeight(null);
+      return;
+    }
+    const measure = () => {
+      const stage = document.querySelector<HTMLElement>('[data-testid="W-JG-01.stage"]');
+      const phone = document.querySelector<HTMLElement>('[data-testid="W-JG-01.phone"]');
+      if (!stage || !phone) return;
+      const top = phone.getBoundingClientRect().top + window.scrollY;
+      const foot = Number.parseFloat(getComputedStyle(stage).paddingBottom) || 0;
+      const next = Math.round(window.innerHeight - top - foot);
+      if (next > 0) setHeight(next);
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    const bar = document.querySelector<HTMLElement>('[data-testid="W-JG-01.stage"] .fsc-bar');
+    const observer = typeof ResizeObserver === "undefined" || !bar ? null : new ResizeObserver(measure);
+    if (bar) observer?.observe(bar);
+    return () => {
+      window.removeEventListener("resize", measure);
+      observer?.disconnect();
+    };
+  }, [enabled]);
+  return height;
 }

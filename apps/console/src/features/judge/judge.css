@@ -5,26 +5,13 @@
 
 /* ---------------------------------------------------------------- the first view */
 
-.fsc-first {
-  display: grid;
-  align-content: start;
-  gap: 32px;
-  max-width: 1320px;
-}
-
-/* The first view is the stage's hero, on plate (no wash, UI gate round 2), and it fits the first screen at
-   1920 × 1080 (the story tiles in view on arrival), so its top and foot room are tighter. */
-.fsc-console__screen:has(> .fsc-first) {
-  padding-top: 20px;
-  padding-bottom: 24px;
-  background: var(--fs-plate);
-}
-
+/* The first view sits on the one twelve-column grid (round 4, .fsc-screen): the title row, the desk 32 px under it
+   (the money and the paper, top-aligned), then the five steps 32 px under the cards. It fills the screen panel to
+   its inner edge; nothing is centred or stretched in a tall card. */
 .fsc-first__head {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: end;
-  gap: 16px 32px;
+  gap: 4px;
+  min-width: 0;
 }
 
 .fsc-first__titles {
@@ -60,41 +47,46 @@
   white-space: nowrap;
 }
 
-/* The rate card as one quiet chip: a lock, its name, its hash and seal date in micro, then "Open". */
+/* The rate card as the quiet card under the invoice (round 4): a lock, its name, its hash (mono) and seal date,
+   then "Open" at the row's end. A card on e1 like the invoice beside it, one 56 px row that hugs its words. */
 .fsc-first__card {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 8px;
-  min-height: 40px;
-  padding: 0 8px 0 12px;
-  border: 1px solid var(--fs-rule-strong);
-  border-radius: var(--fs-radius-control);
+  min-width: 0;
+  min-height: 56px;
+  padding: 0 12px 0 24px;
+  border-radius: var(--fs-radius-card);
   background: var(--fs-plate);
+  box-shadow: var(--fs-shadow-e1);
   color: var(--fs-ink);
   text-decoration: none;
   white-space: nowrap;
 }
 
 .fsc-first__card > .fs-glyph {
+  flex: none;
   color: var(--fs-ink-2);
 }
 
-/* The hash (mono) and its seal date (FS Sans) share one inline line and its baseline. */
+/* The hash (mono) and its seal date (FS Sans) share one inline line and its baseline; a narrow card cuts the date
+   before the name or "Open" move. */
 .fsc-first__card-hash {
+  min-width: 0;
+  overflow: hidden;
   color: var(--fs-ink-3);
+  text-overflow: ellipsis;
 }
 
 .fsc-first__card-open {
+  flex: none;
+  margin-left: auto;
   padding: 4px 8px;
   border-radius: var(--fs-radius-control);
   color: var(--fs-pod);
 }
 
 .fsc-first__card:hover {
-  border-color: var(--fs-steel-line);
-}
-
-.fsc-first__card:hover .fsc-first__card-open {
   background: var(--fs-plate-2);
 }
 
@@ -133,9 +125,18 @@
   color: var(--fs-ink-2);
 }
 
-/* Prints at about 100 px: still four slips each, and two rows of six leave the five steps in view. */
+/* Two rows of six prints that fill the paper's column (round 4: no gutter left at the panel's edge), still four
+   slips each. */
+.fsc-first__sheet {
+  justify-items: stretch;
+}
+
+.fsc-first__sheet > .fs-link {
+  justify-self: start;
+}
+
 .fsc-first__sheet > .fsc-contact {
-  grid-template-columns: repeat(6, minmax(0, 100px));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 12px;
 }
 
@@ -251,38 +252,19 @@
     padding: 12px 16px;
   }
 
-  /* Half the desk is narrow: still two rows of six, smaller, so the panel ends on whole rows above the steps. */
   .fsc-first__sheet > .fsc-contact {
-    grid-template-columns: repeat(6, minmax(0, 76px));
     gap: 8px;
-  }
-
-  /* Below 1600 px the keycap gives the press's words the room. */
-  .fsc-first__key {
-    display: none;
   }
 }
 
-/* A short window (1280 x 800): the first view's rhythm tightens so the five steps stay in view. */
+/* A short window (1280 x 800): the steps stay in view; the prints keep to the height the window has. */
 @media (max-height: 899px) {
-  .fsc-first {
-    gap: 16px;
-  }
-
-  .fsc-console__screen:has(> .fsc-first) {
-    padding-top: 16px;
-  }
-
-  .fsc-first__titles {
-    gap: 4px;
-  }
-
   .fsc-first__sheet {
     gap: 8px;
   }
 
   .fsc-first__sheet > .fsc-contact {
-    grid-template-columns: repeat(6, minmax(0, 56px));
+    grid-template-columns: repeat(6, minmax(0, 64px));
   }
 
   .fsc-tile {
@@ -377,12 +359,6 @@
 
 .fsc-first__action[data-state="funded"] .fsc-first__status .fs-glyph {
   color: var(--fs-ink);
-}
-
-@media (max-width: 1099px) {
-  .fsc-first__head {
-    grid-template-columns: minmax(0, 1fr);
-  }
 }
 
 /* ---------------------------------------------------------------- "Play it for me" (the run pill's accessory) */
@@ -509,8 +485,9 @@
 
 /* Four left-aligned rows, a rule between them: the attack's name, then "Try" (the one secondary button, .fs-flat)
    at the row's end (round 3). The row tried last opens in place to its result, a title: an ink dot (a checked
-   fact; no person decides a refusal, so never amber), "Refused · <rule id>" with the id in the mono, and the one
-   number it blocked at the row's end; the policy's words wait behind "Why". */
+   fact; no person decides a refusal, so never amber), "Refused · invoice must equal quote" in plain words (round
+   4), and the one number it blocked at the row's end; the policy's words and the rule ids (mono) wait behind
+   "Why". */
 .fsc-tampers {
   display: grid;
   margin: 8px 0 0;
@@ -580,18 +557,7 @@
 }
 
 .fsc-tamper__title {
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0 8px;
-}
-
-.fsc-tamper__sep {
-  color: var(--fs-ink-3);
-}
-
-.fsc-tamper__rule {
-  color: var(--fs-ink-2);
+  min-width: 0;
 }
 
 /* The one number the attack would have changed, at the row's end. */
@@ -601,6 +567,49 @@
   white-space: nowrap;
 }
 
+/* "Why": a quiet link-weight disclosure under the title, the policy's words and the rule ids inside. */
 .fsc-tamper__why {
   padding-left: 16px;
+}
+
+.fsc-tamper__why > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-height: 24px;
+  color: var(--fs-ink-2);
+  cursor: pointer;
+  list-style: none;
+}
+
+.fsc-tamper__why > summary::-webkit-details-marker {
+  display: none;
+}
+
+.fsc-tamper__why > summary:hover {
+  color: var(--fs-ink);
+}
+
+.fsc-tamper__chev {
+  display: inline-flex;
+  transition: transform var(--fs-dur-crossfade) var(--fs-ease-out);
+}
+
+.fsc-tamper__why[open] .fsc-tamper__chev {
+  transform: rotate(180deg);
+}
+
+.fsc-tamper__why > ul {
+  display: grid;
+  gap: 4px;
+  max-width: 60ch;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+  color: var(--fs-ink-2);
+}
+
+.fsc-tamper__rule {
+  color: var(--fs-ink-3);
+  white-space: nowrap;
 }

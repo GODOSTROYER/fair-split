@@ -46,7 +46,13 @@ import { useSound } from "../sound/sound.js";
 import type { FramePrefs } from "./bridge.js";
 import { type AutoplayState, type StageApi, StageContext } from "./context.js";
 import { StageDirector } from "./director.js";
-import { phoneRestsFolded, phoneSizeFor, useStageLayout, useViewportHeight } from "./layout.js";
+import {
+  phoneRestsFolded,
+  phoneSizeFor,
+  useStageLayout,
+  useViewportHeight,
+  useVisitHeight,
+} from "./layout.js";
 import { PhoneDock, type RaisedBy } from "./PhoneDock.js";
 import { PhoneVisit, VisitMenu } from "./PhoneVisit.js";
 import { heroPaymentLanded } from "./personas.js";
@@ -293,6 +299,8 @@ export function Stage({ children }: { readonly children: ReactNode }) {
   const checks = useProofChecks(inSession ? runSlug : null);
   const seeded = useMemo(() => firstViewRows(snapshot, rail), [snapshot, rail]);
   const visit = layout.phone === "phone-visit";
+  // The phone visit's statement runs to the window's foot (round 4): the height the bar leaves, measured.
+  const visitHeight = useVisitHeight(visit);
 
   // The phone's fold (round 3): it rests folded to its rail where it shows nothing new (and below 1680 px), opens
   // on its beats (a raise), and the viewer's own choice holds on this screen until they move on.
@@ -403,7 +411,7 @@ export function Stage({ children }: { readonly children: ReactNode }) {
     if (session.status === "none" || session.status === "ended") setPersona("member");
   }, [session.status]);
 
-  const phoneSize = phoneSizeFor(layout, viewportHeight);
+  const phoneSize = phoneSizeFor(layout, viewportHeight, visitHeight);
 
   return (
     <StageContext.Provider value={api}>

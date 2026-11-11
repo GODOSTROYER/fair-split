@@ -30,8 +30,11 @@ describe("stage layout (S1.6)", () => {
     expect(phoneSizeFor(stageLayoutFor(1470), 956)).toEqual({ width: 340, height: 706 });
     expect(phoneSizeFor(stageLayoutFor(1366), 768).width).toBe(360);
     expect(phoneSizeFor(stageLayoutFor(1280), 600).height).toBe(400);
-    // The phone visit: the statement at the page's width, as tall as the window leaves.
-    expect(phoneSizeFor(stageLayoutFor(390), 844)).toEqual({ width: 354, height: 660 });
+    // The phone visit (round 4): the statement edge to edge with the bar (the page less its 8 px gutters) and down
+    // to the window's foot: the height the bar leaves, measured, or the bar's usual 88 px until it is measured.
+    expect(phoneSizeFor(stageLayoutFor(390), 844)).toEqual({ width: 374, height: 732 });
+    expect(phoneSizeFor(stageLayoutFor(390), 844, 740)).toEqual({ width: 374, height: 740 });
+    expect(phoneSizeFor(stageLayoutFor(390), 600, 300).height).toBe(480);
   });
 });
 
