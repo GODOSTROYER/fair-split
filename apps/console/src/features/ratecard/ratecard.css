@@ -197,18 +197,13 @@
 
 /* ---------------------------------------------------------------- Schedule A, printed flat */
 
-/* The head, then the rules; the stand-in's glyph (and a pointed rule's page) sits at the head's end, on its first
-   line, so it never floats alone under the list (round 4). */
 .fsc-rc__schedule {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
   gap: 12px;
 }
 
 .fsc-rc__schedule-head {
   display: grid;
-  grid-column: 1;
-  grid-row: 1;
   gap: 4px;
 }
 
@@ -218,7 +213,6 @@
 
 .fsc-rc__rules {
   display: grid;
-  grid-column: 1 / -1;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -294,17 +288,12 @@
   display: none;
 }
 
-/* The stand-in's legend glyph at the end of the schedule's head, and the pointed rule's page as micro beside it
-   (round 3; round 4 moves it from under the rules). */
+/* The stand-in's legend glyph under the rules, and the pointed rule's page as micro (round 3). */
 .fsc-rc__footer {
   display: inline-flex;
-  grid-column: 2;
-  grid-row: 1;
-  align-self: start;
-  justify-self: end;
   align-items: center;
   gap: 6px;
-  min-height: 24px;
+  min-height: 16px;
   margin: 0;
   color: var(--fs-ink-3);
 }
