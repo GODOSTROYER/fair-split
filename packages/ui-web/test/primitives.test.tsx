@@ -262,7 +262,7 @@ describe("HoldCard", () => {
     render(wrap(<HoldCard hold={hold} gate="BLOCKS_APPROVAL" actions={actions()} testId="h1" />));
     const card = screen.getByTestId("h1");
     expect(card.dataset).toMatchObject({ state: "open", gate: "BLOCKS_APPROVAL" });
-    expect(screen.getByTestId("h1.gate").textContent).toBe("Blocks approval. Changes kilos.");
+    expect(screen.getByTestId("h1.gate").textContent).toBe("Blocks approval");
     expect(card.querySelector('[data-voice="seeded"] [data-state="pencil"]')?.textContent).toContain(
       "pink copy",
     );
@@ -423,7 +423,7 @@ describe("HoldCard", () => {
       ),
     );
     expect(screen.getByTestId("h1").textContent).toContain("Asked Ernesto");
-    expect(screen.getByTestId("h1.gate").textContent).toBe("Reserves this line only. Never redistributed.");
+    expect(screen.getByTestId("h1.gate").textContent).toBe("Reserves this line");
   });
 });
 

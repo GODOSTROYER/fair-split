@@ -955,11 +955,13 @@
     color: var(--fs-ink);
   }
 
-  /* An id on one line in the mono (round 4): never broken mid-word; IdText cuts a long one in the middle. */
+  /* An id on one line in the mono (round 4): never broken mid-word; IdText cuts a long one in the middle. It clips
+     with `overflow: clip`, not `hidden`: a hidden overflow makes the box a scroll container, whose baseline drops to
+     its bottom edge and lifts the id off the line it sits in; a clip keeps the text's own baseline. */
   .fs-idtext {
     display: inline-block;
     max-width: 100%;
-    overflow: hidden;
+    overflow: clip;
     white-space: nowrap;
     vertical-align: baseline;
   }

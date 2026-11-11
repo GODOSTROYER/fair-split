@@ -1023,7 +1023,7 @@ describe("Slab", () => {
 
     it("offers the visible link for people who can't hold", () => {
       approve(() => undefined);
-      expect(screen.getByTestId("approve.alt").textContent).toBe("Can’t hold? Approve another way");
+      expect(screen.getByTestId("approve.alt").textContent).toBe("Other ways to sign");
     });
 
     it("the visible link opens the dialog, which states the consequence, and Not now signs nothing", () => {
@@ -1063,7 +1063,7 @@ describe("Slab", () => {
           />,
         ),
       );
-      expect(screen.getByTestId("sign.hint").textContent).toBe("Can’t hold? Approve another way");
+      expect(screen.getByTestId("sign.hint").textContent).toBe("Other ways to sign");
       expect(screen.getByTestId("sign.alt").tagName).toBe("BUTTON");
     });
 

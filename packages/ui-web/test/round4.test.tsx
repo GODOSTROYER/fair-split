@@ -54,6 +54,11 @@ describe("IdText", () => {
   it("never wraps: the class is nowrap", () => {
     expect(rule(".fs-idtext")).toMatch(/white-space:\s*nowrap/);
   });
+
+  it("clips without becoming a scroll container, so a cut id keeps the line's baseline", () => {
+    expect(rule(".fs-idtext")).toMatch(/overflow:\s*clip/);
+    expect(rule(".fs-idtext")).not.toMatch(/overflow:\s*hidden/);
+  });
 });
 
 describe("ReceiptChip", () => {
