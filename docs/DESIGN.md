@@ -120,6 +120,10 @@ No other hue appears: no blue chip, no red chip. No wash, gradient, glow or colo
   ("Season 2026-A", ink-2), its state as one `StatusChip` in `status` on the same row ("Awaiting payment", "Funded",
   "PayPal complete · cash due"), then one id line: `meta`, the run id in the mono (one run id everywhere; the first
   view shows no invoice id until a session starts), and `provenance`. Never a sentence title with full stops.
+  Proof's head is the same row in the same classes ("Proof 2026-A", the run's state chip, "Lantern Bay · lot ·
+  Synthetic co-op", and, as Proof has no top bar, its one quiet indicator at the row's end); under the brand's own
+  title ("Proof for Lantern Bay Chocolate Co.") it reads "Season 2026-A", so "Proof" is said once. The invoice's
+  amount heads the money card it adds up to; a signer reads by name and role, the key behind "IDs".
 - **Status pills.** `StatusChip` / `Chip`: 28 px on the console, **32 px on the phone** (`LAYOUT.app.statusChip`,
   the label step's 15/520), glyph and word, 1 px ring. Jade is the only filled pill (confirmed); `canary` an amber
   ring; `flight` neutral; `hatch` a hatch swatch; `red` PayPal's no. ≤ 1 pill a row, ≤ 3 kinds a screen. The phone's
