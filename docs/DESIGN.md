@@ -321,7 +321,14 @@ replayed stand-in reading of all 48 slips from Claude's real readings of the 10 
 10. **The phone in one language and one width**: labels at width 100 (520), titles 600, no condensed cut; no English
     inside a Cebuano line; "Sintetikong tingog" (TTS in its name); "M-014 · 2026-A"; two icons in the 390 header;
     the member's whole pay in the first viewport; one receipt-chip shape in the trace, its equation on one line; the
-    stage rail's role words under the avatars and "Open phone" as the tooltip (§1, §4).
+    stage rail's role words under the avatars and "Open phone" as the tooltip (§1, §4). On the phone that means:
+    the peso estimate and her kilos share one line; Paminawa is a 48 dp circle in a 48 dp row (the voice's words
+    without the provider, `voiceWords`; the provider stays in the spoken label); her slips appear once (the slip row
+    steps aside while an opened line shows them, in the one tile shape); the equation is one line that scales down
+    to fit; history rows lead with 8 px dots and say one day once, in the heading; a deduction's bar segment and key
+    are an ink-2 outline (hatch is cash); the Chair's why line, presence line and hold kinds carry no English line
+    (only a note that blocks him keeps its gloss); the demo key's note is behind its dashed mark at the caption's
+    end, opened by a tap (`KeyNote`); no key id on the signed line; no glyph on the clerk's paper or the push card.
 11. **Smaller items**: no lone vertical rule in the split table, a stable scrollbar gutter, numeric columns spread;
     the Approve bar's PayPal segment a steel dashed outline (planned) until confirmed (`Swatch planned`); the H1
     drawer's paired buttons both 48 px; the Season slips one 12-up strip of 72 px thumbnails, the funding arc joining
