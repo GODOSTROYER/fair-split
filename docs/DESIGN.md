@@ -193,11 +193,22 @@ No other hue appears: no blue chip, no red chip. No wash, gradient, glow or colo
 - **The member's statement** (round 5): her whole pay in the first view, "= 43.69 + 21.85 − 1.09" under the amount;
   the header line "M-014 · 2026-A"; Paminawa a 48 dp row whose voice reads "Sintetikong tingog" (the engine's name in
   the accessible name). On the receipt bar a deduction is an outline (1 px ink-3 on plate 2), never hatched.
-- **Hero moments.** Fan-out: Rhea's path ends at her marker; cash is a 6 px hatched ribbon. Before the move to cash
-  the count is `Numeral` "7/8" beside the seal; after it the hero reads **"7 PayPal · 57 cash"** (a jade dot by 7,
-  a hatch swatch by 57) with "Review cash handover" as the screen's one primary Slab, and Rhea's cash line appears
-  once. "Try to break it" is a list of rows, each with a Try button; a tried row reads "Refused · invoice must equal
-  quote" and the number it blocked.
+- **Hero moments.** Fan-out (round 5: the single hero, nothing restates it): every line ends on a round marker, Rhea's
+  path at hers; cash is a 6 px hatched ribbon; rows sit 44 units apart. Before the move to cash the count is `Numeral`
+  "7/8" beside the seal with the run's one micro-tag; after it the hero reads **"7 PayPal  57 cash"** (each count, then
+  its 12 px key on the word's baseline: the jade dot before "PayPal", the hatch swatch before "cash", 32 px apart, no
+  "·") with "Review cash handover" as the screen's one primary Slab. Rhea's row keeps "US$26.65" in ink-3 behind the
+  hatch swatch; "Kept for members US$21.14" is a caption on the cash row; no money bar or legend under the fan;
+  "Funding to confirmation" is the dot strip and one line, "Median 15 s". "Try to break it" is a list of rows, each
+  with a Try button; a tried row reads "Refused · invoice must equal quote" and the number it blocked.
+- **Approve and Run title chips** (round 5). Approve's state is the keys signed ("0/2 signed", neutral, the seal
+  glyph), or what stops the signing ("3 holds open" amber, "Reading", "PayPal declined" red, "Paused", "Sent back").
+  Run's: "Not posted", "Confirming", "1 needs you" (amber), "PayPal complete · cash due" (hatch), "Settled" only once
+  the cash is attested, "Replayed", "PayPal declined". Approve's money bar plans the PayPal segment as a steel dashed
+  outline on the steel face (jade only once the simulated PayPal confirms every payout), its legend keyed by `Swatch`;
+  at 1,920 (a window 1,600 by 1,000 or more) the eight PayPal recipients sit under it, two columns reading down, the
+  largest first, each a hollow 8 px dot until confirmed. Signers say where the key lives ("Key on this browser",
+  "Sample key", "Key on the Chair's phone"); their key ids sit with the hashes behind "Fees ≈ US$2.00 · IDs".
 
 ## 5. States and focus
 
