@@ -366,7 +366,9 @@ for (const slot of slots) {
   } else
     assert(
       visible(win).includes("capture pending:") && win.includes(`>${esc(slot.id)}</p>`),
-      `${slot.id}: no "capture pending: ${slot.id}" window`,
+      win.includes(`src="${slot.file}"`)
+        ? `${slot.id}: the composition plays ${slot.file}, which this checkout does not have (git-ignored): record it (node video/tools/recapture.mjs) or rebuild with the placeholders (node video/build.mjs)`
+        : `${slot.id}: no "capture pending: ${slot.id}" window`,
     );
   // One keyword: one word and a period.
   assert(/^[\p{L}-]+\.$/u.test(KEYWORDS[slot.id] ?? ""), `${slot.id}: keyword must be one word`);
