@@ -6,7 +6,7 @@ export const RATECARD_COPY = {
   /** One line (round 3): what the card is and when; the stand-in's glyph and the signatures on the plate say the rest. */
   lede: (resolution: string, date: string) => `${resolution} · ratified ${date}, before the first slip`,
   schedule: "Schedule A",
-  scheduleLede: "Point at a rule to see its clause.",
+  scheduleLede: "Open a rule for its clause",
   /** The stand-in's glyph words (its title and accessible name), with the page a rule was quoted from. */
   readFooter: (_model: string, page: number) =>
     `Seed stand-in, not a Claude recording. Seeded quote on page ${page}.`,
@@ -17,7 +17,7 @@ export const RATECARD_COPY = {
   addTitle: "Add a deduction",
   addOpen: "Add a deduction",
   labelField: "What it's for",
-  amountField: "Amount, as written",
+  amountField: "Amount",
   sampleLabel: "Iba pa (Other)",
   sampleAmount: "₱150",
   addCommit: "Add to Schedule A",

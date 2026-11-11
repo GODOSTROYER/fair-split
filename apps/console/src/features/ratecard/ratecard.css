@@ -89,26 +89,13 @@
 
 /* ---------------------------------------------------------------- the screen */
 
-.fsc-rc {
-  display: grid;
-  align-content: start;
-  gap: 28px;
-  max-width: 1280px;
-}
+/* The screen sits on the one 12-column grid (round 4, grid.css): its title row, then the resolution's pages in six
+   columns and Schedule A, the plate and "Add a deduction" in the other six, top-aligned 32 px under it. */
 
-.fsc-rc__head {
-  display: grid;
-  gap: 10px;
-  max-width: 72ch;
-}
-
-.fsc-rc__head h1 {
-  margin: 0;
-}
-
+/* The resolution beside the title, on its baseline: what the card is and when it was sealed. */
 .fsc-rc__lede {
   margin: 0;
-  color: var(--fs-ink-2);
+  color: var(--fs-ink-3);
 }
 
 /* The season beside the name, in grey, as on every screen ("Split review 2026-A"): no mark above the heading. */
@@ -121,31 +108,23 @@
   color: var(--fs-ink-3);
 }
 
-.fsc-rc__body {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(380px, 500px);
-  align-items: start;
-  gap: 32px 56px;
-}
-
+/* The side stays in view while the pages scroll past it. */
 .fsc-rc__side {
   position: sticky;
   top: 0;
   display: grid;
   align-content: start;
-  gap: 28px;
+  gap: 32px;
+  min-width: 0;
 }
 
 /* ---------------------------------------------------------------- the pages (paper) */
 
+/* The pages fill their six columns (round 4: no band left empty between the paper and the schedule). */
 .fsc-rc-pages {
   display: grid;
-  gap: 28px;
-  padding: 4px 8px 12px 0;
-}
-
-.fsc-rc-page {
-  max-width: 600px;
+  gap: 32px;
+  padding: 4px 4px 12px 0;
 }
 
 .fsc-rc-page:nth-child(2) {
@@ -220,7 +199,7 @@
 
 .fsc-rc__schedule {
   display: grid;
-  gap: 10px;
+  gap: 12px;
 }
 
 .fsc-rc__schedule-head {
@@ -244,14 +223,16 @@
   border-bottom: 1px solid var(--fs-rule);
 }
 
+/* A rule row (round 4): its id, four words or fewer, and the chevron that opens its clause; one line at 40 px. */
 .fsc-rc__rule {
   appearance: none;
   display: grid;
-  grid-template-columns: 28px minmax(0, 1fr);
-  align-items: baseline;
+  grid-template-columns: 32px minmax(0, 1fr) 16px;
+  align-items: center;
   gap: 12px;
   width: 100%;
-  padding: 10px 10px 10px 4px;
+  min-height: 40px;
+  padding: 0 12px 0 4px;
   border: 0;
   background: transparent;
   color: var(--fs-ink);
@@ -262,22 +243,49 @@
 
 .fsc-rc__rule:hover,
 .fsc-rc__rule[data-active] {
-  background: var(--fs-plate);
+  background: var(--fs-plate-2);
 }
 
-/* A pinned rule is a selection: the pod wash (never a side bar). */
-.fsc-rc__rule[aria-pressed="true"] {
+/* An open rule is a selection: the pod wash under its row and its clause (never a side bar), its chevron turned. */
+.fsc-rc__rule-item[data-open],
+.fsc-rc__rule[aria-expanded="true"] {
   background: var(--fs-pod-wash);
 }
 
 .fsc-rc__rule-id {
   display: inline-flex;
   align-items: center;
-  color: var(--fs-ink-2);
+  color: var(--fs-ink-3);
 }
 
 .fsc-rc__rule-id .fs-glyph {
   color: var(--fs-steel-line);
+}
+
+.fsc-rc__rule-short {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fsc-rc__rule-mark {
+  color: var(--fs-ink-3);
+  transition: transform var(--fs-dur-tooltip) var(--fs-ease-out);
+}
+
+.fsc-rc__rule[aria-expanded="true"] .fsc-rc__rule-mark {
+  transform: rotate(180deg);
+}
+
+/* The whole clause, under its row, aligned with the row's words. */
+.fsc-rc__clause {
+  max-width: 60ch;
+  padding: 0 12px 12px 48px;
+  color: var(--fs-ink-2);
+}
+
+.fsc-rc__clause[hidden] {
+  display: none;
 }
 
 /* The stand-in's legend glyph under the rules, and the pointed rule's page as micro (round 3). */
@@ -304,14 +312,21 @@
   color: var(--fs-ink-2);
 }
 
+/* The secondary button hugs its label (round 4). */
+.fsc-rc__add > .fs-flat {
+  justify-self: start;
+}
+
 .fsc-rc__row {
   display: grid;
   gap: 16px;
 }
 
+/* Both labels on one line, both inputs top-aligned on the same row (round 4). */
 .fsc-rc__fields {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 120px;
+  align-items: start;
   gap: 12px;
 }
 
@@ -470,13 +485,13 @@
   color: var(--fs-ink);
 }
 
-@media (max-width: 1199px) {
-  .fsc-rc__body {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
+/* A panel under 720 px stacks the schedule over the pages. */
+@container fsc-screen (max-width: 719px) {
   .fsc-rc__side {
     position: static;
-    grid-row: 1;
+  }
+
+  .fsc-rc__paper {
+    order: 1;
   }
 }

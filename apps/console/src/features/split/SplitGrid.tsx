@@ -26,6 +26,7 @@ import {
   CreditCell,
   type DetailRow,
   DetailView,
+  duplicateLook,
   ExpandCell,
   type GridContext,
   type GridRow,
@@ -38,7 +39,7 @@ import {
   SlipsCell,
   StatusCell,
 } from "./cells.js";
-import { type HoldNoteRow, HoldNoteView, holdNote } from "./HoldNote.js";
+import { type HoldNoteRow, HoldNoteView, holdNotes } from "./HoldNote.js";
 import type { SplitRow, SplitTotals } from "./model.js";
 import { StaticTable } from "./StaticTable.js";
 import { en, SPLIT } from "./shared/copy.js";
@@ -72,9 +73,13 @@ export const SLIM_BELOW_PX = 760;
 /** The grid's column set: every column, the default ten, five in a narrow container, four beside a drawer. */
 export type ColumnSet = "all" | "default" | "narrow" | "slim";
 
-/** A set that hides the line's parts (premium, bonus, deductions) opens them under a line instead (round 3). */
+/**
+ * A set that hides the line's parts (premium, bonus, deductions) opens them under a line instead (round 3). Beside
+ * an open drawer (slim) the drawer shows the line, and the opener's 44 px would push Status past the grid's edge
+ * (round 4: nothing clipped), so only the narrow set has it.
+ */
 export function opensParts(set: ColumnSet): boolean {
-  return set === "narrow" || set === "slim";
+  return set === "narrow";
 }
 
 /**
@@ -125,12 +130,14 @@ export function minWidthOf(defs: readonly ColDef<GridRow>[]): number {
 
 const lineOf = (row: GridRow | undefined): SplitRow | null => (row && row.kind === "line" ? row : null);
 
-/** The lines with the inline hold note placed right under the held line it is about. */
-function withNote(lines: readonly GridRow[], note: HoldNoteRow | null): GridRow[] {
-  if (!note) return [...lines];
-  const at = lines.findIndex((r) => r.kind === "line" && r.memberNo === note.forMember);
-  if (at < 0) return [...lines];
-  return [...lines.slice(0, at + 1), note, ...lines.slice(at + 1)];
+/** The lines with each inline hold note placed right under the held line it is about. */
+function withNotes(lines: readonly GridRow[], notes: readonly HoldNoteRow[]): GridRow[] {
+  if (notes.length === 0) return [...lines];
+  return lines.flatMap((r): GridRow[] => {
+    if (r.kind !== "line") return [r];
+    const note = notes.find((n) => n.forMember === r.memberNo);
+    return note ? [r, note] : [r];
+  });
 }
 
 /** Each opened line followed by its calculation (a full-width row), in a set that hides the line's parts. */
@@ -158,7 +165,13 @@ const DEFAULT_COL: ColDef<GridRow> = {
 
 const rowId = (p: { readonly data: GridRow }) => p.data.memberNo;
 
-function columnDefs(premiumRate: string): Record<GridColumn, ColDef<GridRow>> {
+/**
+ * Slips is as wide as its badge needs: "0457 ×2" fits the count's column, "0457 counted once" (round 4) takes 48 px
+ * more, and only once a line shows it, so the default set still fits the 1,470 px laptop before then.
+ */
+export const SLIPS_PX = { count: 112, countedOnce: 160 } as const;
+
+function columnDefs(premiumRate: string, slipsWide: boolean): Record<GridColumn, ColDef<GridRow>> {
   const num = { type: "rightAligned", cellClass: "fsr-ag-num" } as const;
   return {
     // A narrow grid's opener for a line's hidden parts: its header's words are for screen readers only.
@@ -181,9 +194,15 @@ function columnDefs(premiumRate: string): Record<GridColumn, ColDef<GridRow>> {
       pinned: "left",
       lockPinned: true,
     },
-    // The count alone, and room for the carbon-copy chip ("0457 ×2") beside it.
-    slips: { colId: "slips", headerName: en("W-TR-05.col.slips"), cellRenderer: SlipsCell, width: 112 },
-    kg: { colId: "kg", headerName: en("W-TR-05.col.kg"), cellRenderer: KgCell, minWidth: 116, flex: 1 },
+    // The count alone, and room for the duplicate badge beside it ("0457 ×2", then "0457 counted once").
+    slips: {
+      colId: "slips",
+      headerName: en("W-TR-05.col.slips"),
+      cellRenderer: SlipsCell,
+      width: slipsWide ? SLIPS_PX.countedOnce : SLIPS_PX.count,
+    },
+    // A number column (round 4): right-aligned tabular kilos, no micro-bars, one fixed width in every set.
+    kg: { ...num, colId: "kg", headerName: en("W-TR-05.col.kg"), cellRenderer: KgCell, width: 112 },
     confidence: {
       colId: "confidence",
       headerName: en("W-TR-05.col.confidence"),
@@ -222,7 +241,8 @@ function columnDefs(premiumRate: string): Record<GridColumn, ColDef<GridRow>> {
       colId: "credit",
       headerName: en("W-TR-05.col.credit"),
       cellRenderer: CreditCell,
-      width: 72,
+      // Room for a credit that waits for its hold ("Waits for H3") as well as the figure.
+      width: 120,
     },
     // The money column says its currency (round 3); the footer beneath it is the members' net total.
     net: { ...num, colId: "net", headerName: SPLIT.netColumn, cellRenderer: NetCell, width: 104 },
@@ -253,15 +273,6 @@ const ALL: readonly GridColumn[] = [
 
 /** Minimum confidence waits behind "All columns": 60 of 64 lines were read earlier and show none. */
 const DEFAULT: readonly GridColumn[] = ALL.filter((c) => c !== "confidence");
-
-/**
- * In the five-column set Verified kg keeps a fixed width, so Member, Net and Status take the slack and no empty
- * band opens beside it (1,470 px). `flex: null` clears the default set's flex: AG Grid keeps a stateful attribute
- * that a new definition leaves undefined.
- */
-export const NARROW_FIXED: Partial<Record<GridColumn, ColDef<GridRow>>> = {
-  kg: { width: 150, flex: null, minWidth: undefined },
-};
 
 const SETS: Readonly<Record<ColumnSet, readonly GridColumn[]>> = {
   all: ALL,
@@ -301,7 +312,11 @@ export function SplitGrid({
   // AG Grid places rows by measuring its viewport: it mounts once the container has a size (a frame in a
   // browser). Until then, and wherever nothing is laid out, the same lines print as a plain table.
   const measured = width > 0;
-  const defs = useMemo(() => columnDefs(context.premiumRate), [context.premiumRate]);
+  const slipsWide = useMemo(
+    () => [...decisions, ...rows].some((r) => duplicateLook(r)?.state === "once"),
+    [decisions, rows],
+  );
+  const defs = useMemo(() => columnDefs(context.premiumRate, slipsWide), [context.premiumRate, slipsWide]);
   // Columns whose every value is zero are hidden (Credit, until a credit applies or waits).
   const hidden = useMemo(() => zeroColumns([...decisions, ...rows], totals), [decisions, rows, totals]);
   const defaultFits = useMemo(
@@ -314,7 +329,7 @@ export function SplitGrid({
     () =>
       [...(parts ? (["expand"] as const) : []), ...SETS[set]]
         .filter((c) => !hidden.has(c))
-        .map((c) => (set === "narrow" ? { ...defs[c], ...NARROW_FIXED[c] } : defs[c])),
+        .map((c) => defs[c]),
     [defs, set, parts, hidden],
   );
   // A narrow grid opens a line's hidden parts under it (round 3). Lines opened stay open across filters; a wider
@@ -347,20 +362,20 @@ export function SplitGrid({
     },
     [openParts],
   );
-  // The H1 note sits under its held line while that hold is open (the drawer stays the only place to decide).
-  // The held lines may be pinned above the others as decisions: the note follows H1 wherever it is.
-  const note = useMemo(
-    () => holdNote([...decisions, ...rows], context.slip),
-    [decisions, rows, context.slip],
+  // H1's and H2's notes sit under their held lines while those holds are open (the drawer stays the only place to
+  // decide). The held lines may be pinned above the others as decisions: each note follows its line wherever it is.
+  const notes = useMemo(
+    () => holdNotes([...decisions, ...rows], context.yieldLimit, context.slip),
+    [decisions, rows, context.yieldLimit, context.slip],
   );
-  // An opened line's parts sit right under it, before H1's note.
+  // An opened line's parts sit right under it, before its hold's note.
   const rowData = useMemo<GridRow[]>(
-    () => withDetails(withNote(rows.map(wrap1), note), openParts),
-    [rows, wrap1, note, openParts],
+    () => withDetails(withNotes(rows.map(wrap1), notes), openParts),
+    [rows, wrap1, notes, openParts],
   );
   const topRows = useMemo<GridRow[]>(
-    () => withDetails(withNote(decisions.map(wrap1), note), openParts),
-    [decisions, wrap1, note, openParts],
+    () => withDetails(withNotes(decisions.map(wrap1), notes), openParts),
+    [decisions, wrap1, notes, openParts],
   );
   const pinned = useMemo<GridRow[]>(
     () => [{ kind: "totals" as const, memberNo: "totals" as const, ...totals }],

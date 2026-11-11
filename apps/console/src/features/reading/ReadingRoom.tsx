@@ -9,9 +9,10 @@
 
 import type { RunEvent, SeasonSnapshot } from "@fairsplit/contracts";
 import { webRoutes } from "@fairsplit/contracts";
-import { Glyph, HONESTY, LegendGlyph, Numeral, useMotionMode } from "@fairsplit/ui-web";
+import { Glyph, HONESTY, LegendMark, Numeral, useMotionMode } from "@fairsplit/ui-web";
 import { useRouter } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { SCREEN_GRID, ScreenHead } from "../../chrome/ScreenGrid.js";
 import { ScreenRoot } from "../../chrome/ScreenRoot.js";
 import { useRunEvents, useStageRun } from "../../data/hooks.js";
 import { focusAndReveal } from "../../lib/focus.js";
@@ -22,7 +23,7 @@ import { useOptionalStage } from "../../stage/context.js";
 import { useOnline } from "../season/online.js";
 import { ConfirmZoomRead, RequestRescan } from "./Actions.js";
 import { Beds, type Landing } from "./Beds.js";
-import { Bench, type BenchZoom, FIT, zoomOnSlip } from "./Bench.js";
+import { Bench, type BenchZoom, FIT, photoAspect, zoomOnSlip } from "./Bench.js";
 import { READING_COPY } from "./copy.js";
 import { ExhibitLink } from "./ExhibitLink.js";
 import { Filmstrip } from "./Filmstrip.js";
@@ -310,14 +311,22 @@ export function ReadingRoom({
 
   return (
     <ScreenRoot id="W-TR-03" state={state} labelledBy="fsc-read-title" className="fsc-read">
-      {/* The room fills the screen: the recorded exhibit starts below it, never sliced at the panel's edge. */}
-      <div className="fsc-read__room">
-        <header className="fsc-read__head">
-          <h1 id="fsc-read-title" className="fs-t-title-1">
-            {READING_COPY.title}
-            <span className="fsc-read__context"> {season}</span>
-          </h1>
-        </header>
+      {/* The room fills the screen on the one 12-column grid (round 4): its title row, then the photo in five columns
+          and the reading in seven, top-aligned 32 px under it. The recorded exhibit starts below the room, never
+          sliced at the panel's edge; the title row's one link opens it, apart from this run's count (round 4: the
+          stand-in's 48 never reads as Claude's). */}
+      <div className={`fsc-read__room ${SCREEN_GRID}`}>
+        <ScreenHead
+          title={
+            <>
+              {READING_COPY.title}
+              <span className="fsc-read__context"> {season}</span>
+            </>
+          }
+          titleId="fsc-read-title"
+          actions={<ExhibitLink season={season} />}
+          className="fsc-read__head"
+        />
 
         <div
           className="fsc-read__body"
@@ -326,7 +335,11 @@ export function ReadingRoom({
           data-motion={mode}
           data-testid="W-TR-03.room"
         >
-          <div className="fsc-read__desk" data-testid="W-TR-03.desk">
+          <div
+            className="fsc-read__desk"
+            data-testid="W-TR-03.desk"
+            style={{ ["--fsc-photo-aspect" as string]: String(photoAspect(photo.photoId)) }}
+          >
             <Bench
               photo={photo}
               slips={slips}
@@ -346,27 +359,31 @@ export function ReadingRoom({
             />
           </div>
           <div className="fsc-read__side" data-testid="W-TR-03.side">
-            {/* The screen's one hero count: the slips read, in FS Sans, the stand-in's mark beside it (round 3). */}
+            {/* The screen's one hero count, and directly under it, in words, what read them (round 4): the seed
+                stand-in, never Claude. Claude's real readings are the title row's link, apart from this count. */}
             <div className="fsc-read__counter">
               <p className="fsc-read__progress" data-testid="W-TR-03.film.progress">
                 <Numeral value={READING_COPY.progressDots(progress.read, progress.total)} decorative />
                 <span className="fs-sr">{READING_COPY.progress(progress.read, progress.total)}</span>
               </p>
-              <span className="fsc-read__counter-unit fs-t-micro" aria-hidden>
+              <span className="fsc-read__counter-unit fs-t-caption" aria-hidden>
                 {READING_COPY.progressUnit}
               </span>
-              <span id="fsc-reading-provenance" className="fsc-read__provenance fs-t-micro">
+              <p
+                id="fsc-reading-provenance"
+                className="fsc-read__provenance fs-t-caption"
+                data-kind="synthetic"
+                title={earlier ? HONESTY.seededSample.label : HONESTY.seedStandIn.label}
+                data-testid="W-TR-03.footer"
+              >
+                <LegendMark kind="synthetic" size={12} />
                 {earlier ? (
-                  <>
-                    <LegendGlyph {...HONESTY.seededSample} testId="W-TR-03.footer" />
-                    <span>{READING_COPY.earlierRead(earlier)}</span>
-                  </>
+                  <span>{`${HONESTY.seededSample.label} · ${READING_COPY.earlierRead(earlier)}`}</span>
                 ) : (
-                  <LegendGlyph {...HONESTY.seedStandIn} testId="W-TR-03.footer" />
+                  <span>{HONESTY.seedStandIn.label}</span>
                 )}
-              </span>
+              </p>
             </div>
-            <ExhibitLink season={season} />
             <p className="fsc-read__status" role="status" data-testid="W-TR-03.status" data-state={state}>
               <Glyph
                 name={

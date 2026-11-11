@@ -76,12 +76,18 @@ describe("W-TR-06 hold drawer", () => {
       await waitFor(() => expect(stateOf()).toBe("open"), WAIT);
       await waitFor(() => expect(sinceOpen()).toContain("ready"), WAIT);
       expect(sinceOpen()).toEqual(["glide-in", "converge", "pairs", "ready"]);
-      expect(screen.getByTestId("W-TR-06.card.gate").textContent).toBe("Blocks approval. Changes kilos.");
+      // Round 4: the pill is a few words, never a sentence with a full stop.
+      expect(screen.getByTestId("W-TR-06.card.gate").textContent).toBe("Blocks approval");
       const card = screen.getByTestId("W-TR-06.card");
-      // The decision leads (UI gate round 3): counting both as a number line, then the money back and the dial's
-      // move directly above "Count it once" (holds.css draws the paired receipts after them).
-      expect(card.textContent).toMatch(/63 members −US\$17\.94 → Nong Dioning \+US\$17\.94/);
-      expect(card.textContent).toMatch(/\+US\$17\.94\sto\s63\smembers\s·\s2\.05%\s→\s1\.62%/);
+      // One effect line directly above "Count it once" (round 4): no engine row, no "Money effect" caption, no dial
+      // of the drawer's own (the split's dial behind it moves); holds.css draws the paired receipts under it.
+      expect(screen.getByTestId("W-TR-06.card.effect").textContent).toMatch(
+        /^If\scounted\sonce:\s\+US\$17\.94\sto\s63\smembers\s·\s2\.05%\s→\s1\.62%$/,
+      );
+      expect(card.querySelector('[data-voice="engine"]')).toBeNull();
+      expect(card.textContent).not.toMatch(/Nong Dioning \+US\$17\.94/);
+      expect(card.textContent).not.toMatch(/Money effect/);
+      expect(screen.queryByTestId("W-TR-06.dial")).toBeNull();
       expect(card.textContent).not.toMatch(/Counting both moves/);
       expect(card.textContent).not.toMatch(/pink copy of the same receipt/);
       expect(card.querySelector(".fs-hold__effect")?.nextElementSibling).toBe(
@@ -113,7 +119,6 @@ describe("W-TR-06 hold drawer", () => {
         expect(row.style.getPropertyValue("--fsr-pair-at")).toBe(`${i * TIMING.pairStagger}ms`);
         expect(row.querySelector(".fsr-twin__eq")?.textContent).toBe("=");
       });
-      expect(screen.getByTestId("W-TR-06.dial.status").dataset.status).toBe("OUTSIDE");
       expect(screen.getByTestId("W-TR-06.drawer").textContent).toMatch(/Hold 1 of 3/);
       await expectNoAxeViolations(screen.getByTestId("W-TR-06.drawer"));
     },
@@ -146,11 +151,11 @@ describe("W-TR-06 hold drawer", () => {
         "resolved",
       ]);
       expect(view.world.hold("H1")?.state).toBe("RESOLVED");
-      expect(screen.getByTestId("W-TR-06.dial.status").dataset.status).toBe("INSIDE");
-      // The outcome leads the decided drawer: the delta, the card renamed for what was decided, the old reading.
+      // The outcome leads the decided drawer: the delta and the card renamed for what was decided (the split's dial
+      // behind it reads 1.62%, "was 2.05%").
       expect(screen.getByTestId("W-TR-06.result").textContent).toBe("+US$17.94 back to 63 members");
       expect(document.getElementById("W-TR-06.card-title")?.textContent).toBe("Slip 0457, counted once");
-      expect(screen.getByTestId("W-TR-06.dialBlock").textContent).toMatch(/was 2\.05%/);
+      expect(screen.queryByTestId("W-TR-06.card.effect")).toBeNull();
       expect(screen.getByTestId("W-TR-06.card.resolution").textContent).toMatch(/Resolved by AS/);
       expect(screen.getByTestId("W-TR-06.next").textContent).toBe("Next: hold H2");
       await expectNoAxeViolations(screen.getByTestId("W-TR-06.drawer"));
@@ -366,9 +371,7 @@ describe("W-TR-06 hold drawer", () => {
         view.world.resolve("H2");
       });
       await waitFor(() => expect(stateOf()).toBe("open"), WAIT);
-      expect(screen.getByTestId("W-TR-06.card.gate").textContent).toBe(
-        "Reserves this line only. Never redistributed.",
-      );
+      expect(screen.getByTestId("W-TR-06.card.gate").textContent).toBe("Reserves this line");
       const marks = screen.getByTestId("W-TR-06.norule");
       expect(marks.textContent).toMatch(/Hauling ₱91\.20.*Matches R2/);
       expect(marks.textContent).toMatch(/Multa \(absent GA\) ₱200.*No rule/);

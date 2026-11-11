@@ -1,27 +1,23 @@
-/* W-TR-04 By hand: one field at a time. The decision leads (the field, or once entered the result and the next
-   step), and the two witnesses sit side by side beneath it (UI gate round 3): the slip's crop, cut exactly to its
-   2 × 2 block of kilos, and the logbook strip, both paper (the only shadows). The field and the result use the one
-   money face (FS Sans at 500, tabular): her hidden digit sits in a canary cell (a
-   person must decide), and the committed value prints in ink with the treasurer's stamp. Every value is a --fs-*
-   token.
+/* W-TR-04 By hand: one field at a time, in two columns on the screen's 12-column grid (UI gate round 4). On the
+   left the title and the decision (the field, or once entered the equation, who entered it and the next step); on
+   the right the two witnesses stacked, top-aligned with the title: the slip's crop, cut exactly to its 2 × 2 block
+   of kilos, and the logbook strip, both paper (the only shadows). The field and the result use the one money face
+   (FS Sans at 500, tabular): her hidden digit sits in a canary cell (a person must decide), and the committed value
+   prints in ink beside the treasurer's stamp. Every value is a --fs-* token.
 
-   The witnesses are sized from the window's height, so the field, the stained digit, logbook line 7 and the slab
-   are all in view at 1920 × 1080, 1470 × 956 and 1280 × 800 without a scroll. */
+   The witnesses are sized from the window's height, so both are whole beside the decision at 1920 × 1080 and
+   1470 × 956; the 1,280 px laptop lays them side by side under it. */
 
-.fsc-hand {
+.fsc-hand__lead {
   display: grid;
   align-content: start;
-  gap: 20px;
-  max-width: 1240px;
+  gap: var(--fs-console-head-gap);
+  min-width: 0;
 }
 
 .fsc-hand__head {
   display: grid;
   gap: 4px;
-}
-
-.fsc-hand__head h1 {
-  margin: 0;
 }
 
 /* "Slip 0462 by hand": the grey part says what the screen does; the slip's owner is micro beneath. */
@@ -62,27 +58,45 @@
 
 .fsc-hand__body {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  align-items: start;
-  gap: 28px;
+  min-width: 0;
 }
 
-/* The two witnesses side by side under the decision, at the width whose height fits what the window leaves: the
-   stage's frame and bar, the title and the field's block take about 590 px; the taller of the two (the logbook
-   strip, 1.76 : 1, plus its caption and padding, 40) sets the height, so width ≈ 2 × 1.76 × (room − 40) + gap. */
+/* The two witnesses stacked in the right-hand columns, each as wide as the window's height lets both stand whole:
+   the stage's frame, bar and padding take about 190 px, the two captions, papers' padding and the gap 108 px, and
+   the crop (1.85 : 1) and the logbook strip (1.76 : 1) share the rest, so width ≈ (100dvh − 298) ÷ 1.11. */
 .fsc-hand__evidence {
+  --fsc-hand-w: calc((100dvh - 298px) / 1.11);
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  align-items: start;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
   gap: 24px;
-  width: clamp(520px, calc((100dvh - 630px) * 3.52 + 24px), 1080px);
-  max-width: 100%;
 }
 
 .fsc-hand__figure {
   display: grid;
   gap: 8px;
+  width: min(100%, var(--fsc-hand-w));
   margin: 0;
+}
+
+/* The 1,280 px laptop (a panel under 1,040 px): the decision takes the row, the witnesses sit side by side under
+   it. */
+@container fsc-screen (max-width: 1039px) {
+  .fsc-hand__evidence {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .fsc-hand__figure {
+    width: auto;
+  }
+}
+
+/* A narrow panel stacks them, at a readable width. */
+@container fsc-screen (max-width: 719px) {
+  .fsc-hand__evidence {
+    grid-template-columns: minmax(0, 1fr);
+    max-width: 560px;
+  }
 }
 
 .fsc-hand__crop {
@@ -263,11 +277,9 @@
 }
 
 .fsc-hand__ink {
-  display: inline-flex;
-  align-items: center;
-  gap: 14px;
   margin: 0;
   color: var(--fs-ink);
+  white-space: nowrap;
 }
 
 /* The result, "64.80 − 0.30 = 64.50 kg", as one line on the hero step in tabular figures (the screen's one hero):
@@ -302,7 +314,11 @@
   animation: fs-fade var(--fs-dur-reduced) var(--fs-ease-out) both;
 }
 
+/* Whose ink: her stamp and "Entered by Analyn · logbook line 7" on one line under the equation. */
 .fsc-hand__by {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   margin: 0;
   color: var(--fs-ink-2);
 }
@@ -331,13 +347,4 @@
   padding: 16px 20px;
   border: 1px solid var(--fs-rule-strong);
   border-radius: var(--fs-radius-card);
-}
-
-/* A narrow screen stacks the two witnesses. */
-@media (max-width: 1099px) {
-  .fsc-hand__evidence {
-    grid-template-columns: minmax(0, 1fr);
-    width: auto;
-    max-width: 560px;
-  }
 }

@@ -22,6 +22,7 @@ import {
 import { z } from "zod";
 import { AppLink } from "../../chrome/AppLink.js";
 import { CommandNotice } from "../../chrome/CommandNotice.js";
+import { Cell } from "../../chrome/ScreenGrid.js";
 import { ScreenRoot } from "../../chrome/ScreenRoot.js";
 import { Stamp } from "../../chrome/Stamp.js";
 import { useAdapter, useCommand, useJudgeSession, useRunEvents, useStageRun } from "../../data/hooks.js";
@@ -85,9 +86,9 @@ function sameKilos(a: string, b: string): boolean {
 function NothingByHand({ snapshot, serial }: { readonly snapshot: SeasonSnapshot; readonly serial: string }) {
   const slip = snapshot.slips.find((s) => s.serial === serial);
   return (
-    <ScreenRoot id="W-TR-04" state="empty" labelledBy="fsc-hand-title" className="fsc-hand">
+    <ScreenRoot id="W-TR-04" state="empty" labelledBy="fsc-hand-title" className="fsc-hand" grid>
       <header className="fsc-hand__head">
-        <h1 id="fsc-hand-title" className="fs-t-title-1">
+        <h1 id="fsc-hand-title" className="fsc-screen__title fs-t-title">
           {BY_HAND_COPY.title(serial)}
           <span className="fsc-hand__context"> {BY_HAND_COPY.titleContext}</span>
         </h1>
@@ -349,263 +350,269 @@ function ByHandField({
   const lines = witness ? logbookWindow(witness.page, witness.lineNo) : null;
 
   return (
-    <ScreenRoot id="W-TR-04" state={state} labelledBy="fsc-hand-title" className="fsc-hand">
-      <header className="fsc-hand__head">
-        <h1 id="fsc-hand-title" className="fs-t-title-1">
-          {BY_HAND_COPY.title(serial)}
-          <span className="fsc-hand__context"> {BY_HAND_COPY.titleContext}</span>
-        </h1>
-        {/* The owner's name, and her member number in the id role (the one mono). */}
-        <p className="fsc-hand__who fs-t-micro">
-          {member?.displayName ?? field.slip.memberNo}
-          {BY_HAND_COPY.whoJoin}
-          <span className="fs-t-id">{field.slip.memberNo}</span>
-        </p>
-      </header>
-
-      {/* The decision first (the field, or once entered the result and the next step), the two witnesses side by
-          side beneath it (UI gate round 3): no half of the screen stands empty. */}
-      <div className="fsc-hand__body" {...moment.rootProps} data-motion={mode}>
-        <section
-          ref={setEntry}
-          className="fsc-hand__entry"
-          aria-labelledby={`${inputId}-label`}
-          data-testid="W-TR-04.entry"
-        >
-          <p className="fsc-hand__prompt" data-testid="W-TR-04.prompt">
-            {prompt}
+    <ScreenRoot id="W-TR-04" state={state} labelledBy="fsc-hand-title" className="fsc-hand" grid>
+      {/* Two columns on the one grid (round 4): the title and the decision on the left (the field, or once entered
+          the equation, who entered it and the next step), the slip's crop and the logbook stacked on the right,
+          top-aligned with the title. */}
+      <Cell span={6} spanMd={12} className="fsc-hand__lead">
+        <header className="fsc-hand__head">
+          <h1 id="fsc-hand-title" className="fsc-screen__title fs-t-title">
+            {BY_HAND_COPY.title(serial)}
+            <span className="fsc-hand__context"> {BY_HAND_COPY.titleContext}</span>
+          </h1>
+          {/* The owner's name, and her member number in the id role (the one mono). */}
+          <p className="fsc-hand__who fs-t-caption">
+            {member?.displayName ?? field.slip.memberNo}
+            {BY_HAND_COPY.whoJoin}
+            <span className="fs-t-id">{field.slip.memberNo}</span>
           </p>
-          {committed ? (
-            // Focusable from script only: the field's focus lands here when the value prints in ink.
-            <div ref={ink} className="fsc-hand__committed" tabIndex={-1} data-testid="W-TR-04.committed">
-              <p id={`${inputId}-label`} className="fs-t-label fsc-hand__muted">
-                {BY_HAND_COPY.inputLabel(serial)}
-              </p>
-              {/* The result as one line of kilos in the money face (round 3): her entry in ink, the slip's tare,
+        </header>
+        <div className="fsc-hand__body" {...moment.rootProps} data-motion={mode}>
+          <section
+            ref={setEntry}
+            className="fsc-hand__entry"
+            aria-labelledby={`${inputId}-label`}
+            data-testid="W-TR-04.entry"
+          >
+            <p className="fsc-hand__prompt" data-testid="W-TR-04.prompt">
+              {prompt}
+            </p>
+            {committed ? (
+              // Focusable from script only: the field's focus lands here when the value prints in ink.
+              <div ref={ink} className="fsc-hand__committed" tabIndex={-1} data-testid="W-TR-04.committed">
+                <p id={`${inputId}-label`} className="fs-t-label fsc-hand__muted">
+                  {BY_HAND_COPY.inputLabel(serial)}
+                </p>
+                {/* The result as one line of kilos in the money face (round 3): her entry in ink, the slip's tare,
                   the net it makes. Every figure is the slip's text or the server's derived net. */}
-              <p className="fsc-hand__ink" data-amount-state="ink">
-                {officer && (
-                  <Stamp
-                    stamp={{
-                      initials: officer.initials,
-                      name: officer.name,
-                      at: entered ? format.time(entered.at) : pressedAt ? format.time(pressedAt) : "",
-                    }}
-                    testId="W-TR-04.stamp"
-                  />
-                )}
-                <span className="fsc-hand__sum fs-money" data-testid="W-TR-04.net">
-                  <span className="fsc-hand__ink-value">{shownValue}</span>
-                  {netAfter && (
-                    <span className="fsc-hand__rest">
-                      {` ${BY_HAND_COPY.minus} ${tare} = `}
-                      <span className="fsc-hand__net">{BY_HAND_COPY.kg(netAfter)}</span>
-                    </span>
-                  )}
-                </span>
-              </p>
-              <p className="fs-t-caption fsc-hand__by" data-testid="W-TR-04.provenance">
-                {provenance}
-              </p>
-              {witness && agrees === false && (
-                <p className="fs-t-caption fsc-hand__mismatch" data-testid="W-TR-04.check">
-                  {BY_HAND_COPY.committedMismatch(witness.lineNo, witness.netKgText)}
-                </p>
-              )}
-              {next && hasNext && (
-                <p className="fsc-hand__next">
-                  <AppLink
-                    href={next.to}
-                    className="fs-flat fsc-hand__go"
-                    data-size="l"
-                    data-testid="W-TR-04.next"
-                  >
-                    {nextWords}
-                    <Glyph name="ms:arrow-back" size={18} className="fsc-hand__arrow" />
-                  </AppLink>
-                </p>
-              )}
-            </div>
-          ) : skipped ? (
-            <div className="fsc-hand__skipped" data-testid="W-TR-04.skipped">
-              <p id={`${inputId}-label`} className="fs-t-label">
-                {BY_HAND_COPY.skipped(serial)}
-              </p>
-              <button
-                type="button"
-                className="fs-link fs-t-label"
-                onClick={() => setSkipped(false)}
-                data-testid="W-TR-04.unskip"
-              >
-                {BY_HAND_COPY.unskip}
-              </button>
-            </div>
-          ) : (
-            <>
-              <label id={`${inputId}-label`} htmlFor={inputId} className="fs-t-label fsc-hand__label">
-                {BY_HAND_COPY.inputLabel(serial)}
-              </label>
-              <div className="fsc-hand__field" data-state={state} data-mask={whole ? undefined : ""}>
-                <input
-                  ref={input}
-                  id={inputId}
-                  className="fsc-hand__input"
-                  value={value}
-                  inputMode="decimal"
-                  autoComplete="off"
-                  spellCheck={false}
-                  aria-describedby={`${hintId} ${liveId}`}
-                  aria-invalid={mismatch ? true : undefined}
-                  disabled={!ready}
-                  onKeyDown={onKeyDown}
-                  onChange={onChange}
-                  onFocus={selectSlot}
-                  onClick={selectSlot}
-                  onMouseUp={selectSlot}
-                  data-testid="W-TR-04.input"
-                />
-              </div>
-              {/* The caret in the box says it; the hint stays for screen readers (spec §3.5). */}
-              <p id={hintId} className="fs-sr">
-                {whole ? BY_HAND_COPY.inputHintWhole : BY_HAND_COPY.inputHint}
-              </p>
-              <p
-                id={liveId}
-                className="fsc-hand__live fs-t-label"
-                aria-live="polite"
-                data-testid="W-TR-04.live"
-                data-state={state}
-              >
-                {p ? (
-                  <>
-                    <span className="fsc-hand__sum">{BY_HAND_COPY.live(p.gross, p.tare, p.net)}</span>{" "}
-                    {witness ? (
-                      p.matches ? (
-                        <span>{BY_HAND_COPY.matches(witness.page.page, witness.lineNo)}</span>
-                      ) : (
-                        <span className="fsc-hand__mismatch">
-                          {BY_HAND_COPY.mismatch(p.net, witness.lineNo, witness.netKgText)}
-                        </span>
-                      )
-                    ) : (
-                      <span>{BY_HAND_COPY.noWitness}</span>
+                <p className="fsc-hand__ink" data-amount-state="ink">
+                  <span className="fsc-hand__sum fs-money" data-testid="W-TR-04.net">
+                    <span className="fsc-hand__ink-value">{shownValue}</span>
+                    {netAfter && (
+                      <span className="fsc-hand__rest">
+                        {` ${BY_HAND_COPY.minus} ${tare} = `}
+                        <span className="fsc-hand__net">{BY_HAND_COPY.kg(netAfter)}</span>
+                      </span>
                     )}
-                  </>
-                ) : null}
-              </p>
-              <div className="fsc-hand__links">
-                {witness && (
-                  <button
-                    type="button"
-                    className="fs-link fs-t-label"
-                    onClick={useLogbook}
-                    disabled={!ready}
-                    data-used={fromLogbook ? "" : undefined}
-                    data-testid="W-TR-04.useLogbook"
-                  >
-                    {BY_HAND_COPY.useLogbook(witness.lineNo)}
-                  </button>
+                  </span>
+                </p>
+                {/* Whose ink it is: her stamp beside "Entered by Analyn · logbook line 7" (round 4: the equation keeps
+                  its whole line). */}
+                <p className="fsc-hand__by">
+                  {officer && (
+                    <Stamp
+                      stamp={{
+                        initials: officer.initials,
+                        name: officer.name,
+                        at: entered ? format.time(entered.at) : pressedAt ? format.time(pressedAt) : "",
+                      }}
+                      testId="W-TR-04.stamp"
+                    />
+                  )}
+                  <span className="fs-t-label" data-testid="W-TR-04.provenance">
+                    {provenance}
+                  </span>
+                </p>
+                {witness && agrees === false && (
+                  <p className="fs-t-caption fsc-hand__mismatch" data-testid="W-TR-04.check">
+                    {BY_HAND_COPY.committedMismatch(witness.lineNo, witness.netKgText)}
+                  </p>
                 )}
-                {mask && (
-                  <button
-                    type="button"
-                    className="fs-link fs-t-label"
-                    disabled={!ready}
-                    onClick={() => {
-                      setWhole((w) => !w);
-                      setValue(whole ? mask.template : "");
-                      setFromLogbook(false);
-                      focusField.current = true;
-                    }}
-                    data-testid="W-TR-04.typeWhole"
-                  >
-                    {whole ? BY_HAND_COPY.useMask : BY_HAND_COPY.typeWhole}
-                  </button>
-                )}
-                {mismatch && !anyway && (
-                  <button
-                    type="button"
-                    className="fs-link fs-t-label"
-                    onClick={() => setAnyway(true)}
-                    data-testid="W-TR-04.anyway"
-                  >
-                    {BY_HAND_COPY.anywayOpen}
-                  </button>
+                {next && hasNext && (
+                  <p className="fsc-hand__next">
+                    <AppLink
+                      href={next.to}
+                      className="fs-flat fsc-hand__go"
+                      data-size="l"
+                      data-testid="W-TR-04.next"
+                    >
+                      {nextWords}
+                      <Glyph name="ms:arrow-back" size={18} className="fsc-hand__arrow" />
+                    </AppLink>
+                  </p>
                 )}
               </div>
-              {mismatch && anyway && (
-                <p className="fsc-hand__reason fs-t-caption" role="status" data-testid="W-TR-04.offPath">
-                  {BY_HAND_COPY.offPath}
+            ) : skipped ? (
+              <div className="fsc-hand__skipped" data-testid="W-TR-04.skipped">
+                <p id={`${inputId}-label`} className="fs-t-label">
+                  {BY_HAND_COPY.skipped(serial)}
                 </p>
-              )}
-              <div className="fsc-hand__commit">
-                <Slab
-                  key={attempt}
-                  label={slabLabel}
-                  srLabel={BY_HAND_COPY.enterSr(isComplete(value) ? value : field.reading, serial)}
-                  depth="d2"
-                  tone="chalk"
-                  testId="W-TR-04.commit"
-                  unavailableReason={unavailable}
-                  onCommit={commit}
-                />
-                {!ready && (
-                  <AppLink
-                    href={webRoutes.reading(snapshot.season.label, field.slip.photoId)}
-                    className="fs-link fs-t-label"
-                  >
-                    {BY_HAND_COPY.readFirst}
-                  </AppLink>
-                )}
-                {ready && (
-                  <button
-                    type="button"
-                    className="fs-link fs-t-caption fsc-hand__skip"
-                    onClick={() => setSkipped(true)}
-                    data-testid="W-TR-04.skip"
-                  >
-                    {BY_HAND_COPY.skip}
-                  </button>
-                )}
+                <button
+                  type="button"
+                  className="fs-link fs-t-label"
+                  onClick={() => setSkipped(false)}
+                  data-testid="W-TR-04.unskip"
+                >
+                  {BY_HAND_COPY.unskip}
+                </button>
               </div>
-              {enter.isPending && (
-                <p className="fs-t-caption fsc-hand__muted" role="status">
-                  {BY_HAND_COPY.sending}
+            ) : (
+              <>
+                <label id={`${inputId}-label`} htmlFor={inputId} className="fs-t-label fsc-hand__label">
+                  {BY_HAND_COPY.inputLabel(serial)}
+                </label>
+                <div className="fsc-hand__field" data-state={state} data-mask={whole ? undefined : ""}>
+                  <input
+                    ref={input}
+                    id={inputId}
+                    className="fsc-hand__input"
+                    value={value}
+                    inputMode="decimal"
+                    autoComplete="off"
+                    spellCheck={false}
+                    aria-describedby={`${hintId} ${liveId}`}
+                    aria-invalid={mismatch ? true : undefined}
+                    disabled={!ready}
+                    onKeyDown={onKeyDown}
+                    onChange={onChange}
+                    onFocus={selectSlot}
+                    onClick={selectSlot}
+                    onMouseUp={selectSlot}
+                    data-testid="W-TR-04.input"
+                  />
+                </div>
+                {/* The caret in the box says it; the hint stays for screen readers (spec §3.5). */}
+                <p id={hintId} className="fs-sr">
+                  {whole ? BY_HAND_COPY.inputHintWhole : BY_HAND_COPY.inputHint}
                 </p>
-              )}
-              <CommandNotice error={enter.error} testId="W-TR-04.error" onRetry={commit} />
-            </>
-          )}
-        </section>
+                <p
+                  id={liveId}
+                  className="fsc-hand__live fs-t-label"
+                  aria-live="polite"
+                  data-testid="W-TR-04.live"
+                  data-state={state}
+                >
+                  {p ? (
+                    <>
+                      <span className="fsc-hand__sum">{BY_HAND_COPY.live(p.gross, p.tare, p.net)}</span>{" "}
+                      {witness ? (
+                        p.matches ? (
+                          <span>{BY_HAND_COPY.matches(witness.page.page, witness.lineNo)}</span>
+                        ) : (
+                          <span className="fsc-hand__mismatch">
+                            {BY_HAND_COPY.mismatch(p.net, witness.lineNo, witness.netKgText)}
+                          </span>
+                        )
+                      ) : (
+                        <span>{BY_HAND_COPY.noWitness}</span>
+                      )}
+                    </>
+                  ) : null}
+                </p>
+                <div className="fsc-hand__links">
+                  {witness && (
+                    <button
+                      type="button"
+                      className="fs-link fs-t-label"
+                      onClick={useLogbook}
+                      disabled={!ready}
+                      data-used={fromLogbook ? "" : undefined}
+                      data-testid="W-TR-04.useLogbook"
+                    >
+                      {BY_HAND_COPY.useLogbook(witness.lineNo)}
+                    </button>
+                  )}
+                  {mask && (
+                    <button
+                      type="button"
+                      className="fs-link fs-t-label"
+                      disabled={!ready}
+                      onClick={() => {
+                        setWhole((w) => !w);
+                        setValue(whole ? mask.template : "");
+                        setFromLogbook(false);
+                        focusField.current = true;
+                      }}
+                      data-testid="W-TR-04.typeWhole"
+                    >
+                      {whole ? BY_HAND_COPY.useMask : BY_HAND_COPY.typeWhole}
+                    </button>
+                  )}
+                  {mismatch && !anyway && (
+                    <button
+                      type="button"
+                      className="fs-link fs-t-label"
+                      onClick={() => setAnyway(true)}
+                      data-testid="W-TR-04.anyway"
+                    >
+                      {BY_HAND_COPY.anywayOpen}
+                    </button>
+                  )}
+                </div>
+                {mismatch && anyway && (
+                  <p className="fsc-hand__reason fs-t-caption" role="status" data-testid="W-TR-04.offPath">
+                    {BY_HAND_COPY.offPath}
+                  </p>
+                )}
+                <div className="fsc-hand__commit">
+                  <Slab
+                    key={attempt}
+                    label={slabLabel}
+                    srLabel={BY_HAND_COPY.enterSr(isComplete(value) ? value : field.reading, serial)}
+                    depth="d2"
+                    tone="chalk"
+                    testId="W-TR-04.commit"
+                    unavailableReason={unavailable}
+                    onCommit={commit}
+                  />
+                  {!ready && (
+                    <AppLink
+                      href={webRoutes.reading(snapshot.season.label, field.slip.photoId)}
+                      className="fs-link fs-t-label"
+                    >
+                      {BY_HAND_COPY.readFirst}
+                    </AppLink>
+                  )}
+                  {ready && (
+                    <button
+                      type="button"
+                      className="fs-link fs-t-caption fsc-hand__skip"
+                      onClick={() => setSkipped(true)}
+                      data-testid="W-TR-04.skip"
+                    >
+                      {BY_HAND_COPY.skip}
+                    </button>
+                  )}
+                </div>
+                {enter.isPending && (
+                  <p className="fs-t-caption fsc-hand__muted" role="status">
+                    {BY_HAND_COPY.sending}
+                  </p>
+                )}
+                <CommandNotice error={enter.error} testId="W-TR-04.error" onRetry={commit} />
+              </>
+            )}
+          </section>
+        </div>
+      </Cell>
 
-        <div className="fsc-hand__evidence" data-testid="W-TR-04.evidence">
+      <Cell span={6} spanMd={12} className="fsc-hand__evidence" testId="W-TR-04.evidence">
+        <figure className="fsc-hand__figure">
+          <figcaption className="fs-t-micro fsc-hand__muted">{BY_HAND_COPY.crop(serial)}</figcaption>
+          <Paper alt={BY_HAND_COPY.cropAlt(serial)} className="fsc-hand__crop" testId="W-TR-04.crop">
+            <div
+              className="fsc-hand__crop-frame"
+              style={crop ? { aspectRatio: `${crop.w} / ${crop.h}` } : undefined}
+            >
+              <SlipPaper slip={field.slip} crop={crop} />
+            </div>
+          </Paper>
+        </figure>
+        {witness && lines && (
           <figure className="fsc-hand__figure">
-            <figcaption className="fs-t-micro fsc-hand__muted">{BY_HAND_COPY.crop(serial)}</figcaption>
-            <Paper alt={BY_HAND_COPY.cropAlt(serial)} className="fsc-hand__crop" testId="W-TR-04.crop">
-              <div
-                className="fsc-hand__crop-frame"
-                style={crop ? { aspectRatio: `${crop.w} / ${crop.h}` } : undefined}
-              >
-                <SlipPaper slip={field.slip} crop={crop} />
-              </div>
+            <figcaption className="fs-t-micro fsc-hand__muted">
+              {BY_HAND_COPY.logbook(witness.page.page, lines.from, lines.to)}
+            </figcaption>
+            <Paper
+              alt={BY_HAND_COPY.logbookAlt(witness.page.page, witness.lineNo, witness.netKgText)}
+              className="fsc-hand__logbook"
+              testId="W-TR-04.logbook"
+            >
+              <LogbookPaper page={witness.page} highlight={witness.lineNo} lines={lines} />
             </Paper>
           </figure>
-          {witness && lines && (
-            <figure className="fsc-hand__figure">
-              <figcaption className="fs-t-micro fsc-hand__muted">
-                {BY_HAND_COPY.logbook(witness.page.page, lines.from, lines.to)}
-              </figcaption>
-              <Paper
-                alt={BY_HAND_COPY.logbookAlt(witness.page.page, witness.lineNo, witness.netKgText)}
-                className="fsc-hand__logbook"
-                testId="W-TR-04.logbook"
-              >
-                <LogbookPaper page={witness.page} highlight={witness.lineNo} lines={lines} />
-              </Paper>
-            </figure>
-          )}
-        </div>
-      </div>
+        )}
+      </Cell>
     </ScreenRoot>
   );
 }

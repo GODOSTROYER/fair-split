@@ -16,7 +16,9 @@ export interface ScheduleRule {
   readonly id: ScheduleRuleId;
   /** The card's rule ID ("R6" for the hold rules, "CLOSED" for the closed list). */
   readonly ruleId: RuleId;
-  /** What the rule reads as, printed flat. */
+  /** The row's label (round 4): four words or fewer beside its id ("CBU 5% of bonus"); `text` opens under it. */
+  readonly short: string;
+  /** What the rule reads as, printed flat: the full clause, on the row's expand. */
   readonly text: string;
   /** The verbatim quote it was read from (must be in the text layer). */
   readonly quote: string;
@@ -70,14 +72,34 @@ function termFor(card: Card, ruleId: RuleId, labelHint?: RegExp): RateTerm | und
   return (labelHint ? terms.find((t) => labelHint.test(t.label)) : undefined) ?? terms[0];
 }
 
+/**
+ * Each rule's row label (UI gate round 4): four words or fewer beside its id, every figure the card's own term
+ * ("CBU 5% of bonus", "Hauling ₱1.50 a kg"); the whole clause opens under the row.
+ */
+export function shortRules(card: Card): Readonly<Record<ScheduleRuleId, string>> {
+  const terms = ruleTerms(card);
+  return {
+    R0: "Premium never deducted",
+    R1: `CBU ${terms.R1.share}% of bonus`,
+    R2: `Hauling ${terms.R2.rate} a kg`,
+    R3: `Loan ≤ ${terms.R3.share}% of bonus`,
+    R4: `Advance ≤ ${terms.R4.share}% of bonus`,
+    cosign: `Chair co-signs over ${format.money(card.canonical.rules.cosign.batchOverCents)}`,
+    holds: "Holds need a person",
+    closed: "No other deductions",
+  };
+}
+
 /** Schedule A as printed on W-TR-02: R0 to R4 in the card's words, co-sign (R5), the holds (R6), the closed list. */
 export function scheduleRules(
   card: Card,
   printed: Readonly<Record<"R0" | "R1" | "R2" | "R3" | "R4", string>>,
 ) {
   const rules: ScheduleRule[] = [];
+  const short = shortRules(card);
   const add = (id: ScheduleRuleId, ruleId: RuleId, text: string, term: RateTerm | undefined) => {
-    if (term) rules.push({ id, ruleId, text, quote: term.source.quote, page: term.source.page });
+    if (term)
+      rules.push({ id, ruleId, short: short[id], text, quote: term.source.quote, page: term.source.page });
   };
   add("R0", "R0", printed.R0, termFor(card, "R0", /premium/i));
   add("R1", "R1", printed.R1, termFor(card, "R1"));

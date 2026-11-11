@@ -9,6 +9,7 @@ import type { SeasonSnapshot } from "@fairsplit/contracts";
 import { Chip, Glyph, LegendGlyph, Print, Slab, useMotionMode, useT } from "@fairsplit/ui-web";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { CommandNotice } from "../../chrome/CommandNotice.js";
+import { Cell } from "../../chrome/ScreenGrid.js";
 import { ScreenRoot } from "../../chrome/ScreenRoot.js";
 import { asRateCardRatified, isApiClientError } from "../../data/errors.js";
 import { useAdapter, useCommand, useJudgeSession } from "../../data/hooks.js";
@@ -146,214 +147,230 @@ export function RateCard({ snapshot }: { readonly snapshot: SeasonSnapshot }) {
   }, [plateShown, refusal, announce, mode]);
   const labelId = useId();
   const amountId = useId();
+  const clauseId = useId();
   const season = snapshot.season.label;
   const upcoming = nextSeason(season);
   const ratifiedOn = format.date(card.canonical.ratifiedOn);
 
   return (
-    <ScreenRoot id="W-TR-02" state={state} labelledBy="fsc-rc-title" className="fsc-rc">
-      <header className="fsc-rc__head">
-        {/* A factual name with the season beside it in grey, as on every screen (round 3: no mark above the
-            heading). The stand-in's glyph sits once, under the rules it covers. */}
-        <h1 id="fsc-rc-title" className="fs-t-title-1">
+    <ScreenRoot id="W-TR-02" state={state} labelledBy="fsc-rc-title" className="fsc-rc" grid>
+      {/* The title row on the one grid (round 4): the name with the season in grey, and the resolution beside it. */}
+      <header className="fsc-screen__head fsc-rc__head">
+        <h1 id="fsc-rc-title" className="fsc-screen__title fs-t-title">
           {RATECARD_COPY.title}
           <span className="fsc-rc__context" data-testid="W-TR-02.mark">
             {" "}
             {seasonLabel(snapshot.season.label)}
           </span>
         </h1>
-        <p className="fsc-rc__lede">{RATECARD_COPY.lede(card.canonical.resolutionNo, ratifiedOn)}</p>
+        <p className="fsc-rc__lede fs-t-caption">
+          {RATECARD_COPY.lede(card.canonical.resolutionNo, ratifiedOn)}
+        </p>
       </header>
 
-      <div className="fsc-rc__body">
+      <Cell span={6} spanMd={6} className="fsc-rc__paper">
         <ResolutionPages card={card} highlight={highlight} testId="W-TR-02.pages" />
+      </Cell>
 
-        <div className="fsc-rc__side">
-          <section className="fsc-rc__schedule" aria-labelledby="fsc-rc-schedule">
-            <header className="fsc-rc__schedule-head">
-              <h2 id="fsc-rc-schedule" className="fs-t-title-2">
-                {RATECARD_COPY.schedule}
-              </h2>
-              <p className="fs-t-caption fsc-rc__muted">{RATECARD_COPY.scheduleLede}</p>
-            </header>
-            <ol className="fsc-rc__rules" data-testid="W-TR-02.rules">
-              {rules.map((rule) => (
-                <li key={rule.id} className="fsc-rc__rule-item">
-                  <button
-                    type="button"
-                    className="fsc-rc__rule"
-                    aria-pressed={pinned === rule.id}
-                    data-rule={rule.id}
-                    data-active={active === rule.id ? "" : undefined}
-                    data-testid={`W-TR-02.rule.${rule.id}`}
-                    onMouseEnter={() => setHovered(rule.id)}
-                    onMouseLeave={() => setHovered(null)}
-                    onFocus={() => setHovered(rule.id)}
-                    onBlur={() => setHovered(null)}
-                    onClick={() => setPinned((p) => (p === rule.id ? null : rule.id))}
-                  >
-                    <span className="fsc-rc__rule-id fs-t-id">
-                      {rule.ruleId === "CLOSED" ? <Glyph name="bolt" size={14} /> : rule.ruleId}
-                    </span>
-                    <Print value={rule.text} provenance="claude" state="ink" typeRole="body" />
-                  </button>
-                </li>
-              ))}
-            </ol>
-            {/* The stand-in's glyph (its words whole as its title and accessible name), and the page a pointed rule
-                was quoted from as micro (round 3: no sentence under the rules). */}
-            <p className="fs-t-micro fsc-rc__footer" data-testid="W-TR-02.footer">
-              <LegendGlyph
-                kind="synthetic"
-                label={
-                  activeRule
-                    ? RATECARD_COPY.readFooter(CLAUDE_MODEL, activeRule.page)
-                    : RATECARD_COPY.readFooterIdle(CLAUDE_MODEL)
-                }
-              />
-              {activeRule && <span aria-hidden>{RATECARD_COPY.page(activeRule.page)}</span>}
-            </p>
-          </section>
-
-          {/* Once a deduction is being added, the plate keeps its seal line only: the full hash and the two signatures
-              step back so the refusal sits in view (round 3). */}
-          <HashPlate
-            snapshot={snapshot}
-            testId="W-TR-02.bolted"
-            compact={adding}
-            bright={mode === "reduced" && refusing}
-          />
-
-          <section
-            className="fsc-rc__add"
-            aria-labelledby="fsc-rc-add"
-            data-testid="W-TR-02.add"
-            data-state={refusal ? "refused" : adding ? "open" : "closed"}
-            {...moment.rootProps}
-          >
-            <h2 id="fsc-rc-add" className="fsc-rc__add-title fs-t-label">
-              {RATECARD_COPY.addTitle}
+      <Cell span={6} spanMd={6} className="fsc-rc__side">
+        <section className="fsc-rc__schedule" aria-labelledby="fsc-rc-schedule">
+          <header className="fsc-rc__schedule-head">
+            <h2 id="fsc-rc-schedule" className="fs-t-heading">
+              {RATECARD_COPY.schedule}
             </h2>
-            {!adding ? (
-              <button
-                type="button"
-                className="fs-flat"
-                onClick={() => setAdding(true)}
-                data-testid="W-TR-02.addOpen"
-              >
-                {RATECARD_COPY.addOpen}
-              </button>
-            ) : (
-              <div className="fsc-rc__row" data-testid="W-TR-02.addRow">
-                <div className="fsc-rc__fields">
-                  <label className="fsc-rc__field" htmlFor={labelId}>
-                    <span className="fs-t-caption">{RATECARD_COPY.labelField}</span>
-                    <input
-                      id={labelId}
-                      className="fsc-input"
-                      value={label}
-                      onChange={(e) => setLabel(e.target.value)}
-                      data-testid="W-TR-02.addLabel"
-                      autoComplete="off"
-                    />
-                  </label>
-                  <label className="fsc-rc__field fsc-rc__field--amount" htmlFor={amountId}>
-                    <span className="fs-t-caption">{RATECARD_COPY.amountField}</span>
-                    <input
-                      id={amountId}
-                      className="fsc-input fsc-input--figure"
-                      value={amountText}
-                      onChange={(e) => setAmountText(e.target.value)}
-                      data-testid="W-TR-02.addAmount"
-                      autoComplete="off"
-                    />
-                  </label>
-                </div>
-                <div className="fsc-rc__bolted-slab" ref={bolted}>
-                  <Slab
-                    label={RATECARD_COPY.addCommit}
-                    srLabel={RATECARD_COPY.addCommitSr(card.canonical.resolutionNo, ratifiedOn)}
-                    depth="d2"
-                    tone="chalk"
-                    bolted
-                    glyph="bolt"
-                    testId="W-TR-02.addCommit"
-                    frame={{ state: refusing ? "refusing" : "bolted" }}
-                    onCommit={() => undefined}
-                  />
-                  <p className="fs-t-caption fsc-rc__muted">
-                    {RATECARD_COPY.locked(card.canonical.resolutionNo)}
-                  </p>
-                </div>
-              </div>
-            )}
-            <CommandNotice error={otherError} testId="W-TR-02.error" />
-            {plateShown && plate && (
-              <section
-                className="fsc-rc__refusal"
-                aria-labelledby="fsc-rc-refusal-title"
-                data-testid="W-TR-02.refusal"
-              >
-                <span className="fsc-rc__refusal-bolt fsc-rc__refusal-bolt--l" aria-hidden />
-                <span className="fsc-rc__refusal-bolt fsc-rc__refusal-bolt--r" aria-hidden />
-                {/* The refusal is its title (round 3); the one-line reason waits behind "Why". */}
-                <h2
-                  id="fsc-rc-refusal-title"
-                  ref={refusalHeading}
-                  tabIndex={-1}
-                  className="fsc-rc__refusal-word fs-t-title-2"
-                  data-reveal={mode === "reduced" ? "fade" : "wipe"}
+            <p className="fs-t-caption fsc-rc__muted">{RATECARD_COPY.scheduleLede}</p>
+          </header>
+          {/* Each rule is its id and four words or fewer (round 4); its whole clause opens under it, and its
+                words on the scanned page take the reading band while it is open or pointed at. */}
+          <ol className="fsc-rc__rules" data-testid="W-TR-02.rules">
+            {rules.map((rule) => (
+              <li key={rule.id} className="fsc-rc__rule-item" data-open={pinned === rule.id ? "" : undefined}>
+                <button
+                  type="button"
+                  className="fsc-rc__rule"
+                  aria-expanded={pinned === rule.id}
+                  aria-controls={`${clauseId}-${rule.id}`}
+                  data-rule={rule.id}
+                  data-active={active === rule.id ? "" : undefined}
+                  data-testid={`W-TR-02.rule.${rule.id}`}
+                  onMouseEnter={() => setHovered(rule.id)}
+                  onMouseLeave={() => setHovered(null)}
+                  onFocus={() => setHovered(rule.id)}
+                  onBlur={() => setHovered(null)}
+                  onClick={() => setPinned((p) => (p === rule.id ? null : rule.id))}
                 >
-                  <Glyph name="ms:lock" size={18} />
-                  {plate.title}
-                </h2>
-                <details className="fsc-rc__why" data-testid="W-TR-02.why">
-                  <summary className="fs-link fs-t-label">
-                    {RATECARD_COPY.why}
-                    <Glyph name="ms:expand-more" size={16} className="fsc-rc__why-mark" />
-                  </summary>
-                  <p className="fsc-rc__refusal-text">
-                    {plate.body} <span className="fs-t-caption">{plate.hash}</span>
-                  </p>
-                </details>
-                <div className="fsc-rc__refusal-action">
-                  <Slab
-                    label={RATECARD_COPY.propose(upcoming)}
-                    srLabel={`${RATECARD_COPY.propose(upcoming)}, ${RATECARD_COPY.proposeSr}`}
-                    depth="d1"
-                    tone="chalk"
-                    testId="W-TR-02.propose"
-                    unavailableReason={proposal ? RATECARD_COPY.proposed : undefined}
-                    onCommit={() => setProposal({ label: label.trim(), amountText: amountText.trim() })}
-                  />
+                  <span className="fsc-rc__rule-id fs-t-id">
+                    {rule.ruleId === "CLOSED" ? <Glyph name="bolt" size={14} /> : rule.ruleId}
+                  </span>
+                  <span className="fsc-rc__rule-short fs-t-body">{rule.short}</span>
+                  <Glyph name="ms:expand-more" size={16} className="fsc-rc__rule-mark" />
+                </button>
+                <div
+                  id={`${clauseId}-${rule.id}`}
+                  className="fsc-rc__clause"
+                  hidden={pinned !== rule.id}
+                  data-testid={`W-TR-02.clause.${rule.id}`}
+                >
+                  <Print value={rule.text} provenance="claude" state="ink" typeRole="body" />
                 </div>
-              </section>
-            )}
-          </section>
+              </li>
+            ))}
+          </ol>
+          {/* The stand-in's glyph (its words whole as its title and accessible name), and the page a pointed rule
+                was quoted from as micro (round 3: no sentence under the rules). */}
+          <p className="fs-t-micro fsc-rc__footer" data-testid="W-TR-02.footer">
+            <LegendGlyph
+              kind="synthetic"
+              label={
+                activeRule
+                  ? RATECARD_COPY.readFooter(CLAUDE_MODEL, activeRule.page)
+                  : RATECARD_COPY.readFooterIdle(CLAUDE_MODEL)
+              }
+            />
+            {activeRule && <span aria-hidden>{RATECARD_COPY.page(activeRule.page)}</span>}
+          </p>
+        </section>
 
-          {proposal && (
-            <section
-              className="fsc-rc__proposal"
-              aria-labelledby="fsc-rc-proposal"
-              data-testid="W-TR-02.proposal"
+        {/* Once a deduction is being added, the plate keeps its seal line only: the full hash and the two signatures
+              step back so the refusal sits in view (round 3). */}
+        <HashPlate
+          snapshot={snapshot}
+          testId="W-TR-02.bolted"
+          compact={adding}
+          bright={mode === "reduced" && refusing}
+        />
+
+        <section
+          className="fsc-rc__add"
+          aria-labelledby="fsc-rc-add"
+          data-testid="W-TR-02.add"
+          data-state={refusal ? "refused" : adding ? "open" : "closed"}
+          {...moment.rootProps}
+        >
+          {/* Said once (round 4): while closed, the button says it and the heading names the section for screen
+              readers only. */}
+          <h2 id="fsc-rc-add" className={adding ? "fsc-rc__add-title fs-t-label" : "fs-sr"}>
+            {RATECARD_COPY.addTitle}
+          </h2>
+          {!adding ? (
+            <button
+              type="button"
+              className="fs-flat"
+              onClick={() => setAdding(true)}
+              data-testid="W-TR-02.addOpen"
             >
-              <header className="fsc-rc__proposal-head">
-                <h2 id="fsc-rc-proposal" className="fs-t-title-2">
-                  {RATECARD_COPY.proposalTitle(upcoming)}
-                </h2>
-                <Chip tone="neutral" glyph="ms:schedule" testId="W-TR-02.notInForce">
-                  {RATECARD_COPY.notInForce}
-                </Chip>
-              </header>
-              <p className="fsc-rc__proposal-line">
-                <span>{proposal.label || RATECARD_COPY.sampleLabel}</span>
-                <span className="fs-t-figure">{proposal.amountText || RATECARD_COPY.sampleAmount}</span>
-              </p>
-              <p className="fs-t-caption fsc-rc__muted">{RATECARD_COPY.proposalNote(upcoming)}</p>
+              {RATECARD_COPY.addOpen}
+            </button>
+          ) : (
+            <div className="fsc-rc__row" data-testid="W-TR-02.addRow">
+              <div className="fsc-rc__fields">
+                <label className="fsc-rc__field" htmlFor={labelId}>
+                  <span className="fs-t-caption">{RATECARD_COPY.labelField}</span>
+                  <input
+                    id={labelId}
+                    className="fsc-input"
+                    value={label}
+                    onChange={(e) => setLabel(e.target.value)}
+                    data-testid="W-TR-02.addLabel"
+                    autoComplete="off"
+                  />
+                </label>
+                <label className="fsc-rc__field fsc-rc__field--amount" htmlFor={amountId}>
+                  <span className="fs-t-caption">{RATECARD_COPY.amountField}</span>
+                  <input
+                    id={amountId}
+                    className="fsc-input fsc-input--figure"
+                    value={amountText}
+                    onChange={(e) => setAmountText(e.target.value)}
+                    data-testid="W-TR-02.addAmount"
+                    autoComplete="off"
+                  />
+                </label>
+              </div>
+              <div className="fsc-rc__bolted-slab" ref={bolted}>
+                <Slab
+                  label={RATECARD_COPY.addCommit}
+                  srLabel={RATECARD_COPY.addCommitSr(card.canonical.resolutionNo, ratifiedOn)}
+                  depth="d2"
+                  tone="chalk"
+                  bolted
+                  glyph="bolt"
+                  testId="W-TR-02.addCommit"
+                  frame={{ state: refusing ? "refusing" : "bolted" }}
+                  onCommit={() => undefined}
+                />
+                <p className="fs-t-caption fsc-rc__muted">
+                  {RATECARD_COPY.locked(card.canonical.resolutionNo)}
+                </p>
+              </div>
+            </div>
+          )}
+          <CommandNotice error={otherError} testId="W-TR-02.error" />
+          {plateShown && plate && (
+            <section
+              className="fsc-rc__refusal"
+              aria-labelledby="fsc-rc-refusal-title"
+              data-testid="W-TR-02.refusal"
+            >
+              <span className="fsc-rc__refusal-bolt fsc-rc__refusal-bolt--l" aria-hidden />
+              <span className="fsc-rc__refusal-bolt fsc-rc__refusal-bolt--r" aria-hidden />
+              {/* The refusal is its title (round 3); the one-line reason waits behind "Why". */}
+              <h2
+                id="fsc-rc-refusal-title"
+                ref={refusalHeading}
+                tabIndex={-1}
+                className="fsc-rc__refusal-word fs-t-title-2"
+                data-reveal={mode === "reduced" ? "fade" : "wipe"}
+              >
+                <Glyph name="ms:lock" size={18} />
+                {plate.title}
+              </h2>
+              <details className="fsc-rc__why" data-testid="W-TR-02.why">
+                <summary className="fs-link fs-t-label">
+                  {RATECARD_COPY.why}
+                  <Glyph name="ms:expand-more" size={16} className="fsc-rc__why-mark" />
+                </summary>
+                <p className="fsc-rc__refusal-text">
+                  {plate.body} <span className="fs-t-caption">{plate.hash}</span>
+                </p>
+              </details>
+              <div className="fsc-rc__refusal-action">
+                <Slab
+                  label={RATECARD_COPY.propose(upcoming)}
+                  srLabel={`${RATECARD_COPY.propose(upcoming)}, ${RATECARD_COPY.proposeSr}`}
+                  depth="d1"
+                  tone="chalk"
+                  testId="W-TR-02.propose"
+                  unavailableReason={proposal ? RATECARD_COPY.proposed : undefined}
+                  onCommit={() => setProposal({ label: label.trim(), amountText: amountText.trim() })}
+                />
+              </div>
             </section>
           )}
-        </div>
-      </div>
+        </section>
+
+        {proposal && (
+          <section
+            className="fsc-rc__proposal"
+            aria-labelledby="fsc-rc-proposal"
+            data-testid="W-TR-02.proposal"
+          >
+            <header className="fsc-rc__proposal-head">
+              <h2 id="fsc-rc-proposal" className="fs-t-title-2">
+                {RATECARD_COPY.proposalTitle(upcoming)}
+              </h2>
+              <Chip tone="neutral" glyph="ms:schedule" testId="W-TR-02.notInForce">
+                {RATECARD_COPY.notInForce}
+              </Chip>
+            </header>
+            <p className="fsc-rc__proposal-line">
+              <span>{proposal.label || RATECARD_COPY.sampleLabel}</span>
+              <span className="fs-t-figure">{proposal.amountText || RATECARD_COPY.sampleAmount}</span>
+            </p>
+            <p className="fs-t-caption fsc-rc__muted">{RATECARD_COPY.proposalNote(upcoming)}</p>
+          </section>
+        )}
+      </Cell>
     </ScreenRoot>
   );
 }

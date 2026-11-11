@@ -5,7 +5,7 @@
 // returns a fine no rule allows; both resolve as flush ink stamps, with no moment. A hold is never an error.
 
 import { type ResolveHoldRequest, webRoutes } from "@fairsplit/contracts";
-import { Glyph, HoldCard, type HoldView, Print } from "@fairsplit/ui-web";
+import { Glyph, Print } from "@fairsplit/ui-web";
 import { useRouter } from "@tanstack/react-router";
 import { type FormEvent, type ReactNode, useCallback, useEffect, useId, useRef, useState } from "react";
 import { AppLink } from "../../chrome/AppLink.js";
@@ -18,6 +18,7 @@ import { Stamp } from "../../chrome/Stamp.js";
 import { useCommand } from "../../data/hooks.js";
 import { livePresence, type RunHold, type RunView } from "../../data/run-view.js";
 import { NoRuleEvidence, TwinCompare, YieldEvidence } from "../../features/holds/Evidence.js";
+import { HoldPanel, type HoldPanelProps, type PanelHold } from "../../features/holds/HoldPanel.js";
 import {
   cardState,
   duplicateFacts,
@@ -34,9 +35,9 @@ import {
   voices,
   yieldFacts,
 } from "../../features/holds/model.js";
-import { basisEventId, isOpenHold, massBalanceView, splitBasis } from "../../features/split/model.js";
-import { Dial, DialState } from "../../features/split/SplitHeader.js";
-import { en, HOLDS, SPLIT } from "../../features/split/shared/copy.js";
+import { basisEventId, isOpenHold, massBalanceView } from "../../features/split/model.js";
+import { Dial } from "../../features/split/SplitHeader.js";
+import { en, HOLDS } from "../../features/split/shared/copy.js";
 import { stampFor } from "../../features/split/shared/people.js";
 import { useLiveEvents, useRunData } from "../../features/split/shared/run-data.js";
 import { useMomentScript, usePhaseSync } from "../../features/split/shared/script.js";
@@ -220,15 +221,13 @@ export function Screen({ runSlug, holdId }: HoldDrawerProps) {
       );
     }
     const v = voices(snapshot, view, hold);
-    const card: HoldView = {
-      id: hold.label,
+    // H1 (round 4): no engine row, one effect line ("If counted once: …") right above the decision.
+    const card: PanelHold = {
       kind: hold.kind,
       title: v.title,
-      engineLine: v.engineLine,
-      ...(v.claudeLine ? { claudeLine: v.claudeLine } : {}),
-      ...(holdOpen && v.effect
-        ? { effect: hold.kind === "DUPLICATE_SLIP" ? keepFacts(v.effect) : v.effect }
-        : {}),
+      engineLine: isDuplicate ? null : v.engineLine,
+      claudeLine: v.claudeLine,
+      effect: holdOpen && v.effect ? (isDuplicate ? keepFacts(v.effect) : v.effect) : null,
       state,
     };
     const stamp = stampFor(snapshot, hold.resolvedBy, hold.resolvedAt);
@@ -238,42 +237,23 @@ export function Screen({ runSlug, holdId }: HoldDrawerProps) {
     const phase = moment.phase === "closed" && resting !== null ? resting : moment.phase;
 
     let evidence: ReactNode = null;
-    let actions: Parameters<typeof HoldCard>[0]["actions"];
+    let actions: HoldPanelProps["actions"];
     if (hold.kind === "DUPLICATE_SLIP") {
       const d = duplicateFacts(facts, seeded);
       const [a, b] = slipCopies(snapshot, d.serial);
-      const dial = massBalanceView(snapshot, view);
-      // Once counted once, the reading it moved from stays beside it as micro ("was 2.05%").
-      const was =
-        hold.state === "RESOLVED" && hold.resolution === "COUNT_ONCE" && d.shrinkBoth !== dial.display
-          ? d.shrinkBoth
-          : null;
-      evidence = (
-        <>
-          {a && b && (
-            <TwinCompare
-              a={a}
-              b={b}
-              rows={twinRows(a, b)}
-              phase={phase}
-              animate={script.busy}
-              mode={moment.mode}
-            />
-          )}
-          <div className="fsr-hold__dial" data-testid="W-TR-06.dialBlock">
-            <Dial
-              dial={dial}
-              swing={live.isLive(basisEventId(view, splitBasis(view)))}
-              size={96}
-              testId="W-TR-06.dial"
-            />
-            <div className="fsr-hold__dial-state">
-              <DialState dial={dial} testId="W-TR-06.dial.status" />
-              {was && <span className="fs-t-micro fsr-muted">{SPLIT.dialWas(was)}</span>}
-            </div>
-          </div>
-        </>
-      );
+      // The two copies and their four fields, under the decision (round 4). The drawer has no dial of its own: the
+      // split's dial behind it swings when H1 is counted once.
+      evidence =
+        a && b ? (
+          <TwinCompare
+            a={a}
+            b={b}
+            rows={twinRows(a, b)}
+            phase={phase}
+            animate={script.busy}
+            mode={moment.mode}
+          />
+        ) : null;
       actions = [
         {
           kind: "slab",
@@ -339,18 +319,18 @@ export function Screen({ runSlug, holdId }: HoldDrawerProps) {
       ];
     }
 
-    // H1 leads with the decision (UI gate round 3): holds.css draws the number line, the money and the dial's move
-    // directly above "Count it once", then the paired receipts and their fields. The receipts stay in the card's
-    // markup (they hold no control, so the keyboard order is the same), so the card still says whose they are.
+    // H1 leads with the decision (UI gate round 4): holds.css draws its one effect line directly above "Count it
+    // once", then the paired receipts and their fields under the decision. The receipts stay in the card's markup
+    // (they hold no control, so the keyboard order is the same), so the card still says whose they are.
     const cardNode = (
-      <HoldCard
+      <HoldPanel
         key={slabKey}
         hold={card}
-        readingProvenance="seeded"
         gate={hold.gate}
         actions={actions}
         {...(stamp ? { resolution: stamp } : {})}
         evidence={evidence}
+        {...(isDuplicate ? { effectLabel: null } : {})}
         testId="W-TR-06.card"
         className="fsr-hold"
       />
@@ -511,7 +491,7 @@ function ByHandCard({
         </header>
         <p className="fs-hold__gate" data-gate={hold.gate}>
           <Glyph name="hanging-scale" size={16} />
-          <span className="fs-t-label">{en(`hold.gate.${hold.gate}`)}</span>
+          <span className="fs-t-label">{HOLDS.gate[hold.gate] ?? en(`hold.gate.${hold.gate}`)}</span>
         </p>
         <dl className="fs-hold__voices">
           <div className="fs-hold__voice" data-voice="engine">
@@ -576,7 +556,7 @@ function MassBalanceCard({
         </header>
         <p className="fs-hold__gate" data-gate={hold.gate}>
           <Glyph name="hanging-scale" size={16} />
-          <span className="fs-t-label">{en(`hold.gate.${hold.gate}`)}</span>
+          <span className="fs-t-label">{HOLDS.gate[hold.gate] ?? en(`hold.gate.${hold.gate}`)}</span>
         </p>
         <div className="fsr-hold__dial">
           <Dial dial={dial} swing={swing} size={132} testId="W-TR-06.dial" />

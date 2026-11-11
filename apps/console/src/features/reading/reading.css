@@ -225,40 +225,29 @@
 /* ---------------------------------------------------------------- W-TR-03 the room */
 
 .fsc-read {
-  /* The photo's height: the window less the stage's frame and top bar (86), the screen's padding (28), this page's
-     title row and gap (48), the bench's heading row (40), the filmstrip under the photo (96) and a breath at the
-     foot (62). No ribbon since round 3: the photo takes that height back. */
+  /* The photo's height: the window less the stage's frame and top bar (86), the screen's padding (32 + 48), this
+     page's title row and gap (62), the bench's heading row (40) and the filmstrip under the photo (92). */
   --fsc-bench-h: max(260px, calc(100dvh - 360px));
   display: grid;
   align-content: start;
-  gap: 16px;
-  max-width: 1320px;
+  gap: 48px;
 }
 
-/* The room fills the screen's visible height (the window less the stage's frame, bar and the screen's top padding),
-   so the recorded exhibit below it starts past the fold, never sliced at the panel's edge (UI gate round 3). */
+/* The room is the screen's one 12-column grid (round 4, grid.css): its title row, then the photo and the reading
+   top-aligned 32 px under it. It fills the screen's visible height (the window less the stage's frame, bar and the
+   screen's padding), so the recorded exhibit below it starts past the fold, never sliced at the panel's edge. */
 .fsc-read__room {
-  display: grid;
-  align-content: start;
-  gap: 16px;
-  min-height: calc(100dvh - 114px);
-}
-
-/* A factual header, the season in grey beside the name (reel 3's "October 2026"): the evidence gets the height. */
-.fsc-read__head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 4px 20px;
-}
-
-.fsc-read__head h1 {
-  margin: 0;
+  min-height: calc(100dvh - 166px);
 }
 
 .fsc-read__context {
   color: var(--fs-ink-3);
   font-weight: 450;
+}
+
+/* Claude's real readings: the title row's one link, apart from this run's stand-in count (round 4). */
+.fsc-read__head .fsc-read__exhibit {
+  white-space: nowrap;
 }
 
 /* One status sentence, never a chain of thought: the panel's one line, on the body step. */
@@ -285,40 +274,55 @@
   color: var(--fsc-status-glyph);
 }
 
-/* S1.7 and design §6 C3: the photo takes 58% of the room, the print beds 42%. The photo is fitted to the height
-   the window leaves it inside its column; the lacquer around it is where the crops fly from. */
+/* The photo and the reading on the screen's columns (round 4): the body is a subgrid of the room, so the photo takes
+   five columns and the reading seven where the panel is wide (the photo is fitted by height and needs no more), six
+   and six from 720 px (the 1,280 px laptop), and below that the reading stacks over the photo. The body stays one
+   box, the lacquer the crops fly across. */
 .fsc-read__body {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 58fr) minmax(0, 42fr);
+  grid-template-columns: subgrid;
   align-items: start;
-  gap: 32px 40px;
+  row-gap: var(--fs-console-head-gap);
 }
 
-.fsc-read {
-  container-type: inline-size;
-  container-name: reading-room;
+.fsc-read__desk,
+.fsc-read__side {
+  grid-column: 1 / -1;
 }
-/* Two columns hold down to the 1,280 px laptop (the phone is a 56 px rail there since round 3): under 1,100 px
-   the photo, fitted by height, needs no more than half, so the beds take the other half and their one step is never
-   cut at the panel's edge. Only a narrower room stacks the beds under the photo. */
-@container reading-room (max-width: 1100px) {
-  .fsc-read__body {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    column-gap: 32px;
+
+.fsc-read__side {
+  grid-row: 1;
+}
+
+@container fsc-screen (min-width: 720px) {
+  .fsc-read__desk {
+    grid-row: 1;
+    grid-column: 1 / span 6;
+  }
+
+  .fsc-read__side {
+    grid-column: 7 / span 6;
   }
 }
 
-@container reading-room (max-width: 860px) {
-  .fsc-read__body {
-    grid-template-columns: minmax(0, 1fr);
+@container fsc-screen (min-width: 1040px) {
+  .fsc-read__desk {
+    grid-column: 1 / span 5;
+  }
+
+  .fsc-read__side {
+    grid-column: 6 / span 7;
   }
 }
 
 .fsc-read__desk {
+  /* The photo's width at the bench's height (its paper's padding and the viewport's outside the aspect, which the
+     desk carries inline); the filmstrip under it takes the same width, so their edges meet. */
+  --fsc-photo-w: calc((var(--fsc-bench-h) - 16px) * var(--fsc-photo-aspect, 0.73) + 16px);
   display: grid;
   align-content: start;
-  gap: 14px;
+  gap: 12px;
   min-width: 0;
 }
 
@@ -326,17 +330,17 @@
   container-type: inline-size;
   display: grid;
   align-content: start;
-  gap: 18px;
+  gap: 24px;
   min-width: 0;
 }
 
-/* The room's one hero count: the slips read in FS Sans ("48/48"), "slips read" as micro on its baseline, the
-   stand-in mark at the row's end (UI gate round 3: no dot-matrix). */
+/* The room's one hero count: the slips read in FS Sans ("48/48"), "slips read this run" on its baseline, and right
+   under it, in words, what read them: the seed stand-in, never Claude (round 4). */
 .fsc-read__counter {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  gap: 8px 12px;
+  gap: 4px 12px;
   padding-bottom: 16px;
   border-bottom: 1px solid var(--fs-rule);
 }
@@ -366,19 +370,19 @@
   display: none;
 }
 
-/* The provenance: a bare legend glyph (its words are its title and accessible name), once per surface, at the
-   counter's end; a photo read earlier keeps its date as micro beside it (round 3). */
+/* The provenance, once a surface, in words on its own line under the count (round 4): the synthetic mark, then
+   "Seed stand-in, not a Claude recording" (or a photo read earlier: "Seeded sample · read 12 Oct"). */
 .fsc-read__provenance {
   display: inline-flex;
+  flex-basis: 100%;
   align-items: center;
-  align-self: center;
-  gap: 6px;
-  margin-left: auto;
-  color: var(--fs-ink-3);
+  gap: 8px;
+  margin: 0;
+  color: var(--fs-ink-2);
 }
 
-.fsc-read__exhibit {
-  justify-self: start;
+.fsc-read__provenance .fs-legend-glyph {
+  color: var(--fs-ink-3);
 }
 
 /* Mock data only: the replay of the recording, labelled as such. */
@@ -439,12 +443,13 @@
   gap: 10px;
 }
 
+/* Under the photo, left-aligned with it and as wide as it (round 4), never narrower than its twelve tiles read. */
 .fsc-film__photos {
   display: grid;
   grid-template-columns: repeat(12, minmax(0, 1fr)) minmax(0, 1.25fr);
   gap: 8px;
-  max-width: 640px;
-  margin: 0 auto;
+  width: min(100%, max(var(--fsc-photo-w), 440px));
+  margin: 0;
   padding: 0;
   list-style: none;
 }
@@ -497,7 +502,8 @@
   background: var(--fs-canary);
 }
 
-/* The earlier set, behind one hatched "archived photo" tile at the end of the strip (OD-4). */
+/* The earlier set, behind one "archived photo" tile at the end of the strip (OD-4), on a plate fill (round 4: hatch
+   means cash, and an archived photo is not cash). */
 .fsc-film__archive {
   appearance: none;
   display: grid;
@@ -516,17 +522,16 @@
   place-items: center;
   aspect-ratio: var(--fsc-photo-aspect, 0.73);
   border: 1px solid var(--fs-rule);
-  background:
-    repeating-linear-gradient(-45deg, var(--fs-hatch) 0 1.5px, transparent 1.5px 6px), var(--fs-plate);
+  border-radius: 2px;
+  background: var(--fs-plate-2);
 }
 
 .fsc-film__archive-count {
-  padding: 0 3px;
-  background: var(--fs-plate);
   color: var(--fs-ink);
   font-weight: 600;
   font-size: 0.8125rem;
   line-height: 1rem;
+  font-variant-numeric: tabular-nums lining-nums;
 }
 
 .fsc-film__archive:hover .fsc-film__archive-tile,
@@ -547,31 +552,31 @@
   list-style: none;
 }
 
-/* An archived photo: hatched, with a word and its read date (never colour alone). */
+/* An archived photo: on the plate fill, with its id and its read date (never colour alone). */
 .fsc-film__archived {
   display: grid;
   gap: 1px;
   min-height: 40px;
   padding: 4px 6px;
   border: 1px solid var(--fs-rule);
-  background:
-    repeating-linear-gradient(-45deg, var(--fs-hatch) 0 1.5px, transparent 1.5px 6px), var(--fs-plate);
+  border-radius: var(--fs-radius-cell);
+  background: var(--fs-plate-2);
   color: var(--fs-ink-2);
   text-decoration: none;
 }
 
+.fsc-film__archived:hover {
+  border-color: var(--fs-ink-3);
+}
+
 .fsc-film__archived-id {
   justify-self: start;
-  padding: 0 3px;
-  background: var(--fs-plate);
   color: var(--fs-ink);
   font-weight: 600;
 }
 
 .fsc-film__archived-date {
   justify-self: start;
-  padding: 0 3px;
-  background: var(--fs-plate);
 }
 
 .fsc-film__archived[aria-current="true"] {
@@ -647,11 +652,12 @@
   text-align: center;
 }
 
-/* The whole photo fits the window: fitted by height inside its 58% column, centred on the lacquer. The paper's
-   own padding (6 a side) and the viewport's (2 a side) sit outside the photo's aspect. */
+/* The whole photo fits the window: fitted by height inside its column, left-aligned with the title and the zoom
+   controls above it (round 4). The paper's own padding (6 a side) and the viewport's (2 a side) sit outside the
+   photo's aspect. */
 .fsc-bench__viewport {
   display: block;
-  justify-self: center;
+  justify-self: start;
   width: min(100%, calc((var(--fsc-bench-h) - 16px) * var(--fsc-photo-aspect, 0.73) + 16px));
   padding: 2px;
   outline-offset: 4px;
@@ -734,8 +740,15 @@
   width: 64px;
 }
 
+/* The member takes the slack, so the figures sit in their own columns at the row's end (round 4): Net kg is a
+   96 px column, right-aligned, beside the name it belongs to rather than adrift in the middle of the row. */
+.fsc-beds__table thead th:nth-child(2) {
+  width: 100%;
+}
+
 .fsc-beds__table thead th:nth-child(3) {
-  width: 92px;
+  width: 96px;
+  min-width: 96px;
 }
 
 .fsc-beds__table thead th:nth-child(4) {
@@ -771,7 +784,7 @@
 }
 
 .fsc-beds__row {
-  height: 56px;
+  height: 48px;
   border-bottom: 1px solid var(--fs-rule);
 }
 
@@ -826,10 +839,6 @@
   .fsc-beds__table thead th:nth-child(1) {
     width: 58px;
   }
-
-  .fsc-beds__member > :first-child {
-    white-space: normal;
-  }
 }
 
 /* The beds beside the photo on a 1,280 px laptop: the figure columns and cell padding tighten so a row's step
@@ -845,7 +854,8 @@
   }
 
   .fsc-beds__table thead th:nth-child(3) {
-    width: 76px;
+    width: 80px;
+    min-width: 80px;
   }
 
   .fsc-beds__table .fsc-beds__member {
@@ -869,14 +879,14 @@
   color: var(--fs-ink-2);
 }
 
+/* The member's name over their number in the id role, two lines in the 48 px row, as on the split's grid. */
 .fsc-beds__member {
-  min-width: 160px;
-  width: auto;
+  min-width: 140px;
 }
 
 .fsc-beds__member > * {
   display: block;
-  white-space: normal;
+  line-height: 1.25rem;
 }
 
 .fsc-beds__table [data-numeric] {
@@ -884,7 +894,10 @@
 }
 
 .fsc-beds__no {
+  margin-top: 2px;
   color: var(--fs-ink-3);
+  line-height: 1rem;
+  white-space: nowrap;
 }
 
 /* Machine output prints flat in pencil. */
@@ -1059,16 +1072,9 @@
   }
 }
 
-@media (max-width: 1099px) {
+/* A room narrower than 720 px stacks the reading over the photo: the photo keeps a fixed, readable height. */
+@container fsc-screen (max-width: 719px) {
   .fsc-read {
     --fsc-bench-h: 560px;
-  }
-
-  .fsc-read__body {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .fsc-read__side {
-    grid-row: 1;
   }
 }

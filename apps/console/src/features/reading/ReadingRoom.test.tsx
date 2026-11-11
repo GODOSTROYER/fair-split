@@ -53,15 +53,19 @@ async function readingRun(motion: "full" | "reduced" = "full", path = READING): 
 }
 
 describe("W-TR-03 reading room", { timeout: 60_000 }, () => {
-  it("states the stand-in provenance once by the beds and opens the real exhibit from above them", async () => {
+  it("states the stand-in provenance once, in words under the count, and opens the real exhibit from the title row", async () => {
     const r = await readingRun();
     act(() => r.stream.inject(rowsFor(["A"])));
     const side = screen.getByTestId("W-TR-03.side");
     expect(side.textContent?.match(/Seed stand-in, not a Claude recording/g)).toHaveLength(1);
-    const link = within(side).getByRole("link", { name: /Claude's real readings of 10 hero slips/ });
-    expect(
-      link.compareDocumentPosition(screen.getByTestId("W-TR-03.beds")) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
+    // Round 4: the 48 is the stand-in's, said in words right under the count; Claude's real readings of the 10 hero
+    // slips are the title row's link, apart from it, so the count never reads as Claude's.
+    const counter = screen.getByTestId("W-TR-03.film.progress").parentElement;
+    expect(counter?.contains(screen.getByTestId("W-TR-03.footer"))).toBe(true);
+    expect(within(side).queryByRole("link", { name: /Claude's real readings/ })).toBeNull();
+    const head = screen.getByTestId("W-TR-03").querySelector(".fsc-screen__head");
+    if (!(head instanceof HTMLElement)) throw new Error("no title row");
+    const link = within(head).getByRole("link", { name: /Claude's real readings of 10 hero slips/ });
     fireEvent.click(link);
     expect(document.activeElement?.id).toBe("fsc-heroes-title");
     for (const row of side.querySelectorAll(".fsc-beds__row"))
@@ -81,12 +85,13 @@ describe("W-TR-03 reading room", { timeout: 60_000 }, () => {
     expect(screen.getByTestId("W-TR-03.status").textContent).toMatch(/waits on the desk/);
     expect(within(screen.getByTestId("W-TR-03.film")).getAllByRole("link")).toHaveLength(12);
     expect(screen.getByTestId("W-TR-03.beds.row.0425").dataset.state).toBe("waiting");
-    // One stand-in mark, a bare legend glyph (round 3): its canonical phrase whole as its title and its accessible
-    // name, no pill and no sentence beside it.
+    // One stand-in line under the count (round 4): the synthetic mark, its canonical phrase whole in words, no pill.
     const mark = screen.getByTestId("W-TR-03.footer");
     expect(mark.textContent).toBe("Seed stand-in, not a Claude recording");
     expect(mark.getAttribute("title")).toBe("Seed stand-in, not a Claude recording");
-    expect(mark.hasAttribute("data-fs-glyph")).toBe(true);
+    expect(mark.querySelector('.fs-legend-glyph[data-kind="synthetic"]')?.getAttribute("aria-hidden")).toBe(
+      "true",
+    );
     expect(mark.dataset.kind).toBe("synthetic");
     // The one hero count: slips read in FS Sans (no dot-matrix), the words for screen readers.
     const progress = screen.getByTestId("W-TR-03.film.progress");

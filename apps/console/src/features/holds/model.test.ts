@@ -95,7 +95,7 @@ describe("two voices, every digit from the engine", () => {
     const v = voices(snapshot, view, h1);
     expect(v.engineLine).toMatch(/US\$18\.06/);
     expect(v.engineLine).toMatch(/1\.38%, inside the 2\.0% limit/);
-    expect(v.effect).toMatch(/Enter slip 0462 first/);
+    expect(v.effect).toBe("If counted once: +US$18.06 to 63 members · mass balance after slip 0462");
   });
 
   it("H1's titles and money effect", () => {
@@ -108,7 +108,8 @@ describe("two voices, every digit from the engine", () => {
     expect(v.title).toBe("Slip 0457 counted twice");
     // Counting both, as a number line; counting once, the money back and the dial's move (round 3).
     expect(v.engineLine).toBe("63 members −US$17.94 → Nong Dioning +US$17.94");
-    expect(v.effect).toBe("+US$17.94 to 63 members · 2.05% → 1.62%");
+    // One effect line (round 4): what counting it once does, the money and the dial's move.
+    expect(v.effect).toBe("If counted once: +US$17.94 to 63 members · 2.05% → 1.62%");
     expect(voices(snapshot, view, { ...h1, state: "RESOLVED", resolution: "COUNT_ONCE" }).title).toBe(
       "Slip 0457, counted once",
     );

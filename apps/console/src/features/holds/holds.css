@@ -116,17 +116,15 @@
   color: var(--fs-ink-2);
 }
 
-/* H1 leads with its decision (UI gate round 3): the number line in pencil (the engine's), then the effect as the
-   card's one figure, "+US$17.94 to 63 members · 2.05% → 1.62%", on the title step in tabular figures directly above
-   "Count it once"; the paired receipts and their four fields follow (drawn last; in the markup they stay inside the
-   card, and hold no control, so the keyboard meets the decision first either way). */
-.fsr-mm3 .fs-hold__effect .fs-t-body {
+/* H1 leads with its decision (UI gate round 4): no engine row and no dial of its own, one effect line on the heading
+   step in tabular figures, "If counted once: +US$17.94 to 63 members · 2.05% → 1.62%", directly above "Count it
+   once"; the paired receipts and their four fields come right under the decision (drawn after it; in the markup
+   they stay inside the card, and hold no control, so the keyboard meets the decision first either way). */
+.fsr-hold .fs-hold__effect--line {
+  display: block;
+  margin: 0;
   color: var(--fs-ink);
-  font-stretch: 87.5%;
-  font-weight: 500;
-  font-size: 1.5rem;
-  line-height: 1.875rem;
-  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums lining-nums;
   text-wrap: balance;
 }
 
@@ -154,7 +152,7 @@
   margin-left: var(--fs-space-4);
 }
 
-/* The dial, small, with its state pill beside it: a section under a hairline, not a card in the drawer. */
+/* The mass-balance card's dial with its reading beside it: a section under a hairline, not a card in the drawer. */
 .fsr-hold__dial {
   display: flex;
   align-items: center;
@@ -166,12 +164,6 @@
 .fsr-hold__dial p {
   margin: 0;
   max-width: 34ch;
-}
-
-.fsr-hold__dial-state {
-  display: grid;
-  justify-items: start;
-  gap: var(--fs-space-4);
 }
 
 /* ------------------------------------------------------------------ MM-3: the two copies of slip 0457 */

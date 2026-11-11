@@ -150,9 +150,10 @@ export function Screen({ runSlug, hold, member }: SplitScreenProps) {
   // The grid holds simulated PayPal statuses (posted, or any line already with the rail): one legend glyph covers
   // it (round 3: no pill; its words are its title and accessible name).
   const simulated = posted || rows.some((r) => statusLabel(r) !== null);
+  // The title row on the one grid (round 4): the name, and on its baseline the run and the rate card once.
   const title = (
-    <header className="fsr-screen__head fsr-split__head">
-      <h1 id="W-TR-05-title" className="fsr-split__title fs-t-title-1">
+    <header className="fsc-screen__head fsr-split__head">
+      <h1 id="W-TR-05-title" className="fsc-screen__title fs-t-title">
         {SPLIT.title}
         {season && <span className="fsr-split__context"> {season}</span>}
       </h1>
@@ -188,7 +189,7 @@ export function Screen({ runSlug, hold, member }: SplitScreenProps) {
 
   if (state === "loading" || state === "error") {
     return (
-      <ScreenRoot id="W-TR-05" state={state} className="fsr-screen fsr-split" labelledBy="W-TR-05-title">
+      <ScreenRoot id="W-TR-05" state={state} className="fsr-screen fsr-split" labelledBy="W-TR-05-title" grid>
         {title}
         {state === "error" ? (
           <CommandNotice error={data.error} testId="W-TR-05.error" onRetry={data.retry} />
@@ -213,7 +214,7 @@ export function Screen({ runSlug, hold, member }: SplitScreenProps) {
 
   if (state === "empty") {
     return (
-      <ScreenRoot id="W-TR-05" state="empty" className="fsr-screen fsr-split" labelledBy="W-TR-05-title">
+      <ScreenRoot id="W-TR-05" state="empty" className="fsr-screen fsr-split" labelledBy="W-TR-05-title" grid>
         {title}
         <div className="fsr-empty" data-testid="W-TR-05.empty">
           <span className="fsr-empty__beds" aria-hidden>
@@ -261,7 +262,7 @@ export function Screen({ runSlug, hold, member }: SplitScreenProps) {
     basis === "resolved" ? format.percentBp(engineOutput(snapshot, "byHand").massBalance.shrinkBp) : null;
 
   return (
-    <ScreenRoot id="W-TR-05" state={state} className="fsr-screen fsr-split" labelledBy="W-TR-05-title">
+    <ScreenRoot id="W-TR-05" state={state} className="fsr-screen fsr-split" labelledBy="W-TR-05-title" grid>
       {title}
       {state === "declined" && (
         <p className="fsr-banner" data-tone="red" role="status" data-testid="W-TR-05.declined">

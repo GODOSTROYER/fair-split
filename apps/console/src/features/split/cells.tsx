@@ -137,14 +137,29 @@ export function MemberCell({ data }: Props) {
 // ------------------------------------------------------------------------------------------------ slips
 
 /**
- * The slip count alone (UI gate round 3: no 30 px thumbnails, which read as noise at row height), and the pink
- * carbon-copy chip only where a serial sits on the line twice.
+ * How a serial on this line twice reads (UI gate round 4): while its hold is open, "0457 ×2" in a 1 px outline with
+ * ink words (pink belongs to the D copy's own swatch, never a chip); once counted once, "0457 counted once" in
+ * neutral ink; once decided as two deliveries, "0457 ×2" in neutral ink.
+ */
+export function duplicateLook(
+  row: Pick<SplitRow, "slips" | "holds">,
+): { readonly serial: string; readonly state: "open" | "once" | "twice" } | null {
+  const serial = duplicateSerial(row.slips);
+  if (!serial) return null;
+  const hold = row.holds.find((h) => h.kind === "DUPLICATE_SLIP");
+  if (hold?.state === "RESOLVED" && hold.resolution === "COUNT_ONCE") return { serial, state: "once" };
+  if (hold?.state === "RESOLVED") return { serial, state: "twice" };
+  return { serial, state: "open" };
+}
+
+/**
+ * The slip count alone (UI gate round 3: no 30 px thumbnails, which read as noise at row height), and the duplicate
+ * badge only where a serial sits on the line twice.
  */
 export function SlipsCell({ data }: Props) {
   if (data?.kind === "note" || data?.kind === "detail") return null;
   if (!data || data.kind === "totals") return null;
-  // The carbon-copy chip: a serial on this line twice (the pink duplicate of H1), in the pink copy's own colour.
-  const dup = duplicateSerial(data.slips);
+  const dup = duplicateLook(data);
   return (
     <Cell className="fsr-cell--slips">
       <span className="fsr-slips">
@@ -153,8 +168,12 @@ export function SlipsCell({ data }: Props) {
         </span>
         <span className="fs-sr">{SPLIT.slipCount(data.slips.length)}</span>
         {dup && (
-          <span className="fsr-dupchip fs-t-caption" data-testid={`W-TR-05.dup.${data.memberNo}`}>
-            {dup} ×2
+          <span
+            className="fsr-dupchip fs-t-caption"
+            data-state={dup.state}
+            data-testid={`W-TR-05.dup.${data.memberNo}`}
+          >
+            {dup.state === "once" ? SPLIT.countedOnce(dup.serial) : SPLIT.countedTwice(dup.serial)}
           </span>
         )}
       </span>
@@ -164,36 +183,23 @@ export function SlipsCell({ data }: Props) {
 
 // ------------------------------------------------------------------------------------------------ kilos
 
+/**
+ * Verified kilos as a number column, right-aligned (UI gate round 4: the per-tree micro-bars had no scale, so they
+ * went). A line over the per-tree limit says so in its hold's note under it (H2), never stacked in this cell.
+ */
 export function KgCell({ data, context }: Props) {
   if (data?.kind === "note" || data?.kind === "detail") return null;
   if (!data) return null;
   if (data.kind === "totals") return null;
-  const ratio = Math.max(0, Math.min(2, data.treeRatio));
   // Verified kilos are the engine's figure, like the money beside them: pencil until the two keys turn it to ink.
   return (
     <Cell className="fsr-cell--kg">
-      <span className="fsr-kg">
-        <span className="fsr-kg__value fs-t-figure" data-amount-state={data.partsState}>
-          {format.kgNumber(data.verifiedG)}
-        </span>
-        <span
-          className="fsr-kg__bar"
-          data-over={data.overYield ? "" : undefined}
-          title={`${data.kgPerTree} kg a tree from ${data.trees} registered trees; the limit is ${context.yieldLimit}`}
-          aria-hidden
-        >
-          <span className="fsr-kg__fill" style={{ width: `${Math.min(1, ratio) * 50}%` }} />
-          {ratio > 1 && <span className="fsr-kg__over" style={{ width: `${(ratio - 1) * 50}%` }} />}
-          <span className="fsr-kg__limit" />
-        </span>
-        {data.overYield && (
-          <span
-            className="fsr-kg__note fs-t-micro"
-            title={SPLIT.perTreeOverTitle(data.kgPerTree, context.yieldLimit)}
-          >
-            {SPLIT.perTreeOver(data.kgPerTree, context.yieldLimit)}
-          </span>
-        )}
+      <span
+        className="fsr-kg__value fs-t-figure"
+        data-amount-state={data.partsState}
+        title={SPLIT.perTreeTitle(data.kgPerTree, data.trees, context.yieldLimit)}
+      >
+        {format.kgNumber(data.verifiedG)}
       </span>
     </Cell>
   );

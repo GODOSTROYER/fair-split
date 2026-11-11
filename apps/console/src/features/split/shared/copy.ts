@@ -87,8 +87,16 @@ export const SPLIT = {
   creditReturned: "Returned multa",
   confidenceUnknown: "Read earlier this season",
   byHand: "By hand",
-  perTreeOver: (kg: string, _limit: string) => `${kg} kg/tree`,
-  perTreeOverTitle: (kg: string, limit: string) => `${kg} kg a tree, over the ${limit} limit`,
+  /** The Verified kg cell's title: what the kilos make per registered tree, against the limit. */
+  perTreeTitle: (kg: string, trees: number, limit: string) =>
+    `${kg} kg a tree from ${trees} registered trees; the limit is ${limit}`,
+  /** The duplicate badge (round 4): "0457 ×2" while its hold is open, "0457 counted once" once decided. */
+  countedTwice: (serial: string) => `${serial} ×2`,
+  countedOnce: (serial: string) => `${serial} counted once`,
+  /** H2's note under Merlyn's line (round 4): the figure the hold is about, and its limit. */
+  perTreeNote: (kg: string) => `${kg} kg a tree`,
+  perTreeNoteMicro: (limit: string, trees: number) => `limit ${limit} kg · ${trees} registered trees`,
+  openNote: (label: string) => `Open ${label}`,
   movedToCash: "Moved to cash",
   /** The console is English: "Held" and "Reserved"; Cebuano ("Gisusi pa") lives on the phone. */
   reserved: "Reserved",
@@ -120,11 +128,18 @@ export const HOLDS = {
   /** Counting both, as a number line (round 3): what leaves the 63 and where it lands. */
   h1Flow: (amount: string, members: number, name: string) =>
     `${members} members −${amount} → ${name} +${amount}`,
-  /** Counting it once: the money back and the dial's move, directly above "Count it once" (round 3). */
+  /**
+   * H1's one effect line (round 4), directly above "Count it once": what counting it once does to the money and the
+   * dial. The drawer has no engine row and no dial of its own.
+   */
   h1Effect: (amount: string, members: number, shrinkBoth: string, shrinkOnce: string) =>
-    `+${amount} to ${members} members · ${shrinkBoth} → ${shrinkOnce}`,
+    `If counted once: +${amount} to ${members} members · ${shrinkBoth} → ${shrinkOnce}`,
   h1EffectInside: (amount: string, members: number) =>
-    `+${amount} to ${members} members. Enter slip 0462 first to see the mass balance it settles.`,
+    `If counted once: +${amount} to ${members} members · mass balance after slip 0462`,
+  /** A hold's gate as its status pill (round 4): a few words, never a sentence with a full stop. */
+  gate: { BLOCKS_APPROVAL: "Blocks approval", RESERVES_LINE: "Reserves this line" } as Readonly<
+    Record<string, string>
+  >,
   h1TitleOnce: (slip: string) => `Slip ${slip}, counted once`,
   h1TitleTwo: (slip: string) => `Slip ${slip}, two deliveries`,
   h1Returned: (amount: string, members: number) => `+${amount} back to ${members} members`,

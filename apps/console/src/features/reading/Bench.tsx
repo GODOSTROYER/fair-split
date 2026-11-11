@@ -55,6 +55,12 @@ export function zoomOnSlip(position: SlipPosition, photoId?: string, serial?: st
   };
 }
 
+/** The photo's width over its height: the composed exhibit's own, else the drawn mat's. */
+export function photoAspect(photoId: string): number {
+  const composition = photoExhibit(photoId);
+  return composition ? composition.width / composition.height : PHOTO_W / PHOTO_H;
+}
+
 function clamp01(n: number): number {
   return Math.min(1, Math.max(0, n));
 }
@@ -147,11 +153,7 @@ export function Bench({ photo, slips, band, outline, zoom, onZoom, mode, testId,
       aria-labelledby={`${testId}-title`}
       data-testid={testId}
       data-photo={photo.photoId}
-      style={{
-        ["--fsc-photo-aspect" as string]: String(
-          composition ? composition.width / composition.height : PHOTO_W / PHOTO_H,
-        ),
-      }}
+      style={{ ["--fsc-photo-aspect" as string]: String(photoAspect(photo.photoId)) }}
     >
       <header className="fsc-bench__head">
         <h2 id={`${testId}-title`} className="fs-t-label fsc-bench__title">

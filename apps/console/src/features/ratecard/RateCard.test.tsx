@@ -44,9 +44,38 @@ describe("W-TR-02 rate card", { timeout: 60_000 }, () => {
     expect(root.dataset.state).toBe("ratified");
     const rules = within(screen.getByTestId("W-TR-02.rules")).getAllByRole("button");
     expect(rules).toHaveLength(8);
-    expect(screen.getByTestId("W-TR-02.rule.R1").textContent).toMatch(
+    // Each rule is its id and four words or fewer (round 4), every figure the card's own term; its whole clause
+    // opens under it.
+    expect(rules.map((r) => r.textContent)).toEqual([
+      "R0Premium never deducted",
+      "R1CBU 5% of bonus",
+      "R2Hauling ₱1.50 a kg",
+      "R3Loan ≤ 50% of bonus",
+      "R4Advance ≤ 30% of bonus",
+      "R5Chair co-signs over US$300.00",
+      "R6Holds need a person",
+      "No other deductions",
+    ]);
+    // Four words or fewer beside the id (a sign such as "≤" is not a word).
+    for (const rule of rules) {
+      const words = (rule.textContent ?? "").replace(/^R\d/, "").trim().split(/\s+/);
+      expect(words.filter((w) => /[\p{L}\p{N}]/u.test(w)).length).toBeLessThanOrEqual(4);
+    }
+    const r1 = screen.getByTestId("W-TR-02.rule.R1");
+    expect(r1.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.getByTestId("W-TR-02.clause.R1").hidden).toBe(true);
+    await act(async () => {
+      fireEvent.click(r1);
+    });
+    expect(r1.getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getByTestId("W-TR-02.clause.R1").hidden).toBe(false);
+    expect(screen.getByTestId("W-TR-02.clause.R1").textContent).toMatch(
       /CBU: 5% of the bonus until ₱5,000 is paid up\./,
     );
+    await act(async () => {
+      fireEvent.click(r1);
+    });
+    expect(screen.getByTestId("W-TR-02.clause.R1").hidden).toBe(true);
     expect(screen.getByTestId("W-TR-02.bolted.sealed").textContent).toMatch(
       /^sha256 [0-9a-f]{4} [0-9a-f]{4}, sealed 14 Mar 2026 by BR 2026-04$/,
     );
