@@ -63,7 +63,8 @@ services:
       corepack pnpm exec tsx tools/assemble-media.ts &&
       corepack pnpm exec tsx tools/scan-dist.ts
     preDeployCommand: corepack pnpm --filter @fairsplit/db migrate
-    startCommand: node apps/api/dist/index.js
+    # Bound V8 to the 512 MB instance rather than the development host's RAM. Leave native/SSE headroom.
+    startCommand: node --max-old-space-size=128 --max-semi-space-size=8 apps/api/dist/index.js
     # Liveness only. /readyz depends on PayPal token scope and webhook registration; failing the
     # platform health check on a PayPal outage would restart a healthy process and block deploys.
     healthCheckPath: /healthz

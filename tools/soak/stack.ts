@@ -16,6 +16,8 @@ import { type ChildProcess, spawn } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { REPO_ROOT, startStack } from "../../e2e/stack/stack.js";
+import { readBlueprint } from "../lib/blueprint.js";
+import { apiStartArgs } from "./launch.js";
 
 const arg = process.argv.find((a) => a.startsWith("--state="))?.slice("--state=".length);
 const statePath = path.resolve(arg ?? path.join(REPO_ROOT, ".codex-scratch", "soak", "stack.json"));
@@ -63,7 +65,13 @@ if (useDist) {
       break;
     }
   }
-  dist = spawn(process.execPath, [entry], { cwd: REPO_ROOT, env, stdio: ["ignore", "ignore", "inherit"] });
+  const command = readBlueprint().services?.find((service) => service.name === "fs-api")?.startCommand;
+  if (!command) throw new Error("No fs-api start command in the Blueprint");
+  dist = spawn(process.execPath, apiStartArgs(command), {
+    cwd: REPO_ROOT,
+    env,
+    stdio: ["ignore", "ignore", "inherit"],
+  });
   pid = dist.pid ?? 0;
   if (!(await healthy(stack.origin, 60_000))) throw new Error("the dist fs-api did not become ready");
   log(`fs-api restarted from the dist build (pid ${pid})`);
