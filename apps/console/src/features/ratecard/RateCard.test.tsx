@@ -86,14 +86,33 @@ describe("W-TR-02 rate card", { timeout: 60_000 }, () => {
     const banded = screen.getByTestId("W-TR-02.pages").querySelectorAll("[data-band]");
     expect(banded).toHaveLength(1);
     expect(banded[0]?.textContent).toMatch(/^R3 Loan repayment/);
-    // The stand-in is a bare legend glyph (round 3): its words whole as its title and accessible name, the page
-    // the pointed rule was quoted from as micro beside it.
+    // Round 5, provenance once: no glyph under the rules (nor anywhere on the screen); the stand-in is the title
+    // row's one id-line phrase. The page the pointed rule was quoted from stays as micro, the stand-in's words its
+    // title and its hidden text.
     const footer = screen.getByTestId("W-TR-02.footer");
-    expect(footer.querySelector("[data-fs-glyph]")?.getAttribute("title")).toBe(
+    expect(screen.getByTestId("W-TR-02").querySelectorAll("[data-fs-glyph]")).toHaveLength(0);
+    expect(footer.getAttribute("title")).toBe(
       "Seed stand-in, not a Claude recording. Seeded quote on page 2.",
     );
     expect(footer.textContent).toBe("Seed stand-in, not a Claude recording. Seeded quote on page 2.p. 2");
+    expect(
+      screen.getByTestId("W-TR-02").querySelector(".fsc-screen__provenance")?.getAttribute("title"),
+    ).toMatch(/Seed stand-in, not a Claude recording/);
+    // The title row: a noun with the season in grey, the card's state in one chip, the resolution as its id.
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Rate card 2026-A");
+    expect(screen.getByTestId("W-TR-02.state").textContent).toBe("Ratified 14 Mar");
     expect(screen.getByTestId("W-TR-02").textContent).not.toMatch(/[Bb]olted/);
+    // The board's resolution scrolls on its own and folds away from the title row.
+    expect(screen.getByTestId("W-TR-02.pages").closest("[data-scroll-region]")).not.toBeNull();
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("W-TR-02.docToggle"));
+    });
+    expect(screen.queryByTestId("W-TR-02.pages")).toBeNull();
+    expect(screen.getByTestId("W-TR-02.docToggle").getAttribute("aria-expanded")).toBe("false");
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("W-TR-02.docToggle"));
+    });
+    expect(screen.getByTestId("W-TR-02.pages")).toBeTruthy();
     await expectNoAxeViolations(view.container);
   });
 
@@ -103,8 +122,15 @@ describe("W-TR-02 rate card", { timeout: 60_000 }, () => {
     expect(tracedPhases("MM-4")).toEqual(["refuse", "plate", "done"]);
     expect(feedback.log.filter((l) => l.event === "bolted.refuse").length).toBe(clacks + 1);
     expect(screen.getByTestId("W-TR-02").dataset.state).toBe("refused");
-    expect(screen.getByTestId("W-TR-02.addCommit").dataset.state).toBe("bolted");
+    // The moment's phase lands on its root first; the slab's frame follows in React's next render.
+    await waitFor(() => expect(screen.getByTestId("W-TR-02.addCommit").dataset.state).toBe("bolted"));
     const plate = screen.getByTestId("W-TR-02.refusal");
+    // Round 5: the refusal leads the side column, and the clause that refuses it takes the band on the board's page.
+    const banded = screen.getByTestId("W-TR-02.pages").querySelectorAll("[data-band]");
+    expect(banded.length).toBeGreaterThan(0);
+    expect(banded[0]?.textContent).toMatch(/^No deduction other than those in this Schedule/);
+    expect(screen.getByTestId("W-TR-02.rule.closed").hasAttribute("data-active")).toBe(true);
+    expect(plate.closest("[data-refused]")).not.toBeNull();
     const heading = within(plate).getByRole("heading");
     expect(document.activeElement).toBe(heading);
     // The refusal is its title (round 3); its reason waits behind "Why" and never repeats the rule list.
@@ -149,10 +175,14 @@ describe("W-TR-02 rate card", { timeout: 60_000 }, () => {
     expect(screen.getByTestId("W-TR-02.refusal").querySelector('[data-reveal="fade"]')).toBeTruthy();
   });
 
-  it("the refusal's one live slab drafts a proposal for 2026-B, unhashed and not in force", async () => {
+  it("the refusal's secondary drafts a proposal for 2026-B, unhashed and not in force", async () => {
     const { view } = await refuse("full");
+    // Round 5: next season's proposal is a secondary, never the screen's primary: the refusal is the state.
+    const face = screen.getByTestId("W-TR-02.propose.face");
+    expect(face.classList.contains("fs-flat")).toBe(true);
+    expect(screen.getByTestId("W-TR-02.refusal").querySelector(".fs-slab")).toBeNull();
     await act(async () => {
-      fireEvent.keyDown(screen.getByTestId("W-TR-02.propose.face"), { key: "Enter" });
+      fireEvent.click(face);
     });
     expect(screen.getByTestId("W-TR-02").dataset.state).toBe("proposal");
     const proposal = screen.getByTestId("W-TR-02.proposal");

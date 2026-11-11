@@ -226,8 +226,9 @@
 
 .fsc-read {
   /* The photo's height: the window less the stage's frame and top bar (86), the screen's padding (32 + 48), this
-     page's title row and gap (62), the bench's heading row (40) and the filmstrip under the photo (92). */
-  --fsc-bench-h: max(260px, calc(100dvh - 360px));
+     page's title row and gap (62) and the bench's heading row (40). Round 5: the filmstrip sits under the table, so
+     the photo takes the room's full height. */
+  --fsc-bench-h: max(260px, calc(100dvh - 268px));
   display: grid;
   align-content: start;
   gap: 48px;
@@ -238,11 +239,6 @@
    screen's padding), so the recorded exhibit below it starts past the fold, never sliced at the panel's edge. */
 .fsc-read__room {
   min-height: calc(100dvh - 166px);
-}
-
-.fsc-read__context {
-  color: var(--fs-ink-3);
-  font-weight: 450;
 }
 
 /* Claude's real readings: the title row's one link, apart from this run's stand-in count (round 4). */
@@ -355,6 +351,14 @@
   color: var(--fs-ink-3);
 }
 
+/* While a slip waits for a person, the count says so beside it with the held dot (round 5: a truthful count). */
+.fsc-read__counter-unit[data-needs] {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--fs-space-8);
+  color: var(--fs-ink-2);
+}
+
 .fsc-read__footer {
   display: flex;
   flex-wrap: wrap;
@@ -368,21 +372,6 @@
 
 .fsc-read__footer:empty {
   display: none;
-}
-
-/* The provenance, once a surface, in words on its own line under the count (round 4): the synthetic mark, then
-   "Seed stand-in, not a Claude recording" (or a photo read earlier: "Seeded sample · read 12 Oct"). */
-.fsc-read__provenance {
-  display: inline-flex;
-  flex-basis: 100%;
-  align-items: center;
-  gap: 8px;
-  margin: 0;
-  color: var(--fs-ink-2);
-}
-
-.fsc-read__provenance .fs-legend-glyph {
-  color: var(--fs-ink-3);
 }
 
 /* Mock data only: the replay of the recording, labelled as such. */
@@ -436,19 +425,19 @@
   padding-top: 4px;
 }
 
-/* ---------------------------------------------------------------- the filmstrip (under the photo) */
+/* ---------------------------------------------------------------- the filmstrip (under the table, round 5) */
 
 .fsc-film {
   display: grid;
   gap: 10px;
 }
 
-/* Under the photo, left-aligned with it and as wide as it (round 4), never narrower than its twelve tiles read. */
+/* Under the reading's table, as wide as its column: twelve contact prints and the "Earlier" tile. */
 .fsc-film__photos {
   display: grid;
   grid-template-columns: repeat(12, minmax(0, 1fr)) minmax(0, 1.25fr);
   gap: 8px;
-  width: min(100%, max(var(--fsc-photo-w), 440px));
+  width: 100%;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -495,11 +484,9 @@
   color: var(--fs-ink);
 }
 
-/* A photo with a field for a person: the canary square, as on the run pill. */
+/* A photo with a field for a person: the 8 px held dot (round 5: one marker vocabulary). */
 .fsc-film__pending {
-  width: 6px;
-  height: 6px;
-  background: var(--fs-canary);
+  margin-left: 1px;
 }
 
 /* The earlier set, behind one "archived photo" tile at the end of the strip (OD-4), on a plate fill (round 4: hatch

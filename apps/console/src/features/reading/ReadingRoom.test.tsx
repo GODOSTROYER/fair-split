@@ -53,18 +53,22 @@ async function readingRun(motion: "full" | "reduced" = "full", path = READING): 
 }
 
 describe("W-TR-03 reading room", { timeout: 60_000 }, () => {
-  it("states the stand-in provenance once, in words under the count, and opens the real exhibit from the title row", async () => {
+  it("states the stand-in provenance once, in the title row's id line, and opens the real exhibit from the title row", async () => {
     const r = await readingRun();
     act(() => r.stream.inject(rowsFor(["A"])));
     const side = screen.getByTestId("W-TR-03.side");
+    // Round 5, provenance once: the stand-in is the title row's one id-line phrase, beside Claude's real readings
+    // of the 10 hero slips (the title row's link), so the count never reads as Claude's; the rows keep its canonical
+    // words for assistive technology, and no glyph is drawn.
     expect(side.textContent?.match(/Seed stand-in, not a Claude recording/g)).toHaveLength(1);
-    // Round 4: the 48 is the stand-in's, said in words right under the count; Claude's real readings of the 10 hero
-    // slips are the title row's link, apart from it, so the count never reads as Claude's.
-    const counter = screen.getByTestId("W-TR-03.film.progress").parentElement;
-    expect(counter?.contains(screen.getByTestId("W-TR-03.footer"))).toBe(true);
+    expect(screen.getByTestId("W-TR-03.footer").classList.contains("fs-sr")).toBe(true);
+    expect(screen.getByTestId("W-TR-03").querySelectorAll("[data-fs-glyph]")).toHaveLength(0);
     expect(within(side).queryByRole("link", { name: /Claude's real readings/ })).toBeNull();
     const head = screen.getByTestId("W-TR-03").querySelector(".fsc-screen__head");
     if (!(head instanceof HTMLElement)) throw new Error("no title row");
+    expect(head.querySelector(".fsc-screen__provenance")?.textContent).toMatch(
+      /^Synthetic co-op · seed stand-in readings/,
+    );
     const link = within(head).getByRole("link", { name: /Claude's real readings of 10 hero slips/ });
     fireEvent.click(link);
     expect(document.activeElement?.id).toBe("fsc-heroes-title");
@@ -85,14 +89,14 @@ describe("W-TR-03 reading room", { timeout: 60_000 }, () => {
     expect(screen.getByTestId("W-TR-03.status").textContent).toMatch(/waits on the desk/);
     expect(within(screen.getByTestId("W-TR-03.film")).getAllByRole("link")).toHaveLength(12);
     expect(screen.getByTestId("W-TR-03.beds.row.0425").dataset.state).toBe("waiting");
-    // One stand-in line under the count (round 4): the synthetic mark, its canonical phrase whole in words, no pill.
+    // The stand-in's canonical phrase whole, for the rows' description (round 5: no glyph, no pill; the id line
+    // says it on screen), and the room's state in the title row's chip.
     const mark = screen.getByTestId("W-TR-03.footer");
     expect(mark.textContent).toBe("Seed stand-in, not a Claude recording");
     expect(mark.getAttribute("title")).toBe("Seed stand-in, not a Claude recording");
-    expect(mark.querySelector('.fs-legend-glyph[data-kind="synthetic"]')?.getAttribute("aria-hidden")).toBe(
-      "true",
-    );
+    expect(mark.querySelector(".fs-legend-glyph")).toBeNull();
     expect(mark.dataset.kind).toBe("synthetic");
+    expect(screen.getByTestId("W-TR-03.state").textContent).toBe("Waits for payment");
     // The one hero count: slips read in FS Sans (no dot-matrix), the words for screen readers.
     const progress = screen.getByTestId("W-TR-03.film.progress");
     expect(progress.querySelector(".fs-numeral")?.getAttribute("data-value")).toBe("0/48");
@@ -306,21 +310,21 @@ describe("W-TR-03 reading room", { timeout: 60_000 }, () => {
     r.unmount();
   });
 
-  it("lays the room out 58/42: the photo and its filmstrip on the left, the status, beds and keys on the right", async () => {
+  it("lays the room out: the photo at the room's full height on the left; the count, status, beds and filmstrip on the right", async () => {
     const r = await renderSeason({ path: `${READING}?photo=B` });
     await screen.findByTestId("W-TR-03");
     const desk = screen.getByTestId("W-TR-03.desk");
     const side = screen.getByTestId("W-TR-03.side");
     expect(desk.contains(screen.getByTestId("W-TR-03.bench"))).toBe(true);
-    expect(desk.contains(screen.getByTestId("W-TR-03.film"))).toBe(true);
-    expect(side.contains(screen.getByTestId("W-TR-03.film"))).toBe(false);
+    // Round 5 (no dead bands): the filmstrip and the "Earlier" tile sit under the table, in the right column.
+    expect(desk.contains(screen.getByTestId("W-TR-03.film"))).toBe(false);
+    expect(side.contains(screen.getByTestId("W-TR-03.film"))).toBe(true);
     expect(side.contains(screen.getByTestId("W-TR-03.status"))).toBe(true);
     expect(side.contains(screen.getByTestId("W-TR-03.beds"))).toBe(true);
-    // The filmstrip sits under the photo, in reading order too.
-    const bench = screen.getByTestId("W-TR-03.bench");
-    expect(bench.compareDocumentPosition(screen.getByTestId("W-TR-03.film"))).toBe(
-      Node.DOCUMENT_POSITION_FOLLOWING,
-    );
+    // The filmstrip follows the table, in reading order too.
+    expect(
+      screen.getByTestId("W-TR-03.beds").compareDocumentPosition(screen.getByTestId("W-TR-03.film")),
+    ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     // The room fills the screen; the recorded exhibit starts after it (never sliced at the panel's edge).
     const room = desk.closest(".fsc-read__room");
     expect(room).not.toBeNull();

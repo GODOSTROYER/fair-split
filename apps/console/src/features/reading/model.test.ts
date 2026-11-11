@@ -120,7 +120,7 @@ describe("rows on the bench", () => {
       photo && snapshot.slips.find((s) => s.serial === printed[0]?.serial)?.boxes["8"],
     );
     expect(photoIsRead({ view, snapshot, photo })).toBe(true);
-    expect(replayProgress(view, snapshot)).toEqual({ read: 4, total: 48 });
+    expect(replayProgress(view, snapshot)).toEqual({ read: 4, total: 48, needs: 0 });
   });
 
   it("names the pink copy: slip 0457 is in B as the white original and in D as the pink duplicate", () => {
@@ -165,6 +165,17 @@ describe("rows on the bench", () => {
     expect(
       readingState({ photo, started: true, reading: false, rows: printed, offline: false, aiPaused: false }),
     ).toBe("low-confidence");
+  });
+
+  it("counts truthfully (round 5): every row in, slip 0462 for a person, reads 47 of 48 and 3 of 4 on photo J", () => {
+    const view = withRows("ABCDEFGHIJKL".split(""));
+    expect(replayProgress(view, snapshot)).toEqual({ read: 47, total: 48, needs: 1 });
+    const photo = photoById(snapshot, "J");
+    if (!photo) throw new Error("no photo J");
+    const printed = rowsForPhoto({ view, snapshot, photo });
+    expect(statusSentence({ photo, rows: printed, reading: false, started: true, snapshot })).toMatch(
+      /^Photo J · 3\/4 read\. Slip 0462 needs a person/,
+    );
   });
 });
 

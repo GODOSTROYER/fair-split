@@ -5,6 +5,9 @@ export const BY_HAND_COPY = {
   title: (serial: string) => `Slip ${serial}`,
   /** The header's grey context: what this screen does. */
   titleContext: "by hand",
+  /** The slip's state in the title row's chip (round 5): a person's decision, then the treasurer's ink. */
+  stateNeeds: "Needs a person",
+  stateEntered: "Entered",
   /** The header's micro line: who the slip belongs to, "name · M-060" (the number set in the id role). */
   whoJoin: " · ",
   /** The one line (spec §3.5), the reading as a figure, then the stand-in's glyph ("placeholder score" is cut). */

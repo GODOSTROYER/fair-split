@@ -9,12 +9,14 @@
 
 import type { RunEvent, SeasonSnapshot } from "@fairsplit/contracts";
 import { webRoutes } from "@fairsplit/contracts";
-import { Glyph, HONESTY, LegendMark, Numeral, useMotionMode } from "@fairsplit/ui-web";
+import { Chip, Glyph, HONESTY, Numeral, StateDot, useMotionMode } from "@fairsplit/ui-web";
 import { useRouter } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { PROVENANCE } from "../../chrome/copy.js";
 import { SCREEN_GRID, ScreenHead } from "../../chrome/ScreenGrid.js";
 import { ScreenRoot } from "../../chrome/ScreenRoot.js";
 import { useRunEvents, useStageRun } from "../../data/hooks.js";
+import { runLabel } from "../../lib/display.js";
 import { focusAndReveal } from "../../lib/focus.js";
 import { format } from "../../lib/format.js";
 import { useMoment } from "../../lib/moment.js";
@@ -297,9 +299,17 @@ export function ReadingRoom({
   const treasurer = snapshot.officers.find((o) => o.role === "TREASURER") ?? null;
   const clerk = snapshot.officers.find((o) => o.role === "CLERK")?.shortName ?? "the clerk";
   const recorded = format.dateShort(snapshot.run.recordedOn);
-  // The provenance (round 3): a bare legend glyph, its words its tooltip and accessible name, once per surface. A
-  // photo read earlier keeps its date as data beside the seeded-sample glyph.
+  // The provenance (round 5): once, in the title row's id line ("Synthetic co-op · seed stand-in readings"); the rows
+  // keep its canonical words for assistive technology. A photo read earlier keeps its date in the status sentence.
   const earlier = photo.set === "EARLIER" && photo.readOn ? format.dateShort(photo.readOn) : null;
+  // The room's state in the title row's chip (round 5): waiting, reading, a person's slip, or every slip read.
+  const roomState = !started
+    ? { tone: "neutral" as const, glyph: "ms:schedule" as const, words: READING_COPY.stateWaiting }
+    : progress.needs > 0
+      ? { tone: "canary" as const, glyph: "logbook" as const, words: READING_COPY.stateNeeds }
+      : progress.read < progress.total
+        ? { tone: "neutral" as const, glyph: "pencil" as const, words: READING_COPY.stateReading }
+        : { tone: "neutral" as const, glyph: "ms:check" as const, words: READING_COPY.stateRead };
   const toConfirm = state === "confirm-one" ? confirmRow(rows) : null;
   const confirmHold = toConfirm && view ? confirmHoldFor(view, snapshot, toConfirm.serial) : undefined;
 
@@ -312,18 +322,22 @@ export function ReadingRoom({
   return (
     <ScreenRoot id="W-TR-03" state={state} labelledBy="fsc-read-title" className="fsc-read">
       {/* The room fills the screen on the one 12-column grid (round 4): its title row, then the photo in five columns
-          and the reading in seven, top-aligned 32 px under it. The recorded exhibit starts below the room, never
-          sliced at the panel's edge; the title row's one link opens it, apart from this run's count (round 4: the
-          stand-in's 48 never reads as Claude's). */}
+          at the room's full height and the reading in seven, the filmstrip under the table (round 5), top-aligned
+          32 px under it. The recorded exhibit starts below the room, never sliced at the panel's edge; the title
+          row's one link opens it, apart from this run's count (round 4: the stand-in's 48 never reads as Claude's),
+          and its id line says the stand-in once (round 5). */}
       <div className={`fsc-read__room ${SCREEN_GRID}`}>
         <ScreenHead
-          title={
-            <>
-              {READING_COPY.title}
-              <span className="fsc-read__context"> {season}</span>
-            </>
-          }
+          title={READING_COPY.title}
+          suffix={season}
           titleId="fsc-read-title"
+          status={
+            <Chip tone={roomState.tone} glyph={roomState.glyph} testId="W-TR-03.state">
+              {roomState.words}
+            </Chip>
+          }
+          {...(runSlug ? { meta: runLabel(runSlug).text } : {})}
+          provenance={PROVENANCE.standIn}
           actions={<ExhibitLink season={season} />}
           className="fsc-read__head"
         />
@@ -350,39 +364,37 @@ export function ReadingRoom({
               mode={mode}
               testId="W-TR-03.bench"
             />
-            <Filmstrip
-              season={season}
-              replay={film}
-              earlier={earlierPhotos(snapshot)}
-              active={photo.photoId}
-              testId="W-TR-03.film"
-            />
           </div>
           <div className="fsc-read__side" data-testid="W-TR-03.side">
-            {/* The screen's one hero count, and directly under it, in words, what read them (round 4): the seed
-                stand-in, never Claude. Claude's real readings are the title row's link, apart from this count. */}
+            {/* The screen's one hero count, truthful (round 5): a slip counts once nothing on it waits for a person,
+                so "47/48 read · 1 needs a person" until slip 0462 is entered by hand. What read them is the id line's
+                phrase (the seed stand-in, never Claude), and the rows' description for assistive technology. */}
             <div className="fsc-read__counter">
               <p className="fsc-read__progress" data-testid="W-TR-03.film.progress">
                 <Numeral value={READING_COPY.progressDots(progress.read, progress.total)} decorative />
-                <span className="fs-sr">{READING_COPY.progress(progress.read, progress.total)}</span>
+                <span className="fs-sr">
+                  {READING_COPY.progress(progress.read, progress.total, progress.needs)}
+                </span>
               </p>
-              <span className="fsc-read__counter-unit fs-t-caption" aria-hidden>
-                {READING_COPY.progressUnit}
+              <span
+                className="fsc-read__counter-unit fs-t-caption"
+                data-needs={progress.needs > 0 ? "" : undefined}
+                aria-hidden
+              >
+                {progress.needs > 0 && <StateDot kind="held" />}
+                {progress.needs > 0 ? READING_COPY.progressNeeds(progress.needs) : READING_COPY.progressUnit}
               </span>
-              <p
+              <span
                 id="fsc-reading-provenance"
-                className="fsc-read__provenance fs-t-caption"
+                className="fs-sr"
                 data-kind="synthetic"
                 title={earlier ? HONESTY.seededSample.label : HONESTY.seedStandIn.label}
                 data-testid="W-TR-03.footer"
               >
-                <LegendMark kind="synthetic" size={12} />
-                {earlier ? (
-                  <span>{`${HONESTY.seededSample.label} · ${READING_COPY.earlierRead(earlier)}`}</span>
-                ) : (
-                  <span>{HONESTY.seedStandIn.label}</span>
-                )}
-              </p>
+                {earlier
+                  ? `${HONESTY.seededSample.label} · ${READING_COPY.earlierRead(earlier)}`
+                  : HONESTY.seedStandIn.label}
+              </span>
             </div>
             <p className="fsc-read__status" role="status" data-testid="W-TR-03.status" data-state={state}>
               <Glyph
@@ -416,6 +428,14 @@ export function ReadingRoom({
               treasurer={treasurer}
               notice={(serial) => quarantineNotice(snapshot, serial)}
               testId="W-TR-03.beds"
+            />
+            {/* Photos A to L and the earlier set, under the table (round 5): the photo keeps the room's full height. */}
+            <Filmstrip
+              season={season}
+              replay={film}
+              earlier={earlierPhotos(snapshot)}
+              active={photo.photoId}
+              testId="W-TR-03.film"
             />
             {toConfirm?.zoomAgreed && (
               <ConfirmZoomRead

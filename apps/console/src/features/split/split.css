@@ -19,9 +19,10 @@
   margin-top: var(--fs-space-16);
 }
 
+/* The lines end at least 32 px above the panel's foot (round 5, LAYOUT.console.end), on a whole row. */
 .fsc-console__screen:has(> .fsr-split[data-state="ready"]),
 .fsc-console__screen:has(> .fsr-split[data-state="declined"]) {
-  padding-bottom: var(--fs-space-16);
+  padding-bottom: var(--fs-console-end);
 }
 
 .fsr-split__beds {
@@ -36,28 +37,8 @@
   margin-bottom: var(--fs-space-16);
 }
 
-/* ------------------------------------------------------------------ the header: a factual name, one micro line */
-
-/* "Split review 2026-A" with the season in grey (reel 3's "October 2026"), and on its baseline the run and the rate
-   card once, as micro with their ids in the id role, then the provenance glyphs (grid.css's title row). */
-.fsr-split__context {
-  color: var(--fs-ink-3);
-  font-weight: 450;
-}
-
-.fsr-split__head > .fsr-split__provenance,
-.fsr-split__head > .fsr-screen__slug {
-  margin: 0;
-  color: var(--fs-ink-3);
-}
-
-/* The provenance's legend glyphs (round 3): bare, after the micro line, their words in their title. */
-.fsr-split__head > .fsr-split__provenance {
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--fs-space-4) var(--fs-space-8);
-}
+/* The title row is the chrome's ScreenHead (round 5): "Split review 2026-A", the review's state in one chip, and the
+   id line (the run id, then "Synthetic co-op · seeded slips"). */
 
 /* ------------------------------------------------------------------ the bench */
 
@@ -240,7 +221,7 @@
   color: var(--fs-pencil);
 }
 
-/* The open decisions: counts as the panel's header, the next one linked under it. */
+/* The next decision: its word, then the link with the held dot (the open counts are the title row's chip). */
 .fsr-bench__summary {
   grid-row: 1;
   grid-column: 9 / span 4;
@@ -251,7 +232,7 @@
   min-width: 0;
 }
 
-.fsr-bench__count {
+.fsr-bench__summary > .fsr-bench__label {
   margin: 0;
 }
 
@@ -312,11 +293,12 @@
   color: var(--fs-ink-2);
 }
 
+/* Held: the 8 px held dot (round 5: one marker vocabulary). */
 .fsr-chip[data-filter="held"]::before {
   content: "";
   flex: none;
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   background: var(--fs-canary);
 }
@@ -400,16 +382,37 @@
   align-self: stretch;
 }
 
-/* Fills the screen down to the ribbon; below a laptop's height it keeps room for the pinned rows and a few lines
-   and lets the screen scroll instead. */
+/* Fills its cell down to the panel's foot until whole-rows.ts sizes it to the head, whole lines and the total (round
+   5: no line ever half-hidden under the total); below a laptop's height that is still one whole line, and the
+   screen scrolls instead. */
 .fsr-grid__frame {
   height: 100%;
   min-width: 0;
-  min-height: 360px;
+}
+
+/* The fades sit on the lines' own white, inside the head and above the total (theme/snap.css). */
+.fsr-grid__frame.fsc-snap {
+  --fsc-snap-on: var(--fs-plate);
+}
+
+.fsr-grid__frame > .fsc-snap__fade {
+  right: 1px;
+  left: 1px;
 }
 
 .fsr-grid .ag-root-wrapper {
   border-color: var(--fs-rule);
+}
+
+/* The scrollbar overlays the lines on a clear track (round 5: a stable gutter), so the lines, the total and the
+   header all end on the frame's right edge. */
+.fsr-grid .ag-body-vertical-scroll-viewport {
+  background: transparent;
+}
+
+/* No lone vertical rule beside Member (round 5): the pinned column reads by its alignment, as every other column. */
+.fsr-grid .ag-root-wrapper {
+  --ag-pinned-column-border: 0 none transparent;
 }
 
 .fsr-grid .ag-row {
@@ -418,6 +421,18 @@
 
 .fsr-grid .ag-row.fsr-row--totals {
   cursor: default;
+}
+
+/* The lines snap whole under the sticky head as they scroll, and stop whole above the total (AG Grid 36 scrolls one
+   viewport, its header and pinned rows sticky inside it). */
+.fsr-grid .ag-grid-viewport {
+  scroll-snap-type: y mandatory;
+  scroll-padding-top: var(--fsr-snap-head, 0px);
+  scroll-padding-bottom: var(--fsr-snap-foot, 0px);
+}
+
+.fsr-grid .ag-grid-scrolling-container > .ag-row {
+  scroll-snap-align: start;
 }
 
 .fsr-grid .ag-cell {
@@ -758,12 +773,13 @@
 .fsr-amount[data-amount-state="hollow"]::before {
   content: "";
   display: inline-block;
-  width: 6px;
-  height: 6px;
-  margin-right: 6px;
+  width: 8px;
+  height: 8px;
+  margin-right: 8px;
   border: 1px solid var(--fs-ink-3);
   border-radius: 50%;
-  vertical-align: 1px;
+  vertical-align: 0;
+  box-sizing: border-box;
 }
 
 /* Net is the line's answer, the one scanned column: figure-net, 87.5/600 (pencil until the keys, as every engine
@@ -867,7 +883,8 @@
   color: var(--fs-ink-2);
 }
 
-/* Held and reserved: colour lives in a 6 px marigold dot, never in the icon or the word (unslop spec §1.8). */
+/* Held and reserved: colour lives in the 8 px held dot (round 5: one marker vocabulary), never in the icon or the
+   word (unslop spec §1.8). */
 .fsr-status[data-tone="canary"] > .fs-glyph {
   display: none;
 }
@@ -875,9 +892,9 @@
 .fsr-status[data-tone="canary"]::before {
   content: "";
   flex: none;
-  width: 6px;
-  height: 6px;
-  margin-inline: 5px;
+  width: 8px;
+  height: 8px;
+  margin-inline: 4px;
   border-radius: 50%;
   background: var(--fs-canary);
 }
@@ -961,9 +978,15 @@
   color: var(--fs-red);
 }
 
-/* The 1,280 px laptop (a panel under 1,040 px): the instrument takes five columns, the pool four, the decisions
-   three, still one row. */
+/* The 1,280 px laptop (a panel under 1,040 px): the instrument takes five columns, the pool four, the next decision
+   three, still one row; the filters, the balance check and "Columns" share one row (round 5), the arithmetic for
+   screen readers and in the check's title (the pool is on the bench, the net on the total), so the lines get the
+   height. */
 @container fsc-screen (max-width: 1039px) {
+  .fsr-recon__line {
+    display: none;
+  }
+
   .fsr-bench__dial {
     grid-column: 1 / span 5;
   }
@@ -1009,6 +1032,27 @@
     order: 3;
     flex-basis: 100%;
     margin-left: 0;
+  }
+}
+
+/* Pushed aside by a drawer on the 1,280 px laptop (a panel under 560 px): the dial and the pool each take a row, so
+   the hero reading never runs into the pool. */
+@container fsc-screen (max-width: 559px) {
+  .fsr-bench__dial {
+    grid-column: 1 / -1;
+  }
+
+  .fsr-pools {
+    grid-row: 2;
+    grid-column: 1 / -1;
+  }
+
+  .fsr-bench__summary {
+    grid-row: 3;
+  }
+
+  .fsr-bench__tools {
+    grid-row: 4;
   }
 }
 

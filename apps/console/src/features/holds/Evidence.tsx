@@ -9,13 +9,17 @@
 
 import type { SnapshotSlip } from "@fairsplit/contracts";
 import { MOMENTS, type MomentPhase, TIMING } from "@fairsplit/motion";
-import { Glyph, HONESTY, LegendGlyph, Print } from "@fairsplit/ui-web";
+import { Glyph, HONESTY, Print } from "@fairsplit/ui-web";
+import { ruleTitle } from "../../lib/plain.js";
 import { HOLDS } from "../split/shared/copy.js";
 import { copyWord, SlipPaper } from "../split/shared/SlipPaper.js";
 import type { NoRuleFacts, TwinRow, YieldFacts } from "./model.js";
 
 type Mm3Phase = MomentPhase<"MM-3">;
 const MM3 = MOMENTS["MM-3"] as readonly Mm3Phase[];
+
+/** Each copy's width in the 560 px drawer: two side by side with the seam between them. */
+const TWIN_PX = 216;
 
 /** True once MM-3 has reached `at` (phases run in the catalogue's order). */
 export function reached(phase: Mm3Phase, at: Mm3Phase): boolean {
@@ -42,9 +46,10 @@ export function TwinCompare({ a, b, rows, phase, animate, mode }: TwinComparePro
   let pair = 0;
   const copy = (slip: SnapshotSlip, side: "a" | "b") => (
     <figure className="fsr-twin__copy" data-side={side} data-copy={slip.copy}>
+      {/* The two copies at a readable size (round 5): their handwritten fields carry the comparison's weight. */}
       <SlipPaper
         slip={slip}
-        width={152}
+        width={TWIN_PX}
         alt={HOLDS.slipAlt(slip.serial, copyWord(slip.copy), slip.photoId)}
         testId={`W-TR-06.twin.${side}`}
       />
@@ -118,8 +123,11 @@ export function TwinCompare({ a, b, rows, phase, animate, mode }: TwinComparePro
           typeRole="label"
           reveal={animate && ready}
         />
-        {/* The pair is the seed's (round 3): its legend glyph, the canonical phrase its title and accessible name. */}
-        <LegendGlyph {...HONESTY.seedStandIn} className="fsr-twin__glyph" testId="W-TR-06.twin.standIn" />
+        {/* The pair is the seed's: said once on screen, in the split's id line (round 5: no inline glyph); its
+            canonical phrase stays here in words for assistive technology and as its title (inv.i8). */}
+        <span className="fs-sr" title={HONESTY.seedStandIn.label} data-testid="W-TR-06.twin.standIn">
+          {HONESTY.seedStandIn.label}
+        </span>
       </p>
     </div>
   );
@@ -189,6 +197,11 @@ export function YieldEvidence({ facts, plots, registered }: YieldEvidenceProps) 
   );
 }
 
+/** A Schedule A rule's name by its id ("R2" is "hauling"), for its title. */
+function ruleName(id: string): string | undefined {
+  return HOLDS.rules.find((r) => r.id === id)?.name;
+}
+
 export interface NoRuleEvidenceProps {
   readonly slip: SnapshotSlip | undefined;
   readonly facts: NoRuleFacts;
@@ -214,9 +227,9 @@ export function NoRuleEvidence({ slip, facts }: NoRuleEvidenceProps) {
             <li key={m.text} data-rule={m.rule ?? "none"}>
               <span className="fs-t-body">{m.text}</span>
               {m.rule ? (
-                <span className="fsr-norule__ok fs-t-label">
+                <span className="fsr-norule__ok fs-t-label" title={ruleTitle(m.rule, ruleName(m.rule))}>
                   <Glyph name="ms:check" size={14} />
-                  {HOLDS.ruleOk(m.rule)}
+                  {HOLDS.ruleOk}
                 </span>
               ) : (
                 <span className="fsr-norule__none fs-t-label">
@@ -229,13 +242,15 @@ export function NoRuleEvidence({ slip, facts }: NoRuleEvidenceProps) {
         </ul>
         <p className="fsr-norule__rules" title={HOLDS.closedList}>
           <span className="fs-t-caption fsr-muted">{HOLDS.closedListLabel}</span>
+          {/* Each rule by its name (round 5: no ids for people); its id is its title. */}
           {HOLDS.rules.map((r) => (
             <span
               key={r.id}
               className="fsr-norule__rule fs-t-micro"
+              title={ruleTitle(r.id)}
               data-used={facts.marks.some((m) => m.rule === r.id) ? "" : undefined}
             >
-              {r.id} {r.name}
+              {r.name}
             </span>
           ))}
           <span className="fs-sr">{HOLDS.closedList}</span>

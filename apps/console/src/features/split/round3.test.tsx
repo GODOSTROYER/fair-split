@@ -119,7 +119,9 @@ describe("split review, round 3", () => {
     const detail = screen.getByTestId("W-TR-05.detail.M-007");
     expect(detail.textContent).toMatch(/Premium54\.68/);
     expect(detail.textContent).toMatch(/Bonus\+27\.34/);
-    expect(detail.textContent).toMatch(/CBU R1−1\.37/);
+    // Round 5, no ids for people: the deduction by its name, its rule's id in its title.
+    expect(detail.textContent).toMatch(/CBU−1\.37/);
+    expect(detail.querySelector("dt[title='Rule R1']")?.textContent).toBe("CBU");
     expect(detail.textContent).toMatch(/Net US\$80\.65/);
     expect(screen.getByTestId("W-TR-05.expand.M-007").getAttribute("aria-expanded")).toBe("true");
     // The detail sits right under its line.

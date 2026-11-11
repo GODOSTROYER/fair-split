@@ -224,13 +224,32 @@ describe("Judge stage", () => {
     [1470, "push", false],
     [1920, "overlay", true],
   ])("a drawer at %i px (%s) leaves the screen it covers inert: %s", async (width, mode, inert) => {
-    await renderConsole({ path: "/runs/2026A-r37/split?hold=H1", viewport: { width, height: 900 } });
+    // An open hold (the session's H1, before anyone decides it): the drawer covers the screen with its scrim.
+    const view = await renderConsole({ path: "/runs/2026A-r37/split", viewport: { width, height: 900 } });
+    await view.startSession();
+    act(() => {
+      view.world.markPaid();
+      view.world.enterByHand();
+    });
+    await view.navigate("/runs/2026A-r37/split?hold=H1");
+    await waitFor(() => expect(screen.getByTestId("W-TR-06").dataset.state).toBe("open"));
     const drawer = await screen.findByTestId("W-TR-06.drawer");
     expect(drawer.dataset.mode).toBe(mode);
     const main = document.getElementById("fsc-main") as HTMLElement;
     // Tab never lands on a W-TR-05 control the drawer hides (S1.12: drawers never cover the focused element).
     expect(main.hasAttribute("inert")).toBe(inert);
     expect(main.contains(drawer)).toBe(false);
+  });
+
+  it("a decided hold's drawer at 1920 px is a compact card with no scrim: the screen beside it stays live", async () => {
+    // UI gate round 5: the showcase's H1 is decided, so its drawer hugs the success card and lays no blocking scrim.
+    await renderConsole({ path: "/runs/2026A-r37/split?hold=H1", viewport: { width: 1920, height: 900 } });
+    const drawer = await screen.findByTestId("W-TR-06.drawer");
+    await waitFor(() => expect(drawer.dataset.scrim).toBe("none"));
+    expect(drawer.dataset.mode).toBe("overlay");
+    expect(drawer.hasAttribute("data-hug")).toBe(true);
+    expect(screen.queryByTestId("W-TR-06.drawer.scrim")).toBeNull();
+    expect((document.getElementById("fsc-main") as HTMLElement).hasAttribute("inert")).toBe(false);
   });
 
   it("Reset ends the session and returns the first view", async () => {

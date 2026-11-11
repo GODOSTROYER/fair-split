@@ -6,7 +6,7 @@ import { payoutStatus } from "../../data/payout-replay.js";
 
 import type { SnapshotSlip } from "@fairsplit/contracts";
 import type { StampView } from "@fairsplit/ui-web";
-import { ConfidenceRing, Glyph, type GlyphName, RuleChip } from "@fairsplit/ui-web";
+import { ConfidenceRing, Glyph, type GlyphName, RuleChip, ruleChipTitle } from "@fairsplit/ui-web";
 import type { CustomCellRendererProps } from "ag-grid-react";
 import type { ReactNode } from "react";
 import { Stamp } from "../../chrome/Stamp.js";
@@ -52,6 +52,8 @@ export interface GridContext {
   readonly slip?: (serial: string, copy: SnapshotSlip["copy"]) => SnapshotSlip | undefined;
   /** A narrow grid opens a line's hidden calculation under it (round 3): set by the grid. */
   readonly toggleDetail?: (memberNo: string) => void;
+  /** A rule in a few words, from the card's own terms ("CBU 5% of bonus"): a deduction chip's title (round 5). */
+  readonly ruleText?: (ruleId: string) => string | undefined;
 }
 
 type Props = CustomCellRendererProps<GridRow, unknown, GridContext>;
@@ -327,7 +329,8 @@ const CATEGORY_WORD: Readonly<Record<"CBU" | "LOAN" | "ADVANCE", string>> = {
   ADVANCE: "Advance",
 };
 
-export function KaltasCell({ data }: Props) {
+/** A deduction chip reads "CBU −1.37" (round 5: no ids for people); its rule's id and words are its title. */
+export function KaltasCell({ data, context }: Props) {
   if (data?.kind === "note" || data?.kind === "detail") return null;
   if (!data) return null;
   if (data.kind === "totals") {
@@ -342,14 +345,18 @@ export function KaltasCell({ data }: Props) {
   return (
     <Cell className="fsr-cell--kaltas">
       <span className="fsr-kaltas" data-amount-state={data.partsState}>
-        {data.deductions.map((d) => (
-          <RuleChip
-            key={`${d.ruleId}-${d.category}`}
-            name={CATEGORY_WORD[d.category]}
-            amount={format.amount(-d.amountCents)}
-            rule={d.ruleId}
-          />
-        ))}
+        {data.deductions.map((d) => {
+          const words = context?.ruleText?.(d.ruleId);
+          return (
+            <RuleChip
+              key={`${d.ruleId}-${d.category}`}
+              name={CATEGORY_WORD[d.category]}
+              amount={format.amount(-d.amountCents)}
+              rule={d.ruleId}
+              {...(words ? { ruleText: words } : {})}
+            />
+          );
+        })}
       </span>
     </Cell>
   );
@@ -472,9 +479,7 @@ export function DetailView({ detail }: { readonly detail: DetailRow }) {
       </div>
       {r.deductions.map((d) => (
         <div key={`${d.ruleId}-${d.category}`} className="fsr-detail__part">
-          <dt>
-            {CATEGORY_WORD[d.category]} <span className="fs-t-id fsr-detail__rule">{d.ruleId}</span>
-          </dt>
+          <dt title={ruleChipTitle(d.ruleId)}>{CATEGORY_WORD[d.category]}</dt>
           <dd className="fs-t-figure" data-amount-state={r.partsState}>
             {format.amount(-d.amountCents)}
           </dd>
@@ -560,9 +565,16 @@ function linePayout(row: SplitRow) {
  * stays in the cell for screen readers (`statusLabel`). A replayed status keeps its whole replay words.
  */
 export function statusWords(row: SplitRow): string {
+  // Slip 0462's line waits for a person's entry: "By hand" says it whole (round 5: no long tag clipped in the cell).
+  if (row.status.kind === "held" && byHandHold(row)) return SPLIT.byHandStatus;
   if (row.status.kind === "held") return SPLIT.held;
   if (row.status.kind === "reserved") return SPLIT.reserved;
   return linePayout(row).word;
+}
+
+/** A line held for a field a person enters by hand (slip 0462): its hold's label is the slip's, not an H-tag. */
+function byHandHold(row: SplitRow): boolean {
+  return row.status.kind !== "line" && row.status.hold.kind === "LOW_CONFIDENCE";
 }
 
 /** The simulated rail's label a short PayPal word carries for screen readers, or null. */
@@ -629,7 +641,7 @@ export function StatusCell({ data, context }: Props) {
             {statusWords(data)}
             {statusLabel(data) && <span className="fs-sr">{statusLabel(data)}</span>}
           </span>
-          {data.status.kind !== "line" && (
+          {data.status.kind !== "line" && !byHandHold(data) && (
             <>
               {" "}
               <span className="fsr-status__hold fs-t-caption">{data.status.hold.label}</span>

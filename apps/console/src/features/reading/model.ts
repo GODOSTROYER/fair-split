@@ -449,10 +449,12 @@ export function statusSentence({
     const clerk = snapshot.officers.find((o) => o.role === "CLERK")?.shortName ?? "the clerk";
     return `Photo ${id} is too blurred to read. Ask ${clerk} to rescan.`;
   }
+  // A slip a person must still settle is not counted read (round 5: the count is truthful, as the room's hero).
+  const settled = done - rows.filter(needsPerson).length;
   const parts: string[] = [
     reading && done < rows.length
       ? `Reading photo ${id}: ${rows.length} slips.`
-      : `Photo ${id} · ${done}/${rows.length} read.`,
+      : `Photo ${id} · ${settled}/${rows.length} read.`,
   ];
   for (const row of rows) {
     if (!row) continue;
@@ -506,17 +508,29 @@ export function readingState({
   return aiPaused ? "live-paused" : "read";
 }
 
-/** Rows read so far across the replay set, for the filmstrip's summary ("31 of 48 slips read"). */
+/** A row a person must still settle: a doubtful field, or a zoom's value waiting for a one-tap confirmation. */
+export function needsPerson(row: ReadingRow | null): boolean {
+  return row !== null && (row.pending.length > 0 || row.zoomAgreed !== null);
+}
+
+/**
+ * The room's truthful count across the replay set (round 5): a slip is read once its row is in and nothing on it
+ * waits for a person, so the count reads "47 of 48 read · 1 needs a person" until slip 0462 is entered by hand,
+ * then "48 of 48". `needs` is the rows in that a person must still settle.
+ */
 export function replayProgress(
   view: RunView | undefined,
   snapshot: SeasonSnapshot,
-): { read: number; total: number } {
+): { read: number; total: number; needs: number } {
   let read = 0;
   let total = 0;
+  let needs = 0;
   for (const photo of replayPhotos(snapshot)) {
     const rows = rowsForPhoto({ view, snapshot, photo });
     total += rows.length;
-    read += readCount(rows);
+    const waiting = rows.filter(needsPerson).length;
+    needs += waiting;
+    read += readCount(rows) - waiting;
   }
-  return { read, total };
+  return { read, total, needs };
 }

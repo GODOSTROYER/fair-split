@@ -66,22 +66,12 @@
 
 /* ------------------------------------------------------------------ the next decision, marked by who decides */
 
+/* A hold's link carries the 8 px held StateDot, 8 px from its words (round 5: one marker vocabulary, no square). */
 .fsr-next {
   display: inline-flex;
   align-items: center;
   gap: var(--fs-space-8);
   margin: 0;
-}
-
-.fsr-next__mark {
-  width: 8px;
-  height: 8px;
-  flex: none;
-  background: var(--fs-canary);
-}
-
-.fsr-next[data-kind="approve"] .fsr-next__mark {
-  background: var(--fs-ink);
 }
 
 /* ------------------------------------------------------------------ DigitSwap */

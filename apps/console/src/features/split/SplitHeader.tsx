@@ -1,15 +1,16 @@
 // Split review's bench (S1.7 W-TR-05 header; unslop spec §3.6), one short band so the lines get the height: the
-// mass-balance tick ring with its reading as the screen's one hero numeral (FS Sans, round 3), the limit as micro
-// and the state as a pill; the pool, the screen's money, in pencil (the engine's figure, nobody has signed) with
-// its two parts and the balance check; and the open decisions as counts with the next one linked. The filters run
-// beneath it as one segmented row. The dial swings only on a live decision (the needle spring, MM-3); replayed
-// history sets it in place. In reduced motion the needle cuts to its new value under a 200 ms crossfade.
+// shrink tick ring with its reading as the screen's one hero numeral (FS Sans, round 3), "Shrink · limit 2.0%" as
+// micro (one term everywhere, round 5) and the state as a pill; the pool, the screen's money, in pencil (the
+// engine's figure, nobody has signed) with its two parts; and the next decision, linked (the open counts are the
+// title row's chip). The filters run beneath it as one segmented row. The dial swings only on a live decision (the
+// needle spring, MM-3); replayed history sets it in place. In reduced motion the needle cuts under a 200 ms fade.
 
-import { Glyph, MassBalanceDial, Numeral, useMotionMode } from "@fairsplit/ui-web";
+import { Glyph, MassBalanceDial, Numeral, StateDot, useMotionMode } from "@fairsplit/ui-web";
 import type { ReactNode } from "react";
 import { AppLink } from "../../chrome/AppLink.js";
 import { DataTable, Mirrored } from "../../chrome/DataTable.js";
 import { format } from "../../lib/format.js";
+import { SHRINK, shrinkLabel } from "../../lib/plain.js";
 import { type MassBalanceView, SPLIT_FILTERS, type SplitFilter, type SplitTotals } from "./model.js";
 import { en, SPLIT } from "./shared/copy.js";
 
@@ -34,15 +35,13 @@ export interface SplitHeaderProps {
   /** The reading before the last decision moved it ("2.05%"), shown as micro "was 2.05%". */
   readonly was?: string | null;
   readonly pools: PoolsView;
-  readonly open: { readonly holds: number; readonly byHand: number };
+  /** The next decision (a hold, the by-hand slip, Approve), linked; the review's state is the title row's chip. */
   readonly next: NextDecision | null;
   readonly counts: Readonly<Record<SplitFilter, number>>;
   readonly filter: SplitFilter;
   readonly onFilter: (filter: SplitFilter) => void;
   /** The rail filters count planned rails (before the batch posts) rather than payments. */
   readonly railsPlanned?: boolean;
-  /** What the run says once every hold is decided (it differs before and after the two keys). */
-  readonly decidedWords?: string;
   /** The dial's own testId root ("W-TR-05.dial"); the drawer reuses the dial with its own. */
   readonly dialTestId?: string;
   /** Beneath the pool: the balance check (its equations in its title). */
@@ -141,7 +140,7 @@ export function Dial({
             display={dial.display}
             limit={dial.tolBp / 100}
             limitDisplay={en("W-TR-05.dialLimit", { limit: dial.limitDisplay })}
-            label={en("W-TR-05.dial")}
+            label={SHRINK}
             size={size}
             animateNeedle={swing}
             valueRole={valueRole}
@@ -151,7 +150,7 @@ export function Dial({
       }
       table={
         <DataTable
-          caption={en("W-TR-05.dial")}
+          caption={SHRINK}
           testId={`${testId}.table`}
           columns={[
             { key: "measure", label: "Measure" },
@@ -207,8 +206,9 @@ export function DialReading({
           %
         </span>
       </span>
+      {/* One term for the dial everywhere (round 5): "Shrink · limit 2.0%", as Approve's checklist says it. */}
       <span className="fsr-reading__micro fs-t-micro">
-        {en("W-TR-05.dial")} · {SPLIT.dialLimit(dial.limitDisplay)}
+        {shrinkLabel(dial.tolBp)}
         {was && was !== dial.display ? ` · ${SPLIT.dialWas(was)}` : ""}
       </span>
     </span>
@@ -220,26 +220,23 @@ export function SplitHeader({
   swing,
   was = null,
   pools,
-  open,
   next,
   counts,
   filter,
   onFilter,
   railsPlanned = false,
-  decidedWords = SPLIT.allDecided,
   dialTestId = "W-TR-05.dial",
   proof,
   reconcile,
   columns,
 }: SplitHeaderProps) {
-  const decided = open.holds === 0 && open.byHand === 0;
   const money = pools.amountState ?? "pencil";
   return (
-    <section className="fsr-bench" aria-label="Pools, mass balance and filters" data-testid="W-TR-05.bench">
+    <section className="fsr-bench" aria-label="Pool, shrink and filters" data-testid="W-TR-05.bench">
       <div className="fsr-bench__dial">
         <Dial dial={dial} swing={swing} size={112} testId={dialTestId} />
         <div className="fsr-bench__reading">
-          {dial.status === "PENDING" && <p className="fsr-bench__label fs-t-label">{en("W-TR-05.dial")}</p>}
+          {dial.status === "PENDING" && <p className="fsr-bench__label fs-t-label">{SHRINK}</p>}
           <DialReading dial={dial} was={was} testId="W-TR-05.reading" />
           <DialState dial={dial} testId="W-TR-05.dial.status" />
         </div>
@@ -268,19 +265,19 @@ export function SplitHeader({
         </dl>
         {proof}
       </div>
-      <div className="fsr-bench__summary">
-        <h2 className="fsr-bench__count fs-t-title-2" data-testid="W-TR-05.summary">
-          {decided ? decidedWords : SPLIT.summary(open.holds, open.byHand)}
-        </h2>
-        {next && (
+      {/* The next decision (round 5): its word and the link, a held dot before a hold (the one marker vocabulary);
+          the review's state is the title row's chip, said once. */}
+      {next && (
+        <div className="fsr-bench__summary">
+          <h2 className="fsr-bench__label fs-t-label">{SPLIT.nextLabel}</h2>
           <p className="fsr-next" data-kind={next.kind}>
-            <span className="fsr-next__mark" aria-hidden />
+            {next.kind !== "approve" && <StateDot kind="held" className="fsr-next__mark" />}
             <AppLink href={next.href} className="fs-link fs-t-label" data-testid="W-TR-05.next">
               {next.words}
             </AppLink>
           </p>
-        )}
-      </div>
+        </div>
+      )}
       <div className="fsr-bench__tools">
         <fieldset className="fsr-chips" data-testid="W-TR-05.filters">
           <legend className="fs-sr">{SPLIT.filters}</legend>

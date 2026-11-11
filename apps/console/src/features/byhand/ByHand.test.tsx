@@ -59,16 +59,20 @@ describe("W-TR-04 by hand", { timeout: 60_000 }, () => {
     const view = await renderConsole({ path: BY_HAND });
     const root = await screen.findByTestId("W-TR-04");
     expect(root.dataset.state).toBe("empty");
-    // One line, the stand-in's reading, the stand-in tag (its canonical phrase whole); the slip's owner is the
-    // header's micro line.
-    expect(screen.getByTestId("W-TR-04.prompt").textContent).toBe(
-      "A stain hides one digit. 6?.80 Seed stand-in, not a Claude recording",
-    );
-    // The stand-in is a bare legend glyph (round 3), its words its title and accessible name: no pill.
-    const glyph = screen.getByTestId("W-TR-04.prompt").querySelector<HTMLElement>("[data-fs-glyph]");
-    expect(glyph?.getAttribute("title")).toBe("Seed stand-in, not a Claude recording");
+    // One line and the stand-in's reading; the slip's owner is the line above it.
+    expect(screen.getByTestId("W-TR-04.prompt").textContent).toBe("A stain hides one digit. 6?.80");
+    // Round 5, provenance once: no glyph inline; the stand-in is the title row's one id-line phrase, its canonical
+    // words its title and its hidden text.
+    expect(screen.getByTestId("W-TR-04.prompt").querySelector("[data-fs-glyph]")).toBeNull();
+    expect(screen.getByTestId("W-TR-04").querySelectorAll("[data-fs-glyph]")).toHaveLength(0);
+    const provenance = screen.getByTestId("W-TR-04").querySelector(".fsc-screen__provenance");
+    expect(provenance?.getAttribute("title")).toMatch(/Seed stand-in, not a Claude recording/);
+    expect(provenance?.textContent).toMatch(/^Synthetic co-op · seed stand-in readings/);
     expect(screen.getByTestId("W-TR-04.prompt").querySelector(".fs-honesty")).toBeNull();
     expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Slip 0462 by hand");
+    // The title row says the slip's state in one chip: a person must decide.
+    expect(screen.getByTestId("W-TR-04.state").textContent).toBe("Needs a person");
+    expect(screen.getByTestId("W-TR-04.state").dataset.tone).toBe("canary");
     expect(document.querySelector(".fsc-hand__who")?.textContent).toBe("Arnel Sumampao · M-060");
     expect(screen.getByTestId<HTMLInputElement>("W-TR-04.input").value).toBe("6▢.80");
     expect(screen.getByTestId<HTMLInputElement>("W-TR-04.input").disabled).toBe(true);
@@ -302,9 +306,10 @@ describe("W-TR-04 by hand: focus once the field is answered", { timeout: 60_000 
     for (const at of after) expect([ink, next]).toContain(at);
     expect(after.at(-1)).toBe(next);
     expect(document.activeElement).toBe(next);
-    // The next step is named for its work, a full-size secondary button (round 3).
+    // The next step is named for its work, right under the equation, the screen's one primary (round 5).
     expect(next.textContent).toBe("Review 3 holds");
-    expect(next.classList.contains("fs-flat")).toBe(true);
+    expect(next.classList.contains("fs-slab__face")).toBe(true);
+    expect(screen.getByTestId("W-TR-04.state").textContent).toBe("Entered");
   }
 
   it("Enter in the field: focus lands on the ink, then the Next link under it, never on <body>", async () => {

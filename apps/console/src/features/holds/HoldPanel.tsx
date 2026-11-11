@@ -1,9 +1,11 @@
 // The hold drawer's card (W-TR-06; UI gate round 4): ui-web's HoldCard as the drawer draws it, with the console's
 // round-4 words. Its gate is a status pill of a few words ("Blocks approval", never a sentence with a full stop); H1
 // has no engine row and one effect line ("If counted once: +US$17.94 to 63 members · 2.05% → 1.62%") right above its
-// decision, its evidence under the decision; H2 and H3 keep the engine's sentence and the seed's. A decided hold is
-// flush ink with the decider's stamp and never shows actions. A hold is never an error and never red. The markup
-// and test IDs are HoldCard's, so ui-web's styles and the drawer's tests read it as one.
+// decision, its evidence under the decision; H2 and H3 keep the engine's sentence and the seed's. Round 5: the
+// decision's pair stands at one 48 px height with the secondary's caption under the pair; a decided hold is a
+// compact success card, flush ink with the decider's stamp, its evidence one disclosure away, and never shows
+// actions. A hold is never an error and never red. The markup and test IDs are HoldCard's, so ui-web's styles and
+// the drawer's tests read it as one.
 //
 // The catalog's gate words (i18n `hold.gate.*`) are still sentences; WS-DS shortens them (reported), and HoldCard
 // can then draw this card again.
@@ -120,11 +122,21 @@ export function HoldPanel({
         </dl>
       )}
 
-      {evidence && (
-        <section className="fs-hold__evidence" aria-label={en("hold.evidence")}>
-          {evidence}
-        </section>
-      )}
+      {/* A decided hold is a compact success card (round 5): its evidence stays one disclosure away. */}
+      {evidence &&
+        (decided ? (
+          <details className="fs-hold__evidence fsr-hold__more" data-testid={`${testId}.evidence`}>
+            <summary className="fs-link fs-t-label">
+              {en("hold.evidence")}
+              <Glyph name="ms:expand-more" size={16} className="fsr-hold__more-mark" />
+            </summary>
+            {evidence}
+          </details>
+        ) : (
+          <section className="fs-hold__evidence" aria-label={en("hold.evidence")}>
+            {evidence}
+          </section>
+        ))}
 
       {hold.effect &&
         (effectLabel === null ? (
@@ -157,6 +169,7 @@ export function HoldPanel({
             {hold.state === "conflict" && (
               <p className="fs-hold__status fs-t-label">{en("hold.state.CONFLICT")}</p>
             )}
+            {/* The pair at one 48 px height (round 5), the secondary's caption under the pair, not under one button. */}
             <div className="fs-hold__buttons">
               <div className="fs-hold__slab">
                 <Slab
@@ -171,13 +184,24 @@ export function HoldPanel({
               </div>
               {flat && (
                 <div className="fs-hold__flat">
-                  <button type="button" className="fs-flat" data-testid={flat.testId} onClick={flat.onSelect}>
+                  <button
+                    type="button"
+                    className="fs-flat"
+                    data-size="l"
+                    data-testid={flat.testId}
+                    onClick={flat.onSelect}
+                    {...(flat.note ? { "aria-describedby": `${testId}-flat-note` } : {})}
+                  >
                     {flat.label}
                   </button>
-                  {flat.note && <span className="fs-t-caption">{flat.note}</span>}
                 </div>
               )}
             </div>
+            {flat?.note && (
+              <p id={`${testId}-flat-note`} className="fs-hold__note fs-t-caption">
+                {flat.note}
+              </p>
+            )}
           </>
         )}
       </footer>

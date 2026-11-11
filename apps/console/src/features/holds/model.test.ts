@@ -95,7 +95,7 @@ describe("two voices, every digit from the engine", () => {
     const v = voices(snapshot, view, h1);
     expect(v.engineLine).toMatch(/US\$18\.06/);
     expect(v.engineLine).toMatch(/1\.38%, inside the 2\.0% limit/);
-    expect(v.effect).toBe("If counted once: +US$18.06 to 63 members · mass balance after slip 0462");
+    expect(v.effect).toBe("If counted once: +US$18.06 to 63 members · shrink after slip 0462");
   });
 
   it("H1's titles and money effect", () => {

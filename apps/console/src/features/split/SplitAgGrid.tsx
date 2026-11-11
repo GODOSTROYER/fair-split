@@ -66,6 +66,9 @@ export function SplitAgGrid({ noRows, onApi, noteRenderer, ...props }: SplitAgGr
       isFullWidthRow={isFullWidthRow}
       fullWidthCellRenderer={noteRenderer}
       headerHeight={GRID_HEADER_PX}
+      // The grid's scrollbars overlay its lines (round 5: a stable gutter): the columns fill the whole width, so the
+      // lines, the total and the header end on the same right edge.
+      scrollbarWidth={0}
       suppressColumnVirtualisation
       ensureDomOrder
       enableBrowserTooltips

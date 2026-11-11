@@ -3,8 +3,14 @@
 
 export const RATECARD_COPY = {
   title: "Rate card",
-  /** One line (round 3): what the card is and when; the stand-in's glyph and the signatures on the plate say the rest. */
-  lede: (resolution: string, date: string) => `${resolution} · ratified ${date}, before the first slip`,
+  /** The card's state in the title row's chip (round 5): ratified, so locked for the season. */
+  ratifiedOn: (date: string) => `Ratified ${date}`,
+  /** The title row's quiet control: the board's resolution folds away and back. */
+  hideDoc: "Hide resolution",
+  showDoc: "Show resolution",
+  /** The two columns that scroll on their own, by name. */
+  docLabel: (resolution: string) => `${resolution}, the board's resolution`,
+  sideLabel: "Schedule A and its seal",
   schedule: "Schedule A",
   scheduleLede: "Open a rule for its clause",
   /** The stand-in's glyph words (its title and accessible name), with the page a rule was quoted from. */

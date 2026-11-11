@@ -67,13 +67,21 @@ describe("W-TR-05 split review", () => {
       expect(screen.getByTestId("W-TR-05.status.M-014").dataset.tone).toBe("jade");
       expect(screen.getByTestId("W-TR-05.status.M-053").dataset.tone).toBe("hatch");
       expect(screen.getByTestId("W-TR-05.dial.status").dataset.status).toBe("INSIDE");
-      // Provenance once, in the header's micro line: the labelled run and the rate card, ids in the id role, the
-      // lines and the engine in its title; the grid holds simulated PayPal statuses, so the glyph shows.
+      // Round 5, the title row: the noun, the season in grey, the review's state in one chip; then one id line: the
+      // run id (the lines, the engine and the rate card's hash its title) and the one provenance phrase, here the
+      // simulated PayPal's (the grid holds its statuses). No glyph anywhere on the screen.
+      expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Split review 2026-A");
       const provenance = screen.getByTestId("W-TR-05.provenance");
-      expect(provenance.textContent).toMatch(/^(showcase )?run r\d+ · rate card f2d7 026d/);
-      expect(provenance.getAttribute("title")).toMatch(/^64 lines · engine v1 · /);
-      expect(provenance.querySelectorAll(".fs-t-id")).toHaveLength(2);
-      expect(screen.getByTestId("W-TR-05.simulated").textContent).toBe("Simulated PayPal sandbox");
+      expect(provenance.textContent).toBe("2026-A · r37");
+      expect(provenance.closest(".fs-t-id")).not.toBeNull();
+      expect(provenance.getAttribute("title")).toMatch(/^64 lines · engine v1 · .* · rate card f2d7 026d$/);
+      expect(screen.getByTestId("W-TR-05.head.provenance").textContent).toMatch(
+        /^Synthetic co-op · simulated PayPal/,
+      );
+      expect(screen.queryByTestId("W-TR-05.simulated")).toBeNull();
+      expect(screen.getByTestId("W-TR-05").querySelectorAll("[data-fs-glyph]")).toHaveLength(0);
+      expect(screen.getByTestId("W-TR-05.summary").textContent).toBe("PayPal complete · cash due");
+      expect(screen.getByTestId("W-TR-05.summary").dataset.tone).toBe("hatch");
       expect(screen.getByTestId("W-TR-05.filter.paypal").textContent).not.toMatch(/planned/);
       // axe on a filtered grid: the same structure (row and column headers, labels), fewer rows to walk.
       fireEvent.click(screen.getByTestId("W-TR-05.filter.paypal"));
@@ -113,12 +121,17 @@ describe("W-TR-05 split review", () => {
         expect(within(grid).getByRole("columnheader", { name: /confidence/i })).toBeTruthy(),
       );
       fireEvent.click(screen.getByTestId("W-TR-05.allColumns"));
+      // The open decisions are the title row's chip, in amber (a person must decide); the bench links the next one.
       expect(screen.getByTestId("W-TR-05.summary").textContent).toBe("3 holds open · 1 by hand");
+      expect(screen.getByTestId("W-TR-05.summary").dataset.tone).toBe("canary");
       expect(screen.getByTestId("W-TR-05.next").textContent).toBe("Enter slip 0462 by hand");
       expect(screen.getByTestId("W-TR-05.filter.held").textContent).toBe("Held 3");
-      // Before the keys the rails are a plan, and say so; nothing PayPal is on the screen yet, so no tag.
+      // Before the keys the rails are a plan, and say so; nothing PayPal is on the screen yet, so the id line says
+      // the seeded slips.
       expect(screen.getByTestId("W-TR-05.filter.cash").textContent).toBe("Cash 56 planned");
-      expect(screen.queryByTestId("W-TR-05.simulated")).toBeNull();
+      expect(screen.getByTestId("W-TR-05.head.provenance").textContent).toMatch(
+        /^Synthetic co-op · seeded slips/,
+      );
       // The console is English: a held line reads "Held", its hold beside it.
       expect(screen.getByTestId("W-TR-05.status.M-007").textContent).toBe("Held H1");
       expect(screen.getByTestId("W-TR-05.status.M-018").textContent).toBe("Reserved H3");
@@ -160,8 +173,8 @@ describe("W-TR-05 split review", () => {
       expect(document.querySelectorAll(".fsr-cell__wash[data-cause='paypal']")).toHaveLength(0);
       expect(screen.getByTestId("W-TR-05.dial.status").dataset.status).toBe("INSIDE");
       expect(screen.getByTestId("W-TR-05.summary").textContent).toBe("2 holds open");
-      // The instrument reads the new value, the old one as micro.
-      expect(screen.getByTestId("W-TR-05.reading").textContent).toMatch(/limit ±2\.0% · was 2\.05%/);
+      // The instrument reads the new value, the old one as micro, in the one term (round 5): "Shrink · limit 2.0%".
+      expect(screen.getByTestId("W-TR-05.reading").textContent).toMatch(/Shrink · limit 2\.0% · was 2\.05%/);
     },
     SLOW,
   );

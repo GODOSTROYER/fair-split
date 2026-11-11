@@ -4,7 +4,8 @@
 export const READING_COPY = {
   title: "Reading room",
   filmstrip: "Photos in the seed stand-in",
-  progress: (read: number, total: number) => `${read} of ${total} slips read`,
+  progress: (read: number, total: number, needs = 0) =>
+    needs > 0 ? `${read} of ${total} read · ${needs} needs a person` : `${read} of ${total} slips read`,
   photoLink: (id: string, read: boolean, pending: boolean) =>
     `Photo ${id}${read ? ", read" : ", not read yet"}${pending ? ", needs a person" : ""}`,
   earlier: (count: number) => `Read earlier this season (${count})`,
@@ -46,6 +47,13 @@ export const READING_COPY = {
   /** The hero count: "48/48" in FS Sans, its scope beside it (one truth for slip counts: 48 this run, 264 season). */
   progressDots: (read: number, total: number) => `${read}/${total}`,
   progressUnit: "slips read this run",
+  /** Round 5, the truthful count: while a slip waits for a person, the count says so beside it. */
+  progressNeeds: (needs: number) => `read · ${needs} needs a person`,
+  /** The room's state in the title row's chip (round 5). */
+  stateWaiting: "Waits for payment",
+  stateReading: "Reading",
+  stateNeeds: "Needs a person",
+  stateRead: "All read",
   stateOffline: "You're offline. Rows already read stay; new ones arrive when the connection returns.",
   stateLivePaused: "Live reading is paused for today (budget cap). The labelled seed stand-in still plays.",
   illegible: "Too blurred to read",

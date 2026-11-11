@@ -28,6 +28,10 @@ export const SPLIT = {
       ...(byHand > 0 ? [`${byHand} by hand`] : []),
     ].join(" · "),
   approveLink: "Open Approve",
+  /** The bench's word over the next decision's link (round 5: the open counts are the title row's chip). */
+  nextLabel: "Next",
+  /** A line waiting for slip 0462's entry, in its status cell (its hold's label is the slip's, too long a tag). */
+  byHandStatus: "By hand",
   nextHold: (label: string, title: string) => `Open ${label}: ${title}`,
   byHandNext: (slip: string) => `Enter slip ${slip} by hand`,
   filters: "Filter lines",
@@ -40,10 +44,9 @@ export const SPLIT = {
   columns: "Columns",
   title: "Split review",
   /**
-   * The header's one provenance line, trimmed (round 3): the labelled run and the rate card, their ids in the id
-   * role ("run r37 · rate card f2d7 026d"). The lines, the engine and what the lines include are its title.
+   * The id line's run (round 5: one run id everywhere, "2026-A · r37"); the lines, the engine, what the lines
+   * include and the rate card's hash are its title ("… · rate card f2d7 026d").
    */
-  runWord: (showcase: boolean) => (showcase ? "showcase run" : "run"),
   rateCardWord: "rate card",
   provenanceTitle: (lines: number, basis: string) => `${lines} lines · engine v1 · ${basis}`,
   /** The grid's column words in the console's English (round 3): the money column says its currency. */
@@ -73,7 +76,7 @@ export const SPLIT = {
   premiumLock: "R0 · never deducted",
   dialWas: (was: string) => `was ${was}`,
   dialLimit: (limit: string) => `limit ±${limit}`,
-  dialSpoken: (value: string) => `Mass balance ${value} percent`,
+  dialSpoken: (value: string) => `Shrink ${value} percent`,
   totalsLines: (n: number) => `${n} lines`,
   slipCount: (n: number) => (n === 1 ? "1 slip" : `${n} slips`),
   showAll: (n: number) => `Show all ${n} lines`,
@@ -121,7 +124,7 @@ export const HOLDS = {
   slipMeta: (serial: string) => `Slip ${serial}`,
   back: "Back to the split",
   resolvedNote: "Decided. The engine recomputed every line.",
-  overrideNote: "Two deliveries, an override: Ernesto co-signs it with the batch (R5).",
+  overrideNote: "Two deliveries, an override: Ernesto co-signs it with the batch.",
   // One line plus the decision (unslop spec §3.7). Every figure arrives from the engine's facts.
   h1EngineInside: (amount: string, members: number, shrink: string, limit: string) =>
     `Counting both moves ${amount} from ${members} members. Shrink ${shrink}, inside the ${limit} limit until slip 0462 is in.`,
@@ -135,7 +138,7 @@ export const HOLDS = {
   h1Effect: (amount: string, members: number, shrinkBoth: string, shrinkOnce: string) =>
     `If counted once: +${amount} to ${members} members · ${shrinkBoth} → ${shrinkOnce}`,
   h1EffectInside: (amount: string, members: number) =>
-    `If counted once: +${amount} to ${members} members · mass balance after slip 0462`,
+    `If counted once: +${amount} to ${members} members · shrink after slip 0462`,
   /** A hold's gate as its status pill (round 4): a few words, never a sentence with a full stop. */
   gate: { BLOCKS_APPROVAL: "Blocks approval", RESERVES_LINE: "Reserves this line" } as Readonly<
     Record<string, string>
@@ -152,7 +155,8 @@ export const HOLDS = {
   h3Engine: (mark: string) => `${mark} matches no Schedule A rule.`,
   yieldEffect: (_plot: string) => "Her kilos and pay don't change.",
   creditReturned: (credit: string) => `+${credit} credit, paid by the co-op`,
-  ruleOk: (rule: string) => `Matches ${rule}`,
+  /** A written deduction Schedule A allows (round 5: the rule's id is its title, never on screen). */
+  ruleOk: "Allowed",
   twoDeliveries: "Two deliveries",
   twoDeliveriesNote: "A reason, then the Chair",
   twoDeliveriesTitle: "Why are these two deliveries?",
@@ -171,7 +175,7 @@ export const HOLDS = {
   photo: (id: string) => `Photo ${id}`,
   copyCaption: (id: string, copy: string) => `${id} · ${copy}`,
   slipAlt: (serial: string, copy: string, photo: string) => `Slip ${serial}, ${copy}, photo ${photo}`,
-  shrinkNow: "Mass balance now",
+  shrinkNow: "Shrink now",
   shrinkInside: (shrink: string, limit: string) => `Shrink ${shrink}, inside the ${limit} limit.`,
   plotsTitle: "Registered plots",
   plotRegistered: (no: string, ha: string, trees: number) => `${no} · ${ha} ha · ${trees} trees`,
@@ -200,7 +204,7 @@ export const HOLDS = {
   byHandTitle: (slip: string) => `Slip ${slip} needs a person`,
   byHandLink: (slip: string) => `Enter slip ${slip} by hand`,
   byHandDone: (slip: string) => `Slip ${slip} was entered by hand.`,
-  massTitle: "Mass balance",
+  massTitle: "Shrink",
   massLink: "Open H1, the slip counted twice",
   massCleared: "The engine cleared it when the duplicate was counted once.",
   asked: "Asked Ernesto",

@@ -1,10 +1,14 @@
 // SplitGrid (S2.7, S1.7 W-TR-05): every member line in AG Grid Community, themed from the tokens. Ten columns by
 // default (minimum confidence waits behind "All columns": sixty of the 64 lines were read earlier and have none);
 // five in a narrow container (Member, Verified kg, Net, Rail, Status), and four beside an open drawer (Member, Net,
-// Rail, Status), so the money, its rail and its state read at every width and Status always reads whole. The lines a person must still decide are pinned above the rest, in the order the run
-// pill walks them, and the totals are pinned beneath. Held rows carry a 3 px canary rule. A row opens its hold
-// (W-TR-06) or its line (W-TR-09) on click or Enter. AG Grid is its own lazy chunk (./SplitAgGrid.tsx, with
-// theme/grid.ts): it loads once the container has a size, and the static table prints the lines until it has.
+// Rail, Status), so the money, its rail and its state read at every width and Status always reads whole. The lines
+// a person must still decide are pinned above the rest, in the order the run pill walks them, and the totals are
+// pinned beneath. Round 5: the lines between rest on whole rows (./whole-rows.ts), a 24 px fade above the total
+// while more lie below; the number columns share the room Deductions leaves (it stops at 180 px); no rule beside
+// Member; the scrollbar overlays the lines, so every row ends on the header's edge; a narrow grid gives the hold
+// notes' rows to the lines. A row opens its hold (W-TR-06) or its line (W-TR-09) on click or Enter. AG Grid is its
+// own lazy chunk (./SplitAgGrid.tsx, with theme/grid.ts): it loads once the container has a size, and the static
+// table prints the lines until it has.
 
 import type {
   CellKeyDownEvent,
@@ -43,6 +47,7 @@ import { type HoldNoteRow, HoldNoteView, holdNotes } from "./HoldNote.js";
 import type { SplitRow, SplitTotals } from "./model.js";
 import { StaticTable } from "./StaticTable.js";
 import { en, SPLIT } from "./shared/copy.js";
+import { useWholeRows } from "./whole-rows.js";
 
 /** AG Grid and its theme, in their own chunk (S2.11): fetched only once a container is measured. */
 const SplitAgGrid = lazy(() => import("./SplitAgGrid.js").then((m) => ({ default: m.SplitAgGrid })));
@@ -120,7 +125,10 @@ export function columnSetFor(width: number, showAll: boolean, defaultFits?: numb
   return "default";
 }
 
-/** The grid's own chrome beside its columns: the vertical scrollbar and the wrapper's two borders. */
+/**
+ * The grid's own chrome beside its columns: the wrapper's two borders and a margin for the overlay scrollbar (the
+ * lines' scrollbar overlays them, round 5, so the columns fill the width).
+ */
 const GRID_CHROME_PX = 24;
 
 /** The width a set of columns needs at their minimum (fixed widths, or a flex column's floor). */
@@ -171,8 +179,20 @@ const rowId = (p: { readonly data: GridRow }) => p.data.memberNo;
  */
 export const SLIPS_PX = { count: 112, countedOnce: 160 } as const;
 
+/**
+ * Deductions holds its chips ("CBU −1.37", a second chip at most) and never grows past 180 px (round 5): the width
+ * the panel has beyond the columns' floors spreads across the number columns instead, so no dead gap opens between
+ * Deductions and Net at 1,920.
+ */
+export const DEDUCTIONS_PX = { min: 128, max: 180 } as const;
+
+/** Member is pinned (it stays put as a narrow grid scrolls sideways): a name's width, the same in every set. */
+export const MEMBER_PX = 184;
+
 function columnDefs(premiumRate: string, slipsWide: boolean): Record<GridColumn, ColDef<GridRow>> {
-  const num = { type: "rightAligned", cellClass: "fsr-ag-num" } as const;
+  // A number column (rounds 4 and 5): right-aligned tabular figures, its floor its old fixed width, and a share of
+  // the room left over, so the figures sit evenly across the row.
+  const num = { type: "rightAligned", cellClass: "fsr-ag-num", flex: 1 } as const;
   return {
     // A narrow grid's opener for a line's hidden parts: its header's words are for screen readers only.
     expand: {
@@ -185,12 +205,12 @@ function columnDefs(premiumRate: string, slipsWide: boolean): Record<GridColumn,
       lockPinned: true,
       cellClass: "fsr-ag-expand",
     },
+    // Pinned, so it never flexes (AG Grid flexes the scrolling columns only): one fixed width that holds a name.
     member: {
       colId: "member",
       headerName: en("W-TR-05.col.member"),
       cellRenderer: MemberCell,
-      flex: 1.5,
-      minWidth: 148,
+      width: MEMBER_PX,
       pinned: "left",
       lockPinned: true,
     },
@@ -201,8 +221,7 @@ function columnDefs(premiumRate: string, slipsWide: boolean): Record<GridColumn,
       cellRenderer: SlipsCell,
       width: slipsWide ? SLIPS_PX.countedOnce : SLIPS_PX.count,
     },
-    // A number column (round 4): right-aligned tabular kilos, no micro-bars, one fixed width in every set.
-    kg: { ...num, colId: "kg", headerName: en("W-TR-05.col.kg"), cellRenderer: KgCell, width: 112 },
+    kg: { ...num, colId: "kg", headerName: en("W-TR-05.col.kg"), cellRenderer: KgCell, minWidth: 112 },
     confidence: {
       colId: "confidence",
       headerName: en("W-TR-05.col.confidence"),
@@ -215,7 +234,7 @@ function columnDefs(premiumRate: string, slipsWide: boolean): Record<GridColumn,
       headerName: en("W-TR-05.col.premium"),
       headerTooltip: "Never deducted (R0)",
       cellRenderer: PremiumCell,
-      width: 92,
+      minWidth: 92,
       tooltip: (p) => {
         const row = lineOf(p.data);
         return row ? `${format.kg(row.verifiedG)} × ${premiumRate}, R0, engine v1.` : null;
@@ -226,15 +245,16 @@ function columnDefs(premiumRate: string, slipsWide: boolean): Record<GridColumn,
       colId: "bonus",
       headerName: en("W-TR-05.col.bonus"),
       cellRenderer: BonusCell,
-      width: 84,
+      minWidth: 84,
     },
     // The console is English (round 3): "Deductions", never the Cebuano "Kaltas".
     kaltas: {
       colId: "kaltas",
       headerName: SPLIT.deductionsColumn,
       cellRenderer: KaltasCell,
-      minWidth: 128,
       flex: 1,
+      minWidth: DEDUCTIONS_PX.min,
+      maxWidth: DEDUCTIONS_PX.max,
     },
     credit: {
       ...num,
@@ -242,10 +262,10 @@ function columnDefs(premiumRate: string, slipsWide: boolean): Record<GridColumn,
       headerName: en("W-TR-05.col.credit"),
       cellRenderer: CreditCell,
       // Room for a credit that waits for its hold ("Waits for H3") as well as the figure.
-      width: 120,
+      minWidth: 120,
     },
     // The money column says its currency (round 3); the footer beneath it is the members' net total.
-    net: { ...num, colId: "net", headerName: SPLIT.netColumn, cellRenderer: NetCell, width: 104 },
+    net: { ...num, colId: "net", headerName: SPLIT.netColumn, cellRenderer: NetCell, minWidth: 104 },
     rail: { colId: "rail", headerName: en("W-TR-05.col.rail"), cellRenderer: RailCell, width: 84 },
     status: {
       colId: "status",
@@ -364,9 +384,12 @@ export function SplitGrid({
   );
   // H1's and H2's notes sit under their held lines while those holds are open (the drawer stays the only place to
   // decide). The held lines may be pinned above the others as decisions: each note follows its line wherever it is.
+  // A narrow grid (the 1,280 px laptop, or beside a drawer) gives their rows to the lines (round 5): the held line's
+  // status says "Held H1" and the bench links the next hold.
+  const roomy = set === "default" || set === "all";
   const notes = useMemo(
-    () => holdNotes([...decisions, ...rows], context.yieldLimit, context.slip),
-    [decisions, rows, context.yieldLimit, context.slip],
+    () => (roomy ? holdNotes([...decisions, ...rows], context.yieldLimit, context.slip) : []),
+    [roomy, decisions, rows, context.yieldLimit, context.slip],
   );
   // An opened line's parts sit right under it, before its hold's note.
   const rowData = useMemo<GridRow[]>(
@@ -454,10 +477,17 @@ export function SplitGrid({
     [toggleDetail],
   );
 
+  // The lines rest on whole rows between the pinned head and the total (round 5): the frame is sized once AG Grid has
+  // drawn, and again whenever the panel, the pinned decisions or the lines change.
+  const { style: frameStyle, remeasure } = useWholeRows(wrap, rowData.length, measured);
   const gridApi = useRef<GridApi<GridRow> | null>(null);
-  const onApi = useCallback((api: GridApi<GridRow> | null) => {
-    gridApi.current = api;
-  }, []);
+  const onApi = useCallback(
+    (api: GridApi<GridRow> | null) => {
+      gridApi.current = api;
+      if (api) requestAnimationFrame(() => remeasure());
+    },
+    [remeasure],
+  );
   const moveRow = useCallback(
     (step: 1 | -1) => {
       const api = gridApi.current;
@@ -528,7 +558,7 @@ export function SplitGrid({
     >
       {measured ? (
         <Suspense fallback={staticFrame}>
-          <section className="fsr-grid__frame" aria-label={SPLIT.gridLabel}>
+          <section className="fsr-grid__frame fsc-snap" aria-label={SPLIT.gridLabel} style={frameStyle}>
             <SplitAgGrid
               rowData={rowData}
               columnDefs={colDefs}
@@ -544,6 +574,9 @@ export function SplitGrid({
               onApi={onApi}
               noteRenderer={noteRenderer}
             />
+            {/* A 24 px plate fade under the head and above the total, only where more lines lie beyond. */}
+            <span className="fsc-snap__fade" data-edge="start" aria-hidden />
+            <span className="fsc-snap__fade" data-edge="end" aria-hidden />
           </section>
         </Suspense>
       ) : (

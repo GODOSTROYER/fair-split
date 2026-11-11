@@ -90,32 +90,50 @@
 /* ---------------------------------------------------------------- the screen */
 
 /* The screen sits on the one 12-column grid (round 4, grid.css): its title row, then the resolution's pages in six
-   columns and Schedule A, the plate and "Add a deduction" in the other six, top-aligned 32 px under it. */
-
-/* The resolution beside the title, on its baseline: what the card is and when it was sealed. */
-.fsc-rc__lede {
-  margin: 0;
-  color: var(--fs-ink-3);
+   columns and Schedule A, the plate and "Add a deduction" in the other six, top-aligned 32 px under it. Round 5:
+   the screen fills its panel and each column scrolls on its own (chrome SnapScroll), its foot fading while more lies
+   below and 32 px of room under its last line, so no page or card ever ends at the panel's edge. */
+.fsc-console__screen:has(> .fsc-rc) {
+  padding-bottom: var(--fs-console-end);
 }
 
-/* The season beside the name, in grey, as on every screen ("Split review 2026-A"): no mark above the heading. */
-.fsc-rc__context {
-  color: var(--fs-ink-3);
-  font-weight: 450;
+.fsc-rc.fsc-screen {
+  grid-template-rows: auto minmax(0, 1fr);
+  height: 100%;
+}
+
+.fsc-rc__paper,
+.fsc-rc__side {
+  display: grid;
+  min-height: 0;
+}
+
+.fsc-rc__doc,
+.fsc-rc__scroll {
+  min-height: 0;
+  height: 100%;
 }
 
 .fsc-rc__muted {
   color: var(--fs-ink-3);
 }
 
-/* The side stays in view while the pages scroll past it. */
-.fsc-rc__side {
-  position: sticky;
-  top: 0;
+/* The title row's quiet control that folds the board's resolution away (round 5). */
+.fsc-rc__doc-toggle.fs-flat {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--fs-space-4);
+  min-height: 32px;
+  padding: 0 var(--fs-space-12) 0 var(--fs-space-8);
+}
+
+/* The side's sections, 32 px apart, tight to the column's top. */
+.fsc-rc__side-body {
   display: grid;
   align-content: start;
   gap: 32px;
   min-width: 0;
+  padding-right: var(--fs-space-4);
 }
 
 /* ---------------------------------------------------------------- the pages (paper) */
@@ -288,12 +306,11 @@
   display: none;
 }
 
-/* The stand-in's legend glyph under the rules, and the pointed rule's page as micro (round 3). */
+/* The pointed rule's page as micro under the rules (round 5: no glyph; the stand-in is said in the id line). */
 .fsc-rc__footer {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  min-height: 16px;
   margin: 0;
   color: var(--fs-ink-3);
 }
@@ -485,13 +502,65 @@
   color: var(--fs-ink);
 }
 
-/* A panel under 720 px stacks the schedule over the pages. */
+/* ---------------------------------------------------------------- refused, and the resolution folded (round 5) */
+
+/* Refused: the refusal leads the column, the attempt it refused under it, then the schedule and its seal. */
+.fsc-rc__side-body[data-refused] > .fsc-rc__add {
+  order: -1;
+  padding-top: 0;
+  border-top: 0;
+}
+
+.fsc-rc__add[data-state="refused"] > .fsc-rc__refusal {
+  order: -1;
+}
+
+.fsc-rc__side-body[data-refused] > .fsc-rc__schedule {
+  padding-top: 20px;
+  border-top: 1px solid var(--fs-rule);
+}
+
+/* The resolution folded away: the schedule takes the row in two columns, the rules and the seal on the left, adding
+   (and its refusal) on the right. */
+.fsc-rc--doc-closed .fsc-rc__side-body {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: var(--fs-console-gutter);
+}
+
+.fsc-rc--doc-closed .fsc-rc__side-body > .fsc-rc__schedule {
+  grid-column: 1;
+  grid-row: span 2;
+}
+
+.fsc-rc--doc-closed .fsc-rc__side-body > :not(.fsc-rc__schedule) {
+  grid-column: 2;
+}
+
+.fsc-rc--doc-closed .fsc-rc__side-body[data-refused] > .fsc-rc__schedule {
+  padding-top: 0;
+  border-top: 0;
+}
+
+/* A panel under 720 px stacks the schedule over the pages, and the screen scrolls as one. */
 @container fsc-screen (max-width: 719px) {
-  .fsc-rc__side {
-    position: static;
+  .fsc-rc.fsc-screen {
+    height: auto;
   }
 
   .fsc-rc__paper {
     order: 1;
+  }
+
+  .fsc-rc .fsc-snap__scroller {
+    max-height: none;
+  }
+
+  .fsc-rc--doc-closed .fsc-rc__side-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .fsc-rc--doc-closed .fsc-rc__side-body > * {
+    grid-column: 1;
+    grid-row: auto;
   }
 }

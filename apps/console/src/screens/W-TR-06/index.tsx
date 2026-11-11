@@ -162,6 +162,11 @@ export function Screen({ runSlug, holdId }: HoldDrawerProps) {
 
   if (data.access === "missing") return <RunRouteGate data={data} />;
 
+  // Round 5 (no dead bands): the drawer hugs its content in every state. Once the hold is decided it is a compact
+  // success card: what changed, the decision and its stamp (the evidence one disclosure away), and the next hold as
+  // the drawer's one primary on its sticky footer, with no blocking scrim, so the dial and the wave behind it show.
+  let compact = false;
+  let footer: ReactNode = null;
   const body = (() => {
     if (data.error && !view) {
       return (
@@ -206,8 +211,10 @@ export function Screen({ runSlug, holdId }: HoldDrawerProps) {
     const state = askedChair ? "asked-chair" : cardState(hold, flags);
     const screenState: ScreenState<"W-TR-06"> = state;
     const next = !holdOpen ? nextAfter(snapshot, view, hold) : null;
+    compact = !holdOpen;
+    footer = next ? <NextLink next={next} /> : null;
     if (hold.kind === "LOW_CONFIDENCE") {
-      return <ByHandCard snapshot={snapshot} view={view} hold={hold} state={screenState} next={next} />;
+      return <ByHandCard snapshot={snapshot} view={view} hold={hold} state={screenState} />;
     }
     if (hold.kind === "MASS_BALANCE") {
       return (
@@ -400,13 +407,20 @@ export function Screen({ runSlug, holdId }: HoldDrawerProps) {
           />
         )}
         {resolve.error && inFlight && <CommandNotice error={resolve.error} testId="W-TR-06.error" />}
-        {next && <NextLink next={next} />}
       </ScreenRoot>
     );
   })();
 
   return (
-    <StageDrawer label={drawerLabel} meta={meta} onClose={close} testId="W-TR-06.drawer">
+    <StageDrawer
+      label={drawerLabel}
+      meta={meta}
+      onClose={close}
+      testId="W-TR-06.drawer"
+      hug
+      scrim={!compact}
+      {...(footer ? { footer } : {})}
+    >
       {body}
     </StageDrawer>
   );
@@ -428,20 +442,27 @@ function NextLink({
 }: {
   readonly next: { readonly href: string; readonly words: string; readonly kind: string };
 }) {
-  // After a decision the next one is the drawer's one action: a full-size secondary with an arrow.
+  // After a decision the next one is the drawer's one primary (round 5), on its sticky footer: the Slab's own face
+  // (indigo, 48 px, hugging its words) on a real link, an arrow forward. Focus lands here when the decision's
+  // control goes.
   return (
-    <p className="fsr-next fsr-hold__next" data-kind={next.kind === "approve" ? "approve" : "hold"}>
-      <AppLink
-        href={next.href}
-        className="fs-flat fsr-hold__go"
-        data-size="l"
-        data-testid="W-TR-06.next"
-        data-focus-after=""
-      >
-        {next.words}
-        <Glyph name="ms:arrow-back" size={18} className="fsr-hold__arrow" />
-      </AppLink>
-    </p>
+    <span
+      className="fs-slab fsr-hold__next"
+      data-tone="chalk"
+      data-depth="d1"
+      data-size="l"
+      data-state="rest"
+      data-kind={next.kind === "approve" ? "approve" : "hold"}
+    >
+      <span className="fs-slab__body">
+        <AppLink href={next.href} className="fs-slab__face" data-testid="W-TR-06.next" data-focus-after="">
+          <span className="fs-slab__label">
+            <span className="fs-slab__words">{next.words}</span>
+            <Glyph name="ms:arrow-back" size={20} className="fsr-hold__arrow" />
+          </span>
+        </AppLink>
+      </span>
+    </span>
   );
 }
 
@@ -453,13 +474,7 @@ interface SideCardProps {
 }
 
 /** Slip 0462: decided on W-TR-04, one field at a time; this card says why and links there. */
-function ByHandCard({
-  snapshot,
-  view,
-  hold,
-  state,
-  next,
-}: SideCardProps & { readonly next: ReturnType<typeof nextAfter> }) {
+function ByHandCard({ snapshot, view, hold, state }: SideCardProps) {
   const seeded = seededHold(snapshot, hold);
   const serial = seeded?.serials[0] ?? "";
   const field = Object.values(view.fields).find((f) => f.serial === serial);
@@ -517,7 +532,6 @@ function ByHandCard({
           )}
         </footer>
       </article>
-      {next && <NextLink next={next} />}
     </ScreenRoot>
   );
 }

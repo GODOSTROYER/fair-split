@@ -7,7 +7,7 @@
 // the field and the slab all sit above the stage's ribbon. Doubt becomes the treasurer's ink.
 
 import { type SeasonSnapshot, webRoutes } from "@fairsplit/contracts";
-import { Glyph, HONESTY, LegendGlyph, Paper, Slab, useMotionMode } from "@fairsplit/ui-web";
+import { Chip, Glyph, Paper, Slab, useMotionMode } from "@fairsplit/ui-web";
 import { useQuery } from "@tanstack/react-query";
 import {
   type ChangeEvent,
@@ -22,7 +22,8 @@ import {
 import { z } from "zod";
 import { AppLink } from "../../chrome/AppLink.js";
 import { CommandNotice } from "../../chrome/CommandNotice.js";
-import { Cell } from "../../chrome/ScreenGrid.js";
+import { PROVENANCE } from "../../chrome/copy.js";
+import { Cell, ScreenHead } from "../../chrome/ScreenGrid.js";
 import { ScreenRoot } from "../../chrome/ScreenRoot.js";
 import { Stamp } from "../../chrome/Stamp.js";
 import { useAdapter, useCommand, useJudgeSession, useRunEvents, useStageRun } from "../../data/hooks.js";
@@ -31,6 +32,7 @@ import { focusAndReveal, useFocusAfterRemoval } from "../../lib/focus.js";
 import { format } from "../../lib/format.js";
 import { useMoment } from "../../lib/moment.js";
 import { useNextStep, usePrefocus } from "../../stage/context.js";
+import { PrimaryLink } from "../fanout/PrimaryLink.js";
 import { byHandHoldFor } from "../reading/model.js";
 import { SlipPaper } from "../reading/SlipPaper.js";
 import { boxFor } from "../reading/slip.js";
@@ -87,20 +89,21 @@ function NothingByHand({ snapshot, serial }: { readonly snapshot: SeasonSnapshot
   const slip = snapshot.slips.find((s) => s.serial === serial);
   return (
     <ScreenRoot id="W-TR-04" state="empty" labelledBy="fsc-hand-title" className="fsc-hand" grid>
-      <header className="fsc-hand__head">
-        <h1 id="fsc-hand-title" className="fsc-screen__title fs-t-title">
-          {BY_HAND_COPY.title(serial)}
-          <span className="fsc-hand__context"> {BY_HAND_COPY.titleContext}</span>
-        </h1>
-        <p className="fsc-hand__prompt" data-testid="W-TR-04.prompt">
-          {BY_HAND_COPY.noNeed(serial)}{" "}
-          {slip && (
-            <AppLink href={webRoutes.reading(snapshot.season.label, slip.photoId)} className="fs-link">
-              {BY_HAND_COPY.openReading}
-            </AppLink>
-          )}
-        </p>
-      </header>
+      <ScreenHead
+        title={BY_HAND_COPY.title(serial)}
+        suffix={BY_HAND_COPY.titleContext}
+        titleId="fsc-hand-title"
+        provenance={PROVENANCE.standIn}
+        className="fsc-hand__head"
+      />
+      <p className="fsc-hand__prompt" data-testid="W-TR-04.prompt">
+        {BY_HAND_COPY.noNeed(serial)}{" "}
+        {slip && (
+          <AppLink href={webRoutes.reading(snapshot.season.label, slip.photoId)} className="fs-link">
+            {BY_HAND_COPY.openReading}
+          </AppLink>
+        )}
+      </p>
     </ScreenRoot>
   );
 }
@@ -312,13 +315,12 @@ function ByHandField({
   };
 
   const member = snapshot.members.find((m) => m.memberNo === field.slip.memberNo);
-  // One line, the stand-in's reading as a figure, and the stand-in's legend glyph (round 3): its canonical phrase
-  // whole as its title and its accessible name, no pill.
+  // One line and the stand-in's reading as a figure (round 5: no glyph; the stand-in is the title row's one
+  // provenance phrase, its canonical words there for assistive technology).
   const prompt = (
     <>
       <span>{mask ? BY_HAND_COPY.promptLine : BY_HAND_COPY.promptLinePlain}</span>{" "}
-      <span className="fsc-hand__reading fs-t-figure">{field.reading}</span>{" "}
-      <LegendGlyph {...HONESTY.seedStandIn} className="fsc-hand__glyph" />
+      <span className="fsc-hand__reading fs-t-figure">{field.reading}</span>
     </>
   );
   const enteredBy = entered?.enteredBy ?? hold?.resolvedBy ?? null;
@@ -351,22 +353,34 @@ function ByHandField({
 
   return (
     <ScreenRoot id="W-TR-04" state={state} labelledBy="fsc-hand-title" className="fsc-hand" grid>
-      {/* Two columns on the one grid (round 4): the title and the decision on the left (the field, or once entered
-          the equation, who entered it and the next step), the slip's crop and the logbook stacked on the right,
-          top-aligned with the title. */}
-      <Cell span={6} spanMd={12} className="fsc-hand__lead">
-        <header className="fsc-hand__head">
-          <h1 id="fsc-hand-title" className="fsc-screen__title fs-t-title">
-            {BY_HAND_COPY.title(serial)}
-            <span className="fsc-hand__context"> {BY_HAND_COPY.titleContext}</span>
-          </h1>
-          {/* The owner's name, and her member number in the id role (the one mono). */}
-          <p className="fsc-hand__who fs-t-caption">
-            {member?.displayName ?? field.slip.memberNo}
-            {BY_HAND_COPY.whoJoin}
-            <span className="fs-t-id">{field.slip.memberNo}</span>
-          </p>
-        </header>
+      {/* Round 5 (no dead bands): the title row; the decision across all twelve columns at the top (the field, or once
+          entered the equation, who entered it and "Review 3 holds" right under it); then the two witnesses side by
+          side at one height, the slip's crop and the logbook's lines. */}
+      <ScreenHead
+        title={BY_HAND_COPY.title(serial)}
+        suffix={BY_HAND_COPY.titleContext}
+        titleId="fsc-hand-title"
+        status={
+          committed ? (
+            <Chip tone="neutral" glyph="ms:check" testId="W-TR-04.state">
+              {BY_HAND_COPY.stateEntered}
+            </Chip>
+          ) : (
+            <Chip tone="canary" glyph="logbook" testId="W-TR-04.state">
+              {BY_HAND_COPY.stateNeeds}
+            </Chip>
+          )
+        }
+        provenance={PROVENANCE.standIn}
+        className="fsc-hand__head"
+      />
+      <Cell span={12} className="fsc-hand__lead">
+        {/* The owner's name, and her member number in the id role (the one mono). */}
+        <p className="fsc-hand__who fs-t-caption">
+          {member?.displayName ?? field.slip.memberNo}
+          {BY_HAND_COPY.whoJoin}
+          <span className="fs-t-id">{field.slip.memberNo}</span>
+        </p>
         <div className="fsc-hand__body" {...moment.rootProps} data-motion={mode}>
           <section
             ref={setEntry}
@@ -418,17 +432,15 @@ function ByHandField({
                     {BY_HAND_COPY.committedMismatch(witness.lineNo, witness.netKgText)}
                   </p>
                 )}
+                {/* The next step, right under the equation (round 5), as the screen's one primary once the value is in. */}
                 {next && hasNext && (
                   <p className="fsc-hand__next">
-                    <AppLink
-                      href={next.to}
-                      className="fs-flat fsc-hand__go"
-                      data-size="l"
-                      data-testid="W-TR-04.next"
-                    >
-                      {nextWords}
-                      <Glyph name="ms:arrow-back" size={18} className="fsc-hand__arrow" />
-                    </AppLink>
+                    <PrimaryLink href={next.to} testId="W-TR-04.next" className="fsc-hand__go">
+                      <span className="fsc-hand__go-words">
+                        {nextWords}
+                        <Glyph name="ms:arrow-back" size={20} className="fsc-hand__arrow" />
+                      </span>
+                    </PrimaryLink>
                   </p>
                 )}
               </div>
@@ -586,7 +598,8 @@ function ByHandField({
         </div>
       </Cell>
 
-      <Cell span={6} spanMd={12} className="fsc-hand__evidence" testId="W-TR-04.evidence">
+      {/* The two witnesses side by side under the decision, each six columns and one height (round 5). */}
+      <Cell span={12} stretch className="fsc-hand__evidence" testId="W-TR-04.evidence">
         <figure className="fsc-hand__figure">
           <figcaption className="fs-t-micro fsc-hand__muted">{BY_HAND_COPY.crop(serial)}</figcaption>
           <Paper alt={BY_HAND_COPY.cropAlt(serial)} className="fsc-hand__crop" testId="W-TR-04.crop">

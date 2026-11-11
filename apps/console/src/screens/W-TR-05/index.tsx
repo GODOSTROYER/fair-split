@@ -1,21 +1,24 @@
 // W-TR-05 Split review (S1.7, design §6 C5): every member's line in one grid, on the engine computation the
-// run's decisions match. The bench above it holds the mass-balance dial, the pool (the screen's money, in pencil
-// until the keys turn, with the engine's provenance and the balance check beneath it), the open decisions and the
-// filters. The lines a person must still decide are pinned above the rest; the pinned totals sit on the ribbon,
-// so the grid fills the screen and nothing else scrolls. `?hold=` opens W-TR-06 beside it and `?member=` opens
-// W-TR-09; the route renders those, this screen marks their row.
+// run's decisions match. The title row says the review's state in one chip and the run once (round 5). The bench
+// under it holds the shrink dial, the pool (the screen's money, in pencil until the keys turn) and the next
+// decision; the filters run beneath it. The lines a person must still decide are pinned above the rest and the
+// totals beneath, and the lines between rest on whole rows (round 5: nothing half-hidden under the total). `?hold=`
+// opens W-TR-06 beside it and `?member=` opens W-TR-09; the route renders those, this screen marks their row.
 
 import { webRoutes } from "@fairsplit/contracts";
-import { Glyph, HONESTY, LegendGlyph } from "@fairsplit/ui-web";
+import { Chip, Glyph } from "@fairsplit/ui-web";
 import { useRouter } from "@tanstack/react-router";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { AppLink } from "../../chrome/AppLink.js";
 import { CommandNotice } from "../../chrome/CommandNotice.js";
+import { PROVENANCE } from "../../chrome/copy.js";
 import { RunRouteGate } from "../../chrome/Fallbacks.js";
 import { cashStillDue } from "../../chrome/next-step.js";
 import { PrintBed } from "../../chrome/PrintBed.js";
+import { ScreenHead } from "../../chrome/ScreenGrid.js";
 import { ScreenRoot } from "../../chrome/ScreenRoot.js";
 import { payoutReplayed } from "../../data/payout-replay.js";
+import { type ScheduleRuleId, shortRules } from "../../features/ratecard/model.js";
 import { type GridContext, statusLabel } from "../../features/split/cells.js";
 import {
   basisEventId,
@@ -98,7 +101,10 @@ export function Screen({ runSlug, hold, member }: SplitScreenProps) {
   const context = useMemo<GridContext | null>(() => {
     if (!snapshot) return null;
     const limit = snapshot.rateCard.canonical.rules.tolerances.kgPerTreeMaxG;
+    // A deduction chip reads "CBU −1.37" (round 5): its rule's id and words are its title, from the card's own terms.
+    const rules = shortRules(snapshot.rateCard);
     return {
+      ruleText: (ruleId: string) => rules[ruleId as ScheduleRuleId],
       isLive: live.isLive,
       waveDelay: (memberNo) => waves.get(memberNo) ?? 0,
       stamp: (by, at) => stampFor(snapshot, by, at),
@@ -147,44 +153,44 @@ export function Screen({ runSlug, hold, member }: SplitScreenProps) {
 
   const season = snapshot ? seasonLabel(snapshot.season.label) : null;
   const posted = view ? POSTED.includes(view.state) : false;
-  // The grid holds simulated PayPal statuses (posted, or any line already with the rail): one legend glyph covers
-  // it (round 3: no pill; its words are its title and accessible name).
+  // The grid holds simulated PayPal statuses (posted, or any line already with the rail): the id line's one phrase
+  // says so (round 5: provenance once, no glyph), and the rows' words carry it for screen readers.
   const simulated = posted || rows.some((r) => statusLabel(r) !== null);
-  // The title row on the one grid (round 4): the name, and on its baseline the run and the rate card once.
+  const lined = Boolean(snapshot && view && hasLines(view));
+  const open = view ? openCounts(view) : { holds: 0, byHand: 0 };
+  const cashDue = view && snapshot ? cashStillDue(view, snapshot.figures.cashMembers) : false;
+  // The title row (round 5): a noun with the season in grey, the review's state in one chip on the same row, then
+  // one id line: the run id (the one run id everywhere) and the screen's one provenance phrase. The lines, the
+  // engine and the rate card's hash are the run id's title.
   const title = (
-    <header className="fsc-screen__head fsr-split__head">
-      <h1 id="W-TR-05-title" className="fsc-screen__title fs-t-title">
-        {SPLIT.title}
-        {season && <span className="fsr-split__context"> {season}</span>}
-      </h1>
-      {snapshot && view && hasLines(view) ? (
-        <p
-          className="fsr-split__provenance fs-t-micro"
-          data-testid="W-TR-05.provenance"
-          title={SPLIT.provenanceTitle(rows.length, SPLIT.basis[splitBasis(view)])}
-        >
-          <span>
-            {SPLIT.runWord(view.origin === "showcase")}{" "}
-            <span className="fs-t-id">{runLabel(runSlug).run}</span>
-            {" · "}
-            {SPLIT.rateCardWord}{" "}
-            <span className="fs-t-id">{format.hashGroups(snapshot.rateCard.sha256)}</span>
+    <ScreenHead
+      title={SPLIT.title}
+      suffix={season}
+      titleId="W-TR-05-title"
+      status={
+        lined && view ? (
+          <SplitState
+            open={open}
+            decided={decidedWords(view.state, replayed, cashDue)}
+            cashDue={cashDue && !replayed}
+          />
+        ) : undefined
+      }
+      meta={
+        lined && snapshot && view ? (
+          <span
+            data-testid="W-TR-05.provenance"
+            title={`${SPLIT.provenanceTitle(rows.length, SPLIT.basis[splitBasis(view)])} · ${SPLIT.rateCardWord} ${format.hashGroups(snapshot.rateCard.sha256)}`}
+          >
+            {runLabel(runSlug).text}
           </span>
-          {view.origin === "showcase" && (
-            <LegendGlyph {...HONESTY.seedStandIn} className="fsr-split__glyph" />
-          )}
-          {simulated && (
-            <LegendGlyph
-              {...HONESTY.simulatedSandbox}
-              className="fsr-split__glyph"
-              testId="W-TR-05.simulated"
-            />
-          )}
-        </p>
-      ) : (
-        <p className="fsr-screen__slug fs-t-micro">{runLabel(runSlug).text}</p>
-      )}
-    </header>
+        ) : (
+          runLabel(runSlug).text
+        )
+      }
+      provenance={lined ? (simulated ? PROVENANCE.simulatedPaypal : PROVENANCE.seededSlips) : undefined}
+      testId="W-TR-05.head"
+    />
   );
 
   if (state === "loading" || state === "error") {
@@ -232,7 +238,6 @@ export function Screen({ runSlug, hold, member }: SplitScreenProps) {
   const basis = splitBasis(view);
   const output = engineOutput(snapshot, basis);
   const dial = massBalanceView(snapshot, view);
-  const open = openCounts(view);
   const card = nextOpenCard(view);
   const byHandOpen = Object.values(view.holds).find((h) => h.kind === "LOW_CONFIDENCE" && h.state === "OPEN");
   const byHandSerial = snapshot.holds.find((h) => h.kind === "LOW_CONFIDENCE")?.serials[0] ?? null;
@@ -279,13 +284,11 @@ export function Screen({ runSlug, hold, member }: SplitScreenProps) {
           poolCents: output.conservation.poolCents,
           amountState: rows.some((r) => r.partsState === "ink") ? "ink" : "pencil",
         }}
-        open={open}
         next={next}
         counts={filterCounts(rows)}
         filter={filter}
         onFilter={setFilter}
         railsPlanned={!posted}
-        decidedWords={decidedWords(view.state, replayed, cashStillDue(view, snapshot.figures.cashMembers))}
         reconcile={
           <Reconcile
             totals={totals}
@@ -343,6 +346,35 @@ export function decidedWords(state: string, replayed = false, cashDue = false): 
   if (["APPROVED", "POSTING", "POSTED", "SETTLING", "NEEDS_FOLLOW_UP"].includes(state))
     return SPLIT.decidedApproved;
   return SPLIT.allDecided;
+}
+
+/**
+ * The review's state as the title row's one chip (round 5): the open decisions in amber while a person must still
+ * decide, then how far the run has gone, short ("PayPal complete · cash due" in hatch, never "settled" while cash
+ * is due). Its full words are `decidedWords`.
+ */
+function SplitState({
+  open,
+  decided,
+  cashDue,
+}: {
+  readonly open: { readonly holds: number; readonly byHand: number };
+  readonly decided: string;
+  readonly cashDue: boolean;
+}) {
+  if (open.holds + open.byHand > 0) {
+    return (
+      <Chip tone="canary" glyph="hanging-scale" testId="W-TR-05.summary">
+        {SPLIT.summary(open.holds, open.byHand)}
+      </Chip>
+    );
+  }
+  const words = decided === SPLIT.allDecided ? decided : decided.replace(`${SPLIT.allDecided} · `, "");
+  return (
+    <Chip tone={cashDue ? "hatch" : "neutral"} glyph={cashDue ? "cash" : "ms:check"} testId="W-TR-05.summary">
+      {words}
+    </Chip>
+  );
 }
 
 function holdHeadline(kind: string, serial: string, name: string): string {

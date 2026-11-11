@@ -95,12 +95,25 @@ describe("W-TR-06 hold drawer", () => {
       );
       const twin = screen.getByTestId("W-TR-06.twin");
       expect(card.contains(twin)).toBe(true);
-      // The copies' photos are their captions; the pair is the seed's, said by its glyph (its words its name).
+      // The copies' photos are their captions; the pair is the seed's: round 5 draws no glyph (the split's id line
+      // says it on screen), and its canonical words stay here for assistive technology (inv.i8).
       expect(card.textContent).toMatch(/B · white original/);
       expect(card.textContent).toMatch(/D · pink duplicate/);
       expect(screen.getByTestId("W-TR-06.twin.standIn").getAttribute("title")).toBe(
         "Seed stand-in, not a Claude recording",
       );
+      expect(screen.getByTestId("W-TR-06.twin.standIn").classList.contains("fs-sr")).toBe(true);
+      expect(screen.getByTestId("W-TR-06.drawer").querySelectorAll("[data-fs-glyph]")).toHaveLength(0);
+      // The pair at one 48 px height (the secondary data-size="l"), its caption under the pair (round 5); the open
+      // drawer hugs its content.
+      expect(screen.getByTestId("W-TR-06.twoDeliveries").dataset.size).toBe("l");
+      expect(screen.getByTestId("W-TR-06.twoDeliveries").getAttribute("aria-describedby")).toBe(
+        "W-TR-06.card-flat-note",
+      );
+      expect(card.querySelector(".fs-hold__buttons")?.nextElementSibling?.textContent).toBe(
+        "A reason, then the Chair",
+      );
+      expect(screen.getByTestId("W-TR-06.drawer").hasAttribute("data-hug")).toBe(true);
       expect(screen.getByTestId("W-TR-06.twin.verdict").textContent).toBe(
         "4/4 fields matchSeed stand-in, not a Claude recording",
       );
@@ -238,11 +251,12 @@ describe("W-TR-06 hold drawer", () => {
   );
 
   it(
-    "Count it once: a result line that unfolds above Next after the settle window (MM-3's wave on a slow machine) still brings Next back into the drawer",
+    "Count it once: the decided drawer is a compact success card, Next pinned to its sticky footer as the one primary, and a layout change after the settle window still keeps Next in view",
     async () => {
-      // At 1100 × 768 the drawer's scrollport is 85..643 and Next sits at 611 once it takes focus. On a machine four
-      // times slower, MM-3 reaches its wave, and the result line is drawn above Next, 2.4 s later: Next is pushed
-      // 58 px down, under the fold, long after any time-boxed watch has ended (WCAG 2.4.7, 2.4.11).
+      // Round 5: once decided, the drawer hugs its content with no blocking scrim (the dial and the wave behind it
+      // stay lit), and Next sits on its sticky footer, apart from the result line that unfolds above the card when
+      // MM-3 reaches its wave (later still on a slow machine): the line can never push Next under the fold. Should
+      // the footer move anyway (a layout change long after the settle window), Next is brought back into view.
       const layout = fakeResizeObserver();
       clearMomentTrace();
       await inReview(webRoutes.holdDrawer(RUN, "H1"));
@@ -277,13 +291,23 @@ describe("W-TR-06 hold drawer", () => {
         press("W-TR-06.countOnce");
         const next = await screen.findByTestId("W-TR-06.next");
         await waitFor(() => expect(document.activeElement).toBe(next), WAIT);
+        const drawer = screen.getByTestId("W-TR-06.drawer");
+        const foot = screen.getByTestId("W-TR-06.drawer.foot");
+        expect(foot.contains(next)).toBe(true);
+        expect(screen.getByTestId("W-TR-06").contains(next)).toBe(false);
+        expect(next.closest(".fs-slab")).not.toBeNull();
+        expect(drawer.hasAttribute("data-hug")).toBe(true);
+        expect(drawer.dataset.scrim).toBe("none");
+        expect(screen.queryByTestId("W-TR-06.drawer.scrim")).toBeNull();
+        // The evidence is one disclosure away on the decided card.
+        expect(screen.getByTestId("W-TR-06.card.evidence").tagName).toBe("DETAILS");
         // The settle window has ended; nothing has moved Next yet.
         const now = performance.now();
         vi.spyOn(performance, "now").mockReturnValue(now + REVEAL_SETTLE_MS + 924);
         await new Promise<void>((done) => requestAnimationFrame(() => requestAnimationFrame(() => done())));
         scrolled.length = 0;
         nextTop = 669;
-        layout.resized(screen.getByTestId("W-TR-06"));
+        layout.resized(foot);
         expect(scrolled).toEqual([next]);
       } finally {
         vi.restoreAllMocks();
@@ -373,7 +397,9 @@ describe("W-TR-06 hold drawer", () => {
       await waitFor(() => expect(stateOf()).toBe("open"), WAIT);
       expect(screen.getByTestId("W-TR-06.card.gate").textContent).toBe("Reserves this line");
       const marks = screen.getByTestId("W-TR-06.norule");
-      expect(marks.textContent).toMatch(/Hauling ₱91\.20.*Matches R2/);
+      // Round 5, no ids for people: "Allowed", the rule's id in its title.
+      expect(marks.textContent).toMatch(/Hauling ₱91\.20.*Allowed/);
+      expect(marks.querySelector("[title='Rule R2 · hauling']")?.textContent).toBe("Allowed");
       expect(marks.textContent).toMatch(/Multa \(absent GA\) ₱200.*No rule/);
       expect(screen.getByTestId("W-TR-06.card").textContent).toMatch(
         /Multa \(absent GA\) ₱200 matches no Schedule A rule\..*\+US\$3\.20 correction credit from the co-op/,
