@@ -1,9 +1,11 @@
-// W-TR-07 Approve (S1.7, design §6 C7; UI gate round 3): two columns at a laptop's width that end at the same
-// height. On the left one tight composition: the seal at 180 px grown from the batch hash, and beside it "PayPal
-// batch · 8 payouts" with its one micro-tag, the amount, and the two named signers ("Two officers sign this
-// batch"); then the money bar, and the fees and hashes behind Details. On the right the decision: four checks, then
-// the one slab on the console while no key has signed (after key 1 "Waiting" lives only in Ernesto's row), then the
-// co-sign card. Hold Space (or the pointer) for 1.6 s until it clicks and reads "Release to sign",
+// W-TR-07 Approve (S1.7, design §6 C7; UI gate round 4): the one 12-column grid, top-aligned 32 px under the title
+// row. Columns 1–7 hold one tight composition: the seal grown from the batch hash (180 px, 220 from a 1,600 px
+// window), and beside it "PayPal batch · 8 payouts" with its one micro-tag, the amount, and the two named signers
+// ("Two officers sign this batch"); then the money bar, and the fees and hashes behind Details. Columns 8–12 hold the
+// decision in one card that hugs its content: four checks, then one way to sign while no key has signed (the slab,
+// hugging its label, with its caption and its one link to the other way under it), and only after key 1 the Chair's
+// co-sign block. Ernesto's row says his state once ("Waiting", or "Reviewing" while he is on the batch). Hold Space
+// (or the pointer) for 1.6 s until it clicks and reads "Release to sign",
 // then let go inside, and this browser signs the canonical batch with its own key (MM-5, key 1; S2.7: arm on hold,
 // act on release). The Chair's key arrives as
 // an `approval.signed` event; the outer rings engrave, the seal lands and the batch turns to ink. The signature
@@ -33,6 +35,7 @@ import { CommandNotice } from "../../chrome/CommandNotice.js";
 import { railTag } from "../../chrome/copy.js";
 import { RunRouteGate } from "../../chrome/Fallbacks.js";
 import { PrintBed } from "../../chrome/PrintBed.js";
+import { Cell, ScreenHead } from "../../chrome/ScreenGrid.js";
 import { ScreenRoot } from "../../chrome/ScreenRoot.js";
 import { Stamp } from "../../chrome/Stamp.js";
 import { isApiClientError } from "../../data/errors.js";
@@ -86,9 +89,9 @@ import {
   CosignCard,
   KEY_MARKS,
   KeySlot,
-  SEAL_SIZE,
   SealBlock,
   Signers,
+  useSealSize,
 } from "../../features/approve/parts.js";
 import { APPROVE, en } from "../../features/split/shared/copy.js";
 import { officer, stampFor } from "../../features/split/shared/people.js";
@@ -397,44 +400,38 @@ export function Screen({ runSlug }: RunScreenProps) {
   );
 
   const pairing = useCommand("createPairing");
+  const sealSize = useSealSize();
 
   const title = (
-    <header className="fsr-screen__head">
-      <h1 id="W-TR-07-title" className="fs-t-title">
-        {en("W-TR-07.title")}
-      </h1>
-      <p className="fsr-screen__slug fs-t-id">{runLabel(runSlug).text}</p>
-    </header>
+    <ScreenHead title={en("W-TR-07.title")} titleId="W-TR-07-title" meta={runLabel(runSlug).text} />
   );
 
   if (data.access !== "allowed") return <RunRouteGate data={data} />;
   if (data.error && !view) {
     return (
-      <ScreenRoot
-        id="W-TR-07"
-        state="error"
-        className="fsr-screen fsr-approve-screen"
-        labelledBy="W-TR-07-title"
-      >
+      <ScreenRoot id="W-TR-07" state="error" grid className="fsr-approve-screen" labelledBy="W-TR-07-title">
         {title}
         <CommandNotice error={data.error} testId="W-TR-07.error" onRetry={data.retry} />
       </ScreenRoot>
     );
   }
   if (!snapshot || !view || !state || !batch) {
+    // The print beds stand where the batch and the decision will, at their final sizes.
     return (
-      <ScreenRoot
-        id="W-TR-07"
-        state="loading"
-        className="fsr-screen fsr-approve-screen"
-        labelledBy="W-TR-07-title"
-      >
+      <ScreenRoot id="W-TR-07" state="loading" grid className="fsr-approve-screen" labelledBy="W-TR-07-title">
         {title}
-        <div className="fsr-approve fsr-approve--beds" aria-hidden data-testid="W-TR-07.loading">
-          <PrintBed shape="seal" width={SEAL_SIZE} height={SEAL_SIZE} />
-          <PrintBed shape="block" width={320} height={72} />
-          <PrintBed shape="line" count={3} />
-          <PrintBed shape="slab" width={420} height={48} />
+        <div className="fsc-screen fsr-approve" aria-hidden data-testid="W-TR-07.loading">
+          <Cell span={7} spanMd={7} className="fsr-approve__beds">
+            <PrintBed shape="seal" width={sealSize} height={sealSize} />
+            <div className="fsc-stack" data-gap="tight">
+              <PrintBed shape="block" width={320} height={72} />
+              <PrintBed shape="line" count={3} />
+            </div>
+          </Cell>
+          <Cell span={5} spanMd={5} className="fsr-approve__decide">
+            <PrintBed shape="line" count={4} />
+            <PrintBed shape="slab" width={240} height={48} />
+          </Cell>
         </div>
         <p className="fs-sr" role="status">
           {APPROVE.loading}
@@ -523,12 +520,18 @@ export function Screen({ runSlug }: RunScreenProps) {
     : voidedAt
       ? stampFor(snapshot, "board:ernesto", voidedAt)
       : null;
-  // Ernesto's presence, only when he is there: "Waiting" is his row's word, never said twice (round 3).
-  const presenceText = presence
-    ? presence.holdId
-      ? APPROVE.presence(holdNumber(view.holds[presence.holdId]?.label ?? presence.holdId))
-      : APPROVE.presenceApproval
+  // Ernesto's presence, only while key 1 waits on him: his row says it in place of "Waiting" (round 4: his state
+  // is said once, in his row), with the whole sentence as its title.
+  const presenceHold = presence?.holdId
+    ? holdNumber(view.holds[presence.holdId]?.label ?? presence.holdId)
     : null;
+  const presenceStatus =
+    state === "key1" && presence && !chairApproval
+      ? {
+          word: presenceHold ? APPROVE.reviewingHold(presenceHold) : APPROVE.reviewing,
+          title: presenceHold ? APPROVE.presence(presenceHold) : APPROVE.presenceApproval,
+        }
+      : null;
 
   // Four checks above the slab (spec §3.9): a ✓ in ink for a checked fact, a marigold dot for one still open.
   const checks: CheckRow[] = [
@@ -563,13 +566,15 @@ export function Screen({ runSlug }: RunScreenProps) {
     <ScreenRoot
       id="W-TR-07"
       state={screenState}
-      className="fsr-screen fsr-approve-screen"
+      grid
+      className="fsr-approve-screen"
       labelledBy="W-TR-07-title"
     >
       {title}
+      {/* The moment's root spans the row and lays its own two cells on the same twelve columns. */}
       <section
         {...moment.rootProps}
-        className="fsr-approve"
+        className="fsc-screen fsr-approve"
         data-motion={moment.mode}
         data-keys={keys}
         aria-label={label}
@@ -601,13 +606,13 @@ export function Screen({ runSlug }: RunScreenProps) {
           </p>
         )}
 
-        {/* The batch: one composition of the seal grown from its hash, the amount PayPal is asked to move and
-            the two people who sign it; then the bar of where the rest goes, and the details a person opens to
-            compare by eye. */}
-        <div className="fsr-approve__batch">
+        {/* The batch (columns 1–7): one composition of the seal grown from its hash, the amount PayPal is asked
+            to move and the two people who sign it; then the bar of where the rest goes, and the details a person
+            opens to compare by eye. */}
+        <Cell span={7} spanMd={7} className="fsr-approve__batch">
           <div className="fsr-approve__hero">
             <div ref={sealRef} className="fsr-approve__seal-wrap">
-              <SealBlock batchSha256={batchSha256} keys={keys} engrave={engrave} />
+              <SealBlock batchSha256={batchSha256} keys={keys} engrave={engrave} size={sealSize} />
             </div>
 
             <div className="fsr-approve__side">
@@ -667,8 +672,9 @@ export function Screen({ runSlug }: RunScreenProps) {
                             ? en("W-TR-07.key.signed", { time: chairStamp.at })
                             : voidedTime
                               ? APPROVE.voidedKey(voidedTime)
-                              : APPROVE.waitingKey
+                              : (presenceStatus?.word ?? APPROVE.waitingKey)
                         }
+                        {...(presenceStatus ? { statusTitle: presenceStatus.title } : {})}
                         voided={voidedAt !== null}
                         signed={chairApproval !== null}
                         stamp={chairStamp}
@@ -676,18 +682,6 @@ export function Screen({ runSlug }: RunScreenProps) {
                       />
                     )}
                   </>
-                }
-                after={
-                  state === "key1" && presenceText ? (
-                    <p
-                      className="fsr-presence fs-t-caption"
-                      data-in={moment.phase === "waiting-2" ? "" : undefined}
-                      data-testid="W-TR-07.presence"
-                    >
-                      <Glyph name="ms:visibility" size={16} />
-                      {presenceText}
-                    </p>
-                  ) : null
                 }
               />
             </div>
@@ -744,10 +738,11 @@ export function Screen({ runSlug }: RunScreenProps) {
               </p>
             </div>
           </details>
-        </div>
+        </Cell>
 
-        {/* The decision: the checks, the one slab while no key has signed, the co-sign card. */}
-        <div className="fsr-approve__decide">
+        {/* The decision (columns 8–12), one card that hugs its content: the checks, one way to sign while no key
+            has signed, and only after key 1 the Chair's co-sign block. */}
+        <Cell span={5} spanMd={5} className="fsr-approve__decide">
           {batch.final ? (
             <CheckList rows={checks} testId="W-TR-07.safe" />
           ) : (
@@ -764,7 +759,6 @@ export function Screen({ runSlug }: RunScreenProps) {
                 tone="jade"
                 hold={TIMING.holdConsole}
                 size="l"
-                width="100%"
                 glyph="seal"
                 confirm={{
                   title: APPROVE.confirmTitle(batch.itemCount),
@@ -814,7 +808,7 @@ export function Screen({ runSlug }: RunScreenProps) {
           {keys === 2 && (
             <AppLink
               href={webRoutes.fanout(view.runSlug)}
-              className="fs-flat fsr-approve__next"
+              className="fs-flat"
               data-size="l"
               data-testid="W-TR-07.fanout"
             >
@@ -837,20 +831,19 @@ export function Screen({ runSlug }: RunScreenProps) {
           )}
           {failure !== null && <CommandNotice error={failure} testId="W-TR-07.error" onRetry={reload} />}
 
-          {inJudgeMode &&
-            (state === "key1" || state === "ready" || state === "declined") &&
-            chair.required && (
-              <CosignCard
-                code={pairing.data ?? null}
-                busy={pairing.isPending}
-                onMake={() => pairing.mutate({ body: { persona: "ernesto", role: "board" } })}
-                {...(stage ? { onChairFrame: () => stage.raisePhone("chair") } : {})}
-                error={
-                  pairing.error ? <CommandNotice error={pairing.error} testId="W-TR-07.cosign.error" /> : null
-                }
-              />
-            )}
-        </div>
+          {/* The Chair's ways to co-sign, only once key 1 is in: before it, the slab is the one way to sign. */}
+          {inJudgeMode && state === "key1" && chair.required && (
+            <CosignCard
+              code={pairing.data ?? null}
+              busy={pairing.isPending}
+              onMake={() => pairing.mutate({ body: { persona: "ernesto", role: "board" } })}
+              {...(stage ? { onChairFrame: () => stage.raisePhone("chair") } : {})}
+              error={
+                pairing.error ? <CommandNotice error={pairing.error} testId="W-TR-07.cosign.error" /> : null
+              }
+            />
+          )}
+        </Cell>
       </section>
     </ScreenRoot>
   );

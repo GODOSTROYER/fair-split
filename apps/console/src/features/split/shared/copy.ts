@@ -253,6 +253,9 @@ export const APPROVE = {
   waitingKey: en("W-TR-07.key.waiting"),
   presence: (hold: string) => en("W-TR-07.presence", { hold }),
   presenceApproval: "Ernesto is reviewing the batch",
+  /** Ernesto's row while he is on the batch (round 4: his state said once, in his row). */
+  reviewing: "Reviewing",
+  reviewingHold: (hold: string) => `Reviewing hold ${hold}`,
   sameOnPhone: "Same seal on Ernesto's phone",
   approved: en("W-TR-07.approved"),
   postedLink: "Watch the payments land",
@@ -303,14 +306,17 @@ export const FANOUT = {
   loading: "Drawing the fan",
   notPosted: "Not posted yet.",
   notPostedLink: "Open Approve",
-  /** The run's instrument: "7/8" over "confirmed". */
+  /** The run's instrument while PayPal works: "7/8" over "confirmed". */
   confirmedWord: "confirmed",
-  confirmedOnPaypal: "confirmed on PayPal",
+  /** Settled (round 4): the two outcomes as one hero, "7 PayPal · 57 cash". */
+  settledPaypal: "PayPal",
+  settledCash: "cash",
+  settledSpoken: (paypal: number, cash: number) => `${paypal} confirmed on PayPal · ${cash} in cash`,
+  /** Beside "57 cash" once the cash is attested at the bodega (until then, "due 12 Nov"). */
+  cashHandedOver: "handed over",
   posted: (time: string, clock: string) => `posted ${time} · ${clock}`,
   postedSeeded: "posted · confirming",
   needsYou: (n: number) => `${n} needs you`,
-  cashDue: (n: number, date: string) => `${n} cash due ${date}`,
-  cashPaid: (n: number) => `${n} paid in cash`,
   dueOn: (date: string) => `due ${date}`,
   replayedStatus: "Payout statuses replayed (labelled) from an earlier simulated PayPal sandbox run.",
   denied: "The simulated PayPal sandbox declined the batch. No money moved.",

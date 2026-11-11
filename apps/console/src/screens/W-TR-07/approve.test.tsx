@@ -189,9 +189,9 @@ describe("W-TR-07 approve", () => {
         "Simulated",
       );
       expect(tagBudget(root)).toMatchObject({ tags: 1, micro: 1, ok: true });
-      // The seal is the screen's hero at 180 px, beside "Two officers sign this batch" and its two named signers,
-      // each waiting on a hollow circle.
-      expect(screen.getByTestId("W-TR-07.seal").getAttribute("width")).toBe("180");
+      // The seal is the screen's hero, 220 px from a 1,600 px window (round 4), beside "Two officers sign this batch"
+      // and its two named signers, each waiting on a hollow circle.
+      expect(screen.getByTestId("W-TR-07.seal").getAttribute("width")).toBe("220");
       expect(screen.getByRole("heading", { name: "Two officers sign this batch" })).toBeTruthy();
       expect(screen.getByTestId("W-TR-07.keysCount").textContent).toBe("0/2 signed");
       for (const officer of ["treasurer", "chair"]) {
@@ -208,6 +208,14 @@ describe("W-TR-07 approve", () => {
       const root64 = linesRoot(workspaceLines(view.world));
       expect(root64).not.toBe(linesRoot(seedSnapshot().checkpoints.resolved.lines));
       expect(screen.getByTestId("W-TR-07.linesDigest").getAttribute("title")).toBe(root64);
+      // One way to sign (round 4): the slab hugs its label (never the card's width), and the Chair's co-sign block
+      // waits for key 1.
+      expect(screen.getByTestId("W-TR-07.approve").hasAttribute("data-full")).toBe(false);
+      expect(screen.queryByTestId("W-TR-07.cosign")).toBeNull();
+      // Both on the one 12-column grid: the batch in columns 1–7, the decision in 8–12, under the title row.
+      expect(screen.getByTestId("W-TR-07").classList.contains("fsc-screen")).toBe(true);
+      expect(screen.getByTestId("W-TR-07.seal").closest("[data-span]")?.getAttribute("data-span")).toBe("7");
+      expect(screen.getByTestId("W-TR-07.safe").closest("[data-span]")?.getAttribute("data-span")).toBe("5");
       // The batch first (the seal, the amount and the two signers as one composition, the money bar, the fees and
       // what both keys sign behind Details), then the decision (the four checks, the slab).
       const order = [
@@ -259,11 +267,16 @@ describe("W-TR-07 approve", () => {
       );
       await waitFor(() => expect(screen.getByTestId("W-TR-07.seal").dataset.state).toBe("keys-1"));
       expect(screen.getByTestId("W-TR-07.key.treasurer").dataset.state).toBe("signed");
-      // The session's demo key, as fs-api registered it (C-13): never the treasurer's own fs-analyn-w1.
-      expect(screen.getByTestId("W-TR-07.key.treasurer").textContent).toMatch(
-        /Analyn · Treasurerfs-analyn-demo-[a-z0-9]{6}Demo key/,
-      );
-      expect(screen.getByTestId("W-TR-07.key.treasurer").textContent).not.toMatch(/fs-analyn-w1/);
+      // The session's demo key, as fs-api registered it (C-13): never the treasurer's own fs-analyn-w1. Its id
+      // prints on one line, whole, its value its title (round 4: ids never break mid-word).
+      const treasurerRow = screen.getByTestId("W-TR-07.key.treasurer");
+      const keyIdText = treasurerRow.querySelector<HTMLElement>(".fs-idtext");
+      expect(keyIdText?.getAttribute("title")).toMatch(/^fs-analyn-demo-[a-z0-9]{6}$/);
+      expect(keyIdText?.querySelector("[aria-hidden]")?.textContent).toBe(keyIdText?.getAttribute("title"));
+      expect(treasurerRow.textContent).toMatch(/^Analyn · Treasurerfs-analyn-demo-[a-z0-9]{6}.*Demo key/);
+      expect(treasurerRow.textContent).not.toMatch(/fs-analyn-w1/);
+      // Now the Chair's co-sign block shows: his ways to sign arrive only after key 1.
+      expect(screen.getByTestId("W-TR-07.cosign")).toBeTruthy();
 
       const approval = view.world.approvals().find((a) => a.role === "treasurer");
       if (!approval) throw new Error("no treasurer approval");
@@ -278,8 +291,33 @@ describe("W-TR-07 approve", () => {
       );
 
       await waitFor(() => expect(tracedPhases("MM-5")).toContain("waiting-2"), { timeout: 5_000 });
-      // Ernesto is not here yet: nothing says so twice (his presence line shows only once he is).
-      expect(screen.queryByTestId("W-TR-07.presence")).toBeNull();
+      // Ernesto is not here yet: his row says "Waiting", once.
+      expect(screen.getByTestId("W-TR-07.key.chair.status").textContent).toBe("Waiting");
+      // Once he is on the batch his row says so in its place, never a second line (round 4).
+      act(() =>
+        view.runtime.client.setQueryData<RunView>(
+          queryKeys.run(RUN),
+          (old) =>
+            old && {
+              ...old,
+              presence: [
+                {
+                  persona: "board:ernesto",
+                  view: "approval",
+                  holdId: null,
+                  expiresAt: new Date(Date.now() + 20_000).toISOString(),
+                },
+              ],
+            },
+        ),
+      );
+      await waitFor(() =>
+        expect(screen.getByTestId("W-TR-07.key.chair.status").textContent).toBe(APPROVE.reviewing),
+      );
+      expect(screen.getByTestId("W-TR-07.key.chair.status").getAttribute("title")).toBe(
+        APPROVE.presenceApproval,
+      );
+      expect(screen.getByTestId("W-TR-07").textContent).not.toMatch(/Waiting|is reviewing/);
 
       act(() => {
         view.world.cosign();

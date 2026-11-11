@@ -1,16 +1,19 @@
-// W-TR-07's pieces (UI gate round 3): the seal at 180 px (or its empty bands while the batch is not final) with its
-// hash under it, the two named signers beside it ("Two officers sign this batch"), the checks above the slab, the
-// details a person opens to compare hashes, the dialog route's body and the co-sign card. Unsigned rings are the
-// batch's own pattern at 1 px in neutral-400; each key fills its rings in indigo, the same on the Chair's phone. A
-// waiting signer is a hollow circle and "Waiting"; a signed one a solid row with an ink dot and "Signed 19:03".
-// Hashes and key IDs are the mono id role; everything else is FS Sans. Words are few: each piece is a title, a
-// figure and one line (unslop spec §3.9).
+// W-TR-07's pieces (UI gate round 4): the seal at 180 px, 220 from a 1,600 px window (or its empty bands while the
+// batch is not final) with its hash under it, the two named signers beside it ("Two officers sign this batch"), the
+// checks above the slab, the details a person opens to compare hashes, the dialog route's body and the Chair's
+// co-sign block. Unsigned rings are the batch's own pattern at 1 px in neutral-400; each key fills its rings in
+// indigo, the same on the Chair's phone. A waiting signer is a hollow circle and "Waiting" ("Reviewing" while the
+// Chair is on the batch); a signed one a solid row with an ink dot and "Signed 19:03". Hashes and key IDs are the
+// mono id role on one line, cut in the middle when long (IdText); everything else is FS Sans. Words are few: each
+// piece is a title, a figure and one line (unslop spec §3.9).
 
 import { bandCircle, type RingIndex, seal, sealHash } from "@fairsplit/seal";
+import { LAYOUT } from "@fairsplit/tokens";
 import {
   Glyph,
   HONESTY,
   type HonestyMark,
+  IdText,
   LegendGlyph,
   Seal,
   type StampView,
@@ -19,10 +22,24 @@ import {
 import { type ReactNode, useMemo } from "react";
 import { Stamp } from "../../chrome/Stamp.js";
 import { format } from "../../lib/format.js";
+import { BREAKPOINTS, useViewportWidth } from "../../stage/layout.js";
 import { APPROVE, en } from "../split/shared/copy.js";
 
-/** The seal's size on Approve (round 3): 180 px at every width, the hero of the screen. */
-export const SEAL_SIZE = 180;
+/** The seal's size on Approve: 180 px (`LAYOUT.console.seal`), the same drawing as the Chair's phone. */
+export const SEAL_SIZE: number = LAYOUT.console.seal;
+/**
+ * From a 1,600 px window the seal grows to 220 px (round 4), so the composition in columns 1–7 holds the stage's
+ * height on its own, top-aligned, never centred in it.
+ */
+export const SEAL_SIZE_WIDE = 220;
+
+/** The seal's size for this window: 180 px, 220 px from 1,600 px. */
+export function useSealSize(): number {
+  return useViewportWidth() >= BREAKPOINTS.overlay ? SEAL_SIZE_WIDE : SEAL_SIZE;
+}
+
+/** A key id prints whole up to this many characters ("fs-ernesto-demo-mj2ng2"), cut in the middle beyond. */
+const KEY_ID_MAX = 24;
 
 /**
  * The batch's own pattern before anyone signs: every ring the hash grows, at 1 px in neutral-400, so the seal reads
@@ -105,7 +122,7 @@ export function SealBlock({ batchSha256, keys, engrave, size = SEAL_SIZE }: Seal
 
 /**
  * The two named signers beside the seal: "Two officers sign this batch" and the count, then one row per key. Its
- * rows are KeySlots; anything after them (Ernesto's presence) sits under the list.
+ * rows are KeySlots (Ernesto's presence is his row's status since round 4); anything after them sits under the list.
  */
 export function Signers({
   keys,
@@ -229,6 +246,8 @@ export interface KeySlotProps {
   /** The honesty glyph for a key made for the demo ("Demo key", "Sample key"): a bare glyph, its words its name. */
   readonly mark?: HonestyMark;
   readonly status: string;
+  /** The whole sentence behind a short status ("Reviewing": "Ernesto is reviewing the batch"). */
+  readonly statusTitle?: string;
   readonly signed: boolean;
   readonly stamp: StampView | null;
   readonly voided?: boolean;
@@ -247,6 +266,7 @@ export function KeySlot({
   metaTitle,
   mark,
   status,
+  statusTitle,
   signed,
   stamp,
   testId,
@@ -269,9 +289,10 @@ export function KeySlot({
         <span className="fsr-key__name fs-t-label">{name}</span>
         {(meta || why || mark) && (
           <span className="fsr-key__meta">
+            {/* The key's id on one line, cut in the middle when long (round 4); how it was made on hover. */}
             {meta && (
-              <span className="fsr-key__id fs-t-id" title={metaTitle}>
-                {meta}
+              <span className="fsr-key__id" title={metaTitle}>
+                <IdText value={meta} max={KEY_ID_MAX} tail={6} />
               </span>
             )}
             {why && <span className="fsr-key__why fs-t-caption">{why}</span>}
@@ -279,7 +300,12 @@ export function KeySlot({
           </span>
         )}
       </span>
-      <span className="fsr-key__status fs-t-caption" data-testid={`${testId}.status`}>
+      <span
+        className="fsr-key__status fs-t-caption"
+        title={statusTitle}
+        data-presence={statusTitle ? "" : undefined}
+        data-testid={`${testId}.status`}
+      >
         {status}
       </span>
     </li>

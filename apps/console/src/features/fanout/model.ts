@@ -21,12 +21,13 @@ export const FAN = {
   width: 1200,
   height: 376,
   /**
-   * The seal the two keys completed, 180 units across (round 3). Its top sits 136 units down, so the run's hero count
-   * ("7/8", two lines with its words) rests on the fan's top left right above it at any stage width.
+   * The seal the two keys completed, 180 units across. Its top sits 176 units down (round 4), so the run's hero ("7/8"
+   * with its words, or "7 PayPal · 57 cash" with its one primary under it) rests on the fan's top left right above it
+   * at any stage width.
    */
-  seal: { cx: 90, cy: 226, size: 180 },
+  seal: { cx: 90, cy: 266, size: 180 },
   /** The hub beside the seal, level with its centre: every line leaves it. */
-  bar: { x0: 196, x1: 200, y0: 199, y1: 253 },
+  bar: { x0: 196, x1: 200, y0: 239, y1: 293 },
   /** The eight threads leave the hub this far apart, the largest payment on top, so the bundle opens as a fan. */
   threadGap: 5,
   /** One even stroke for every thread: the amount beside each row says how much. */
@@ -36,7 +37,7 @@ export const FAN = {
   /** The PayPal stubs, one row each, far enough apart for a name and an amount at the narrowest stage. */
   stub: { y0: 14, step: 36, w: 16, h: 12 },
   /** The cash route: one 6-unit hatched ribbon from the hub (below the threads) to one compact block at the end. */
-  band: { y0: 242, h: 6 },
+  band: { y0: 282, h: 6 },
   cash: { y0: 314, w: 16 },
   /** Where the labels begin (they are HTML over the picture, so text keeps its type size at any width). */
   labelX: 772,

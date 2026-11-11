@@ -146,8 +146,14 @@ describe("W-TR-08 run: the honest fan-out", () => {
       fireEvent.keyDown(face, { key: "Enter" });
       await waitFor(() => expect(stateOf()).toBe("done"), WAIT);
       expect(toneOf("M-031")).toBe("moved");
-      // The slab went with the parked card: focus is on the line that says where her cash is, never on <body>.
-      await waitFor(() => expect(document.activeElement).toBe(screen.getByTestId("W-TR-08.rerouted")), WAIT);
+      // The slab went with the parked card: focus is on the run's hero or its next action, never on <body>.
+      await waitFor(
+        () =>
+          expect(["W-TR-08.status", "W-TR-08.cashReview"]).toContain(
+            document.activeElement?.getAttribute("data-testid"),
+          ),
+        WAIT,
+      );
       // Her thread retracts and her own thin cash line draws in from the same slot (live, so it animates).
       const line = screen.getByTestId("W-TR-08.cash.M-031");
       expect(line.dataset.moved).toBe("");
@@ -171,18 +177,32 @@ describe("W-TR-08 run: the honest fan-out", () => {
         `Cash at the bodega57due ${cashDay}US$3,876.43`,
         "Kept for membersUS$21.14",
       ]);
-      // Settled routing, not settled cash: seven of eight confirmed on PayPal (the jade dot), and apart from them,
-      // in neutral with its hatch, the 57 members' cash still due on its day, with the run's remaining action.
+      // Settled routing, not settled cash (round 4): the hero is the two outcomes, "7 PayPal · 57 cash", with a jade
+      // dot by the 7 and a hatch swatch by the 57, never "7/8" after her move to cash; the cash's day on its
+      // baseline, and "Review cash handover" under it as the screen's one primary.
       const status = screen.getByTestId("W-TR-08.status");
-      expect(status.textContent).toBe(`7/8confirmed on PayPal57 cash due ${cashDay}Review cash handover`);
+      const settled = screen.getByTestId("W-TR-08.settled");
+      expect(
+        [...settled.querySelectorAll(":scope > [aria-hidden]")]
+          .map((part) => part.textContent)
+          .join(" ")
+          .replace(/\s+/g, " "),
+      ).toBe("7PayPal · 57cash");
+      expect(screen.getByTestId("W-TR-08.count").getAttribute("data-value")).toBe("7");
+      expect(status.textContent).not.toMatch(/7\/8/);
       expect(status.querySelectorAll('.fs-state-dot[data-kind="paid"]')).toHaveLength(1);
-      expect(screen.getByTestId("W-TR-08.cashDue").querySelector(".fs-state-dot")).toBeNull();
-      expect(screen.getByTestId("W-TR-08.cashDue").textContent).toBe(`57 cash due ${cashDay}`);
-      expect(screen.getByTestId("W-TR-08.cashReview").getAttribute("href")).toBe(webRoutes.proof(RUN));
+      expect(settled.querySelectorAll(".fsr-fanout__swatch")).toHaveLength(1);
+      expect(status.querySelector(".fs-sr")?.textContent).toMatch(/^7 confirmed on PayPal · 57 in cash/);
+      expect(screen.getByTestId("W-TR-08.cashDue").textContent).toBe(`due ${cashDay}`);
+      const review = screen.getByTestId("W-TR-08.cashReview");
+      expect(review.getAttribute("href")).toBe(webRoutes.proof(RUN));
+      expect(review.textContent).toBe("Review cash handover");
+      expect(review.closest(".fs-slab")?.getAttribute("data-tone")).toBe("chalk");
+      expect(screen.getByTestId("W-TR-08").querySelectorAll(".fs-slab")).toHaveLength(1);
       expect(status.textContent).not.toMatch(/Settled|Done/);
-      expect(screen.getByTestId("W-TR-08.rerouted").textContent).toBe(
-        `Rhea Jumawan → cash at the bodegadue ${cashDay}`,
-      );
+      // Her move to cash is said once: on her row of the fan (and in the money bar), never as a line of its own.
+      expect(screen.queryByTestId("W-TR-08.rerouted")).toBeNull();
+      expect(screen.getByTestId("W-TR-08").textContent?.match(/Rhea Jumawan → cash/g)).toHaveLength(1);
       await waitFor(() => expect(tracedPhases("MM-6").slice(-1)[0]).toBe("settled"), WAIT);
       expect(tracedPhases("MM-6")).toEqual(expect.arrayContaining(["parked", "rerouted", "settled"]));
       // The log never says "Settled" while the 57 members' cash is due: PayPal is complete, the cash is not.
@@ -265,6 +285,13 @@ describe("W-TR-08 run: the honest fan-out", () => {
       await waitFor(() => expect(stateOf()).toBe("done"), WAIT);
       expect(screen.getByTestId("W-TR-08.log").textContent).toMatch(/Seeded showcase history/);
       expect(toneOf("M-031")).toBe("moved");
+      // The settled hero, and the log and the latency dots on the one grid (columns 1–8 and 9–12).
+      expect(screen.getByTestId("W-TR-08.count").getAttribute("data-value")).toBe("7");
+      expect(screen.getByTestId("W-TR-08").classList.contains("fsc-screen")).toBe(true);
+      expect(screen.getByTestId("W-TR-08.log").closest("[data-span]")?.getAttribute("data-span")).toBe("8");
+      expect(screen.getByTestId("W-TR-08.latency").closest("[data-span]")?.getAttribute("data-span")).toBe(
+        "4",
+      );
       // History is drawn in place: her cash line is there, still.
       expect(
         screen.getByTestId("W-TR-08.cash.M-031").closest(".fsr-fan__moved")?.hasAttribute("data-animate"),

@@ -1,6 +1,8 @@
-/* W-TR-08 Run (UI gate round 3): the run's one hero count ("7/8" in FS Sans, its words and its one fact beneath)
+/* W-TR-08 Run (UI gate round 4, on the one 12-column grid): the run's one hero ("7/8" in FS Sans with its words
+   while PayPal works; "7 PayPal · 57 cash" once settled, with "Review cash handover" under it as the one primary)
    rests on the fan's empty top left, right above the 180-unit seal; the fan full width as the hero, Rhea's decision
-   as one strip beneath it, the money bar with its one micro-tag, then the last five events and the latency dots.
+   as one strip beneath it, the money bar with its one micro-tag, then the last five events (columns 1–8) and the
+   latency dots (9–12).
    In flight is neutral, jade only PayPal-confirmed money, marigold a person's decision, red only a PayPal failure,
    the hatch is cash with its word. Dashed lines mean simulated, nothing else. Tokens only; durations from
    @fairsplit/motion's CSS variables. One focus ring (ui-web); nothing here declares its own. */
@@ -20,10 +22,10 @@
 
 .fsr-fanout__head {
   z-index: 1;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--fs-space-8) var(--fs-space-24);
+  display: grid;
+  justify-items: start;
+  align-content: start;
+  gap: var(--fs-space-12);
   min-height: 36px;
 }
 
@@ -46,12 +48,45 @@
   color: var(--fs-ink);
 }
 
-/* "confirmed on PayPal": the jade dot says it is money PayPal confirmed; the cash beside it never wears it. */
 .fsr-fanout__unit {
   display: inline-flex;
   align-items: center;
   gap: var(--fs-space-8);
   color: var(--fs-ink-2);
+}
+
+/* Settled: "● 7 PayPal · ▨ 57 cash" on one baseline, the two outcomes as the one hero. The jade dot says the 7 is
+   money the simulated PayPal confirmed; the hatch swatch says the 57 is cash. Never "7/8" after the move to cash. */
+.fsr-fanout__settled {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--fs-space-4) var(--fs-space-12);
+}
+
+.fsr-fanout__part {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--fs-space-8);
+  white-space: nowrap;
+}
+
+.fsr-fanout__part > :is(.fs-state-dot, .fsr-fanout__swatch) {
+  align-self: center;
+}
+
+.fsr-fanout__word {
+  color: var(--fs-ink);
+}
+
+.fsr-fanout__sep {
+  color: var(--fs-ink-3);
+}
+
+/* The run's remaining action, a link on the slab's face: no underline, and a touch on it may still scroll. */
+.fsr-fanout__action .fs-slab__face {
+  text-decoration: none;
+  touch-action: manipulation;
 }
 
 .fsr-fanout__facts {
@@ -61,9 +96,10 @@
   gap: var(--fs-space-8) var(--fs-space-16);
 }
 
-/* The count rides on the fan's empty top left, its fact beneath it, just above the seal: count and seal read as
-   one. Only while the fan is drawn and wide enough for the seal to clear it (Data mode shows the table, and the
-   count sits above it in the flow). */
+/* The hero rides on the fan's empty top left, its fact (or the settled run's one primary) beneath it, just above
+   the seal (176 units down, 133 px at the fan's narrowest overlay): hero and seal read as one. The tallest head, the
+   settled hero over its primary, is 120 px. Only while the fan is drawn and 900 px wide or more; otherwise, and in
+   Data mode (the table), the hero sits above the fan in the flow. */
 @container (min-width: 900px) {
   .fsr-fanout:has(> .fsr-fanout__figure:not([data-datamode])) > .fsr-fanout__head[data-instrument] {
     position: absolute;
@@ -73,7 +109,7 @@
   }
 
   .fsr-fanout:has(> .fsr-fanout__figure:not([data-datamode]))
-    > .fsr-fanout__head[data-instrument]
+    > .fsr-fanout__head[data-instrument="count"]
     .fsr-fanout__status {
     flex-direction: column;
     align-items: flex-start;
@@ -85,13 +121,10 @@
   color: var(--fs-ink-3);
 }
 
-/* Cash still due once PayPal is complete: a hatch swatch and the count in neutral, apart from the jade-dotted
-   confirmed count above it. */
+/* The settled cash's day on the hero's baseline ("57 cash due 12 Nov"), in neutral. */
 .fsr-fanout__due {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--fs-space-8);
   color: var(--fs-ink-2);
+  white-space: nowrap;
 }
 
 .fsr-fanout__line {
@@ -102,17 +135,7 @@
   min-width: 0;
 }
 
-.fsr-fanout__rerouted {
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--fs-space-8);
-  margin: 0;
-  color: var(--fs-ink);
-}
-
-.fsr-fanout__status,
-.fsr-fanout__rerouted {
+.fsr-fanout__status {
   border-radius: var(--fs-radius-cell);
 }
 
@@ -448,13 +471,6 @@
 
 /* ------------------------------------------------------------------ the run log and the latency dots */
 
-.fsr-fanout__below {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 280px;
-  align-items: start;
-  gap: var(--fs-space-32);
-}
-
 .fsr-fanout__side {
   display: grid;
   gap: var(--fs-space-16);
@@ -739,10 +755,6 @@
 }
 
 @media (max-width: 1279px) {
-  .fsr-fanout__below {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
   .fsr-log__lanes {
     grid-template-columns: minmax(0, 1fr);
   }

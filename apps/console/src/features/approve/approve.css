@@ -1,34 +1,14 @@
-/* W-TR-07 Approve (UI gate round 3): two columns once the screen is 860 px wide, ending at the same height. The
-   batch on the left as one composition (the seal at 180 px; beside it "PayPal batch · 8 payouts" over the amount
-   and the two named signers), then the money bar, and Details on the column's foot; the decision on the right in
-   one neutral card that stretches to the batch's height (four checks, the one slab until a key signs, the co-sign
-   card). One column below that width. Tokens only; spacing on the 4 px scale; radii from the one scale; one
-   elevation each (a 1 px ring, no glow); one focus ring (ui-web), none declared here. */
-
-/* The title at the top, the composition centred in the height left below it: a hero moment, not a form. */
-.fsr-approve-screen {
-  justify-items: stretch;
-  container: fsr-approve / inline-size;
-  min-height: 100%;
-  grid-template-rows: auto 1fr;
-}
+/* W-TR-07 Approve (UI gate round 4, docs/DESIGN.md §3 and §9): the one 12-column grid (theme/grid.css), top-aligned
+   32 px under the title row, nothing centred in the stage's height. The moment's root spans the row and lays its
+   two cells on the same twelve columns: the batch in columns 1–7 as one composition (the seal, 180 px or 220 from a
+   1,600 px window; beside it "PayPal batch · 8 payouts" over the amount and the two named signers), then the money
+   bar and Details; the decision in columns 8–12, one neutral card that hugs its content (four checks, the one slab
+   until a key signs, the Chair's co-sign block after key 1). Below 720 px of panel the two stack. Tokens only;
+   spacing on the 4 px scale; radii from the one scale; one elevation each (a 1 px ring, no glow); one focus ring
+   (ui-web), none declared here. */
 
 .fsr-approve {
-  display: grid;
-  gap: var(--fs-space-24);
-  width: 100%;
-  max-width: 1080px;
-  margin-inline: auto;
-  padding-bottom: var(--fs-space-48);
-}
-
-.fsr-approve-screen > .fsr-approve {
-  align-self: center;
-}
-
-.fsr-approve--beds {
-  justify-items: center;
-  gap: var(--fs-space-16);
+  min-width: 0;
 }
 
 .fsr-approve > .fsr-banner {
@@ -36,26 +16,21 @@
   text-align: left;
 }
 
-@container fsr-approve (min-width: 860px) {
-  .fsr-approve {
-    grid-template-columns: minmax(0, 1fr) minmax(340px, 400px);
-    column-gap: var(--fs-space-48);
-    /* Both columns end at the same height: the decision card stretches to the batch's. */
-    align-items: stretch;
-  }
-
-  .fsr-approve > .fsr-banner {
-    grid-column: 1 / -1;
-  }
+/* The print beds stand where the seal and the amount will. */
+.fsr-approve__beds {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--fs-space-24) var(--fs-space-32);
 }
 
-/* ------------------------------------------------------------------ the batch (left) */
+/* ------------------------------------------------------------------ the batch (columns 1–7) */
 
-/* The hero composition, the money bar, then Details on the column's foot: the batch ends where the card does. */
+/* The hero composition, the money bar, then Details, each 24 px apart and top-aligned. */
 .fsr-approve__batch {
   container: fsr-approve-hero / inline-size;
   display: grid;
-  grid-template-rows: auto auto 1fr;
+  align-content: start;
   gap: var(--fs-space-24);
   min-width: 0;
 }
@@ -187,9 +162,8 @@
   color: var(--fs-ink-2);
 }
 
-/* Details: the fees, what both keys sign, and the engine's provenance, one click away, on the batch column's foot. */
+/* Details: the fees, what both keys sign, and the engine's provenance, one click away, under the money bar. */
 .fsr-approve__details {
-  align-self: end;
   width: 100%;
   padding-top: var(--fs-space-12);
   border-top: 1px solid var(--fs-rule);
@@ -275,19 +249,39 @@
   color: var(--fs-ink-3);
 }
 
-/* ------------------------------------------------------------------ the decision (right) */
+/* ------------------------------------------------------------------ the decision (columns 8–12) */
 
-/* One neutral card: the checks, the slab, the co-sign card. Flat: a 1 px rule is its only edge (no glow, no
-   wash: the slab's indigo face is the screen's one colour of action). */
+/* One neutral card that hugs its content: the checks, the slab, the co-sign block. Flat: a 1 px rule is its only
+   edge (no glow, no wash: the slab's indigo face is the screen's one colour of action). */
 .fsr-approve__decide {
   display: grid;
   align-content: start;
-  gap: var(--fs-space-16);
+  justify-items: start;
+  gap: var(--fs-space-20);
   min-width: 0;
-  padding: var(--fs-space-20);
+  padding: var(--fs-space-24);
   border: 1px solid var(--fs-rule);
   border-radius: var(--fs-radius-card);
   background: var(--fs-plate-2);
+}
+
+.fsr-approve__decide > * {
+  max-width: 100%;
+}
+
+/* On the 1,280 and 1,470 layouts (five columns of a narrower panel) the card keeps each check on one line. */
+@container fsc-screen (max-width: 1039px) {
+  .fsr-approve__decide {
+    padding: var(--fs-space-20);
+  }
+
+  .fsr-approve__decide .fsr-check {
+    column-gap: var(--fs-space-8);
+  }
+}
+
+.fsr-approve__decide > :is(.fsr-checks, .fsr-approve__blocked, .fsr-cosign, .fsc-command-notice) {
+  justify-self: stretch;
 }
 
 .fsr-checks {
@@ -362,10 +356,12 @@
   background: var(--fs-canary);
 }
 
+/* The one way to sign: the slab hugs its label, its caption and its one link to the other way under it. */
 .fsr-approve__slab {
   display: grid;
+  justify-items: start;
   gap: var(--fs-space-8);
-  width: 100%;
+  max-width: 100%;
 }
 
 .fsr-approve__slab .fs-slab {
@@ -399,10 +395,6 @@
   align-items: center;
   gap: var(--fs-space-8);
   color: var(--fs-ink);
-}
-
-.fsr-approve__next {
-  width: 100%;
 }
 
 /* ------------------------------------------------------------------ the two keys */
@@ -467,10 +459,11 @@
   min-width: 0;
 }
 
+/* The key's id on one line (IdText: nowrap, cut in the middle), never broken mid-word. */
 .fsr-key__id {
   min-width: 0;
   color: var(--fs-ink-3);
-  overflow-wrap: anywhere;
+  white-space: nowrap;
 }
 
 .fsr-key__why {
@@ -485,6 +478,11 @@
 
 .fsr-key[data-state="signed"] .fsr-key__status {
   color: var(--fs-ink);
+}
+
+/* Ernesto on the batch: his row says "Reviewing" in ink-2 where "Waiting" stood (round 4). */
+.fsr-key__status[data-presence] {
+  color: var(--fs-ink-2);
 }
 
 .fsr-key[data-state="voided"] .fs-stamp {
@@ -504,30 +502,6 @@
   height: 1px;
   background: var(--fs-ink);
   transform: rotate(-30deg);
-}
-
-/* "Ernesto, reviewing hold 2 on his phone" glides in on MM-5 waiting-2. */
-.fsr-presence {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--fs-space-8);
-  margin: 0;
-  color: var(--fs-ink-2);
-  opacity: 0;
-  transform: translateY(calc(6px * var(--fs-motion, 1)));
-  transition:
-    opacity var(--fs-spring-glide-dur) var(--fs-spring-glide),
-    transform var(--fs-spring-glide-dur) var(--fs-spring-glide);
-}
-
-.fsr-presence[data-in] {
-  opacity: 1;
-  transform: none;
-}
-
-[data-motion="reduced"] .fsr-presence {
-  transform: none;
-  transition: opacity var(--fs-dur-reduced) var(--fs-ease-out);
 }
 
 /* ------------------------------------------------------------------ the co-sign card (Judge Mode) */

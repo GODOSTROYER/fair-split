@@ -1,13 +1,15 @@
-// W-TR-08 Run (S1.7, design §6 C8; UI gate round 3): the fan is the hero, full width (MM-6, "Honest fan-out"):
-// the 180-unit seal, eight threads to eight named rows, and the cash as one hatched ribbon into one labelled block.
-// The run's one hero count, "7/8" in FS Sans and "confirmed", sits right above the seal; beneath the fan Rhea's
-// decision when she is parked, then the money bar with its one micro-tag; then the last five events and the latency
-// dots. PayPal's 201 draws eight threads to 70% in neutral: sent, not paid. Each verified SUCCESS finishes its
-// thread and floods its marker jade, one scale note each, landings at least 250 ms apart. Rhea's item parks: her
-// path runs on to her own marker in marigold, never red, and a slab moves her to cash. Once PayPal is complete the
-// 57 members' cash still due reads apart from the 7 confirmed (a jade dot against the hatch), with "Review cash
-// handover" until it is attested. A repeated delivery logs one quiet row and moves nothing. History is drawn in
-// place; only live events animate.
+// W-TR-08 Run (S1.7, design §6 C8; UI gate round 4): on the one 12-column grid, top-aligned under the title row.
+// The fan is the hero, full width (MM-6, "Honest fan-out"): the 180-unit seal, eight threads to eight named rows,
+// and the cash as one hatched ribbon into one labelled block. The run's one hero sits right above the seal: "7/8"
+// and "confirmed" while PayPal works, and once every payout is settled "7 PayPal · 57 cash" (a jade dot by 7, a
+// hatch swatch by 57; never "7/8" after the move to cash) with "Review cash handover" under it as the screen's one
+// primary while the cash is due. Beneath the fan Rhea's decision when she is parked (her move to cash is then said
+// once, on her row of the fan), the money bar with its one micro-tag; then the last five events (columns 1–8) and
+// the latency dots (9–12). PayPal's 201 draws eight threads to 70% in neutral: sent, not paid. Each verified SUCCESS
+// finishes its thread and floods its marker jade, one scale note each, landings at least 250 ms apart. Rhea's item
+// parks: her path runs on to her own marker in marigold, never red, and a slab moves her to cash. A repeated
+// delivery logs one quiet row and moves nothing. History is drawn in place; only live events animate. The event
+// toast lives in the top bar, so nothing covers the log.
 
 import { webRoutes } from "@fairsplit/contracts";
 import { Chip, feedback, Glyph, MicroTag, Numeral, Slab, StateDot } from "@fairsplit/ui-web";
@@ -18,6 +20,7 @@ import { railTag } from "../../chrome/copy.js";
 import { DataTable, Mirrored } from "../../chrome/DataTable.js";
 import { RunRouteGate } from "../../chrome/Fallbacks.js";
 import { PrintBed } from "../../chrome/PrintBed.js";
+import { Cell, ScreenHead } from "../../chrome/ScreenGrid.js";
 import { ScreenRoot } from "../../chrome/ScreenRoot.js";
 import { describeEvent, type LogRow } from "../../data/describe.js";
 import { useCommand, useDescribeContext, usePaypalRail } from "../../data/hooks.js";
@@ -34,6 +37,7 @@ import {
   shareCounts,
   summaryFacts,
 } from "../../features/fanout/model.js";
+import { PrimaryLink } from "../../features/fanout/PrimaryLink.js";
 import { LatencyDots, RunLog } from "../../features/fanout/RunLog.js";
 import { SplitFan } from "../../features/fanout/SplitFan.js";
 import { seededLog } from "../../features/fanout/seeded.js";
@@ -72,7 +76,7 @@ export function Screen({ runSlug }: RunScreenProps) {
   const drawnBy = useRef<string | null>(null);
   const timers = useRef(new Set<ReturnType<typeof setTimeout>>());
   const slabRef = useRef<HTMLDivElement>(null);
-  // "Pay in cash" goes away once the line moves: focus goes to the line that says where the cash is now.
+  // "Pay in cash" goes away once the line moves: focus goes to the run's next action, "Review cash handover".
   const [fanRoot, setFanRoot] = useState<HTMLElement | null>(null);
   const attachMomentRoot = moment.rootProps.ref;
   const fanRef = useCallback(
@@ -86,10 +90,10 @@ export function Screen({ runSlug }: RunScreenProps) {
     },
     [attachMomentRoot],
   );
-  // Between PayPal's return and the line's own move, neither card nor line may be drawn: then the run's status row
-  // takes focus, at the top, so the fan stays in view.
+  // Between PayPal's return and the line's own move, neither card nor action may be drawn: then the run's status
+  // row takes focus, at the top, so the fan stays in view.
   useFocusAfterRemoval(fanRoot, () => [
-    fanRoot?.querySelector<HTMLElement>('[data-testid="W-TR-08.rerouted"]') ?? null,
+    fanRoot?.querySelector<HTMLElement>('[data-testid="W-TR-08.cashReview"]') ?? null,
     fanRoot?.querySelector<HTMLElement>('[data-testid="W-TR-08.status"]') ?? null,
   ]);
   const payCash = useCommand("payCash");
@@ -172,24 +176,12 @@ export function Screen({ runSlug }: RunScreenProps) {
     return view.events.map((e) => describeEvent(e, describe)).filter((r): r is LogRow => r !== null);
   }, [view, describe, snapshot]);
 
-  const title = (
-    <header className="fsr-screen__head">
-      <h1 id="W-TR-08-title" className="fs-t-title">
-        {FANOUT.title}
-      </h1>
-      <p className="fsr-screen__slug fs-t-id">{runLabel(runSlug).text}</p>
-    </header>
-  );
+  const title = <ScreenHead title={FANOUT.title} titleId="W-TR-08-title" meta={runLabel(runSlug).text} />;
 
   if (data.access !== "allowed") return <RunRouteGate data={data} />;
   if (data.error && !view) {
     return (
-      <ScreenRoot
-        id="W-TR-08"
-        state="error"
-        className="fsr-screen fsr-fanout-screen"
-        labelledBy="W-TR-08-title"
-      >
+      <ScreenRoot id="W-TR-08" state="error" grid className="fsr-fanout-screen" labelledBy="W-TR-08-title">
         {title}
         <CommandNotice error={data.error} testId="W-TR-08.error" onRetry={data.retry} />
       </ScreenRoot>
@@ -197,12 +189,7 @@ export function Screen({ runSlug }: RunScreenProps) {
   }
   if (!snapshot || !view || !fan || !state) {
     return (
-      <ScreenRoot
-        id="W-TR-08"
-        state="loading"
-        className="fsr-screen fsr-fanout-screen"
-        labelledBy="W-TR-08-title"
-      >
+      <ScreenRoot id="W-TR-08" state="loading" grid className="fsr-fanout-screen" labelledBy="W-TR-08-title">
         {title}
         <div className="fsr-fanout__beds" aria-hidden data-testid="W-TR-08.loading">
           <PrintBed shape="block" height={360} />
@@ -220,35 +207,36 @@ export function Screen({ runSlug }: RunScreenProps) {
   const summary = summaryFacts(snapshot, fan);
   const counts = shareCounts(fan);
   const parkedLineId = parked ? (view.lines[parked.memberNo]?.lineId ?? null) : null;
-  const moved = fan.threads.find((t) => t.tone === "moved");
   const screenState: ScreenState<"W-TR-08"> = state;
   const lat = latency(view, fan);
   const tag = railTag(rail);
 
-  // The status: the run's one hero count (confirmed of sent), then one fact or one pill beneath it. Never a sentence
-  // about the rail: the tag says it once. Once PayPal is complete, its confirmed payments wear the jade dot and the
-  // cash still due reads apart in neutral with its hatch, with "Review cash handover" until it is attested: PayPal
-  // complete, cash due, never "done".
+  // The status: the run's one hero, then one fact or one pill beneath it. Never a sentence about the rail: the tag
+  // says it once. While PayPal works the hero is the count (confirmed of sent). Once every payout is settled it is
+  // the two outcomes, "7 PayPal · 57 cash" (a jade dot by the money PayPal confirmed, a hatch swatch by the cash),
+  // never "7/8" after the move to cash; the cash's day beneath, and "Review cash handover" as the screen's one
+  // primary until the cash is attested: PayPal complete, cash due, never "done".
   const cashDue = fan.cash.members > 0 && fan.cash.amountState !== "attested";
   const status = (() => {
     if (state === "denied") return null;
-    if (!isPosted) return { text: FANOUT.notPosted, link: true } as const;
-    if (replayed) return { text: FANOUT.replayedStatus } as const;
+    if (!isPosted) return { kind: "line", text: FANOUT.notPosted, link: true } as const;
+    if (replayed) return { kind: "line", text: FANOUT.replayedStatus } as const;
     const count = `${counts.confirmed}/${counts.sent}`;
     if (state === "done")
       return {
-        count,
-        unit: FANOUT.confirmedOnPaypal,
-        paid: true,
-        due: cashDue ? FANOUT.cashDue(summary.cash, cashDay) : FANOUT.cashPaid(summary.cash),
+        kind: "settled",
+        settled: { paypal: counts.confirmed, cash: summary.cash },
+        due: cashDue ? FANOUT.dueOn(cashDay) : FANOUT.cashHandedOver,
       } as const;
     if (state === "parked")
       return {
+        kind: "count",
         count,
         unit: FANOUT.confirmedWord,
         pill: FANOUT.needsYou(counts.parked + counts.failed),
       } as const;
     return {
+      kind: "count",
       count,
       unit: FANOUT.confirmedWord,
       micro: posted
@@ -312,7 +300,8 @@ export function Screen({ runSlug }: RunScreenProps) {
     <ScreenRoot
       id="W-TR-08"
       state={screenState}
-      className="fsr-screen fsr-fanout-screen"
+      grid
+      className="fsr-fanout-screen"
       labelledBy="W-TR-08-title"
     >
       {title}
@@ -330,7 +319,10 @@ export function Screen({ runSlug }: RunScreenProps) {
         data-state={state}
         aria-labelledby="W-TR-08-figure"
       >
-        <header className="fsr-fanout__head" data-instrument={status?.count ? "" : undefined}>
+        <header
+          className="fsr-fanout__head"
+          data-instrument={status?.kind === "line" ? undefined : status?.kind}
+        >
           <h2 id="W-TR-08-figure" className="fs-sr">
             {FANOUT.figure}
           </h2>
@@ -342,15 +334,43 @@ export function Screen({ runSlug }: RunScreenProps) {
               data-testid="W-TR-08.status"
               data-state={state}
             >
-              {status.count ? (
+              {status.kind === "settled" ? (
+                <>
+                  {/* Settled: the two outcomes as the one hero, "7 PayPal · 57 cash" (read as one sentence), and
+                      the cash's day on its baseline. */}
+                  <span className="fsr-fanout__settled" data-testid="W-TR-08.settled">
+                    <span className="fsr-fanout__part" aria-hidden>
+                      <StateDot kind="paid" />
+                      <Numeral
+                        value={String(status.settled.paypal)}
+                        decorative
+                        className="fsr-fanout__count"
+                        testId="W-TR-08.count"
+                      />
+                      <span className="fsr-fanout__word fs-t-label">{FANOUT.settledPaypal}</span>
+                    </span>
+                    <span className="fsr-fanout__sep fs-t-label" aria-hidden>
+                      ·
+                    </span>
+                    <span className="fsr-fanout__part" aria-hidden>
+                      <span className="fsr-fanout__swatch" />
+                      <Numeral value={String(status.settled.cash)} decorative className="fsr-fanout__count" />
+                      <span className="fsr-fanout__word fs-t-label">{FANOUT.settledCash}</span>
+                    </span>
+                    <span className="fs-sr">
+                      {FANOUT.settledSpoken(status.settled.paypal, status.settled.cash)}{" "}
+                    </span>
+                    <span className="fsr-fanout__due fs-t-caption" data-testid="W-TR-08.cashDue">
+                      {status.due}
+                    </span>
+                  </span>
+                </>
+              ) : status.kind === "count" ? (
                 <>
                   {/* The screen's one hero count, in FS Sans tabular figures, read with its words. */}
                   <span className="fsr-fanout__instrument">
                     <Numeral value={status.count} className="fsr-fanout__count" testId="W-TR-08.count" />
-                    <span className="fsr-fanout__unit fs-t-label">
-                      {"paid" in status && <StateDot kind="paid" />}
-                      {status.unit}
-                    </span>
+                    <span className="fsr-fanout__unit fs-t-label">{status.unit}</span>
                   </span>
                   <span className="fsr-fanout__facts">
                     {"micro" in status && status.micro && (
@@ -360,21 +380,6 @@ export function Screen({ runSlug }: RunScreenProps) {
                       <Chip tone="canary" glyph="ms:pause">
                         {status.pill}
                       </Chip>
-                    )}
-                    {"due" in status && status.due && (
-                      <span className="fsr-fanout__due fs-t-label" data-testid="W-TR-08.cashDue">
-                        <span className="fsr-fanout__swatch" aria-hidden />
-                        {status.due}
-                      </span>
-                    )}
-                    {"due" in status && cashDue && (
-                      <AppLink
-                        href={webRoutes.proof(view.runSlug)}
-                        className="fs-link fs-t-label"
-                        data-testid="W-TR-08.cashReview"
-                      >
-                        {FANOUT.reviewCash}
-                      </AppLink>
                     )}
                   </span>
                 </>
@@ -392,6 +397,17 @@ export function Screen({ runSlug }: RunScreenProps) {
                 </span>
               )}
             </p>
+          )}
+          {/* Under the settled hero, while the cash is due: the run's remaining action, the screen's one primary. */}
+          {status?.kind === "settled" && cashDue && (
+            <PrimaryLink
+              href={webRoutes.proof(view.runSlug)}
+              glyph="cash"
+              className="fsr-fanout__action"
+              testId="W-TR-08.cashReview"
+            >
+              {FANOUT.reviewCash}
+            </PrimaryLink>
           )}
         </header>
 
@@ -493,16 +509,7 @@ export function Screen({ runSlug }: RunScreenProps) {
           </section>
         )}
 
-        {/* Her line moved to cash, where her decision stood: focus lands here when it goes, just under the fan,
-            so the fan stays in view. */}
-        {moved && !parked && (
-          <p className="fsr-fanout__rerouted" data-testid="W-TR-08.rerouted" tabIndex={-1}>
-            <span className="fsr-fanout__swatch" aria-hidden />
-            <span className="fs-t-label">{FANOUT.rerouted(moved.name)}</span>
-            <span className="fs-t-caption fsr-muted">{FANOUT.dueOn(cashDay)}</span>
-          </p>
-        )}
-
+        {/* Her move to cash is said once, on her row of the fan ("Rhea Jumawan → cash"), and in the money bar. */}
         <div className="fsr-fanout__share" data-testid="W-TR-08.share">
           <MoneyBar
             label={FANOUT.shareLabel}
@@ -514,7 +521,8 @@ export function Screen({ runSlug }: RunScreenProps) {
         </div>
       </section>
 
-      <div className="fsr-fanout__below">
+      {/* The last events (columns 1–8) and the latency dots (9–12); stacked below 1,040 px of panel. */}
+      <Cell span={8} className="fsr-fanout__log">
         <RunLog
           rows={rows}
           isLive={(id) => live.isLive(id)}
@@ -527,19 +535,17 @@ export function Screen({ runSlug }: RunScreenProps) {
             </p>
           }
         />
-        <aside className="fsr-fanout__side">
-          {replayed ? (
-            <p className="fs-t-caption fsr-muted">{FANOUT.timingReplayed}</p>
-          ) : (
-            <LatencyDots
-              latency={lat}
-              {...(counts.confirmed > 0 && view.events.length === 0
-                ? { emptyText: FANOUT.latencySeeded }
-                : {})}
-            />
-          )}
-        </aside>
-      </div>
+      </Cell>
+      <Cell span={4} as="aside" className="fsr-fanout__side">
+        {replayed ? (
+          <p className="fs-t-caption fsr-muted">{FANOUT.timingReplayed}</p>
+        ) : (
+          <LatencyDots
+            latency={lat}
+            {...(counts.confirmed > 0 && view.events.length === 0 ? { emptyText: FANOUT.latencySeeded } : {})}
+          />
+        )}
+      </Cell>
     </ScreenRoot>
   );
 }
