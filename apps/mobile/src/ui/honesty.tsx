@@ -17,8 +17,11 @@ import { type HonestyKind, hatchLines, MICRO_WORD, ringDash } from "../lib/hones
 import { useFs } from "../theme/theme";
 import { Txt } from "./text";
 
-/** Read by a screen reader and kept in the text, never drawn: the words behind a glyph or a micro-tag's one word. */
-function Hidden({ children }: { children: string }) {
+/**
+ * Read by a screen reader and kept in the text, never drawn: the words behind a glyph or a micro-tag's one word, or
+ * (round 5) a voice's whole label ("… (Gemini TTS)") behind its short words.
+ */
+export function Hidden({ children }: { children: string }) {
   return (
     <Text style={styles.hidden} numberOfLines={1}>
       {children}

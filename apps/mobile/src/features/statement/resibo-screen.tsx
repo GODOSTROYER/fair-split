@@ -15,7 +15,7 @@ import { useApp } from "../../state/app";
 import { useFs } from "../../theme/theme";
 import { Screen, SnapRow } from "../../ui/chrome";
 import { Glyph } from "../../ui/glyph";
-import { LegendGlyph } from "../../ui/honesty";
+import { QuietMarks } from "../../ui/honesty";
 import { MomentMarker, useMoment } from "../../ui/moment";
 import { Sheet } from "../../ui/overlay";
 import { Banner, Button, Rule } from "../../ui/primitives";
@@ -152,17 +152,22 @@ function Slips({ dto, lang }: { dto: StatementDTO; lang: Lang }) {
                     </View>
                     <View style={styles.rowText} importantForAccessibility="no-hide-descendants">
                       <Txt kind="bodyStrong">{tr("M-MB-02.slip", { serial: s.serial })}</Txt>
-                      {/* Round 3: a demo's sample kilos are the synthetic glyph beside the date (its words are
-                          its name), not a sentence repeated on every slip. */}
+                      {/* Round 3: a demo's sample kilos are named once, never a sentence on every slip. Round 5
+                          (provenance once): the screen's own mark says it, so the slip keeps the words for assistive
+                          technology and its hook, with nothing drawn beside the date. */}
                       <View style={styles.dateRow}>
                         <Txt kind="caption" color="ink2">
                           {f.date}
                         </Txt>
                         {demo && f.provisional ? (
-                          <LegendGlyph
-                            kind={MARK_KIND.seedStandIn}
-                            label={tr("M-MB-02.provisional")}
-                            testID={`M-MB-02.provisional.${s.serial}`}
+                          <QuietMarks
+                            marks={[
+                              {
+                                kind: MARK_KIND.seedStandIn,
+                                label: tr("M-MB-02.provisional"),
+                                testID: `M-MB-02.provisional.${s.serial}`,
+                              },
+                            ]}
                           />
                         ) : null}
                       </View>

@@ -16,16 +16,20 @@
  * pencil, a ruled deduction hatched, a credit ink 2), so the bar reads as premium, bonus and deduction with their
  * amounts beside them, never as her share of the co-op's kilos (that sentence leaves: her kilos sit beside her pay).
  * The fees row is solid: dashed and dotted lines mean simulated only.
+ *
+ * UI gate round 5 (docs/DESIGN.md §10): hatch means cash only, so a deduction's segment and key are an ink-2 outline;
+ * the keys are the vocabulary's one 8 px square; a deduction reads its words ("CBU") with the rule only in its
+ * spoken label; the traced peso's equation stays on one line; her slips appear once, in the one receipt-chip shape.
  */
-import { type ReactNode, useEffect, useRef } from "react";
-import { Pressable, StyleSheet, View, type ViewInstance } from "react-native";
+import { type ReactNode, useEffect, useRef, useState } from "react";
+import { Pressable, StyleSheet, Text, View, type ViewInstance } from "react-native";
 import Animated, { FadeIn, FadeOut, LinearTransition } from "react-native-reanimated";
 import type { StatementDTO } from "../../_shims/api-client";
 import type { AmountState, Lang } from "../../_shims/contracts";
-import { format } from "../../_shims/domain";
 import { SPRINGS } from "../../_shims/motion";
 import { radius, space, target } from "../../_shims/tokens.native";
 import {
+  type EquationTerm,
   feeFigures,
   receiptBarWeights,
   receiptRows,
@@ -33,13 +37,11 @@ import {
   type TraceId,
   traceFor,
 } from "../../lib/figures";
-import { useFs } from "../../theme/theme";
+import { typeScale, useFs } from "../../theme/theme";
 import { AmountDisplay } from "../../ui/amount";
 import { useScreenScroll, useSnapRow } from "../../ui/chrome";
 import { Glyph } from "../../ui/glyph";
 import { ms } from "../../ui/motion";
-import { Hatch, RuleChip } from "../../ui/primitives";
-import { ReceiptChip } from "../../ui/receipt-chip";
 import { figures, Sentence } from "../../ui/sentence";
 import { Txt } from "../../ui/text";
 import type { SlipOwner } from "./slip-paper";
@@ -59,18 +61,100 @@ const REVEAL_AFTER_MS = 320;
 /** A row's segment of the pay-split bar. */
 type Segment = "premium" | "bonus" | "deducted" | "credited";
 
-/** The row's swatch: the same colour (or hatch) as its segment of the bar above the rows. */
-function Swatch({ segment }: { segment: Segment }) {
+/**
+ * A segment's look, on the bar and on its row's legend key. Round 5 (hatch only for cash): a ruled deduction is the
+ * money taken out, an outline in ink 2 with nothing inside, never hatched.
+ */
+function useSegmentLook(segment: Segment): { fill: string; edge: string } {
   const { t } = useFs();
-  if (segment === "deducted") {
-    return (
-      <View style={[styles.swatch, { borderColor: t.color.hatch, backgroundColor: t.color.plate2 }]}>
-        <Hatch />
-      </View>
-    );
+  switch (segment) {
+    case "premium":
+      return { fill: t.color.ink, edge: t.color.ink };
+    case "bonus":
+      return { fill: t.color.pencil, edge: t.color.pencil };
+    case "deducted":
+      return { fill: t.color.plate, edge: t.color.ink2 };
+    case "credited":
+      return { fill: t.color.ink2, edge: t.color.ink2 };
   }
-  const fill = segment === "premium" ? t.color.ink : segment === "bonus" ? t.color.pencil : t.color.ink2;
-  return <View style={[styles.swatch, { borderColor: fill, backgroundColor: fill }]} />;
+}
+
+/** The row's legend key (round 5: the vocabulary's one square, 8 px), the same look as its segment of the bar. */
+function Swatch({ segment }: { segment: Segment }) {
+  const look = useSegmentLook(segment);
+  return <View style={[styles.swatch, { borderColor: look.edge, backgroundColor: look.fill }]} />;
+}
+
+/** One segment of the pay-split bar. */
+function BarSegment({ segment, weight }: { segment: Segment; weight: number }) {
+  const look = useSegmentLook(segment);
+  return (
+    <View
+      style={[
+        styles.segment,
+        { flex: weight, backgroundColor: look.fill, borderColor: look.edge },
+        segment === "deducted" ? styles.segmentOutline : null,
+      ]}
+    />
+  );
+}
+
+/**
+ * The traced peso's equation on one line (round 5): "43.69 + 21.85 − 1.09 = US$64.45" at the amount-l step (24/30),
+ * the operators and the parts quieter than the paid amount. It never wraps: on a column narrower than the whole
+ * equation (the stage's phone, 200% text) the line scales down until it fits, as the hero amount does.
+ */
+function Equation({ terms, total }: { terms: readonly EquationTerm[]; total: string }) {
+  const { t } = useFs();
+  const [room, setRoom] = useState(0);
+  const [natural, setNatural] = useState(0);
+  const base = typeScale.amountM;
+  const fit = room > 0 && natural > room ? room / natural : 1;
+  const sized = { fontSize: base.fontSize * fit, lineHeight: base.lineHeight * fit };
+  const quiet = { color: t.color.statementInk2 };
+  const part = { color: t.color.ink2 };
+  const line = (
+    <>
+      {terms.map((x, i) => (
+        <Text key={`${x.op}${x.amount}`}>
+          {i > 0 ? " " : null}
+          {x.op ? <Text style={quiet}>{`${x.op} `}</Text> : null}
+          <Text style={part}>{x.amount}</Text>
+        </Text>
+      ))}
+      <Text style={quiet}>{" = "}</Text>
+      {total}
+    </>
+  );
+  return (
+    <View
+      testID="M-MB-01.trace.net.equation"
+      onLayout={(e) => setRoom(e.nativeEvent.layout.width)}
+      accessible
+      accessibilityLabel={`${terms.map((x) => `${x.op ?? ""} ${x.amount}`).join(" ")} = ${total}`}
+    >
+      <View
+        style={styles.measure}
+        pointerEvents="none"
+        importantForAccessibility="no-hide-descendants"
+        aria-hidden
+      >
+        <View style={styles.measureLine}>
+          <Txt kind="amountM" numberOfLines={1} onLayout={(e) => setNatural(e.nativeEvent.layout.width)}>
+            {line}
+          </Txt>
+        </View>
+      </View>
+      <Txt kind="amountM" numberOfLines={1} style={sized} importantForAccessibility="no" aria-hidden>
+        {line}
+      </Txt>
+    </View>
+  );
+}
+
+/** The lines whose trace shows her slips (round 5: while one is open, the statement's own slip row steps aside). */
+export function listsSlips(id: TraceId): boolean {
+  return id === "premium" || id === "bonus" || id === "net" || id.startsWith("credit");
 }
 
 function Row({
@@ -242,44 +326,14 @@ function TraceBody({
     case "net":
       return (
         <>
-          {/* MM-7 drawn as the equation (ADR-0016): each part at a readable size, the operators between them, and
-              the paid amount after the equals sign; the figures are the statement's own lines. */}
-          <View
-            style={styles.equation}
-            accessible
-            accessibilityLabel={`${trace.terms.map((x) => `${x.op ?? ""} ${x.amount}`).join(" ")} = ${trace.total}`}
-          >
-            {trace.terms.map((x) => (
-              <View key={`${x.op}${x.amount}`} style={styles.term}>
-                {x.op ? (
-                  <Txt kind="amountM" color="statementInk2">
-                    {x.op}
-                  </Txt>
-                ) : null}
-                <Txt kind="amountM" color="ink2">
-                  {x.amount}
-                </Txt>
-              </View>
-            ))}
-            <View style={styles.term}>
-              <Txt kind="amountM" color="statementInk2">
-                =
-              </Txt>
-              <Txt kind="amountM">{trace.total}</Txt>
-            </View>
-          </View>
-          {/* The slips the line was weighed on, as receipt chips (round 4: data, not paper; the serial in the mono at
-              ink 3, the verified kilos in ink, a 1 px rule): her statement's own slips. */}
+          {/* MM-7 drawn as the equation (ADR-0016): each part, the operators between them, and the paid amount after
+              the equals sign, on one line (round 5); the figures are the statement's own lines. */}
+          <Equation terms={trace.terms} total={trace.total} />
+          {/* The slips the line was weighed on (round 5: her receipts once a screen, in the one receipt-chip shape,
+              each opening the slip itself): the statement's own slip row steps aside while this line is open. */}
           {dto.slips.length > 0 ? (
-            <View style={styles.slipChips} testID="M-MB-01.trace.net.slips">
-              {dto.slips.map((slip) => (
-                <ReceiptChip
-                  key={slip.serial}
-                  inline
-                  serial={slip.serial}
-                  kilos={format.kg(slip.netGrams, 2)}
-                />
-              ))}
+            <View testID="M-MB-01.trace.net.slips">
+              <SlipTiles slips={dto.slips} owner={owner} onOpen={onSlip} testPrefix="M-MB-01.slip" />
             </View>
           ) : null}
           <View style={styles.check}>
@@ -390,14 +444,10 @@ export function ReceiptBar({
   return (
     <View testID="M-MB-01.receipt" style={styles.root}>
       <View style={styles.bar} importantForAccessibility="no-hide-descendants" aria-hidden>
-        <View style={{ flex: w.premium, backgroundColor: t.color.ink }} />
-        <View style={{ flex: w.bonus, backgroundColor: t.color.pencil }} />
-        {w.deducted > 0 ? (
-          <View style={[styles.hatched, { flex: w.deducted, backgroundColor: t.color.plate2 }]}>
-            <Hatch />
-          </View>
-        ) : null}
-        {w.credited > 0 ? <View style={{ flex: w.credited, backgroundColor: t.color.ink2 }} /> : null}
+        <BarSegment segment="premium" weight={w.premium} />
+        <BarSegment segment="bonus" weight={w.bonus} />
+        {w.deducted > 0 ? <BarSegment segment="deducted" weight={w.deducted} /> : null}
+        {w.credited > 0 ? <BarSegment segment="credited" weight={w.credited} /> : null}
       </View>
 
       <View style={[styles.list, { borderTopColor: t.color.rule }]}>
@@ -447,12 +497,9 @@ export function ReceiptBar({
                 id={r.id}
                 open={stateOf(r.id)}
                 onPress={onSegment}
-                label={
-                  <View style={styles.labelRow}>
-                    <Txt kind="body">{r.label ?? ""}</Txt>
-                    <RuleChip ruleId={r.ruleId ?? ""} />
-                  </View>
-                }
+                // Round 5 (no ids for people): the deduction reads its words ("CBU") beside its figure; the rule's
+                // id is spoken with the row, never shown.
+                label={r.label ?? ""}
                 segment="deducted"
                 note={tr("M-MB-01.ruleRef")}
                 amount={part(r.amount)}
@@ -519,7 +566,9 @@ export function ReceiptBar({
 const styles = StyleSheet.create({
   root: { gap: space.s12 },
   bar: { flexDirection: "row", height: 10, gap: 2, overflow: "hidden" },
-  hatched: { overflow: "hidden" },
+  segment: { borderWidth: 0 },
+  /** A deduction's segment: the money taken out, an outline (round 5: hatch means cash only). */
+  segmentOutline: { borderWidth: 1 },
   list: { borderTopWidth: 1 },
   rowWrap: { borderWidth: 1, borderRadius: radius.card, marginTop: -1 },
   // A narrow column (200% zoom, a 2× font) wraps the figure under its words, right-aligned: the receipt becomes a
@@ -540,21 +589,15 @@ const styles = StyleSheet.create({
   rowText: { flexGrow: 1, flexShrink: 1, flexBasis: 128, gap: space.s2 },
   amount: { flexShrink: 0, marginLeft: "auto" },
   chevron: { width: 16, alignItems: "center" },
-  // The swatch sits on the label's first line (body 17/24: 7 px above a 10 px square).
-  swatchSlot: { alignSelf: "flex-start", paddingTop: 7 },
-  swatch: { width: 10, height: 10, borderRadius: 2, borderWidth: 1, overflow: "hidden" },
+  // The legend key sits on the label's first line (body 17/24: 8 px above an 8 px square, round 5's one square).
+  swatchSlot: { alignSelf: "flex-start", paddingTop: 8 },
+  swatch: { width: 8, height: 8, borderRadius: 2, borderWidth: 1, overflow: "hidden" },
   chevronOpen: { transform: [{ rotate: "180deg" }] },
   labelRow: { flexDirection: "row", alignItems: "center", gap: space.s8, flexWrap: "wrap" },
   trace: { gap: space.s12, paddingHorizontal: space.s8, paddingBottom: space.s16 },
-  equation: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    columnGap: space.s8,
-    rowGap: space.s4,
-    alignItems: "baseline",
-  },
-  term: { flexDirection: "row", alignItems: "baseline", gap: space.s8 },
-  slipChips: { flexDirection: "row", flexWrap: "wrap", gap: space.s8 },
+  // The equation measured on one line where it takes no room and is never seen (as the hero amount is).
+  measure: { position: "absolute", left: 0, top: 0, width: 0, height: 0, overflow: "hidden" },
+  measureLine: { width: 1024, alignItems: "flex-start" },
   check: { flexDirection: "row", alignItems: "flex-start", gap: space.s8 },
   bolted: { flexDirection: "row", alignItems: "flex-start", gap: space.s8 },
   flex: { flex: 1 },

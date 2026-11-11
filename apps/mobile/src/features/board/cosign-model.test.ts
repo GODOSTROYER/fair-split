@@ -316,7 +316,9 @@ describe("a resolved hold in the Chair's language", () => {
     expect(holdNote("en", { gloss: false, expanded: false })).toBe("line");
     expect(holdNote("ceb", { gloss: false, expanded: false })).toBe("hidden");
     expect(holdNote("ceb", { gloss: false, expanded: true })).toBe("note");
-    expect(holdNote("fil", { gloss: true, expanded: false })).toBe("note");
+    // UI gate round 5 (one language a line): a judge frame's gloss no longer opens every hold's English note.
+    expect(holdNote("fil", { gloss: true, expanded: false })).toBe("hidden");
+    expect(holdNote("fil", { gloss: true, expanded: true })).toBe("note");
   });
 });
 

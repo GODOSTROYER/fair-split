@@ -14,8 +14,11 @@ import { defineMessages, type MessageArgs, type MessageKey, same, translateIn } 
 export const messages = defineMessages({
   /* ------------------------------------------------------------ M-MB-01 Bayad: header and language */
   "M-MB-01.season": same("Season {code}"),
-  /** Round 2: the statement's factual header line, data joined by " · " (her number, the season, the co-op). */
-  "M-MB-01.headMeta": same("{no} · {season} · {coop}"),
+  /**
+   * Round 2: the statement's factual header line, data joined by " · ". Round 5: her number and the season only
+   * ("M-014 · 2026-A"), one line on every phone; the co-op's name stays on her slips' paper (the zoom).
+   */
+  "M-MB-01.headMeta": same("{no} · {season}"),
   /** Round 2: a PayPal line's peso estimate, the estimate's own figure; the spoken label keeps "about … (estimate)". */
   "M-MB-01.about": same("≈ {peso}"),
   "M-MB-01.glossOn": { ceb: "Ipakita ang English", fil: "Ipakita ang English", en: "Show English" },
@@ -238,15 +241,21 @@ export const messages = defineMessages({
   },
   "M-MB-01.historyReceived": { ceb: "Nadawat", fil: "Natanggap na po", en: "Received" },
   "M-MB-01.historyHeld": { ceb: "Gisusi pa", fil: "Sinusuri pa po", en: "Still checking" },
-  "M-MB-01.rateCard": {
-    ceb: "Rate card {hash}, giaprobahan sa Board sa {date}",
-    fil: "Rate card {hash}, inaprubahan ng Board noong {date}",
-    en: "Rate card {hash}, approved by the Board on {date}",
+  /**
+   * Round 5: the rate card in two short lines beside the seal, so neither ends on an orphan word: its id, then who
+   * approved it and when.
+   */
+  "M-MB-01.rateCardId": same("Rate card {hash}"),
+  "M-MB-01.rateCardBoard": {
+    ceb: "Giaprobahan sa Board, {date}",
+    fil: "Inaprubahan ng Board, {date}",
+    en: "Approved by the Board, {date}",
   },
+  /** Round 5: beside the seal, so "the batch's seal" is the picture; the words say who signed it, on one line. */
   "M-MB-01.sealCaption": {
-    ceb: "Selyo sa batch nga gipirmahan ni {a} ug {b}",
-    fil: "Selyo ng batch na pinirmahan nina {a} at {b}",
-    en: "Batch seal signed by {a} and {b}",
+    ceb: "Gipirmahan ni {a} ug {b}",
+    fil: "Pinirmahan nina {a} at {b}",
+    en: "Signed by {a} and {b}",
   },
 
   /* ------------------------------------------------------------ Pangutana block (always last) */

@@ -3,15 +3,14 @@
  * shadow and carries a 'Synthetic sample' tag in the corner"). Square corners, the paper shadow, the photo cropped
  * from the top so a slip's header and serial show first.
  *
- * UI gate round 3: the sample's mark is the synthetic legend glyph (a hatched square) on a white chip at 90%, bottom
- * left, as on the console's papers; its words ("Synthetic sample") stay in the label beside or around the paper.
+ * UI gate round 3: the sample's mark was the synthetic legend glyph in the corner. Round 5 (provenance once, the
+ * console's `Paper`): nothing drawn on the paper; its words ("Synthetic sample") stay in the label beside or around
+ * the paper and in its text.
  */
 import { Image } from "expo-image";
 import { StyleSheet, View } from "react-native";
-import { radius, space } from "../../_shims/tokens.native";
-import { MARK_KIND } from "../../lib/honesty";
 import { useFs } from "../../theme/theme";
-import { MarkShape, useMarkColor } from "../../ui/honesty";
+import { Hidden } from "../../ui/honesty";
 
 export function Paper({
   uri,
@@ -24,14 +23,13 @@ export function Paper({
   uri: string | null;
   width: number;
   height: number;
-  /** "Synthetic sample": its glyph is drawn in the corner (the words are the caller's label). */
+  /** "Synthetic sample": kept in the paper's text, never drawn (round 5); the caller's label says it too. */
   tag?: string | null;
   /** When set, the paper is an image for screen readers; otherwise the words beside it speak for it. */
   label?: string;
   testID?: string;
 }) {
   const { t, motion } = useFs();
-  const mark = useMarkColor(MARK_KIND.syntheticSample);
   return (
     <View
       testID={testID}
@@ -51,17 +49,9 @@ export function Paper({
           accessible={false}
         />
       ) : null}
-      {tag && width >= 40 ? (
-        <View style={styles.tag} pointerEvents="none">
-          <View style={[styles.chip, { backgroundColor: t.color.plate }]} />
-          <MarkShape kind={MARK_KIND.syntheticSample} size={12} color={mark} />
-        </View>
-      ) : null}
+      {/* Round 5 (provenance once, as the console's Paper): no glyph in the paper's corner; the screen's own mark
+          and the words beside the paper say it, and the tag's words stay in the text. */}
+      {tag ? <Hidden>{tag}</Hidden> : null}
     </View>
   );
 }
-
-const styles = StyleSheet.create({
-  tag: { position: "absolute", left: space.s4, bottom: space.s4, padding: 3 },
-  chip: { ...StyleSheet.absoluteFill, borderRadius: radius.cell, opacity: 0.9 },
-});

@@ -3,10 +3,25 @@
  *
  * - `seasonLabel`: the season reads "2026-A" everywhere a person reads it. A run slug spells it "2026A" ("2026A-r1");
  *   the slug stays as data (routes, presence, the signed payload), only the words change.
+ * - `voiceWords`: the voice's label without its provider in brackets (round 5), which stays in the accessible name.
  * - `followingDay`: the demo statement's expected pay date follows the clock, as its history does, so a judge never
  *   reads a date before the run they are about to start (the console dates the bodega's day the same way: the run's
  *   first day in Calinan plus the seed's gap).
  */
+
+/**
+ * The voice's words as a member reads them (UI gate round 5): the provider in brackets ("(Gemini TTS)") stays in the
+ * accessible name and leaves the screen, so a line reads "Sintetikong tingog". Where words follow the brackets (a
+ * mixed reading: "… ug tingog sa telepono"), the line breaks there, between the two voices, never on an orphan word.
+ */
+export function voiceWords(label: string): string {
+  return label
+    .replace(/\s*\([^)]*\)\s*/g, "\n")
+    .split("\n")
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .join("\n");
+}
 
 const SEASON = /^(\d{4})-?([A-Za-z])$/;
 

@@ -13,6 +13,9 @@
  * UI gate round 4 (docs/DESIGN.md §9): the heading says "2026-A" on one line; the seal card holds the 140 px seal,
  * the console's short hash and what to do with them, and ends at least 16 px above the sticky button (the simulated
  * push folds away after a few seconds, as a heads-up notification does); every block is a snap row.
+ *
+ * UI gate round 5 (docs/DESIGN.md §10): one language a line. Why him is one Cebuano line under the count, with no
+ * English line under it, and so is the treasurer's presence; only a note that blocks him keeps its gloss.
  */
 import { router, useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -62,7 +65,6 @@ export function CosignScreen() {
   const tr = useT();
   const { width } = useWindowDimensions();
   const compact = useCompact();
-  const gloss = useGloss();
   const [openHold, setOpenHold] = useState<string | null>(null);
   const [sendBackOpen, setSendBackOpen] = useState(false);
   const top = useRef<ViewInstance>(null);
@@ -235,9 +237,15 @@ export function CosignScreen() {
             <MicroTag testID="M-BD-01.rail" label={railLabel(dto.rail, "simulated_rail", lang).chip} />
           ) : null}
         </SnapRow>
+        {/* Round 5 (one language a line): why him, in his language only, on one line under the count; the
+            stage's English gloss stays with the notes that block him. */}
         <SnapRow>
-          <Sentence segments={figures(tr(whyKey(dto), { threshold }))} testID="M-BD-01.why" />
-          <Gloss text={gloss(whyKey(dto), { threshold })} testID="M-BD-01.why.gloss" />
+          <Sentence
+            kind="caption"
+            color="ink2"
+            segments={figures(tr(whyKey(dto), { threshold }))}
+            testID="M-BD-01.why"
+          />
         </SnapRow>
       </View>
 

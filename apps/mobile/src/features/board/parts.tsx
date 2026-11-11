@@ -5,7 +5,7 @@
  * phone, and the amount that turns from pencil to ink when both keys are in.
  */
 import { useCallback, useEffect, useState } from "react";
-import { Platform, Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import Animated, {
   FadeIn,
   useAnimatedStyle,
@@ -20,14 +20,13 @@ import type { MessageArgs } from "../../_shims/i18n";
 import { people } from "../../_shims/seed";
 import { radius, space, target } from "../../_shims/tokens.native";
 import { seasonLabel } from "../../lib/display";
-import { MARK_KIND } from "../../lib/honesty";
 import { openPushSettings } from "../../platform/push";
 import { useApp } from "../../state/app";
 import { usePushStatus } from "../../state/use-push";
-import { useFs } from "../../theme/theme";
+import { typeScale, useFs } from "../../theme/theme";
 import { AmountDisplay } from "../../ui/amount";
 import { Glyph } from "../../ui/glyph";
-import { LegendGlyph } from "../../ui/honesty";
+import { Hidden } from "../../ui/honesty";
 import { ms, reducedFade, spring, tween } from "../../ui/motion";
 import { Button, InkStamp, Rule } from "../../ui/primitives";
 import { SealView } from "../../ui/seal-view";
@@ -120,7 +119,6 @@ export function HoldRow({
   const { t } = useFs();
   const { lang, gloss: glossOn } = useApp();
   const tr = useT();
-  const gloss = useGloss();
   const kind = tr(`hold.${hold.kind}` as BoardKey);
   const resolved = tr("M-BD-01.holdBy", {
     name: resolverName(hold.resolvedBy),
@@ -147,22 +145,18 @@ export function HoldRow({
         <InkStamp initials={hold.resolvedBy} label={resolverName(hold.resolvedBy)} />
       </View>
       <View style={styles.holdText}>
-        <View style={styles.holdHead}>
-          <Txt kind="hash" color="ink2">
-            {hold.id}
-          </Txt>
-          <Txt kind="bodyStrong" style={styles.flex}>
-            {kind}
-          </Txt>
-        </View>
-        <Gloss text={gloss(`hold.${hold.kind}` as BoardKey)} />
+        {/* Round 5: the hold's kind has the line to itself (never an orphan word under it); its id leads the
+            caption below, in the mono. */}
+        <Txt kind="bodyStrong">{kind}</Txt>
+        {/* Round 5 (one language a line): no English line under the hold's kind; its English note opens with it. */}
         {note === "line" ? (
           <Txt kind="body" color="ink2" numberOfLines={expanded ? undefined : 2}>
             {hold.summary}
           </Txt>
         ) : null}
         <Txt kind="caption" color="ink2">
-          {resolved}
+          <Text style={styles.holdId}>{hold.id}</Text>
+          {` · ${resolved}`}
         </Txt>
         {note === "note" ? (
           <View style={styles.holdNote} testID={`M-BD-01.hold.${hold.id}.note`}>
@@ -363,8 +357,9 @@ export function SimulatedPush({ dto, gap }: { dto: CosignRequestDTO; gap: number
         <Txt kind="caption" color="ink3" style={styles.flex}>
           {tr("M-BD-01.push.now")}
         </Txt>
-        {/* "Simulated push" (I8), round 3: the simulated legend glyph, its words its accessible name. */}
-        <LegendGlyph kind={MARK_KIND.simulatedPush} label={tr("M-BD-01.push.label")} />
+        {/* "Simulated push" (I8): the card's spoken label leads with it. Round 5 (provenance once, no corner
+            glyphs): nothing drawn in the corner; the words stay in the text for assistive technology. */}
+        <Hidden>{tr("M-BD-01.push.label")}</Hidden>
       </View>
       <Txt kind="bodyStrong" numberOfLines={1}>
         {title}
@@ -409,11 +404,13 @@ export function PushNote() {
 
 /* ------------------------------------------------------------------ small pieces */
 
-/** "Naa si Analyn sa approval screen.": a still ink dot, never a pulse (no ambient loops). */
+/**
+ * "Naa si Analyn sa approval screen.": a still ink dot, never a pulse (no ambient loops). Round 5: one language a
+ * line, so no English line under it.
+ */
 export function PresenceLine({ name }: { name: string }) {
   const { t } = useFs();
   const tr = useT();
-  const gloss = useGloss();
   return (
     <Animated.View
       entering={FadeIn.duration(ms("crossfade"))}
@@ -426,7 +423,6 @@ export function PresenceLine({ name }: { name: string }) {
         <Txt kind="body" color="ink2">
           {tr("M-BD-01.presence", { name })}
         </Txt>
-        <Gloss text={gloss("M-BD-01.presence", { name })} />
       </View>
     </Animated.View>
   );
@@ -449,7 +445,8 @@ const styles = StyleSheet.create({
   holdStamp: { paddingTop: space.s2 },
   holdText: { flex: 1, gap: space.s2 },
   holdNote: { gap: space.s2, paddingTop: space.s4 },
-  holdHead: { flexDirection: "row", alignItems: "baseline", gap: space.s8, flexWrap: "wrap" },
+  /** The hold's id in the mono, leading its caption ("H1 · Gisulbad ni Analyn, 10:14"). */
+  holdId: { ...typeScale.hash },
   items: { gap: space.s4 },
   itemRow: {
     flexDirection: "row",

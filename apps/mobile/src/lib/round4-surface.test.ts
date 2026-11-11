@@ -81,11 +81,11 @@ describe("UI gate round 4 on the phone: the confirmed status is one row", () => 
 });
 
 describe("UI gate round 4 on the phone: receipt chips are data everywhere", () => {
-  it("draws the traced line's slips as inline receipt chips, never as paper", () => {
+  it("draws the traced line's slips as receipt chips, never as paper (round 5: the one tile shape)", () => {
     const bar = code("features/statement/receipt-bar.tsx");
-    expect(bar).toMatch(/<ReceiptChip\s+key=\{slip\.serial\}\s+inline/);
+    expect(bar).toMatch(/testID="M-MB-01\.trace\.net\.slips">\s*<SlipTiles/);
     expect(bar).not.toMatch(/copyWhite|slipChipPaper/);
-    expect(code("ui/receipt-chip.tsx")).toMatch(/inline \? styles\.inline : styles\.chip/);
+    expect(code("ui/receipt-chip.tsx")).not.toMatch(/inline/);
   });
 
   it("prints the serial alone on a tile, as the console's chip does", () => {

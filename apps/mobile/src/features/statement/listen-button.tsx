@@ -1,8 +1,11 @@
 /**
- * Paminawa as one large play button (UI gate round 2; reel 2's "Start run" with its play circle): a 64 dp indigo
- * circle with a white triangle, the word beside it, and one mono line under the word, the length of the reading
- * when every sentence has a clip, and the voice's own label (Gemini TTS, the phone's voice). The whole row is the
- * 64 dp target; a screen reader hears one button.
+ * Paminawa as one play button (UI gate round 2; reel 2's "Start run" with its play circle): an indigo circle with a
+ * white triangle, the word beside it, and one line under the word, the length of the reading when every sentence has
+ * a clip, and the voice's own words ("1:29 · Sintetikong tingog"; the provider stays in the spoken label). The whole
+ * row is the target; a screen reader hears one button.
+ *
+ * UI gate round 5 (compact): a 48 dp circle and a 48 dp row, so the member's whole pay (premium, bonus, deduction)
+ * rests in the first viewport above it on a 390 px phone and in the stage's frame.
  */
 import type { ReactNode } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
@@ -50,7 +53,7 @@ export function ListenButton({
             >
               {/* The triangle sits a hair right of centre, where the eye reads a play glyph as centred. */}
               <View style={styles.nudge}>
-                <Glyph name="play" size={28} color={t.slab.chalk.label} />
+                <Glyph name="play" size={22} color={t.slab.chalk.label} />
               </View>
             </View>
             {ring}
@@ -58,7 +61,7 @@ export function ListenButton({
           <View style={styles.words}>
             <Txt kind="title2">{label}</Txt>
             {meta ? (
-              <Txt kind="micro" color="statementInk2" testID={metaTestID}>
+              <Txt kind="caption" color="statementInk2" testID={metaTestID}>
                 {meta}
               </Txt>
             ) : null}
@@ -75,13 +78,13 @@ const styles = StyleSheet.create({
     alignItems: "center",
     alignSelf: "flex-start",
     maxWidth: "100%",
-    gap: space.s16,
-    minHeight: target.hero,
+    gap: space.s12,
+    minHeight: target.min,
     paddingRight: space.s16,
   },
   circle: {
-    width: target.hero,
-    height: target.hero,
+    width: target.min,
+    height: target.min,
     borderRadius: radius.pill,
     alignItems: "center",
     justifyContent: "center",

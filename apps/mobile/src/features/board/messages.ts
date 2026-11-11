@@ -306,6 +306,12 @@ export const messages = defineMessages({
     fil: "Napirmahan. Key {key}. Pareho ang batch hash sa console.",
     en: "Signed. Key {key}. The batch hash matches the console.",
   },
+  /** Round 5: the signed line on screen, with no key id (the id is spoken, `M-BD-02.signed`, and behind the mark). */
+  "M-BD-02.signedShort": {
+    ceb: "Napirmahan. Parehas ang batch hash sa console.",
+    fil: "Napirmahan. Pareho ang batch hash sa console.",
+    en: "Signed. The batch hash matches the console.",
+  },
   "M-BD-02.sealed": {
     ceb: "Giaprobahan ni {a} ug {b}",
     fil: "Inaprubahan nina {a} at {b}",

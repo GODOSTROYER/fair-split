@@ -8,9 +8,13 @@
  * UI gate round 2 (unslop spec §3.9): one language on the screen (no English stacked under the header, the caption
  * or the result; a note that blocks him keeps its gloss), the hash and "compare" as one mono line, the honesty tag
  * under the amount it covers, the demo key as its tag, and "Can't hold?" as a quiet link.
+ *
+ * UI gate round 5 (docs/DESIGN.md §10): the demo key's English note is behind its dashed mark at the caption's end
+ * (`KeyNote`, opened by a tap), never a line under the Cebuano; the signed line carries no key id (the id is spoken
+ * and behind the mark); the thumb zone ends 24 px above the bezel.
  */
 import { router, useFocusEffect } from "expo-router";
-import { useCallback } from "react";
+import { type ReactNode, useCallback, useState } from "react";
 import { Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { format } from "../../_shims/domain";
@@ -197,10 +201,17 @@ export function SignScreen() {
       {compact ? null : <EdgeFade color={t.color.ground} />}
       {done ? (
         <View style={styles.doneZone} testID="M-BD-02.signed" accessibilityLiveRegion="polite">
-          <Txt kind="bodyStrong">{tr("M-BD-02.signed", { key: key?.keyId ?? nextKeyId })}</Txt>
-          {demoKey ? (
-            <LegendGlyph testID="M-BD-02.demo-key" kind={MARK_KIND.demoKey} label={tr("common.demoKey")} />
-          ) : null}
+          {/* Round 5 (no ids on screen): the words say it is signed and matches; the key's id is in the spoken line
+              and behind the demo key's mark. */}
+          <KeyNote line={demoKey ? keyLine : null} testID="M-BD-02.demo-key" align="left">
+            <Txt
+              kind="bodyStrong"
+              style={styles.flexShrink}
+              accessibilityLabel={tr("M-BD-02.signed", { key: key?.keyId ?? nextKeyId })}
+            >
+              {tr("M-BD-02.signedShort")}
+            </Txt>
+          </KeyNote>
           <Button tall variant="quiet" label={tr("M-BD-02.done")} onPress={back} testID="M-BD-02.done" />
         </View>
       ) : (
@@ -217,17 +228,21 @@ export function SignScreen() {
           ) : null}
           <Slab
             // Round 4 (the console's Approve): the slab, then how to use it right under it, then the one other way.
+            // Round 5 (one language a line): a demo key's note ("Demo key (this browser) …", English) is behind its
+            // dashed mark at the caption's end, opened by a tap, never a line of its own under the Cebuano.
             below={
               blocked ? undefined : (
-                <Txt
-                  kind="caption"
-                  color="ink2"
-                  align="center"
-                  testID="M-BD-02.caption"
-                  accessibilityLiveRegion={phase === "biometric" ? "polite" : "none"}
-                >
-                  {caption}
-                </Txt>
+                <KeyNote line={demoKey ? keyLine : null} testID="M-BD-02.key">
+                  <Txt
+                    kind="caption"
+                    color="ink2"
+                    align="center"
+                    testID="M-BD-02.caption"
+                    accessibilityLiveRegion={phase === "biometric" ? "polite" : "none"}
+                  >
+                    {caption}
+                  </Txt>
+                </KeyNote>
               )
             }
             // A slab that goes flush (the batch changed, the request closed) is a new slab: the shared Slab would
@@ -296,20 +311,17 @@ export function SignScreen() {
               testID="M-BD-02.retry"
             />
           ) : null}
-          {/* The key: a demo key is its glyph and its id (the mono), or the words until it exists; a phone key says
-              where it lives. */}
-          <View style={styles.keyRow} testID="M-BD-02.key" accessible accessibilityLabel={keyLine}>
-            {demoKey ? <LegendGlyph kind={MARK_KIND.demoKey} label={tr("common.demoKey")} /> : null}
-            {demoKey && key ? (
-              <Txt kind="hash" color="ink2" selectable>
-                {key.keyId}
-              </Txt>
-            ) : (
+          {/* The key: a phone key says where it lives, in his language. A demo key's words are behind its mark on
+              the caption's row (round 5), or here when the slab is blocked and has no caption. */}
+          {!demoKey ? (
+            <View style={styles.keyRow} testID="M-BD-02.key" accessible accessibilityLabel={keyLine}>
               <Txt kind="micro" color="ink2" selectable>
                 {keyLine}
               </Txt>
-            )}
-          </View>
+            </View>
+          ) : blocked ? (
+            <KeyNote line={keyLine} testID="M-BD-02.key" />
+          ) : null}
         </>
       )}
     </View>
@@ -381,8 +393,58 @@ export function SignScreen() {
   );
 }
 
-/** Everything on the sign sheet except the seal, in dp (header, amount, hash, thumb zone, insets). */
-const RESERVED_DP = 620;
+/**
+ * A line with the demo key's dashed mark at its end (UI gate round 5): the key's note ("Demo key (this browser), …",
+ * the I8 label, in English) is the mark's name and opens under the line on a tap, a phone's tooltip, so no English
+ * line stands under the Chair's Cebuano. Without a demo key it is the line alone.
+ */
+function KeyNote({
+  line,
+  testID,
+  align = "center",
+  children,
+}: {
+  line: string | null;
+  testID: string;
+  align?: "center" | "left";
+  children?: ReactNode;
+}) {
+  const { t } = useFs();
+  const [open, setOpen] = useState(false);
+  return (
+    <View style={[styles.keyNote, align === "left" ? styles.keyNoteLeft : null]}>
+      <View style={[styles.captionRow, align === "left" ? styles.captionRowLeft : null]}>
+        {children}
+        {line ? (
+          <Pressable
+            testID={testID}
+            accessibilityRole="button"
+            accessibilityLabel={line}
+            aria-expanded={open}
+            dataSet={{ state: open ? "open" : "closed" }}
+            hitSlop={14}
+            onPress={() => setOpen((o) => !o)}
+            style={({ pressed }) => [styles.keyMark, pressed && { backgroundColor: t.color.pencilWash }]}
+          >
+            <LegendGlyph kind={MARK_KIND.demoKey} label={line} />
+          </Pressable>
+        ) : null}
+      </View>
+      {line && open ? (
+        <Txt kind="micro" color="ink2" align={align} lang="en" selectable aria-hidden>
+          {line}
+        </Txt>
+      ) : null}
+    </View>
+  );
+}
+
+/**
+ * Everything on the sign sheet except the seal, in dp (header, amount, hash, thumb zone, insets). Round 5: measured
+ * again with the one-line caption and its key mark, so the stage's 778 px frame draws the console's 180 px seal
+ * instead of leaving a band above the thumb zone.
+ */
+const RESERVED_DP = 580;
 
 const styles = StyleSheet.create({
   content: { maxWidth: 560, width: "100%", alignSelf: "center", paddingBottom: space.s24 },
@@ -416,6 +478,19 @@ const styles = StyleSheet.create({
     gap: space.s8,
   },
   approved: { flexDirection: "row", alignItems: "center", gap: space.s8 },
+  flexShrink: { flexShrink: 1 },
+  keyNote: { gap: space.s4, alignItems: "center", marginTop: space.s4 },
+  keyNoteLeft: { alignItems: "flex-start", marginTop: 0 },
+  // The caption and the demo key's mark on one line, 8 px apart, centred under the slab.
+  captionRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: space.s8,
+  },
+  captionRowLeft: { justifyContent: "flex-start" },
+  keyMark: { borderRadius: radius.pill, padding: space.s2 },
   thumb: {
     gap: space.s8,
     paddingHorizontal: space.s16,

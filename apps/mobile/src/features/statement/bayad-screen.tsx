@@ -26,6 +26,11 @@
  * UI gate round 4 (docs/DESIGN.md §9): the confirmed pill is the 32 px status chip with "05:20 · Simulated" on its
  * row; every block of the statement is a snap row, so the tab bar never rests on half of "CBU R1"; an opened receipt
  * line comes up to 16 px under the top inset (the traced peso's "Inyong bayad" card starts whole).
+ *
+ * UI gate round 5 (docs/DESIGN.md §10): her whole pay in the first viewport. The header line is "M-014 · 2026-A"; the
+ * peso estimate and her kilos share one line; Paminawa is a 48 dp row whose voice reads "Sintetikong tingog" (the
+ * provider in the spoken label); her slips appear once (the slip row steps aside while an opened line shows them);
+ * history rows lead with 8 px state dots and say one day once; nothing ends on an orphan word.
  */
 import { type Href, router, useIsFocused } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -34,7 +39,7 @@ import type { StatementDTO } from "../../_shims/api-client";
 import type { Lang } from "../../_shims/contracts";
 import { format } from "../../_shims/domain";
 import { space } from "../../_shims/tokens.native";
-import { seasonLabel } from "../../lib/display";
+import { seasonLabel, voiceWords } from "../../lib/display";
 import { shareFigures, type TraceId } from "../../lib/figures";
 import { statementRail } from "../../lib/payout-status";
 import { type AudioPlan, audioPlan, glossPairs, MONEY_SLOTS, sentenceFor } from "../../lib/statement";
@@ -61,7 +66,7 @@ import { ListenButton } from "./listen-button";
 import { traceState } from "./mm7";
 import { PaminawaPanel, useVoiceLabel } from "./paminawa-panel";
 import { COLUMN, GlossedSentence, HistoryMark, LangBar } from "./parts";
-import { type ExpandState, ReceiptBar } from "./receipt-bar";
+import { type ExpandState, listsSlips, ReceiptBar } from "./receipt-bar";
 import { ReviewFields, ReviewStatus, useReviewForm } from "./review-form";
 import type { SlipOwner } from "./slip-paper";
 import { SlipTiles, type TapPoint } from "./slip-tiles";
@@ -109,8 +114,20 @@ function Fact({ label, value, testID }: { label: string; value: string; testID?:
   );
 }
 
-/** One line of her history: who acted, what happened, when. A snap row (round 4): whole above the bar, or none. */
-function HistoryRow({ row, lang }: { row: ReturnType<typeof historyRows>[number]; lang: Lang }) {
+/**
+ * One line of her history: who acted, what happened, when. A snap row (round 4): whole above the bar, or none.
+ * Round 5: the time in the mono (a timestamp), and the day only when her history spans more than one (one day is said
+ * once, in the heading), so the words keep the line and never wrap onto an orphan.
+ */
+function HistoryRow({
+  row,
+  lang,
+  withDay,
+}: {
+  row: ReturnType<typeof historyRows>[number];
+  lang: Lang;
+  withDay: boolean;
+}) {
   const tr = useT();
   return (
     <SnapRow style={styles.historyRow} dataSet={{ kind: row.kind }}>
@@ -118,8 +135,8 @@ function HistoryRow({ row, lang }: { row: ReturnType<typeof historyRows>[number]
       <Txt kind="body" color="statementInk" style={styles.flex}>
         {tr(row.copy.key, row.copy.args)}
       </Txt>
-      <Txt kind="micro" color="statementInk2">
-        {`${format.dayMonth(row.at, lang)} · ${format.time(row.at)}`}
+      <Txt kind="hash" color="statementInk2">
+        {withDay ? `${format.dayMonth(row.at, lang)} · ${format.time(row.at)}` : format.time(row.at)}
       </Txt>
     </SnapRow>
   );
@@ -299,6 +316,9 @@ function Statement({
   const offline = !online;
   const state = offline ? "offline" : view.capsule;
   const rows = historyRows(dto, st.track);
+  // Round 5: a history on one day says the day once, in its heading ("Kasaysayan · 11 Nob").
+  const days = new Set(rows.map((r) => format.dayMonth(r.at, lang)));
+  const historyDay = days.size === 1 ? ([...days][0] ?? null) : null;
   const trace = traceState(mm7.phase);
 
   const amountLabel =
@@ -342,7 +362,6 @@ function Statement({
                   {tr("M-MB-01.headMeta", {
                     no: dto.member.memberNo,
                     season: seasonLabel(dto.season.code),
-                    coop: dto.coop.name,
                   })}
                 </Txt>
                 {/* A cash line shows no PayPal value: the rail's tag covers the statement, under its header. */}
@@ -375,17 +394,22 @@ function Statement({
                         state={view.amountState}
                         fill={view.fillsOnPress ? mm1.fill : undefined}
                       />
-                      {under ? (
-                        <Sentence
-                          kind={peso ? "figure" : "statementBody"}
-                          color="statementInk2"
-                          lang={lang}
-                          segments={figures(under)}
-                          testID="M-MB-01.under"
-                        />
-                      ) : null}
-                      {/* Round 3: her kilos beside her pay, not at the foot of the receipt. */}
-                      <Fact label={tr("M-MB-01.kilosLabel")} value={kilos} testID="M-MB-01.kilosFact" />
+                      {/* Round 5: a PayPal line's peso estimate and her kilos share one line under the amount
+                          ("≈ ₱4,028   Inyong gidala 148.0 kg"), so her whole pay rests in the first viewport; a cash
+                          line's sentence keeps its own line. */}
+                      <View style={peso ? styles.facts : styles.amount}>
+                        {under ? (
+                          <Sentence
+                            kind={peso ? "figure" : "statementBody"}
+                            color="statementInk2"
+                            lang={lang}
+                            segments={figures(under)}
+                            testID="M-MB-01.under"
+                          />
+                        ) : null}
+                        {/* Round 3: her kilos beside her pay, not at the foot of the receipt. */}
+                        <Fact label={tr("M-MB-01.kilosLabel")} value={kilos} testID="M-MB-01.kilosFact" />
+                      </View>
                     </SnapRow>
                   ) : (
                     <SnapRow style={styles.amount} testID="M-MB-01.kilos">
@@ -448,7 +472,10 @@ function Statement({
                 testID="M-MB-01.paminawa"
                 label={tr("M-MB-01.paminawa")}
                 srLabel={`${tr("M-MB-01.paminawaHint")}. ${voiceLabel ?? ""}`}
-                meta={[length, voiceLabel].filter(Boolean).join(" · ") || null}
+                // Round 5: "1:29 · Sintetikong tingog"; the provider ("Gemini TTS") stays in the spoken label.
+                meta={
+                  [length, voiceLabel ? voiceWords(voiceLabel) : null].filter(Boolean).join(" · ") || null
+                }
                 metaTestID="M-MB-01.voice"
                 onPress={() => (readOnly ? setListening(true) : router.push(HREF.paminawa))}
                 ring={<InviteRing mm1={mm1} round />}
@@ -482,8 +509,9 @@ function Statement({
             </View>
           ) : null}
 
-          {/* 5. Her slips, then the history. */}
-          {dto.slips.length ? (
+          {/* 5. Her slips, then the history. Round 5: her receipts appear once a screen; while an opened line shows
+              them (the traced peso, the premium, the bonus, a credit), this row steps aside. */}
+          {dto.slips.length && !(open?.state === "expanded" && listsSlips(open.id)) ? (
             <SnapRow style={styles.section}>
               <SectionTitle>{tr("M-MB-01.slips")}</SectionTitle>
               <SlipTiles slips={dto.slips} owner={owner} onOpen={openSlip} testPrefix="M-MB-01.chip" />
@@ -494,15 +522,17 @@ function Statement({
             <View testID="M-MB-01.history" style={styles.history}>
               {/* Round 4: the heading never rests alone above the bar: it is one snap row with the first row. */}
               <SnapRow style={styles.section}>
-                <SectionTitle>{tr("M-MB-01.history")}</SectionTitle>
+                <SectionTitle>
+                  {historyDay ? `${tr("M-MB-01.history")} · ${historyDay}` : tr("M-MB-01.history")}
+                </SectionTitle>
                 {rows.slice(0, 1).map((h) => (
-                  <HistoryRow key={`${h.kind}-${h.at}`} row={h} lang={lang} />
+                  <HistoryRow key={`${h.kind}-${h.at}`} row={h} lang={lang} withDay={!historyDay} />
                 ))}
               </SnapRow>
               {rows.length > 1 ? (
                 <View style={styles.history}>
                   {rows.slice(1).map((h) => (
-                    <HistoryRow key={`${h.kind}-${h.at}`} row={h} lang={lang} />
+                    <HistoryRow key={`${h.kind}-${h.at}`} row={h} lang={lang} withDay={!historyDay} />
                   ))}
                 </View>
               ) : null}
@@ -522,10 +552,10 @@ function Statement({
                 </Txt>
               ) : null}
               <Txt kind="micro" color="statementInk2">
-                {tr("M-MB-01.rateCard", {
-                  hash: format.hash(dto.rateCard.sha256, 2),
-                  date: format.date(dto.rateCard.ratifiedAt, lang),
-                })}
+                {tr("M-MB-01.rateCardId", { hash: format.hash(dto.rateCard.sha256, 2) })}
+              </Txt>
+              <Txt kind="micro" color="statementInk2">
+                {tr("M-MB-01.rateCardBoard", { date: format.date(dto.rateCard.ratifiedAt, lang) })}
               </Txt>
             </View>
           </SnapRow>
@@ -642,6 +672,14 @@ const styles = StyleSheet.create({
   head: { gap: space.s4 },
   amountBlock: { gap: space.s16 },
   amount: { gap: space.s4 },
+  /** The peso estimate and her kilos on one line under the amount (round 5), wrapping only on a narrow column. */
+  facts: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "baseline",
+    columnGap: space.s16,
+    rowGap: space.s4,
+  },
   /** The pill and its time and tag on one row; a narrow column wraps the tag under the pill. */
   status: {
     flexDirection: "row",
@@ -658,7 +696,7 @@ const styles = StyleSheet.create({
   factLabel: { flexShrink: 1 },
   factValue: { flexShrink: 0 },
   history: { gap: space.s8 },
-  historyRow: { flexDirection: "row", alignItems: "center", gap: space.s12, minHeight: 32 },
+  historyRow: { flexDirection: "row", alignItems: "center", gap: space.s8, minHeight: 32 },
   footer: { flexDirection: "row", alignItems: "center", gap: space.s12 },
   footerWords: { gap: space.s2 },
   aiNote: { flexDirection: "row", alignItems: "flex-start", gap: space.s8 },

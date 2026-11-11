@@ -29,7 +29,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { Lang } from "../../_shims/contracts";
 import { translate } from "../../_shims/i18n";
 import { radius, space, target } from "../../_shims/tokens.native";
-import { MARK_KIND } from "../../lib/honesty";
+import { voiceWords } from "../../lib/display";
 import { type AudioPlan, audioPlan, glossPairs, MONEY_SLOTS } from "../../lib/statement";
 import type { VoiceChoice } from "../../platform/speech";
 import { stage } from "../../services/frame-bridge";
@@ -37,7 +37,7 @@ import { useApp } from "../../state/app";
 import { typeScale, useFs } from "../../theme/theme";
 import { EdgeFade } from "../../ui/chrome";
 import { Glyph } from "../../ui/glyph";
-import { MarkShape, useMarkColor } from "../../ui/honesty";
+import { Hidden } from "../../ui/honesty";
 import { spring, TIMELINE } from "../../ui/motion";
 import { Button, Hatch, SurfaceLabels } from "../../ui/primitives";
 import { Txt } from "../../ui/text";
@@ -136,7 +136,6 @@ export function PaminawaPanel({ onClose, auto = false }: { onClose(): void; auto
   });
   const { state } = player;
   const label = useVoiceLabel(plan, voice, lang);
-  const voiceMark = useMarkColor(MARK_KIND.syntheticVoice);
   const playable = canPlay(plan);
   const screenState = paminawaScreenState({
     loaded: !!dto && (voice !== undefined || plan.mode !== "text-only"),
@@ -215,14 +214,20 @@ export function PaminawaPanel({ onClose, auto = false }: { onClose(): void; auto
             <SurfaceLabels screen="M-MB-03" />
             <LangBar testID="M-MB-03" />
             {label ? (
-              // Round 3: the voice's words as one mono line beside the synthetic legend glyph, not a pill.
-              <View style={styles.voice} testID="M-MB-03.voice" dataSet={{ state: plan.mode }}>
-                <View importantForAccessibility="no-hide-descendants" aria-hidden>
-                  <MarkShape kind={MARK_KIND.syntheticVoice} color={voiceMark} />
-                </View>
-                <Txt kind="micro" color="ink2" style={styles.voiceWords}>
-                  {label}
+              // Round 3: the voice's words as one line, not a pill. Round 5 (provenance once): the words say it, so
+              // no legend glyph beside them; the provider ("Gemini TTS") is in the line's spoken label only.
+              <View
+                style={styles.voice}
+                testID="M-MB-03.voice"
+                dataSet={{ state: plan.mode }}
+                accessible
+                accessibilityRole="text"
+                accessibilityLabel={label}
+              >
+                <Txt kind="caption" color="ink2" style={styles.voiceWords} aria-hidden>
+                  {voiceWords(label)}
                 </Txt>
+                <Hidden>{label}</Hidden>
               </View>
             ) : null}
             {!online ? (
