@@ -6,7 +6,7 @@
 /** Each policy rule (packages/domain POLICIES, register §9) in a few plain words. */
 const RULE_WORDS: Readonly<Record<string, string>> = {
   killSwitch: "payouts are paused",
-  sandboxOnly: "sandbox only",
+  sandboxOnly: "simulated sandbox only",
   allowlist: "action not allowed",
   phaseGate: "not at this step",
   budgetCap: "over the budget cap",
