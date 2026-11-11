@@ -35,6 +35,7 @@ at 14), ids 12, body and statement 16. Prose measure 45–75 ch; a table may run
 
 **Ids never break mid-word** (round 4). An id, key or hash is `IdText` (ui-web): the mono on one line (`nowrap`),
 cut in the middle when long ("fs-ernesto…mj2ng2", `truncateMiddle`), its whole value as title and accessible name.
+It clips with `overflow: clip` (never `hidden`, which would drop its baseline off the line).
 
 ## 2. Colour: one job each
 
@@ -82,7 +83,8 @@ No other hue appears: no blue chip, no red chip. No wash, gradient, glow or colo
   run's state word is spoken with the pill, never shown. The bar is `LAYOUT.console.bar` (56 px).
 - **Buttons.** One primary per screen: `Slab` (indigo face, 48 px, radius 12, label 16/600, **hugs its label**;
   tone `jade` is the same indigo face). One secondary: `.fs-flat` (white, 1 px rule-strong, 40 px; `data-size="l"`
-  48). Inline actions: `.fs-link`. A "Try" or "Why" control is `.fs-flat` or `.fs-link`, never a third style.
+  48). Inline actions: `.fs-link`. A "Try" or "Why" control is `.fs-flat` or `.fs-link`, never a third style. A hold
+  slab's caption and its one link read "Hold to sign · Other ways to sign" (the dot drawn, never spoken).
 - **Honesty marks.** `HonestyTag quiet` once, in the top bar. `MicroTag` (12 px dashed circle + **"Simulated"**,
   12 px, ≤ 2 a screen; its accessible name stays "Simulated PayPal sandbox") only beside a PayPal money value. Every
   other provenance is a 12 px `LegendGlyph` (`HONESTY.*`): its words are its tooltip and accessible name.
@@ -91,7 +93,8 @@ No other hue appears: no blue chip, no red chip. No wash, gradient, glow or colo
   the label step's 15/520), glyph and word, 1 px ring. Jade is the only filled pill (confirmed); `canary` an amber
   ring; `flight` neutral; `hatch` a hatch swatch; `red` PayPal's no. ≤ 1 pill a row, ≤ 3 kinds a screen. The phone's
   "Bayad na" is this pill, never a 64 px slab. A checked fact gets no pill: ✓ glyph and the word in ink. No pill is a
-  sentence with a full stop ("Blocks approval", never "Blocks approval. Changes kilos.").
+  sentence with a full stop ("Blocks approval", never "Blocks approval. Changes kilos."; the catalog's `hold.gate.*`
+  read "Blocks approval" and "Reserves this line").
 - **State dots.** `StateDot` 8 px: `pending` hollow ink-3, `waiting` hollow steel, `done` ink (signed, checked),
   `paid` jade, `held` amber, `failed` red. Colour lives in the dot; the word beside it says the state.
 - **Avatars** (round 4). A person's initials (`Avatar`, the `.fs-stamp` a decision carries, the phone's `InkStamp`,
@@ -124,9 +127,9 @@ No other hue appears: no blue chip, no red chip. No wash, gradient, glow or colo
   24 px under the status inset once content is under it (`LAYOUT.app.fade`), and ends its scroll 12 px above the tab
   bar in a fade. A list passes `snapRows` to `Screen`: at rest a row never ends under the tab bar (whole row or none).
 - **Drawers and dialogs** (round 4). Every drawer and sheet, What's real included, **starts under the top bar**
-  (`--fsc-stage-top`): 560 px, standing in the stage's gutters at the panel radius, e3, a sticky 56 px head (title
-  - Close) on plate. Dialog 520 px, radius 24, e3, only for a decision that must interrupt (signing). Everything
-    else is inline or a drawer.
+  (`--fsc-stage-top`): 560 px, standing in the stage's gutters at the panel radius, e3, a sticky 56 px head (the
+  title and Close) on plate. Dialog 520 px, radius 24, e3, only for a decision that must interrupt (signing).
+  Everything else is inline or a drawer.
 - **Hero moments.** Fan-out: Rhea's path ends at her marker; cash is a 6 px hatched ribbon. Before the move to cash
   the count is `Numeral` "7/8" beside the seal; after it the hero reads **"7 PayPal · 57 cash"** (a jade dot by 7,
   a hatch swatch by 57) with "Review cash handover" as the screen's one primary Slab, and Rhea's cash line appears
