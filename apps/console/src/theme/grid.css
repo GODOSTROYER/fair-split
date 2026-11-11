@@ -1,9 +1,9 @@
-/* One 12-column grid for every console screen (UI gate round 4, DESIGN.md §3). The screen panel is a size container
-   (`fsc-screen`, stage.css); a screen's root takes .fsc-screen and fills it: twelve columns and the 24 px gutter,
-   top-aligned, its title row first and its content 32 px under it. Nothing is centred in a tall panel, no band is
-   left empty above content, and a cell hugs its content unless it asks to stretch. A cell's span applies where the
-   panel is wide (1,040 px and up: 1,920 with the phone docked or folded), its md span from 720 px (1,280 and 1,470),
-   and below that every cell takes the row. chrome/ScreenGrid.tsx draws ScreenHead and Cell. */
+/* One 12-column grid for every console screen (UI gate round 4, docs/DESIGN.md §3). The screen panel is a size
+   container (`fsc-screen`, stage.css); a screen's root takes .fsc-screen and fills it: twelve columns and the 24 px
+   gutter, top-aligned, its title row first and its content 32 px under it. Nothing is centred in a tall panel, no
+   band is left empty above content, and a cell hugs its content unless it asks to stretch. A cell's span applies
+   where the panel is wide (1,040 px and up: 1,920 with the phone docked or folded), its md span from 720 px (1,280
+   and 1,470), and below that every cell takes the row. chrome/ScreenGrid.tsx draws ScreenHead and Cell. */
 
 .fsc-screen {
   display: grid;

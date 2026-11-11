@@ -93,7 +93,8 @@ export const STRIP_ORDER: readonly RunStripStage[] = [
 
 /**
  * The six stages in their true sequence; each lights only when its condition holds (register §7). Paid never lights
- * while cash is still due at the bodega (UI gate round 4, DESIGN.md §6): a settled run with cash due says so instead.
+ * while cash is still due at the bodega (UI gate round 4, docs/DESIGN.md §6): a settled run with cash due says so
+ * instead.
  */
 export function stripStages(view: RunView | undefined, snapshot: SeasonSnapshot): StripStage[] {
   const ratified = isRatified(snapshot);

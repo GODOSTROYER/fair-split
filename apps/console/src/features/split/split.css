@@ -515,8 +515,9 @@
   color: var(--fs-ink-2);
 }
 
-/* The duplicate badge (round 4, DESIGN.md §4 tables): while H1 is open, "0457 ×2" in a 1 px rule-strong outline with
-   ink words (pink lives only on the D copy's own swatch); once decided, "0457 counted once" in neutral ink. */
+/* The duplicate badge (round 4, docs/DESIGN.md §4 tables): while H1 is open, "0457 ×2" in a 1 px rule-strong
+   outline with ink words (pink lives only on the D copy's own swatch); once decided, "0457 counted once" in neutral
+   ink. */
 .fsr-dupchip {
   display: inline-flex;
   align-items: center;
