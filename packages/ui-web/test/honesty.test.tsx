@@ -125,7 +125,7 @@ describe("honesty marks (round 3)", () => {
     expect(tag.dataset.quiet).toBe("");
   });
 
-  it("paper wears the synthetic glyph, not a sticker; its name still says Synthetic sample", () => {
+  it("paper wears no glyph (round 5: provenance once a screen); its name and title still say Synthetic sample", () => {
     render(
       wrap(
         <Paper alt="Slip 0462" testId="paper">
@@ -133,9 +133,10 @@ describe("honesty marks (round 3)", () => {
         </Paper>,
       ),
     );
-    const tag = screen.getByTestId("paper").querySelector("figcaption");
-    expect(tag?.querySelector(".fs-legend-glyph")?.getAttribute("data-kind")).toBe("synthetic");
-    expect(tag?.textContent).toBe("Synthetic sample");
+    const paper = screen.getByTestId("paper");
+    expect(paper.querySelector("figcaption")).toBeNull();
+    expect(paper.querySelector("[data-fs-glyph]")).toBeNull();
+    expect(paper.getAttribute("title")).toBe("Slip 0462. Synthetic sample");
     expect(screen.getByRole("img", { name: /Slip 0462\. Synthetic sample/ })).toBeTruthy();
   });
 });

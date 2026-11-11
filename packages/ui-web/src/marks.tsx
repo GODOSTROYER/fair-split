@@ -7,7 +7,6 @@ import { useLang, useT } from "./context.js";
 import { AUTO_ACCEPT, type StampView } from "./contract.js";
 import { useFlip } from "./flip.js";
 import { Glyph, type GlyphName } from "./Glyph.js";
-import { LegendGlyph } from "./honesty.js";
 
 export interface InkStampProps {
   readonly stamp: StampView;
@@ -149,16 +148,35 @@ export function HonestyChip({ children, testId, className, quiet = false }: Hone
 export const HonestyTag = HonestyChip;
 
 export interface RuleChipProps {
+  /** What is deducted, as people say it ("CBU"). */
   readonly name: string;
+  /** The amount, already signed and formatted ("−1.37"). */
   readonly amount: string;
+  /** The rule's id ("R1"): its title and its accessible name, never on the chip (round 5: no ids for people). */
   readonly rule: string;
+  /** The rule in a few words ("CBU 5% of bonus"), after the id in the title. */
+  readonly ruleText?: string;
 }
 
-/** Deductions use plate-2 with the rule ID written in text; they get no hue of their own. */
-export function RuleChip({ name, amount, rule }: RuleChipProps) {
+/** A rule chip's title: "Rule R1 · CBU 5% of bonus" (the rule's id lives here, never on the chip). */
+export function ruleChipTitle(rule: string, ruleText?: string): string {
+  return ruleText ? `Rule ${rule} · ${ruleText}` : `Rule ${rule}`;
+}
+
+/**
+ * A deduction reads "CBU −1.37" (round 5): plate-2, no hue of its own. The rule's id and words are its title and
+ * part of its accessible name, where a technical reader looks for them.
+ */
+export function RuleChip({ name, amount, rule, ruleText }: RuleChipProps) {
+  const title = ruleChipTitle(rule, ruleText);
   return (
-    <span className="fs-rule-chip fs-t-figure">
-      {name} {amount} <span className="fs-rule-chip__id">{rule}</span>
+    <span
+      className="fs-rule-chip fs-t-figure"
+      title={title}
+      role="img"
+      aria-label={`${name} ${amount}, ${title}`}
+    >
+      {name} {amount}
     </span>
   );
 }
@@ -209,19 +227,17 @@ export interface PaperProps {
 }
 
 /**
- * Evidence: the only thing that casts a shadow. Its corner carries the synthetic legend glyph (UI gate round 3: no
- * yellow sticker): a hatched square on a white chip, bottom left, "Synthetic sample" as its tooltip and its name.
+ * Evidence: the only thing that casts a shadow. Round 5 (provenance once a screen): no glyph in its corner; "Synthetic
+ * sample" stays in its accessible name and its title, and the screen's id line says it once for every slip on it.
  */
 export function Paper({ alt, children, testId, className }: PaperProps) {
   const t = useT();
+  const name = `${alt}. ${t("paper.synthetic")}`;
   return (
-    <figure className={["fs-paper", className].filter(Boolean).join(" ")} data-testid={testId}>
-      <div role="img" aria-label={`${alt}. ${t("paper.synthetic")}`} className="fs-paper__body">
+    <figure className={["fs-paper", className].filter(Boolean).join(" ")} data-testid={testId} title={name}>
+      <div role="img" aria-label={name} className="fs-paper__body">
         {children}
       </div>
-      <figcaption className="fs-paper__tag">
-        <LegendGlyph kind="synthetic" label={t("paper.synthetic")} />
-      </figcaption>
     </figure>
   );
 }

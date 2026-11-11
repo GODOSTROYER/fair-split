@@ -18,3 +18,4 @@ export * from "./Print.js";
 export * from "./ReceiptBar.js";
 export * from "./Seal.js";
 export * from "./Slab.js";
+export * from "./vocabulary.js";

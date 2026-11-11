@@ -753,6 +753,10 @@ export const LAYERS = {
  * phone (180 px, the same drawing on both). On the phone, cosignSeal: the seal on the Chair's co-sign card (140 px,
  * so the card ends 16 px above its sticky button); statusChip: the status pill (32 px, the label step); fade: the
  * 24 px fade under the status inset (the tab bar keeps its 12 px fade above it).
+ * Round 5 (nothing clipped at any width): console fade, the 24 px fade a scroll column shows at an edge with more
+ * beyond it (above a sticky total, under a sticky head); console end, the 32 px a scroll column, a log or a card keeps
+ * clear of its panel's foot; console peek, the rows a log shows before its "All N events" disclosure. On the phone,
+ * end: a screen's last line (a sticky footer's included) ends 24 px above the bezel.
  */
 export const LAYOUT = {
   console: {
@@ -769,6 +773,9 @@ export const LAYOUT = {
     phoneRail: 56,
     toast: 40,
     seal: 180,
+    fade: 24,
+    end: 32,
+    peek: 4,
   },
   app: {
     gutter: 16,
@@ -781,6 +788,7 @@ export const LAYOUT = {
     cosignSeal: 140,
     statusChip: 32,
     fade: 24,
+    end: 24,
   },
   proof: { column: 680, measure: 72, gutter: 16 },
 } as const;

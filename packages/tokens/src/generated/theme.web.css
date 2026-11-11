@@ -282,6 +282,9 @@
   --fs-console-phone-rail: 56px;
   --fs-console-toast: 40px;
   --fs-console-seal: 180px;
+  --fs-console-fade: 24px;
+  --fs-console-end: 32px;
+  --fs-console-peek: 4;
   --fs-app-gutter: 16px;
   --fs-app-rhythm: 8px;
   --fs-app-section: 24px;
@@ -292,6 +295,7 @@
   --fs-app-cosign-seal: 140px;
   --fs-app-status-chip: 32px;
   --fs-app-fade: 24px;
+  --fs-app-end: 24px;
   --fs-proof-column: 680px;
   --fs-proof-measure: 72ch;
   --fs-proof-gutter: 16px;
@@ -336,6 +340,7 @@
   --fs-dur-micro-press: 110ms;
   --fs-dur-tooltip: 150ms;
   --fs-dur-popover: 200ms;
+  --fs-dur-swap: 150ms;
   --fs-dur-reduced: 150ms;
   --fs-dur-edges-fade: 120ms;
   --fs-dur-low-fade: 200ms;

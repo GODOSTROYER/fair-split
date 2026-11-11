@@ -65,7 +65,7 @@ export const ceb = {
   "slab.holdUntilClick": "Kupti hangtod mo-klik",
   "slab.release": "Buhii aron mopirma",
   "slab.nothingSigned": "Walay napirmahan.",
-  "slab.altRoute": "Dili makakupti? Pirmahi sa laing paagi",
+  "slab.altRoute": "Ubang paagi sa pagpirma",
   "slab.progress": "{percent}% nakupti",
   "confirm.cancel": "Dili pa karon",
 } as const satisfies Partial<Catalog>;

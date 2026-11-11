@@ -889,6 +889,85 @@
     background: var(--fs-red);
   }
 
+  /* Round 5: a 12 px dot only beside a hero's word, sitting on its baseline (the settled run's "PayPal"). */
+  .fs-state-dot[data-size="12"] {
+    width: 12px;
+    height: 12px;
+    vertical-align: baseline;
+  }
+
+  /* ------------------------------------------------------------------ one marker vocabulary (round 5) */
+
+  /* A check that held: a 16 px line ✓ in ink and its word in ink, 8 px apart. Never a filled disc. */
+  .fs-check {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--fs-ink);
+    white-space: nowrap;
+  }
+
+  .fs-check__tick {
+    display: block;
+    flex: none;
+  }
+
+  /* A step in a chain: a 24 px circle, a 1 px ink-2 outline, an ink numeral on the label step. Never a filled disc. */
+  .fs-step {
+    display: inline-grid;
+    flex: none;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--fs-plate);
+    box-shadow: inset 0 0 0 1px var(--fs-ink-2);
+    color: var(--fs-ink);
+    font-family: var(--fs-font-ui);
+    font-variant-numeric: tabular-nums lining-nums;
+    font-weight: 520;
+    font-size: 0.875rem;
+    line-height: 1;
+  }
+
+  /* A chart legend's key: the only square. Jade for confirmed money, hatch for cash, amber for a decision, a steel
+     dashed outline for planned (simulated, not yet confirmed), ink for the rest. */
+  .fs-swatch {
+    display: inline-block;
+    flex: none;
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
+    background: var(--fs-ink);
+    vertical-align: middle;
+  }
+
+  .fs-swatch[data-size="12"] {
+    width: 12px;
+    height: 12px;
+    vertical-align: baseline;
+  }
+
+  .fs-swatch[data-kind="paid"] {
+    background: var(--fs-jade);
+    box-shadow: inset 0 0 0 1px var(--fs-jade-flush-border);
+  }
+
+  .fs-swatch[data-kind="cash"] {
+    background:
+      repeating-linear-gradient(-45deg, var(--fs-hatch) 0 1.5px, transparent 1.5px 3.5px), var(--fs-plate);
+    box-shadow: inset 0 0 0 1px var(--fs-rule-strong);
+  }
+
+  .fs-swatch[data-kind="held"] {
+    background: var(--fs-canary);
+  }
+
+  .fs-swatch[data-kind="planned"] {
+    border: 1px dashed var(--fs-steel-line);
+    background: transparent;
+  }
+
   /* A pending amount: neutral, never dashed (dashed means simulated). */
   .fs-pending {
     color: var(--fs-pending);

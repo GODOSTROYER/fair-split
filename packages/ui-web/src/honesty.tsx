@@ -247,16 +247,22 @@ export interface StateDotProps {
    * simulated PayPal confirmed. held: marigold (a person must decide). failed: red (PayPal said no).
    */
   readonly kind: StateDotKind;
+  /**
+   * 8 px in a list, a row or a strip (round 5: the one state mark everywhere); 12 px only beside a hero's word (the
+   * settled run's "PayPal"), baseline-aligned with it.
+   */
+  readonly size?: 8 | 12;
   readonly testId?: string;
   readonly className?: string;
 }
 
 /** A state's dot: colour lives here, and the word beside it says the state (never colour alone). */
-export function StateDot({ kind, testId, className }: StateDotProps) {
+export function StateDot({ kind, size, testId, className }: StateDotProps) {
   return (
     <span
       className={["fs-state-dot", className].filter(Boolean).join(" ")}
       data-kind={kind}
+      data-size={size}
       data-testid={testId}
       aria-hidden
     />

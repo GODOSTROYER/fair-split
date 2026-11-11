@@ -114,7 +114,10 @@ describe("the stylesheet after the review", () => {
     for (const r of rules) {
       const border = `${r.decls.border ?? ""} ${r.decls.outline ?? ""}`;
       if (!/dashed/.test(border)) continue;
-      expect(r.selector, r.selector).toMatch(/fs-honesty|fs-microtag|fs-dial|fs-seal|fs-you|fs-print/);
+      // Round 5: the planned PayPal swatch is the simulated sandbox's money before it confirms, so it is dashed.
+      expect(r.selector, r.selector).toMatch(
+        /fs-honesty|fs-microtag|fs-dial|fs-seal|fs-you|fs-print|fs-swatch\[data-kind="planned"\]/,
+      );
     }
     expect(declared('.fs-chip[data-tone="flight"]')[0]?.border).toBe("1px solid var(--fs-rule-strong)");
   });

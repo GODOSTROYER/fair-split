@@ -107,7 +107,9 @@ describe("catalogs", () => {
       expect(MEMBER_KEYS).toContain(key);
       for (const lang of LANGS) expect(CATALOGS[lang][key], `${lang} ${key}`).toBeTruthy();
     }
-    expect(translate("ceb", "slab.altRoute")).toBe("Dili makakupti? Pirmahi sa laing paagi");
+    // Round 5: the alternate link says what the English does, "Other ways to sign", in each language.
+    expect(translate("ceb", "slab.altRoute")).toBe("Ubang paagi sa pagpirma");
+    expect(translate("fil", "slab.altRoute")).toBe("Ibang paraan ng pagpirma");
     expect(translate("ceb", "slab.nothingSigned")).toBe("Walay napirmahan.");
     expect(translate("en", "slab.release")).toBe("Release to sign");
     expect(translate("en", "slab.nothingSigned")).toBe("Nothing was signed.");

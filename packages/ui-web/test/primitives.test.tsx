@@ -225,7 +225,10 @@ describe("ReceiptBar", () => {
     expect(screen.getByTestId("rb.premium").getAttribute("aria-label")).toBe(
       "Premium, forty-three dollars and sixty-nine cents, walay kaltas",
     );
-    expect(screen.getByTestId("rb.rule:cbu").textContent).toContain("R1, BR 2026-04");
+    // Round 5: no ids for people. The chip reads its amount; the rule and its resolution are its title.
+    const rule = screen.getByTestId("rb.rule:cbu");
+    expect(rule.textContent).not.toContain("R1");
+    expect(rule.querySelector(".fs-rule-chip")?.getAttribute("title")).toBe("Rule R1, BR 2026-04");
   });
 });
 

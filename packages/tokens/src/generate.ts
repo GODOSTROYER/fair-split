@@ -143,7 +143,8 @@ export function renderThemeCss(): string {
   for (const [k, v] of Object.entries(LAYERS)) root.push(`  --fs-z-${k}: ${v};`);
   for (const [surface, values] of Object.entries(LAYOUT)) {
     for (const [k, v] of Object.entries(values)) {
-      const unit = k === "columns" ? String(v) : k === "measure" ? `${v}ch` : px(v);
+      // Counts stay unitless (the grid's columns, a log's peek rows); the measure is in ch; the rest in px.
+      const unit = k === "columns" || k === "peek" ? String(v) : k === "measure" ? `${v}ch` : px(v);
       root.push(`  --fs-${surface}-${camelToKebab(k)}: ${unit};`);
     }
   }
