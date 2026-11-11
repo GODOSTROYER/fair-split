@@ -1,4 +1,4 @@
-# Fair Split design system (UI gate round 4)
+# Fair Split design system (UI gate round 5)
 
 The single source for every surface: the console and judge stage, Proof, and the phone app. It refines the
 incumbent Hayag world (white and porcelain surfaces, blue-black ink, one job per colour, no brown); it does not
@@ -23,7 +23,7 @@ honesty meanings never change. It lives in `docs/` (main's ownership gate owns n
 | `title`               | 24 / 30       | 600, 100 %, −0.015 em   | 24 / 30                  | Screen, sheet and drawer titles; stage and Proof headlines       |
 | `heading`             | 16 / 24       | 600                     | 17 / 24                  | A heading inside a screen or drawer                              |
 | `body`                | 16 / 24       | 430                     | 17 / 24                  | Body text, the panel's one line, statement prose (16 px floor)   |
-| `label`               | 14 / 20       | 520                     | 15 / 20                  | Controls, column headers, status words                           |
+| `label`               | 14 / 20       | 520                     | 15 / 20, width 100       | Controls, column headers, status words, tab labels, links        |
 | `id`                  | 12 / 16       | 400, mono               | 13 / 18, `monospace`     | Hashes, IDs, timestamps                                          |
 
 Aliases keep working on these steps: `display` `title-1` `statement-lead` = title; `title-2` `statement-status` =
@@ -32,6 +32,12 @@ heading; `lede` `statement-body` = body; `caption` `micro` = 14/20 at 430 (secon
 at 600 (button labels); `hash` `mark` = id; `stamp` = 12 px initials at 700. Floors: secondary text 13 px (it sits
 at 14), ids 12, body and statement 16. Prose measure 45–75 ch; a table may run wider. `US$` on a hero is `.fs-cur`
 (0.42 em, raised, ink-3). Proof reads the same roles in its FS Sans Proof subset.
+
+**The phone at width 100** (round 5). Every phone label, tab label, section head and link is the `label` role at
+width 100 and 520, the console's own cut; titles are 600 at width 100. The condensed figure cut (87.5/500) sets
+numerals only (`figure`, `amount*`), as on the console. In the web frames both come from the console's variable FS
+Sans (`LABEL_WEB`, `TITLE_WEB`); native sets labels in the width-100 Regular and titles in the 700 cut until WS-DS's
+font build cuts the static 520 and 600.
 
 **Ids never break mid-word** (round 4). An id, key or hash is `IdText` (ui-web): the mono on one line (`nowrap`),
 cut in the middle when long ("fs-ernesto…mj2ng2", `truncateMiddle`), its whole value as title and accessible name.
@@ -68,6 +74,18 @@ No other hue appears: no blue chip, no red chip. No wash, gradient, glow or colo
   floats. Cards hug their content (`Cell` aligns to the start; `stretch` only when two cards must end level). A
   `Cell` spans `span` columns where the panel is ≥ 1,040 px (1,920), `spanMd` from 720 px (1,280 and 1,470), and the
   whole row below. The screen panel is the size container `fsc-screen`.
+- **Scroll columns: nothing clipped at any width** (round 5). A table body, a log or a column that scrolls on its own
+  is a `SnapScroll` (chrome/SnapScroll.tsx): with `row` it rests on whole rows (rows snap under the sticky head, and
+  with `rows` or `fill` its height is the head, a whole number of rows and the foot, `wholeRowsHeight`); its edges
+  fade 24 px (`LAYOUT.console.fade`) only where more lies beyond (above a sticky total, under a sticky head, at the
+  foot), as a plate veil that never masks the focus ring; `fill` reaches down to the panel's foot and stops 32 px
+  above it (`LAYOUT.console.end`); `end` keeps 32 px of room under the last line. A sticky head and foot mark
+  themselves `data-snap-head` / `data-snap-foot`; a non-table row `data-snap-row`. A log shows `PEEK_ROWS` (4) rows and
+  an "All N events" disclosure, and ends 32 px above its panel's foot (`.fsc-peek`); a column's last card the same
+  (`.fsc-end`). No row or card ends half-hidden anywhere.
+- **No dead bands at 1,920** (round 5). Cells fill the 12 columns with meaning: a second grid row before an empty
+  band (Approve's recipients under the split bar), side-by-side evidence at equal height (`stretch`), a filmstrip
+  under the table rather than under a photo.
 - Radius: cell 6 (chips, keys), control 12 (buttons, inputs), card 16, panel 24 (stage panels, drawers, dialogs),
   pill 999 (status pills, tags, segmented controls). Evidence paper 0.
 - Elevation is declared once: **a border or a shadow, never both.** `e1` (its ring is in the shadow) rests the bar,
@@ -76,27 +94,47 @@ No other hue appears: no blue chip, no red chip. No wash, gradient, glow or colo
 
 ## 4. Components (use these; do not rebuild them)
 
-- **Top bar** (round 4): **six items at most.** "Fair Split" leads; the status area (the mock chip, and the one
-  event toast) sits beside the centre group; the centre group is "● Next: …" with "Play it for me" and the chevron,
-  whose menu holds the screens, the run log, sound, Reset (while there is a session) and Shortcuts; the right holds
-  What's real, the Proof counter and the simulated indicator. No grey status segment repeating the page title: the
-  run's state word is spoken with the pill, never shown. The bar is `LAYOUT.console.bar` (56 px).
+- **Top bar** (rounds 4 and 5): **six calm items at most, at all times.** "Fair Split" leads; the status area holds
+  only the mock chip; the centre group is "● Next: …" with "Play it for me" and the chevron, whose menu holds the
+  screens, the run log, sound, Reset (while there is a session) and Shortcuts; the right holds What's real, the Proof
+  counter and the simulated indicator. No grey status segment repeating the page title: the run's state word is
+  spoken with the pill, never shown. The bar is `LAYOUT.console.bar` (56 px). The pill's words always start "Next:"
+  (`pillWords`) and are never underlined (hover is the plate-2 fill). At 1,280 and 1,470 What's real keeps its word;
+  the indicator keeps its dashed circle and "Simulated" on screen (its whole name for assistive technology and in its
+  title) and the lockup drops "co-op payroll". The phone visit (390) has two icons: What's real and the overflow,
+  which holds Proof, the laptop line, the link, the run log, sound and Reset.
 - **Buttons.** One primary per screen: `Slab` (indigo face, 48 px, radius 12, label 16/600, **hugs its label**;
   tone `jade` is the same indigo face). One secondary: `.fs-flat` (white, 1 px rule-strong, 40 px; `data-size="l"`
   48). Inline actions: `.fs-link`. A "Try" or "Why" control is `.fs-flat` or `.fs-link`, never a third style. A hold
   slab's caption and its one link read "Hold to sign · Other ways to sign" (the dot drawn, never spoken).
-- **Honesty marks.** `HonestyTag quiet` once, in the top bar. `MicroTag` (12 px dashed circle + **"Simulated"**,
-  12 px, ≤ 2 a screen; its accessible name stays "Simulated PayPal sandbox") only beside a PayPal money value. Every
-  other provenance is a 12 px `LegendGlyph` (`HONESTY.*`): its words are its tooltip and accessible name.
-  `HonestyLegend` lives only in What's real. Screen tests call `tagBudget(root)` (≤ 3 tags, ≤ 2 micro).
+- **Honesty marks: provenance once** (round 5). `HonestyTag quiet` once, in the top bar. `MicroTag` (12 px dashed
+  circle + **"Simulated"**, 12 px, ≤ 2 a screen; its accessible name stays "Simulated PayPal sandbox") only beside a
+  PayPal money value. Every other provenance is said **once a screen, in the title row's id line**: one phrase from
+  `PROVENANCE` (chrome/copy.ts: "Synthetic co-op · seeded slips", "Synthetic co-op · seed stand-in readings",
+  "Synthetic co-op · simulated PayPal"), its whole sentence its title and its hidden text. No inline `LegendGlyph`
+  anywhere else: not after a heading, not on a log row (a seeded or replayed row says it in its title and to assistive
+  technology), not in the pill, not on paper (`Paper` keeps "Synthetic sample" in its name and title), not in a phone
+  frame's corner (inside the stage's frames the phone draws no corner glyphs; `QuietMarks` keeps their hooks and
+  words). `HonestyLegend` lives only in What's real. Screen tests call `tagBudget(root)` (≤ 3 tags, ≤ 2 micro).
+- **Title row** (round 5). Every screen's `ScreenHead`: a noun `title` with a grey `suffix` in the same heading
+  ("Season 2026-A", ink-2), its state as one `StatusChip` in `status` on the same row ("Awaiting payment", "Funded",
+  "PayPal complete · cash due"), then one id line: `meta`, the run id in the mono (one run id everywhere; the first
+  view shows no invoice id until a session starts), and `provenance`. Never a sentence title with full stops.
 - **Status pills.** `StatusChip` / `Chip`: 28 px on the console, **32 px on the phone** (`LAYOUT.app.statusChip`,
   the label step's 15/520), glyph and word, 1 px ring. Jade is the only filled pill (confirmed); `canary` an amber
   ring; `flight` neutral; `hatch` a hatch swatch; `red` PayPal's no. ≤ 1 pill a row, ≤ 3 kinds a screen. The phone's
   "Bayad na" is this pill, never a 64 px slab. A checked fact gets no pill: ✓ glyph and the word in ink. No pill is a
   sentence with a full stop ("Blocks approval", never "Blocks approval. Changes kilos."; the catalog's `hold.gate.*`
   read "Blocks approval" and "Reserves this line").
-- **State dots.** `StateDot` 8 px: `pending` hollow ink-3, `waiting` hollow steel, `done` ink (signed, checked),
-  `paid` jade, `held` amber, `failed` red. Colour lives in the dot; the word beside it says the state.
+- **One marker vocabulary** (round 5), on the console, Proof and the phone alike (ui-web `vocabulary.tsx`):
+  - state: `StateDot` 8 px, round, 8 px from its word: `pending` hollow ink-3, `waiting` hollow steel, `done` ink
+    (signed, checked), `paid` jade, `held` amber, `failed` red. `size={12}` only beside a hero's word, on its baseline.
+    Log lanes, fan-out ends, a held bullet, the phone's history rows: all 8 px dots. The Season pipeline strip uses
+    state colours only (pending hollow, done ink, held amber, paid jade): no indigo on it.
+  - a check that held: `CheckMark`, a 16 px line ✓ in ink and its word in ink. Never a filled disc.
+  - a chain step: `StepNumber`, a 24 px circle in a 1 px ink-2 outline with an ink numeral. Never a filled disc.
+  - squares only as a chart legend's key: `Swatch` (`paid` jade, `cash` hatch, `held` amber, `planned` a steel dashed
+    outline, `ink`), 8 px, 12 px beside a hero's word. Hatch only for cash; jade only for confirmed money.
 - **Avatars** (round 4). A person's initials (`Avatar`, the `.fs-stamp` a decision carries, the phone's `InkStamp`,
   the stage rail's frame avatars): white, a 1 px ink-2 ring, ink initials, round. Indigo is for action only.
 - **Receipt chips** (round 4). A slip a line was weighed on, as data: `ReceiptChip` (ui-web, and the phone's
@@ -110,26 +148,39 @@ No other hue appears: no blue chip, no red chip. No wash, gradient, glow or colo
   total says what it totals. A held row: the amber dot and the H-tag in its status cell, never a coloured side bar.
   A duplicate badge before resolution is a 1 px rule-strong outline with ink text; after it, "0457 counted once" in
   neutral ink. Pink lives only on the D evidence swatch.
-- **Toast and Log** (round 4). `EventToast`: one 40 px flat pill **in the top bar's status area** (never over the
-  screen, so no row ever sits under it), the newest live event for `TIMING.toast` (3 s), never focus, never a live
-  region. The whole timeline is the `LogSheet` behind the chevron menu's "Run log".
+- **Toast and Log** (round 5). The toast folds into the Next pill (`usePillToast` → `RunPill toast`): for
+  `TIMING.toast` (3 s) the pill shows the newest live event's words over "Next: …", a 150 ms crossfade each way
+  (`TWEENS.swap`), then says "Next: …" again; the bar never grows a seventh item, and nothing ever covers a row. Its
+  words come from the toast catalog (chrome/toast.ts), plain, with no "Notice:", no event code, no timestamp and no
+  full stop: "PayPal accepted the batch", "Shrink 2.05% · over limit", "Refused · invoice must equal quote", "Paid
+  Consolacion Bacus · US$64.45". Never "success" while a payment is parked or cash is due. The pill's mark is the jade
+  dot only while it shows a payment the simulated PayPal confirmed. Never focus, never a live region (the pill's name
+  stays "Next: …"). Times live only in the `LogSheet` behind the chevron menu's "Run log".
 - **Seal.** `Seal` at `LAYOUT.console.seal` (180 px) on Approve and on the Chair's phone, `showHash` for the mono
   hash beneath; **140 px** on the Chair's co-sign card (`LAYOUT.app.cosignSeal`), so the card ends at least 16 px
   above its sticky button. Unsigned rings: 1 px `--fs-unsigned`. Key 1 fills the inner half in indigo, key 2 the
   outer half. The phone draws the same state in the same colours.
-- **Phone on the stage.** A 56 px rail (`LAYOUT.console.phoneRail`: phone glyph, a 32 px avatar per frame, the
-  shown frame's dot) on steps where it does not change; it opens on the phone's beats (key 2, Bayad na, the traced
-  peso) and on click. Frames stay loaded; until the app answers, a labelled preview of the run, never a skeleton.
-  The console rail keeps its labels from 1280 px (the 1,470 laptop included).
+- **Phone on the stage.** A 56 px rail (`LAYOUT.console.phoneRail`: phone glyph, a 32 px avatar per frame with its
+  role word under it, "Member", "Chair", "Clerk" at 13 px (round 5), the shown frame's dot) on steps where it does not
+  change; the phone glyph's tooltip is "Open phone". It opens on the phone's beats (key 2, Bayad na, the traced peso)
+  and on click. Frames stay loaded; until the app answers, a labelled preview of the run, never a skeleton. The
+  console rail keeps its labels from 1280 px (the 1,470 laptop included).
 - **Phone chrome** (round 4). The selected tab is the console nav's selected look: the pod wash under an ink icon
   and label (never a black slab). Phone titles are 600 like the console's (the 600 static cut, `FSSans-SemiBold` at
   width 100, comes from WS-DS's font build, `cut_fonts.py`; until it lands, titles use SemiExpBold). A screen fades
   24 px under the status inset once content is under it (`LAYOUT.app.fade`), and ends its scroll 12 px above the tab
   bar in a fade. A list passes `snapRows` to `Screen`: at rest a row never ends under the tab bar (whole row or none).
-- **Drawers and dialogs** (round 4). Every drawer and sheet, What's real included, **starts under the top bar**
+  Round 5: a revealed block starts `REVEAL_GAP` (32 px: the fade and 8) under the inset, never against it; every
+  sticky footer pads its foot with `useFooterEnd()` (the inset and `LAYOUT.app.end`, 24 px), so the last line ends at
+  least 24 px above the bezel. One language a line: no English inside a Cebuano line (a note goes behind a tooltip).
+- **Drawers and dialogs** (rounds 4 and 5). Every drawer and sheet, What's real included, **starts under the top bar**
   (`--fsc-stage-top`): 560 px, standing in the stage's gutters at the panel radius, e3, a sticky 56 px head (the
-  title and Close) on plate. Dialog 520 px, radius 24, e3, only for a decision that must interrupt (signing).
-  Everything else is inline or a drawer.
+  title and Close) on plate. Round 5: a drawer **hugs its content** (`StageDrawer hug`: it ends at its content's foot)
+  or **pins its action to a sticky footer** (`footer`: the primary and at most one secondary, both 48 px, on plate
+  over a 1 px rule), so no drawer shows an empty band. A compact success state (a resolved hold: the effect line,
+  "Counted once", "Next hold" as the primary) passes `scrim={false}`: no blocking scrim, the screen stays live.
+  Dialog 520 px, radius 24, e3, only for a decision that must interrupt (signing). Everything else is inline or a
+  drawer.
 - **Hero moments.** Fan-out: Rhea's path ends at her marker; cash is a 6 px hatched ribbon. Before the move to cash
   the count is `Numeral` "7/8" beside the seal; after it the hero reads **"7 PayPal · 57 cash"** (a jade dot by 7,
   a hatch swatch by 57) with "Review cash handover" as the screen's one primary Slab, and Rhea's cash line appears
@@ -153,6 +204,11 @@ back. Selection: `pod-wash`; caret and native controls `pod`; scrollbars thin in
   (create_invoice), no file names (keys.json). A refusal reads "Refused · invoice must equal quote"
   (`lib/plain.ts`: `refusalTitle`, `ruleWords`, `toolWords`); the rule's id sits in the id style only behind "Why",
   file names behind an IDs disclosure. Screen tests assert `developerWords(text)` is empty.
+- **No ids for people** (round 5). A deduction chip reads "CBU −1.37" (`RuleChip`: the rule in its title and its
+  accessible name, `ruleChipTitle`, "Rule R1 · CBU 5% of bonus"); the Chair's caption reads "Co-signs batches over
+  US$300" (`chairCaption`), the treasurer's "Key on this browser" (`KEY_CAPTION`) with the key id behind an "IDs"
+  disclosure (`IDS_LABEL`); the dial and the checklist share one term, "Shrink · limit 2.0%" (`shrinkLabel`); no
+  "status check · time" text (lib/plain.ts).
 - Controls name their action ("Count it once", "Review cash handover"); errors name the problem and the recovery.
 - Say each fact once, with one name: "2026-A" for the season, a labelled run id, "48 this run · 264 season",
   "8 · 56 planned" before settlement and "7 PayPal · 57 cash" after, "Proof 0/6" on six checks (`lib/display.ts`).
@@ -170,8 +226,8 @@ of halo. Money lands; it never counts up. Reduced motion keeps colour and opacit
 
 Dashed lines mean **simulated**, and nothing else. Hatch means **cash**. Jade means **confirmed by the simulated
 PayPal**. Every PayPal value carries the sandbox label (the top-bar indicator, a "Simulated" MicroTag, or the legend
-glyph's name); seeded and replayed data carry their glyph with the pinned phrase ("Seed stand-in, not a Claude
-recording"). Nothing claims a live Claude reading on a seeded or replayed run: the reading room separates the
+glyph's name); seeded and replayed data are said once a screen, in the id line, with the pinned phrase ("Seed
+stand-in, not a Claude recording") in its title (round 5). Nothing claims a live Claude reading on a seeded or replayed run: the reading room separates the
 replayed stand-in reading of all 48 slips from Claude's real readings of the 10 hero slips (the 1 Nov exhibit), so
 48/48 never reads as Claude's.
 
@@ -206,7 +262,47 @@ replayed stand-in reading of all 48 slips from Claude's real readings of the 10 
    other paths fold into one "Other ways to sign" link; the Chair co-sign block appears only after key 1 (§4).
 9. **This file lives at `docs/DESIGN.md`**, every reference updated, and records decisions 1–8.
 
-## 10. The owner's reference reels
+## 10. Round 5 decisions (the orchestrator's reconciliation of both round-4 reviews)
+
+1. **Nothing clipped at any width.** The split-review body snaps to whole rows with a 24 px fade above the sticky
+   total; the Run log shows 4 rows and "All N events", ending at least 32 px above the panel's foot; the rate card's
+   resolution column scrolls on its own with a bottom fade and 32 px of room; the phone fades under the status inset
+   and ends at least 24 px above the bezel. No row or card ends half-hidden (`SnapScroll`, §3, §4).
+2. **No dead bands at 1,920.** By hand: the equation across all 12 columns, the slip crop and the logbook page side by
+   side beneath it at equal height, "Review 3 holds" under the equation. Approve: a second row under the split bar
+   lists the 8 PayPal recipients (name, amount, a hollow in-flight dot), the checklist card in the right columns.
+   Reading room: the filmstrip and "Earlier" under the table, the photo the full left height. Drawers hug or pin (§3).
+3. **Top bar: six calm items at all times.** The toast folds into the Next pill (3 s, a 150 ms crossfade) in plain
+   words with no "Notice:" and no time; the pill always starts "Next:" and is never underlined; What's real keeps its
+   word at 1,280 and 1,470; never "success" while a payment is parked or cash is due (§4).
+4. **One marker vocabulary** on the console, Proof and the phone: 8 px StateDots, a 16 px line ✓ with a word, 24 px
+   outlined step numbers, squares only as legend swatches, hatch only for cash, jade only for confirmed money. The
+   Season pipeline strip uses state colours only, no indigo (§4).
+5. **Provenance once.** The "Simulated" micro-tag stays beside PayPal money; each screen says one id-line phrase;
+   every other inline legend glyph goes, the orphans and the phone's corner glyphs included (§4).
+6. **No ids for people**: "CBU −1.37", "Co-signs batches over US$300", "Key on this browser" (the id behind "IDs"),
+   "Shrink · limit 2.0%", no "status check · time" (§6).
+7. **Titles.** A noun title with a grey suffix ("Season 2026-A") and the state in a StatusChip on the same row; one
+   run id everywhere; the first view shows no invoice id until a session starts (§4).
+8. **Truthful and decisive states.** "47 of 48 read · 1 needs a person" until 0462 is entered by hand, then "48 of
+   48"; the resolved H1 drawer is a compact success state (the effect line, "Counted once", "Next hold" as the
+   primary, no blocking scrim); the rate-card refusal leads with the refusal, the next-season proposal secondary, the
+   board document collapsible.
+9. **Run fan-out as the single hero.** No "By value" bar or legend; "Kept for members US$21.14" a caption on the cash
+   row; "Funding to confirmation" a dot strip and one median line; the hero's 12 px jade dot and hatch swatch on the
+   baseline before "PayPal" and "cash" with a 32 px gap; Rhea's row "US$26.65" in ink-3 with the hatch glyph.
+10. **The phone in one language and one width**: labels at width 100 (520), titles 600, no condensed cut; no English
+    inside a Cebuano line; "Sintetikong tingog" (TTS in its name); "M-014 · 2026-A"; two icons in the 390 header;
+    the member's whole pay in the first viewport; one receipt-chip shape in the trace, its equation on one line; the
+    stage rail's role words under the avatars and "Open phone" as the tooltip (§1, §4).
+11. **Smaller items**: no lone vertical rule in the split table, a stable scrollbar gutter, numeric columns spread;
+    the Approve bar's PayPal segment a steel dashed outline (planned) until confirmed (`Swatch planned`); the H1
+    drawer's paired buttons both 48 px; the Season slips one 12-up strip of 72 px thumbnails, the funding arc joining
+    the two amounts; the Cebuano and Tagalog alternate links say "Other ways to sign" ("Ubang paagi sa pagpirma",
+    "Ibang paraan ng pagpirma").
+12. **This file records decisions 1–11.**
+
+## 11. The owner's reference reels
 
 Taken: one spacing scale; colour only where it means something (semantic dots, matching chart lines); thin line
 icons; a deliberate type ramp; tabular or mono numerals; factual headers instead of greetings; far fewer words;
