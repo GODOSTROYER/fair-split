@@ -11,8 +11,9 @@
 //                 the pools code quotes from the lot and the ratified card
 //   5 Two keys    `approvals` (signed, not voided) with each key's registered public half (`device_keys`, else
 //                 the chain's `key.registered` entry, else the seeded sample keys); never trusted, only shown
-//   6 Items       the run's primary `payout_batches` row and its `payout_items`; each status's event id is the
-//                 forward-only fold of the chain's verified `webhook.applied` entries
+//   6 Items       the run's primary `payout_batches` row and its `payout_items`; each item is served at the status
+//                 (and event id) the forward-only fold of the chain's verified `webhook.applied` entries attests,
+//                 never at a status we hold ahead of its signed notice (./item-fold.ts)
 import {
   type ApprovalPayload,
   ApprovalPayload as ApprovalPayloadSchema,
@@ -34,11 +35,9 @@ import {
 } from "@fairsplit/contracts";
 import { type Db, type DbOrTx, isTransaction, schema } from "@fairsplit/db";
 import {
-  applyItemStatus,
   batchNote,
   ENGINE_VERSION,
   invoiceReference,
-  itemStatusFromEvent,
   jcsSha256,
   mulDivHalfUp,
   seasonLabelOf,
@@ -48,7 +47,10 @@ import type { Logger } from "pino";
 import { readWorkspaceLedger, signProofCheckpoint } from "../ledger/chain.js";
 import type { LedgerSigningKey } from "../ledger/keys.js";
 import { ApiProblem, problem } from "../lib/problem.js";
+import { attestedItem, foldItemEvents, type ItemFold } from "./item-fold.js";
 import { publicKeyHexOf, sampleOfficerKeys } from "./keys.js";
+
+export { foldItemEvents, type ItemFold } from "./item-fold.js";
 
 // ---------------------------------------------------------------- the run
 
@@ -886,14 +888,18 @@ async function readItems(
     const replayed =
       r.provenance === "replay" || batch.provenance === "replay" || run.provenance === "replay";
     const eventId = !replayed && fold && fold.status === status ? fold.lastEventId : null;
+    // The bundle serves each item at the status the chain's verified notices attest (./item-fold.ts): a status we
+    // hold ahead of its signed notice (the settle GET's, or our cancel's RETURNED) is never served as confirmed, and
+    // never as a failed check either. A labelled replay keeps its recorded status and rests on no event.
+    const served = replayed ? { status, eventId: null } : attestedItem(status, fold);
     items.push({
       senderItemId: r.senderItemId,
       receiver: r.receiver,
       amountCents: Number(r.amountCents),
       currency: "USD",
       payoutItemId: r.payoutItemId ?? null,
-      status,
-      eventId,
+      status: served.status,
+      eventId: served.eventId,
       ...(replayed ? { provenance: "replay" as const } : {}),
     });
     facts.push({
@@ -913,44 +919,6 @@ async function readItems(
     facts,
     provenances: [batch.provenance as Provenance, ...rows.map((r) => r.provenance as Provenance)],
   };
-}
-
-export interface ItemFold {
-  status: PayoutItemStatus;
-  lastEventId: string | null;
-}
-
-/**
- * The forward-only fold of the chain's `webhook.applied` item entries, exactly as plate 6 replays it: an event
- * applies only if its status outranks the current one, and RETURNED only after our own `payout.cancel`.
- */
-export function foldItemEvents(ledger: readonly LedgerEntry[]): Map<string, ItemFold> {
-  const out = new Map<string, ItemFold>();
-  const cancelled = new Set<string>();
-  for (const e of ledger) {
-    if (e.kind === "payout.cancel") {
-      const p = LedgerPayloads["payout.cancel"].safeParse(e.payload);
-      if (p.success) cancelled.add(p.data.senderItemId);
-      continue;
-    }
-    if (e.kind !== "webhook.applied") continue;
-    const p = LedgerPayloads["webhook.applied"].safeParse(e.payload);
-    if (!p.success || p.data.resource !== "payout_item") continue;
-    const ev = p.data;
-    if (
-      ev.verified === "dev_mock" ||
-      ev.provenance === "replay" ||
-      itemStatusFromEvent(ev.eventType) !== ev.status
-    )
-      continue;
-    const cur = out.get(ev.senderItemId) ?? { status: "SUBMITTED" as PayoutItemStatus, lastEventId: null };
-    const applied = applyItemStatus(cur.status, ev.status, {
-      cancelRequested: cancelled.has(ev.senderItemId),
-    });
-    if (applied.applied) out.set(ev.senderItemId, { status: applied.next, lastEventId: ev.eventId });
-    else out.set(ev.senderItemId, cur);
-  }
-  return out;
 }
 
 // ---------------------------------------------------------------- helpers

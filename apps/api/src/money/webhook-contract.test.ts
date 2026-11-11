@@ -9,7 +9,7 @@ import { and, eq, like } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { type RunsHarness, resolveAll, runQueued, signBoth, startRuns } from "../runs/test/app.js";
 import { paypalScript, TEST_BATCH_ID } from "../runs/test/paypal.js";
-import { processWebhook } from "./settle.js";
+import { processWebhook, settleBatch } from "./settle.js";
 
 const script = paypalScript();
 let h: RunsHarness;
@@ -268,5 +268,65 @@ describe("processWebhook: a verified event confirms the status already applied (
         .filter((e) => e.senderItemId === mock.item.senderItemId)
         .map((e) => [e.eventId, e.status, e.verified]),
     ).toEqual([["WH-CONFIRM-UNCLAIMED", "UNCLAIMED", "self"]]);
+  });
+});
+
+// A notice can be read before PayPal's item GET has caught up with it: the GET then names an earlier status, the
+// notice changes nothing and is kept (NO_APPLY). When the settle GET later writes the status the notice names, the
+// notice is chained in that same step (money/corroborate.ts), so the status does not wait for a notice that already
+// came. A `dev_mock` notice, and one for a status the item does not hold, are never chained this way.
+describe("settleBatch: a notice read before its status landed is chained when the settle GET writes it", () => {
+  async function keptNotice(
+    id: string,
+    memberNo: string,
+    type: "SUCCEEDED" | "UNCLAIMED",
+    verified: WebhookVerified,
+  ) {
+    const { item, event } = await itemEvent(id, memberNo, type);
+    const rowId = await storeWebhook(event, verified);
+    const db = h.t.pg?.owner.db;
+    if (!db) throw new Error("db");
+    await db
+      .update(schema.webhookEvents)
+      .set({
+        workspaceId: h.world.workspaceId,
+        status: "orphan",
+        error: "NO_APPLY",
+        resourceKey: item.payoutItemId,
+      })
+      .where(eq(schema.webhookEvents.id, rowId));
+    return { item, rowId };
+  }
+  const settle = async () =>
+    settleBatch(h.t.deps, { batchId: (await batchRow()).id, n: 1 }, { workspaceId: h.world.workspaceId });
+  const rowOf = async (rowId: string) =>
+    (await h.t.deps.db.select().from(schema.webhookEvents).where(eq(schema.webhookEvents.id, rowId)))[0];
+
+  it("a kept SUCCEEDED for an item whose SUCCESS rests on nothing yet: one entry, the notice marked applied", async () => {
+    const { item, rowId } = await keptNotice("WH-KEPT-SUCCESS", "M-018", "SUCCEEDED", "self");
+    expect(item.status).toBe("SUCCESS");
+    expect((await appliedLedger()).filter((e) => e.senderItemId === item.senderItemId)).toEqual([]);
+    const updates = await itemUpdates(item.senderItemId);
+    await settle();
+    expect(
+      (await appliedLedger())
+        .filter((e) => e.senderItemId === item.senderItemId)
+        .map((e) => [e.eventId, e.eventType, e.status, e.payoutItemId]),
+    ).toEqual([["WH-KEPT-SUCCESS", "PAYMENT.PAYOUTS-ITEM.SUCCEEDED", "SUCCESS", item.payoutItemId]]);
+    expect(await rowOf(rowId)).toMatchObject({ status: "applied", error: null });
+    expect(await itemUpdates(item.senderItemId)).toBe(updates);
+    await settle();
+    expect((await appliedLedger()).filter((e) => e.senderItemId === item.senderItemId)).toHaveLength(1);
+  });
+
+  it("a kept dev_mock notice, and a kept SUCCEEDED for Rhea's UNCLAIMED item, are never chained", async () => {
+    const mock = await keptNotice("WH-KEPT-MOCK", "M-022", "SUCCEEDED", "dev_mock");
+    const wrong = await keptNotice("WH-KEPT-WRONG", "M-031", "SUCCEEDED", "self");
+    expect(wrong.item.status).toBe("UNCLAIMED");
+    const before = (await appliedLedger()).length;
+    await settle();
+    expect((await appliedLedger()).length).toBe(before);
+    expect(await rowOf(mock.rowId)).toMatchObject({ status: "orphan", error: "NO_APPLY" });
+    expect(await rowOf(wrong.rowId)).toMatchObject({ status: "orphan", error: "NO_APPLY" });
   });
 });
