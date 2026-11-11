@@ -2,7 +2,7 @@
 // between them, the one keyword and the one honesty tag per capture slot, the closed captions and the audio cue
 // points. Shared by build.mjs (which writes the film) and check.mjs (which verifies what was written). Words and time
 // belong to script.ts; this file only places them.
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import {
   ARCHITECTURE,
   BUMPER_SECONDS,
@@ -307,6 +307,19 @@ export const ACCENTS = {
 };
 const r3 = (value) => Math.round(value * 1000) / 1000;
 /**
+ * The recorded take's geometry (`tools/cut-captures.mjs` writes `captures/take.json` beside the git-ignored clips):
+ * for each recorded slot, where its accent sits on the capture (window pixels: the button, the figure, the seven payout
+ * nodes). A slot whose clip is missing keeps its placeholder box.
+ */
+export const TAKE = (() => {
+  const url = new URL("captures/take.json", import.meta.url);
+  return existsSync(url) ? JSON.parse(readFileSync(url, "utf8")) : null;
+})();
+export const recorded = (id) =>
+  Boolean(TAKE?.slots?.[id]) && existsSync(new URL(`captures/${id}.mp4`, import.meta.url));
+/** A slot's accent, on its recorded element when the take placed it there. */
+const accentOf = (id) => ({ ...ACCENTS[id], ...(recorded(id) ? (TAKE.slots[id].accent ?? {}) : {}) });
+/**
  * An accent's times: it fires as its keyword lands. A trace's slips rise from `at`, its threads start at `threads`
  * (0.45 s each, 0.1 s apart, STYLE §6) and its jade pulse runs from `landed`.
  */
@@ -327,9 +340,11 @@ function accentTimes(accent, at) {
  */
 function nightTimes(accent, slot, kwOut) {
   const pull = [r3(kwOut + 0.1), r3(slot.end - 0.04)];
-  const fade = [r3(kwOut + 0.15), r3(kwOut + 0.37)];
+  // the night lifts as an iris from the lit window (film-slots.js, review v4 item 2) that reaches the keyword only
+  // after its wipe out has finished (kwOut + 0.32), so the word never sits half-faded over the light
+  const fade = [r3(kwOut + 0.2), r3(kwOut + 0.42)];
   if (fade[1] - slot.start > 3) throw new Error(`${slot.id}: a night insert runs over 3 s`);
-  return { ...accent, at: r3(slot.start), pull, fade, peak: r3(kwOut + 0.27) };
+  return { ...accent, at: r3(slot.start), pull, fade, peak: r3(kwOut + 0.31) };
 }
 /**
  * Keywords that hold until the voice finishes a phrase (verify v5-r1 R1): "sent." stays through "sent, not yet paid."
@@ -470,7 +485,7 @@ function choreograph() {
         : ACCENTS[s.id].kind === "night"
           ? nightTimes(ACCENTS[s.id], s, kwOut)
           : accentTimes(
-              ACCENTS[s.id],
+              accentOf(s.id),
               ACCENTS[s.id].word ? wordStart(ACCENTS[s.id].word) : Math.max(kwIn + 0.35, arrive + 0.1),
             ),
     });
@@ -496,6 +511,24 @@ function choreograph() {
   return { slots, keys, outro };
 }
 export const CAPTURE_RUN = choreograph();
+/**
+ * Where a capture plays in a composition. A capture covers its window's whole time on screen, from the start of its
+ * glide in to the end of its glide out (media second 0 is `glideIn[0]`, before `mediaStart` and `playbackRate`), so
+ * every composition that draws the window (its own beat, or a neighbour's glide across the cut) shows the same media
+ * frame at the same film second: no jump at a cut, and no empty window before the slot's own start.
+ */
+export function clipSpan(slot, segment) {
+  const move = CAPTURE_RUN.slots.find((item) => item.id === slot.id);
+  const round = (value) => Number(value.toFixed(6));
+  const from = Math.max(move.glideIn[0], segment.start);
+  const to = Math.min(move.glideOut[1], segment.end);
+  return {
+    start: round(from - segment.start),
+    length: round(to - from),
+    mediaStart: round(slot.mediaStart + (from - move.glideIn[0]) * slot.playbackRate),
+    covers: round((move.glideOut[1] - move.glideIn[0]) * slot.playbackRate),
+  };
+}
 
 /** Where the run's camera puts a world point at film time `t` (the same curve film-slots.js draws). */
 export function cameraAt(t, keys = CAPTURE_RUN.keys) {
@@ -801,7 +834,7 @@ export const CLOSE = {
   // limits (the last a short push), and into the overview
   glides: [
     [145.35, 147.4],
-    [148.45, 150.5],
+    [148.45, 149.5],
     [153.45, 155.45],
     [158.0, 159.3],
     [160.7, 161.5],

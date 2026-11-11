@@ -172,24 +172,40 @@ window.FairSplitSlots = (() => {
       const r = Math.min(bh / 2 - 6, (bw / n) * 0.3);
       const svg = svgEl("svg", { class: "pf-acc pf-acc--svg", viewBox: `0 0 ${bw} ${bh}` }, win);
       place(svg, a.box);
-      const items = Array.from({ length: n }, (_, k) => {
-        const cx = (bw / n) * (k + 0.5);
+      // with a capture, each fill sits on the item's own node in the recording (`items`, window pixels inside the
+      // box); the placeholder draws a row of seven
+      const spots = a.items
+        ? a.items.map(([x, y, w, h]) => ({
+            cx: x - bx + w / 2,
+            cy: y - by + h / 2,
+            r: Math.max(5, Math.min(w, h) / 2 + 3),
+          }))
+        : Array.from({ length: n }, (_, k) => ({ cx: (bw / n) * (k + 0.5), cy: bh / 2, r }));
+      const items = spots.map((spot, k) => {
         const ring = svgEl(
           "circle",
-          { cx, cy: bh / 2, r, fill: "none", stroke: "rgba(126,136,152,0.95)", "stroke-width": 3 },
+          {
+            cx: spot.cx,
+            cy: spot.cy,
+            r: spot.r,
+            fill: "none",
+            stroke: "rgba(126,136,152,0.95)",
+            "stroke-width": 3,
+          },
           svg,
         );
-        const fill = svgEl("circle", { cx, cy: bh / 2, r: r - 1.5, fill: INK.jade }, svg);
-        return { ring, fill, t: at + k * a.step };
+        const fill = svgEl("circle", { cx: spot.cx, cy: spot.cy, r: spot.r - 1.5, fill: INK.jade }, svg);
+        return { ring, fill, spot, t: at + k * a.step };
       });
       return (T) => {
         svg.style.opacity = E.p2o(prog(T, slot.kwIn + 0.3, slot.kwIn + 0.8)).toFixed(3);
         for (const item of items) {
           const u = E.p2o(prog(T, item.t, item.t + 0.25));
+          const { cx, cy } = item.spot;
           item.fill.style.opacity = u.toFixed(3);
           item.fill.setAttribute(
             "transform",
-            `translate(${item.fill.getAttribute("cx")} ${bh / 2}) scale(${(0.6 + 0.4 * u).toFixed(3)}) translate(${-item.fill.getAttribute("cx")} ${-bh / 2})`,
+            `translate(${cx} ${cy}) scale(${(0.6 + 0.4 * u).toFixed(3)}) translate(${-cx} ${-cy})`,
           );
           item.ring.setAttribute("stroke", u > 0.5 ? INK.jade : "rgba(126,136,152,0.95)");
         }
@@ -445,9 +461,33 @@ window.FairSplitSlots = (() => {
       };
     }
     const mix = (from, to, u) => from.map((v, i) => Math.round(lerp(v, to[i], u)));
+    // The night lifts as an iris that opens from the lit window outwards (review v4 item 2): the day field stays
+    // fully opaque underneath and each pixel turns from navy to day inside one soft 220 px band that crosses the frame
+    // in the 0.22 s fade, so luma only rises and no frame sits in an even mid-grey. 1 = full night, 0 = day.
+    const FEATHER = 220;
     function nightAt(T) {
-      if (!night || T < night.a.at) return 0;
+      if (!night || T < night.a.at || T >= night.a.fade[1]) return 0;
       return 1 - E.sio(prog(T, night.a.fade[0], night.a.fade[1]));
+    }
+    /** The iris: its centre (the lit window on screen), its radius, and the night left at a point of the frame. */
+    function irisAt(T, cx, cy) {
+      const n = nightAt(T);
+      const reach =
+        Math.max(
+          Math.hypot(cx, cy),
+          Math.hypot(1920 - cx, cy),
+          Math.hypot(cx, 1080 - cy),
+          Math.hypot(1920 - cx, 1080 - cy),
+        ) + FEATHER;
+      const r = (1 - n) * reach;
+      return {
+        n,
+        cx,
+        cy,
+        r,
+        at: (x, y) =>
+          n <= 0 ? 0 : n >= 1 ? 1 : clamp01((Math.hypot(x - cx, y - cy) - (r - FEATHER)) / FEATHER),
+      };
     }
     function pullAt(T) {
       if (!night) return 0;
@@ -457,18 +497,27 @@ window.FairSplitSlots = (() => {
         ? 16 * E.p2o(prog(T, p0, night.a.peak))
         : 16 * (1 - E.p2o(prog(T, night.a.peak, p1)));
     }
-    function drawNight(n) {
-      night.layer.style.opacity = n.toFixed(3);
+    function drawNight(iris) {
+      const { n } = iris;
+      night.layer.style.opacity = n > 0 ? "1" : "0";
+      const mask =
+        n > 0 && n < 1
+          ? `radial-gradient(circle at ${iris.cx.toFixed(1)}px ${iris.cy.toFixed(1)}px, transparent ${Math.max(0, iris.r - FEATHER).toFixed(1)}px, #000 ${Math.max(1, iris.r).toFixed(1)}px)`
+          : "none";
+      night.layer.style.maskImage = mask;
+      night.layer.style.webkitMaskImage = mask;
       night.lit.style.opacity = n.toFixed(3);
       grain.style.opacity = (0.2 + 0.14 * n).toFixed(3);
-      // the word in night ink, back to day ink as the night lifts under the focus pull
-      night.kw.style.color = `rgb(${mix([11, 18, 32], [244, 246, 250], n).join(" ")})`;
-      // the honesty tag: navy at 72% by night, white at 90% by day (STYLE §7)
+      // the word in night ink until the iris reaches it (it has wiped out by then), never a half-faded grey
+      const kw = iris.at(150 + night.kw.offsetWidth / 2, 150 + night.kw.offsetHeight / 2);
+      night.kw.style.color = `rgb(${mix([11, 18, 32], [244, 246, 250], kw).join(" ")})`;
+      // the honesty tag: navy at 72% by night, white at 90% by day (STYLE §7), switched where the iris passes it
       if (night.tag) {
-        const [r, g, b] = mix([255, 255, 255], [16, 23, 42], n);
-        night.tag.style.background = `rgb(${r} ${g} ${b} / ${lerp(0.9, 0.72, n).toFixed(3)})`;
-        night.tag.style.color = `rgb(${mix([58, 68, 86], [195, 201, 214], n).join(" ")})`;
-        night.tag.style.borderColor = `rgb(${mix([126, 136, 152], [137, 150, 180], n).join(" ")})`;
+        const t = iris.at(1920 - 64 - night.tag.offsetWidth / 2, 960 + 32);
+        const [r, g, b] = mix([255, 255, 255], [16, 23, 42], t);
+        night.tag.style.background = `rgb(${r} ${g} ${b} / ${lerp(0.9, 0.72, t).toFixed(3)})`;
+        night.tag.style.color = `rgb(${mix([58, 68, 86], [195, 201, 214], t).join(" ")})`;
+        night.tag.style.borderColor = `rgb(${mix([126, 136, 152], [137, 150, 180], t).join(" ")})`;
       }
     }
 
@@ -499,8 +548,7 @@ window.FairSplitSlots = (() => {
       if (outroVeil) outroVeil.style.opacity = veil.toFixed(3);
       const veilBlur = 18 * clamp01(veil / 0.92);
       const focusAmt = clamp01((c.s - 0.62) / 0.3);
-      const nightAmt = nightAt(T);
-      if (night) drawNight(nightAmt);
+      if (night) drawNight(irisAt(T, 960 + (nightSlot.x - c.x) * c.s, 540 + (nightSlot.y - c.y) * c.s));
       const pull = pullAt(T);
       const dark = night && T >= night.a.at && T < night.a.fade[1];
 
@@ -538,7 +586,15 @@ window.FairSplitSlots = (() => {
         let blur = clamp01((edge - 220) / 480) * 10 * focusAmt + veilBlur + pull;
         // the reel opens by a focus pull on its first window (blur 14 -> 0, 0.75 s)
         if (slot.first) blur += 14 * (1 - E.eo(prog(T, slot.start + 0.05, slot.start + 0.8)));
-        node.style.opacity = (fadeIn * fadeOut).toFixed(3);
+        // a window the camera carries over the frame's edge fades with the move (STYLE §4, review v4 item 7, as the
+        // close's rig does): its opacity falls as it passes the 64 px margin and it is gone before 30% of it is past
+        // the line, so no glide shows a window cut off by the frame at full strength (the phone at 109.5 s)
+        const hw = (geo.w * sc) / 2;
+        const hh = (geo.h * sc) / 2;
+        const overX = Math.max(0, 64 - (sx - hw), sx + hw - 1856) / Math.max(180, 0.6 * hw);
+        const overY = Math.max(0, 64 - (sy - hh), sy + hh - 1016) / Math.max(180, 0.6 * hh);
+        const atEdge = 1 - E.sio(clamp01(Math.max(overX, overY)));
+        node.style.opacity = (fadeIn * fadeOut * atEdge).toFixed(3);
         node.style.filter = blur > 0.15 ? `blur(${blur.toFixed(2)}px)` : "none";
         node.style.transform = `translate(${sx.toFixed(2)}px, ${sy.toFixed(2)}px) scale(${sc.toFixed(4)}) perspective(2200px) rotateY(${ry.toFixed(2)}deg) rotateX(2deg) rotate(${rot}deg) translateY(${bob.toFixed(2)}px)`;
       }
