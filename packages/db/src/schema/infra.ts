@@ -144,6 +144,9 @@ export const ledgerEntries = pgTable(
     unique("ledger_entries_seq_uq").on(t.workspaceId, t.seq),
     unique("ledger_entries_hash_uq").on(t.workspaceId, t.entryHash),
     index("ledger_entries_run_idx").on(t.runId, t.seq),
+    index("ledger_entries_link_revoked_jti")
+      .on(sql`(${t.payload}->>'jti')`)
+      .where(sql`${t.kind} = 'link.revoked'`),
     wsFk("ledger_entries_run_fk", t, t.runId, payRuns),
   ],
 );

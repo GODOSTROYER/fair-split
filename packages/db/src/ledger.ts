@@ -100,6 +100,60 @@ export async function appendLedger(
   return row as LedgerEntry;
 }
 
+/**
+ * Append an ordered group with one lock, head read and INSERT. Every entry is normalized and hashed before
+ * the INSERT, so a malformed later entry cannot leave a prefix behind even if a caller catches its error.
+ * The existing row triggers still check each link and advance the head; SQL errors roll back the statement.
+ */
+export async function appendLedgerBatch(
+  db: DbOrTx,
+  scope: WorkspaceScope,
+  entries: readonly LedgerAppend[],
+): Promise<LedgerEntry[]> {
+  if (entries.length === 0) return [];
+  if (!isTransaction(db)) return db.transaction((tx) => appendLedgerBatch(tx, scope, entries));
+  const normalized = entries.map((entry) => ({
+    entry,
+    actor: entry.actor ?? scope.actor,
+    at: new Date(Math.floor((entry.at ?? new Date()).getTime())),
+    payload: toJsonObject(entry.payload, `${entry.kind}.payload`),
+  }));
+  await lockWorkspaceLog(db, scope.workspaceId);
+  const head = await ledgerHead(db, scope.workspaceId);
+  let prevHash = head.entryHash;
+  const values = normalized.map(({ entry, actor, at, payload }, index) => {
+    const seq = head.seq + index + 1;
+    const impersonatedBy = actor.impersonatedBy ?? null;
+    const entryHash = ledgerEntryHash(prevHash, {
+      seq,
+      kind: entry.kind,
+      actorKind: actor.kind,
+      actorId: actor.id,
+      impersonatedBy,
+      payload,
+      at: at.toISOString(),
+    });
+    const row = {
+      workspaceId: scope.workspaceId,
+      seq,
+      kind: entry.kind,
+      actorKind: actor.kind,
+      actorId: actor.id,
+      impersonatedBy,
+      payload,
+      at,
+      prevHash,
+      entryHash,
+      runId: entry.runId ?? null,
+    };
+    prevHash = entryHash;
+    return row;
+  });
+  const rows = await db.insert(ledgerEntries).values(values).returning();
+  if (rows.length !== entries.length) throw new Error("ledger.appendBatch: insert returned incomplete rows");
+  return rows.sort((a, b) => a.seq - b.seq) as LedgerEntry[];
+}
+
 export type ChainVerdict =
   | { ok: true; count: number; head: LedgerHead }
   | {

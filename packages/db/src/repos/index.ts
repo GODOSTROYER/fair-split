@@ -21,7 +21,6 @@ import { withWorkspaceTx } from "../tx.js";
 import {
   beginPosting,
   type CheckedApprovalVoid,
-  memberLineHashes,
   type PostingStart,
   voidCheckedApprovals,
 } from "./posting.js";
@@ -152,8 +151,6 @@ export function repos(scope: WorkspaceScope, policy: TransitionPolicy = DEFAULT_
       transition: (db: DbOrTx, t: LineTransition) => transitionLine(db, scope, t, policy),
       /** walk the line to the state its payout item's status maps to (early webhooks, S3.5) */
       followItem: (db: DbOrTx, f: LineFollow) => followItem(db, scope, f, policy),
-      /** every member line of the run as {memberNo, lineSha256}, by member number (payouts memberLines) */
-      hashes: (db: DbOrTx, runId: string) => memberLineHashes(db, scope, runId),
     },
     holdStates: {
       transition: (db: DbOrTx, t: HoldTransition) => transitionHold(db, scope, t, policy),

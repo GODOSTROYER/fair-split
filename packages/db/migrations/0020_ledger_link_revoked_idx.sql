@@ -1,0 +1,1 @@
+CREATE INDEX "ledger_entries_link_revoked_jti" ON "ledger_entries" USING btree (("payload"->>'jti')) WHERE "ledger_entries"."kind" = 'link.revoked';

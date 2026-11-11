@@ -1,10 +1,9 @@
 /**
  * The persistence half of WS-PPMONEY's `PayoutsRepository` port (paypal-payouts README, "Downstream", IC-04): the
- * compare-and-sets only the database can make atomic, and the member lines `linesDigest` is recomputed from. The
+ * compare-and-sets only the database can make atomic. The
  * port itself (receivers, the officer registry, batch and item rows, line moves, the proof ledger) is WS-API's
  * adapter; `@fairsplit/db` cannot import the port's types (dependency rule), so the adapter calls these:
  *
- *   loadPosting / loadRun  → memberLines = await r.lines.hashes(tx, runId)
  *   writeSubmitted         → first, for a primary batch: const res = await r.runs.beginPosting(tx, {…});
  *                            if (!res.ok) write nothing and return null
  *   voidApprovals          → await r.approvals.voidChecked(tx, {runId, nonces, reason: code, at, provenance})
@@ -20,7 +19,7 @@ import type { Provenance } from "../_shims/contracts.js";
 import type { DbOrTx, Tx } from "../client.js";
 import type { StoredRunEvent } from "../events.js";
 import { appendLedger } from "../ledger.js";
-import { approvals, memberLines, members, payRuns } from "../schema/index.js";
+import { approvals, payRuns } from "../schema/index.js";
 import type { WorkspaceScope } from "../scope.js";
 import { withWorkspaceTx } from "../tx.js";
 import {
@@ -33,32 +32,6 @@ import {
 
 type PayRun = typeof payRuns.$inferSelect;
 type Approval = typeof approvals.$inferSelect;
-
-/** One member line of a run as `linesDigest` reads it; `lineSha256` is null when the line has no stored hash. */
-export interface MemberLineHash {
-  memberNo: string;
-  lineSha256: string | null;
-}
-
-/**
- * Every member line of the run, on and off rail (the cash lines too), as `{memberNo, lineSha256}` stored now, by
- * member number. A null hash is returned as null: the payouts service refuses it as an invalid batch.
- */
-export async function memberLineHashes(
-  db: DbOrTx,
-  scope: WorkspaceScope,
-  runId: string,
-): Promise<MemberLineHash[]> {
-  const rows = await db
-    .select({ memberNo: members.memberNo, lineSha256: memberLines.lineSha256 })
-    .from(memberLines)
-    .innerJoin(
-      members,
-      and(eq(members.workspaceId, memberLines.workspaceId), eq(members.id, memberLines.memberId)),
-    )
-    .where(and(eq(memberLines.workspaceId, scope.workspaceId), eq(memberLines.runId, runId)));
-  return rows.sort((a, b) => (a.memberNo < b.memberNo ? -1 : a.memberNo > b.memberNo ? 1 : 0));
-}
 
 /** The run's state, with its row locked until the transaction ends; null when the scope has no such run. */
 async function lockRunState(tx: Tx, scope: WorkspaceScope, runId: string): Promise<string | null> {

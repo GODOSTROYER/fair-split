@@ -1,7 +1,7 @@
 /**
  * The persistence half of WS-PPMONEY's `PayoutsRepository` port (paypal-payouts README, "Downstream", WS-DATA IC-04):
  * the compare-and-sets that keep a stale executor from voiding approvals signed after its read, or from posting
- * under approvals a check has voided since, and the member lines `linesDigest` is recomputed from. The port itself is
+ * under approvals a check has voided since. The port itself is
  * WS-API's adapter, which calls these inside its own transactions.
  */
 import { randomUUID } from "node:crypto";
@@ -10,7 +10,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { RunState } from "../src/_shims/contracts.js";
 import type { DbOrTx, Tx } from "../src/client.js";
 import { type Repos, repos } from "../src/repos/index.js";
-import { approvals, ledgerEntries, memberLines, payRuns, runEvents } from "../src/schema/index.js";
+import { approvals, ledgerEntries, payRuns, runEvents } from "../src/schema/index.js";
 import { type FixtureWorkspace, fixtureWorkspace, openTestDb, type TestDb } from "../src/testing/index.js";
 import { caught, scopeOf, sleep } from "./helpers.js";
 
@@ -218,49 +218,6 @@ const checkedVoid = (runId: string, nonces: readonly string[], at?: Date) => ({
   reason: "DIGEST_MISMATCH",
   provenance: "live" as const,
   ...(at ? { at } : {}),
-});
-
-describe("lines.hashes: every member line of the run, as linesDigest reads it", () => {
-  it("returns each line on and off rail as {memberNo, lineSha256} by member number, the hash as stored", async () => {
-    const { ws, runId, r } = await approvedRun(3);
-    const line = (i: number, rail: "ON" | "OFF", lineSha256: string | null) => ({
-      workspaceId: ws.workspaceId,
-      runId,
-      memberId: ws.memberIds[i] ?? "",
-      state: "LOCKED" as const,
-      rail,
-      currency: "USD",
-      verifiedG: 1000n,
-      grade1G: 0n,
-      premiumCents: 100n,
-      bonusCents: 0n,
-      deductionsCents: 0n,
-      creditsCents: 0n,
-      netCents: 100n,
-      deductions: [],
-      lineSha256,
-      provenance: "seeded" as const,
-    });
-    await t.app.db
-      .insert(memberLines)
-      .values([line(2, "ON", "c".repeat(64)), line(0, "OFF", "a".repeat(64)), line(1, "ON", null)]);
-    expect(await r.lines.hashes(t.app.db, runId)).toEqual([
-      { memberNo: "M-001", lineSha256: "a".repeat(64) },
-      { memberNo: "M-002", lineSha256: null },
-      { memberNo: "M-003", lineSha256: "c".repeat(64) },
-    ]);
-    // another run of the workspace has no lines; another workspace's run is out of this scope's reach
-    expect(await r.lines.hashes(t.app.db, await anotherRun(ws))).toEqual([]);
-    const other = await approvedRun(1);
-    await t.app.db.insert(memberLines).values({
-      ...line(0, "ON", "d".repeat(64)),
-      workspaceId: other.ws.workspaceId,
-      runId: other.runId,
-      memberId: other.ws.memberIds[0] ?? "",
-    });
-    expect(await other.r.lines.hashes(t.app.db, other.runId)).toHaveLength(1);
-    expect(await r.lines.hashes(t.app.db, other.runId)).toEqual([]);
-  });
 });
 
 describe("inv.i6.void-cas: approvals.voidChecked voids the approvals a check named, only while they are the run's live set", () => {
