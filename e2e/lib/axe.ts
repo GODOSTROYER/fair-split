@@ -11,7 +11,27 @@ const source = readFileSync(engine, "utf8");
 
 export async function axeScreen(page: Page, screen: string) {
   // Test-runtime evaluation works under the shipped script-src 'self' policy; do not relax that policy.
-  for (const frame of page.frames()) await frame.evaluate(source);
+  for (const frame of page.frames()) {
+    // Visible includes entrance/result fades. Scan their actual resting colors, without disabling motion.
+    await frame.evaluate(async () => {
+      for (;;) {
+        const animations = document
+          .getAnimations()
+          .filter(
+            (animation) =>
+              (animation.playState === "running" || animation.pending) &&
+              Number.isFinite(animation.effect?.getComputedTiming().endTime),
+          );
+        if (animations.length === 0) break;
+        const results = await Promise.allSettled(animations.map((animation) => animation.finished));
+        for (const result of results) {
+          // React may replace a fading node. Re-sample its replacement, retaining every other failure.
+          if (result.status === "rejected" && result.reason?.name !== "AbortError") throw result.reason;
+        }
+      }
+    });
+    await frame.evaluate(source);
+  }
   const violations = await page.evaluate(async () => {
     const axe = (
       window as unknown as {

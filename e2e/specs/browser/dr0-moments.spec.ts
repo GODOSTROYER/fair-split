@@ -31,6 +31,8 @@ test("DR-0 / E-01 / E-15: logged-out judge, real moment phases, Proof, Reset and
   try {
     await moments.refresh(page);
     await treasurerKey(page);
+    // Observe key 1's real completion before a newer signature replaces its pending animation.
+    await expect(page.getByTestId("W-TR-07.column")).toHaveAttribute("data-moment-phase", "waiting-2");
     await chairKey(page);
     const posted = await events.waitFor(runState("POSTED"), 60_000);
     expect(posted?.provenance).toBe("simulated_rail");
@@ -53,6 +55,8 @@ test("DR-0 / E-01 / E-15: logged-out judge, real moment phases, Proof, Reset and
     ).toHaveCount(6);
     await expect(page.getByTestId("W-PF-01.figures")).toContainText("64 of 64");
     await expect(page.getByTestId("W-PF-01.metric.kept")).toContainText("US$21.14");
+    // Let the real line expansion complete before the next press replaces it with the slip zoom.
+    await expect(page.getByTestId("W-PF-01.lines")).toHaveAttribute("data-moment-phase", "expanded");
     await page.getByTestId("W-PF-01.trace.slip.0403").click();
     await moments.reached("MM-7", "tiled");
     for (const [id, phase] of [
