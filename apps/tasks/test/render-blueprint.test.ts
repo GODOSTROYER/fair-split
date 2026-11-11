@@ -130,7 +130,7 @@ describe("render.yaml against Fair Split's deployment rules (approved S3.3, S3.1
     expect(api.healthCheckPath).toBe("/healthz");
     expect(api.preDeployCommand).toBe("corepack pnpm --filter @fairsplit/db migrate");
     expect(api.startCommand).toBe(
-      "node --max-old-space-size=128 --max-semi-space-size=8 apps/api/dist/index.js",
+      "node --max-old-space-size=192 --max-semi-space-size=8 apps/api/dist/index.js",
     );
     expect(api.buildCommand).toMatch(
       /corepack pnpm exec tsx tools\/assemble-media\.ts && corepack pnpm exec tsx tools\/scan-dist\.ts$/,
