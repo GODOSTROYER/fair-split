@@ -279,7 +279,7 @@ describe("W-JG-01 first view", { timeout: 60_000 }, () => {
     expect(screen.getByTestId("W-JG-01.pool.eq").dataset.state).toBe("landed");
     expect(screen.getByTestId("W-JG-01.pool.tag").dataset.fsTag).toBe("micro");
     expect(tagBudget(screen.getByTestId("W-JG-01.stage")).ok).toBe(true);
-    expect(screen.getByTestId("W-JG-01.status").textContent).toMatch(/^Funded\./);
+    expect(screen.getByTestId("W-JG-01.status").textContent).toMatch(/^Funded(?!\.)/);
     expect(screen.getByTestId("W-JG-01.markPaid").dataset.state).toBe("committed");
     // The title follows the run: the invoice read back as paid (the simulated record-payment marks it), the pool
     // is funded.

@@ -122,7 +122,7 @@ export const FIRST_VIEW_COPY = {
   srConsequence: "starts the run, changes a line",
   starting: "Starting your run.",
   pending: "Recording the payment.",
-  funded: "Funded.",
+  funded: "Funded",
   movedOn: "The invoice is paid. The run has moved on.",
   /** A settled run's status line: PayPal's part, then the cash still due (the pill's own words). */
   settledStatus: (replayed: boolean, cashDue: boolean) =>
