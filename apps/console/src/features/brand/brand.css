@@ -1,4 +1,4 @@
-/* W-BR-01's header strip, above the same Proof column (Adlaw; UI gate rounds 2 and 3). One white card on a hairline
+/* W-BR-01's header strip, above the same Proof column (Adlaw; UI gate rounds 2 to 4). One white card on a hairline
    ring, like Proof's own cards: who it is for, the invoice and the payouts as two facts, and the export. Tokens
    only, on docs/DESIGN.md's steps (the title step for the title, the label step for labels, 14 px secondary words, the
    mono id role for the invoice id), the 4 px spacing scale; no dashed line (dashed means simulated only). */
@@ -56,6 +56,7 @@
   font-weight: 520;
   font-size: 0.875rem;
   line-height: 1.5rem;
+  text-wrap: pretty;
 }
 
 /* Waiting for the brand's payment: ui-web's amber state dot beside the words. */
@@ -132,11 +133,24 @@
   width: 100%;
 }
 
-/* A laptop: who, the facts and the export side by side in the 1040 px column. */
+/* A laptop (round 4): the strip on the one 12-column grid and its 24 px gutter, top-aligned. Who it is for and the
+   two facts take seven columns, so the title and its line read on one line each; the export takes the other five,
+   its two downloads side by side, level with the title. */
 @media (min-width: 1120px) {
   .br-strip {
-    grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.3fr) minmax(0, 0.8fr);
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    column-gap: 24px;
     align-items: start;
+  }
+
+  .br-strip__who,
+  .br-strip__facts {
+    grid-column: 1 / span 7;
+  }
+
+  .br-strip__export {
+    grid-column: 8 / -1;
+    grid-row: 1 / span 2;
   }
 }
 

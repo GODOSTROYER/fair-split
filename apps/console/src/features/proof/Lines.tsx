@@ -309,7 +309,7 @@ export function Lines({ bundle, items, lineStates, slips, ruleNames, markNames, 
                               >
                                 <Glyph name="triplicate-slip" size={16} />
                                 <span className="pf-slipchip__no fs-t-id">{serial}</span>
-                                {kg && <span className="pf-slipchip__kg">{kg}</span>}
+                                {kg && <span className="pf-slipchip__kg fs-t-figure">{kg}</span>}
                               </button>
                             );
                           })}

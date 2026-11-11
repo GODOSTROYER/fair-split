@@ -29,7 +29,7 @@ import {
   VERIFY_COPY,
 } from "./copy.js";
 import { davaoDateTime } from "./davao.js";
-import { SLOT_GLYPH, slotOf, slotWords } from "./Hero.js";
+import { KEY_ROOM, KEY_SHOWN, ProofId, SLOT_GLYPH, slotOf, slotWords } from "./Hero.js";
 import { Lines, type MemberLabel, RailWord } from "./Lines.js";
 import {
   isSettled,
@@ -198,7 +198,7 @@ function FactLine({ parts }: { readonly parts: readonly FactPart[] }) {
           {i > 0 && " · "}
           {part.before}
           {part.role === "id" ? (
-            <span className="fs-t-id">{part.text}</span>
+            <ProofId value={part.text} {...KEY_SHOWN} />
           ) : part.role === "money" ? (
             <span className="pf-fact__money">{part.text}</span>
           ) : (
@@ -487,7 +487,7 @@ function PlateBody({ plate, ...p }: ChainProps & { readonly plate: PlateName }) 
               return (
                 <li key={a.keyId} className="pf-keys__key">
                   <span className="pf-keys__role">{a.role === "treasurer" ? "Treasurer" : "Chair"}</span>
-                  <span className="fs-t-id">{a.keyId}</span>
+                  <ProofId value={a.keyId} max={KEY_ROOM} className="pf-keys__id" />
                   <span className="pf-keys__kind">{keyKindWords(reg?.kind ?? "", a.keyId)}</span>
                   <span className="pf-keys__meta">
                     Signs as {a.payload.approverId}

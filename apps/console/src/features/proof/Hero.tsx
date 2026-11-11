@@ -1,26 +1,28 @@
-// Proof's hero (S1.8 P1, design §6; UI gate rounds 2 and 3). A factual header first: the headline on the title
+// Proof's hero (S1.8 P1, design §6; UI gate rounds 2 to 4). A factual header first: the headline on the title
 // step (the invoice as one money figure, its context in ink-3) with the lot's id under it in the mono, and the
 // page's one quiet "Simulated PayPal sandbox" indicator and the synthetic glyph. Then the verdict leads, beside the
 // 180 px seal grown from the batch hash: the six checks' count as the page's one hero number in FS Sans ("0/6",
 // then "6/6"), the explicit result under it ("6 of 6 integrity checks match", seen and heard the same way), the
-// sample-keys qualification as a neutral key chip (never a check mark), who signed, and "Verify in your browser" as
-// the one primary. Where every dollar went sits beside it (the money slot), and the six checks run under both, so
-// all six are in view on a laptop's first screen. A check that matches is ink, never jade (jade means money); a
-// mismatch is ink too, with its ✕ and the plate it names (red is only PayPal saying no). In Data mode the seal reads
-// as its hash (S1.7).
+// sample-keys qualification on the body step right under it (a key glyph, never a check mark), who signed (round
+// 4: each officer by name and role, with the key they signed with on one line, cut in the middle), and "Verify in
+// your browser" as the one primary. Where every dollar went sits beside it (the money slot), and the six checks run
+// under both, so all six are in view on a laptop's first screen. A check that matches is ink, never jade (jade
+// means money); a mismatch is ink too, with its ✕ and the plate it names (red is only PayPal saying no). File names
+// and full ids wait behind "IDs" (round 4: no developer word in view). In Data mode the seal reads as its hash
+// (S1.7).
 
 import type { PlateName, ProofBundle } from "@fairsplit/contracts";
 import {
+  Avatar,
   Glyph,
   type GlyphName,
   HONESTY,
   HonestyTag,
-  InkStamp,
+  IdText,
   LegendGlyph,
   Numeral,
   Seal,
   Slab,
-  type StampView,
 } from "@fairsplit/ui-web";
 import { type CSSProperties, type ReactNode, useEffect, useRef } from "react";
 import { CommandNotice } from "../../chrome/CommandNotice.js";
@@ -40,7 +42,7 @@ import {
 } from "./copy.js";
 import { KeyGlyph } from "./glyphs.js";
 import type { Verification, VerifyState } from "./useVerification.js";
-import { type CheckState, PLATES } from "./verify.js";
+import { type CheckState, KEYS_PATH, PLATES } from "./verify.js";
 
 /**
  * The seal's size: LAYOUT.console.seal (180 px, the same as Approve's and the Chair's phone). Proof keeps the number
@@ -48,6 +50,47 @@ import { type CheckState, PLATES } from "./verify.js";
  * with --fs-console-seal, and a test holds the two equal.
  */
 export const PROOF_SEAL = 180;
+
+/**
+ * How much of a key id shows in view (round 4): 17 characters, the last 6 always, so "fs-ernesto-demo-mj2ng2" reads
+ * "fs-ernesto…mj2ng2" on one line and two keys never look alike. The whole id is its title, its accessible name and
+ * the IDs disclosure's row.
+ */
+export const KEY_SHOWN = { max: 17, tail: 6 } as const;
+
+/** Where a key id is the detail (behind "IDs", plate 5's keys) it shows whole: the record mints 22 at most. */
+export const KEY_ROOM = 32;
+
+/** The keys document's file name: behind "IDs" its path is cut to it ("…fairsplit-keys.json"), whole as its title. */
+const KEYS_FILE = KEYS_PATH.slice(KEYS_PATH.lastIndexOf("/") + 1);
+
+/**
+ * An id on Proof, on one line in the id role (round 4: never broken mid-word). One that fits is printed as it is; a
+ * longer one is ui-web's IdText, cut in the middle with the whole id as its title and its accessible name.
+ */
+export function ProofId({
+  value,
+  max,
+  tail,
+  className,
+}: {
+  readonly value: string;
+  readonly max: number;
+  readonly tail?: number;
+  readonly className?: string;
+}) {
+  if (value.length > max) return <IdText value={value} max={max} tail={tail} className={className} />;
+  return <span className={["pf-id", "fs-t-id", className].filter(Boolean).join(" ")}>{value}</span>;
+}
+
+/** An officer whose key signed the batch: the role, the key, and the person once the seed names them. */
+export interface SignerView {
+  /** "Treasurer" or "Chair". */
+  readonly role: string;
+  readonly keyId: string;
+  readonly name?: string;
+  readonly initials?: string;
+}
 
 export interface ProofHeroProps {
   readonly bundle: ProofBundle;
@@ -59,8 +102,8 @@ export interface ProofHeroProps {
   readonly level?: "h1" | "h2";
   /** Where every dollar went: the run's live line and the money bar, beside the verdict. */
   readonly money?: ReactNode;
-  /** The officers whose keys signed the batch, as indigo stamps beside the verdict (AS, EC). */
-  readonly signers?: readonly StampView[];
+  /** The officers whose keys signed the batch, each by name, role and key (treasurer, then Chair). */
+  readonly signers?: readonly SignerView[];
 }
 
 export function sealKeys(bundle: Pick<ProofBundle, "approvals">): 0 | 1 | 2 {
@@ -249,8 +292,8 @@ export function VerifyPanel({
 }: {
   readonly verification: Verification;
   readonly rail?: PaypalRail;
-  /** The officers whose keys signed, drawn as stamps beside the Sample badge. */
-  readonly signers?: readonly StampView[];
+  /** The officers whose keys signed, one row each under the sample-keys line. */
+  readonly signers?: readonly SignerView[];
   /** The batch seal, drawn beside the count. */
   readonly seal?: ReactNode;
   /** The card beside the verdict (where every dollar went). */
@@ -338,20 +381,26 @@ export function VerifyPanel({
                     </span>
                   )}
                   {sampleKeys && (
-                    <p className="pf-verify__sample" data-testid="W-PF-01.verdict.sample">
-                      <span className="pf-keychip" title={VERIFY_COPY.sampleTitle}>
-                        <KeyGlyph className="pf-keychip__glyph" />
-                        <span className="pf-keychip__words">
-                          {wordInChip ? (
-                            <span data-verdict="sample" data-testid="W-PF-01.verdict.word">
-                              {verdictWord("sample")}
-                            </span>
-                          ) : (
-                            verdictWord("sample")
-                          )}
-                          <KeepLastWord text={VERIFY_COPY.sampleRest} />
-                          <span className="fs-sr">. {VERIFY_COPY.sampleTitle}</span>
-                        </span>
+                    <p
+                      className="pf-sample"
+                      data-testid="W-PF-01.verdict.sample"
+                      title={VERIFY_COPY.sampleTitle}
+                    >
+                      <KeyGlyph className="pf-sample__glyph" />
+                      <span className="pf-sample__words">
+                        {wordInChip ? (
+                          <span
+                            className="pf-sample__word"
+                            data-verdict="sample"
+                            data-testid="W-PF-01.verdict.word"
+                          >
+                            {verdictWord("sample")}
+                          </span>
+                        ) : (
+                          <span className="pf-sample__word">{verdictWord("sample")}</span>
+                        )}
+                        <KeepLastWord text={VERIFY_COPY.sampleRest} />
+                        <span className="fs-sr">. {VERIFY_COPY.sampleTitle}</span>
                       </span>
                     </p>
                   )}
@@ -361,46 +410,37 @@ export function VerifyPanel({
                     <strong>{failurePlace}:</strong> {outcome.failure.reason}
                   </p>
                 )}
-                {/* Who signed: the officers' indigo stamps beside the key ids they signed with. */}
-                {(signers.length > 0 || sampleKeys) && (
-                  <div className="pf-verify__signed">
-                    {signers.length > 0 && (
-                      <span className="pf-verify__stamps" data-testid="W-PF-01.verdict.stamps">
-                        {signers.map((stamp) => (
-                          <InkStamp key={stamp.initials} stamp={stamp} />
-                        ))}
-                      </span>
-                    )}
-                    {sampleKeys && (
-                      <p className="pf-verify__keys fs-t-id" data-testid="W-PF-01.verdict.keys">
-                        {VERIFY_COPY.sampleKeys(outcome.sampleKeys)}
-                      </p>
-                    )}
-                  </div>
-                )}
                 {outcome.verdict === "partial" && <p className="pf-verify__note">{VERIFY_COPY.partial}</p>}
                 <p className="pf-verify__meta fs-t-caption">
-                  <span>
-                    <time className="fs-t-id">{format.time(done.at)}</time>
-                    {VERIFY_COPY.atRest}
-                  </span>
-                  <span aria-hidden> · </span>
-                  <span
-                    className="pf-verify__trust"
-                    data-testid="W-PF-01.verdict.trust"
-                    data-trust={outcome.trust}
-                    title={
-                      outcome.trust === "published"
-                        ? VERIFY_COPY.keysPublishedTitle
-                        : VERIFY_COPY.keysSeedTitle
-                    }
-                  >
-                    {outcome.trust === "published" ? VERIFY_COPY.keysPublished : VERIFY_COPY.keysSeed}
-                  </span>
+                  <time className="fs-t-id">{format.time(done.at)}</time>
+                  {VERIFY_COPY.atRest}
                 </p>
               </>
             )}
           </div>
+          {/* Who signed (round 4): each officer by name and role, readable without zooming, and the key they signed
+              with on one line in the id role, cut in the middle, the whole id its title and name. The record says
+              who signed before any check (so the card keeps its shape when the verdict lands); the check row "2
+              signatures on the batch hash" says whether the signatures hold. */}
+          {signers.length > 0 && (
+            <ul className="pf-signers" aria-label={VERIFY_COPY.signedBy} data-testid="W-PF-01.verdict.stamps">
+              {signers.map((signer) => (
+                <li key={signer.keyId} className="pf-signer" data-testid="W-PF-01.verdict.signer">
+                  {signer.initials ? (
+                    <Avatar initials={signer.initials} className="pf-signer__avatar" />
+                  ) : (
+                    <span className="pf-signer__avatar" aria-hidden />
+                  )}
+                  <span className="pf-signer__who">
+                    {signer.name && <span className="pf-signer__name">{signer.name}</span>}
+                    {signer.name && " · "}
+                    {signer.role}
+                  </span>
+                  <ProofId value={signer.keyId} {...KEY_SHOWN} className="pf-signer__key" />
+                </li>
+              ))}
+            </ul>
+          )}
           <div className="pf-verify__act">
             <Slab
               label={state.kind === "done" || state.kind === "error" ? VERIFY_COPY.again : VERIFY_COPY.slab()}
@@ -413,38 +453,75 @@ export function VerifyPanel({
                 if (state.kind !== "checking") verify();
               }}
             />
-            {outcome?.anchors.invoiceNumber && outcome.anchors.senderBatchId && (
+            {/* The ids in full, the keys a check pinned and where they came from: for a technical reader, behind
+                one disclosure, so no file name or long id sits in view (round 4). */}
+            {outcome && (
               <details className="pf-verify__ids">
                 <summary className="pf-verify__ids-summary fs-t-label">
                   <Glyph name="ms:expand-more" size={16} className="pf-summary__chevron" />
                   {VERIFY_COPY.ids}
                 </summary>
                 <div className="pf-verify__anchors" data-testid="W-PF-01.verdict.anchors">
-                  <p className="pf-verify__anchors-head">
-                    <LegendGlyph kind="simulated" label={railShort(rail)} />
-                    <span className="fs-t-caption">{VERIFY_COPY.anchorsLead(rail)}</span>
-                  </p>
+                  {outcome.anchors.invoiceNumber && outcome.anchors.senderBatchId && (
+                    <p className="pf-verify__anchors-head">
+                      <LegendGlyph kind="simulated" label={railShort(rail)} />
+                      <span className="fs-t-caption">{VERIFY_COPY.anchorsLead(rail)}</span>
+                    </p>
+                  )}
                   <dl className="pf-kv">
-                    <div>
-                      <dt>Invoice</dt>
-                      <dd className="fs-t-id">{outcome.anchors.invoiceNumber}</dd>
-                    </div>
+                    {outcome.anchors.invoiceNumber && (
+                      <div>
+                        <dt>Invoice</dt>
+                        <dd className="fs-t-id">{outcome.anchors.invoiceNumber}</dd>
+                      </div>
+                    )}
                     {outcome.anchors.invoiceReference && (
                       <div>
                         <dt>Reference</dt>
                         <dd className="fs-t-id">{outcome.anchors.invoiceReference}</dd>
                       </div>
                     )}
-                    <div>
-                      <dt>Payout batch</dt>
-                      <dd className="fs-t-id">{outcome.anchors.senderBatchId}</dd>
-                    </div>
+                    {outcome.anchors.senderBatchId && (
+                      <div>
+                        <dt>Payout batch</dt>
+                        <dd className="fs-t-id">{outcome.anchors.senderBatchId}</dd>
+                      </div>
+                    )}
                     {outcome.anchors.batchNote && (
                       <div>
                         <dt>Note</dt>
                         <dd>{outcome.anchors.batchNote}</dd>
                       </div>
                     )}
+                    {sampleKeys && (
+                      <div>
+                        <dt>{VERIFY_COPY.sampleKeysRow}</dt>
+                        <dd className="pf-kv__ids" data-testid="W-PF-01.verdict.keys">
+                          {outcome.sampleKeys.map((key) => (
+                            <ProofId key={key} value={key} max={KEY_ROOM} />
+                          ))}
+                        </dd>
+                      </div>
+                    )}
+                    <div>
+                      <dt>{VERIFY_COPY.keysRow}</dt>
+                      <dd
+                        className="pf-verify__trust"
+                        data-testid="W-PF-01.verdict.trust"
+                        data-trust={outcome.trust}
+                        title={
+                          outcome.trust === "published"
+                            ? VERIFY_COPY.keysPublishedTitle
+                            : VERIFY_COPY.keysSeedTitle
+                        }
+                      >
+                        {outcome.trust === "published" ? (
+                          <IdText value={KEYS_PATH} max={KEYS_FILE.length + 2} tail={KEYS_FILE.length} />
+                        ) : (
+                          VERIFY_COPY.keysSeed
+                        )}
+                      </dd>
+                    </div>
                   </dl>
                 </div>
               </details>

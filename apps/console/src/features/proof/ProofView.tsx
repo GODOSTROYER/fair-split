@@ -5,7 +5,7 @@ import { PAYOUT_REPLAY_NOTE, payoutReplayed, payoutReplaySummary } from "../../d
 // state is drawn: loading (print beds at their final size), error, none, progress, verified and failed.
 
 import type { SeasonSnapshot } from "@fairsplit/contracts";
-import { Glyph, type StampView } from "@fairsplit/ui-web";
+import { Glyph } from "@fairsplit/ui-web";
 import { useEffect, useMemo, useRef } from "react";
 import { AppLink } from "../../chrome/AppLink.js";
 import { CommandNotice } from "../../chrome/CommandNotice.js";
@@ -17,7 +17,7 @@ import { Chain } from "./Chain.js";
 import { FAILURE_PLACE, FOOTER_COPY, PLATE_TITLE, provenanceWords, railName, STATE_COPY, t } from "./copy.js";
 import { Distribution } from "./Distribution.js";
 import { Figures } from "./Figures.js";
-import { PROOF_SEAL, ProofHero } from "./Hero.js";
+import { PROOF_SEAL, ProofHero, type SignerView } from "./Hero.js";
 import { type MemberLabel, shortRuleName } from "./Lines.js";
 import { isSettled } from "./model.js";
 import { PlotField, plotTiers } from "./PlotField.js";
@@ -75,21 +75,22 @@ export function seasonLabelOf(code: string): string {
   return /^\d{4}[A-Z]$/.test(code) ? `${code.slice(0, 4)}-${code.slice(4)}` : code;
 }
 
-/** The officers whose keys signed the batch (treasurer, then Chair), as stamps: initials and name from the seed. */
-function signersOf(
-  snapshot: SeasonSnapshot | undefined,
-  bundle: { readonly approvals: readonly { readonly role: "treasurer" | "chair" }[] },
-): StampView[] {
+/**
+ * The officers whose keys signed the batch (treasurer, then Chair): the role and the key from the record, the name
+ * and initials from the seed once it lands (until then the role and the key stand alone).
+ */
+export function signersOf(
+  snapshot: Pick<SeasonSnapshot, "officers"> | undefined,
+  bundle: { readonly approvals: readonly { readonly role: "treasurer" | "chair"; readonly keyId: string }[] },
+): SignerView[] {
   const order = ["treasurer", "chair"] as const;
-  const signed = new Set(bundle.approvals.map((a) => a.role));
-  return order
-    .filter((role) => signed.has(role))
-    .flatMap((role) => {
-      const officer = snapshot?.officers.find((o) => o.role === role.toUpperCase());
-      return officer
-        ? [{ initials: officer.initials, name: officer.name, at: role === "chair" ? "Chair" : "Treasurer" }]
-        : [];
-    });
+  return order.flatMap((role) => {
+    const approval = bundle.approvals.find((a) => a.role === role);
+    if (!approval) return [];
+    const officer = snapshot?.officers.find((o) => o.role === role.toUpperCase());
+    const signer: SignerView = { role: role === "chair" ? "Chair" : "Treasurer", keyId: approval.keyId };
+    return [officer ? { ...signer, name: officer.name, initials: officer.initials } : signer];
+  });
 }
 
 function marksOf(snapshot: SeasonSnapshot | undefined) {

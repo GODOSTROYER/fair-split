@@ -1,7 +1,8 @@
 // Proof's hero, UI gate rounds 2 and 3: the verdict leads by the seal as the page's one hero count in FS Sans
 // ("0/6" until this browser has checked, then "6/6"; tabular figures, no dot-matrix), the explicit result under it
-// ("6 of 6 integrity checks match", seen and heard alike), the sample keys beside it as a neutral key chip with no
-// check mark ("Sample keys · not PayPal-verified"), and the six checks read in a few words each.
+// ("6 of 6 integrity checks match", seen and heard alike), the sample keys right under it on the body step with no
+// check mark ("Sample keys · not PayPal-verified"; round 4: a line, not a chip), the ids and the keys document
+// behind "IDs", and the six checks read in a few words each.
 
 import { LAYOUT } from "@fairsplit/tokens";
 import { render, screen, within } from "@testing-library/react";
@@ -80,38 +81,46 @@ describe("the verdict card", () => {
     const status = within(verdict).getByRole("status");
     expect(status.textContent).toContain("6 of 6 integrity checks match");
     expect(status.textContent).toMatch(/Checked in this browser at \d\d:\d\d:\d\d, Davao time\./);
-    // The sample keys: one neutral chip, a key and the words, with the verdict word inside it and no check mark.
+    // The sample keys: one line right under the result (round 4: the body step, not a chip), a key and the words,
+    // with the verdict word inside it and no check mark.
     expect(screen.getByTestId("W-PF-01.verdict.word").textContent).toBe("Sample");
     const sample = screen.getByTestId("W-PF-01.verdict.sample");
-    const chip = sample.querySelector(".pf-keychip");
-    expect(chip?.contains(screen.getByTestId("W-PF-01.verdict.word"))).toBe(true);
-    expect(chip?.querySelector('[data-glyph="ms:check"]')).toBeNull();
-    expect(chip?.querySelector(".pf-keychip__glyph")).not.toBeNull();
-    expect(chip?.getAttribute("title")).toBe(
+    expect(sample.contains(screen.getByTestId("W-PF-01.verdict.word"))).toBe(true);
+    expect(sample.querySelector('[data-glyph="ms:check"]')).toBeNull();
+    expect(sample.querySelector(".pf-sample__glyph")).not.toBeNull();
+    expect(sample.getAttribute("title")).toBe(
       "Signed with sample keys, so this Proof reads Sample, never Verified.",
     );
     // On screen, the short form; a screen reader hears why as well.
-    const words = chip?.querySelector(".pf-keychip__words");
+    const words = sample.querySelector(".pf-sample__words");
     const visible = [...(words?.childNodes ?? [])]
       .filter((n) => !(n instanceof Element && n.classList.contains("fs-sr")))
       .map((n) => n.textContent)
       .join("");
     expect(visible).toBe("Sample keys · not PayPal-verified");
-    expect(chip?.textContent).toContain("never Verified");
+    expect(sample.textContent).toContain("never Verified");
     expect(verdict.querySelector('.pf-verdict [data-glyph="ms:check"]')).toBeNull();
-    expect(screen.getByTestId("W-PF-01.verdict.keys").textContent).toBe("fs-analyn-s1 · fs-ernesto-s1");
-    // Round 3's one mono: the key ids and the check's time are the id role; the words around them are FS Sans.
-    expect(screen.getByTestId("W-PF-01.verdict.keys").classList.contains("fs-t-id")).toBe(true);
+    // The check's time is the id role and says where it ran; no file name sits in view (round 4).
     expect(verdict.querySelector(".pf-verify__meta")?.textContent).toMatch(
-      /^\d\d:\d\d:\d\d PHT · in this browser/,
+      /^\d\d:\d\d:\d\d PHT · in this browser$/,
     );
     expect(verdict.querySelector(".pf-verify__meta time.fs-t-id")?.textContent).toMatch(/^\d\d:\d\d:\d\d$/);
     // The headline count is FS Sans on the hero step, never a drawing.
     expect(count().classList.contains("fs-t-hero")).toBe(true);
-    expect(screen.getByTestId("W-PF-01.verdict.trust").textContent).toBe("keys.json");
-    // The IDs wait behind a disclosure, with the simulated glyph (a glyph, not a tag: the page keeps its budget).
+    // The IDs wait behind a disclosure, with the simulated glyph (a glyph, not a tag: the page keeps its budget):
+    // the sample keys whole, one a line in the id role, and where the keys came from, the file's path cut to its
+    // name and whole as its title.
     const anchors = screen.getByTestId("W-PF-01.verdict.anchors");
     expect(anchors.closest("details")?.open).toBe(false);
+    const keys = screen.getByTestId("W-PF-01.verdict.keys");
+    expect(anchors.contains(keys)).toBe(true);
+    expect([...keys.children].map((k) => k.textContent)).toEqual(["fs-analyn-s1", "fs-ernesto-s1"]);
+    for (const key of keys.children) expect(key.classList.contains("fs-t-id")).toBe(true);
+    const trust = screen.getByTestId("W-PF-01.verdict.trust");
+    expect(anchors.contains(trust)).toBe(true);
+    expect(trust.dataset.trust).toBe("published");
+    expect(trust.querySelector('[aria-hidden="true"]')?.textContent).toBe("…fairsplit-keys.json");
+    expect(trust.querySelector(".fs-idtext")?.getAttribute("title")).toBe("/.well-known/fairsplit-keys.json");
     expect(anchors.querySelector(".fs-honesty")).toBeNull();
     const glyph = anchors.querySelector(".fs-legend-glyph");
     expect(glyph?.getAttribute("data-kind")).toBe("simulated");

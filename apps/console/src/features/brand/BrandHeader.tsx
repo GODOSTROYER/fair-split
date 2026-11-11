@@ -41,7 +41,8 @@ export const BRAND_COPY = {
       .join(" · "),
   notYet: "The payout batch isn't posted yet.",
   export: "Export",
-  exportWhat: "CSV · JSON · with hashes",
+  /** The two downloads name their formats, so the label says only what both carry (round 4: copy only shortens). */
+  exportWhat: "with hashes",
   csv: "Download CSV",
   json: "Download JSON",
   exportNote: "Full receivers and plots: in the export only, built in this browser",

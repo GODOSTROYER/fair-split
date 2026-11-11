@@ -9,7 +9,10 @@
    steps (the verdict's count is the page's one hero; the headline and the section titles are the title step; plate
    and card headings the heading step; reading text the body step; secondary words 14 px); the mono sets ids,
    hashes and times at 12 px. Red is only PayPal saying no: a check that does not match reads in ink with its ✕
-   glyph and its words. Dashed lines mean simulated only: a pending amount is neutral, never dashed. */
+   glyph and its words. Dashed lines mean simulated only: a pending amount is neutral, never dashed.
+   Round 4: the hero row sits on the console's 12-column grid, top-aligned; who signed reads by name and role with
+   each key on one line, cut in the middle (IdText), never broken mid-word; file names and full ids wait behind
+   "IDs"; a slip chip's serial is ink-3 in the id role and its kilos ink. Proof has no top bar and no drawer. */
 
 /* Proof's ground is plate (decision.md §5). No wash behind the hero (UI gate round 2: a check result never
    glows, and colour only where it means something). */
@@ -157,6 +160,7 @@
 .pf-verify__card,
 .pf-card {
   display: grid;
+  align-content: start;
   gap: 16px;
   min-width: 0;
   padding: 24px;
@@ -165,9 +169,10 @@
   box-shadow: var(--fs-shadow-e1);
 }
 
+/* The seal and the verdict start at the card's top edge (round 4: nothing is centred in a tall panel). */
 .pf-verify__card {
   grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
+  align-items: start;
   column-gap: 24px;
 }
 
@@ -195,7 +200,7 @@
 .pf-verify__body {
   display: grid;
   gap: 16px;
-  align-content: center;
+  align-content: start;
   min-width: 0;
 }
 
@@ -254,64 +259,85 @@
   line-height: 1.25rem;
 }
 
-/* The officers' indigo stamps (AS, EC) beside the sample-keys chip. */
-.pf-verify__stamps {
-  display: inline-flex;
-  flex: none;
-  gap: 4px;
-}
-
-.pf-verify__sample {
+/* The sample-keys qualification, right under the result on the body step (round 4: readable beside the count, not
+   fine print): a line key in ink-3, "Sample" in ink, the rest in ink-2. No box and never a check mark (a check
+   would read as verified); its title says why. */
+.pf-sample {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
+  align-items: flex-start;
   gap: 8px;
   margin: 0;
-}
-
-/* The sample-keys qualification: a neutral chip, a line key and the words, never a check mark (a check would read
-   as verified). White face, the rule-strong ring, the cell radius (chips and keys), ink-2 words on the label step. */
-.pf-keychip {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  min-height: 28px;
-  padding: 4px 12px 4px 8px;
-  border: 1px solid var(--fs-rule-strong);
-  border-radius: var(--fs-radius-cell);
-  background: var(--fs-plate);
   color: var(--fs-ink-2);
-  font-weight: 520;
-  font-size: 0.875rem;
-  line-height: 1.25rem;
+  font-size: 1rem;
+  line-height: 1.5rem;
   cursor: help;
 }
 
-.pf-keychip__glyph {
+.pf-sample__glyph {
   flex: none;
+  margin-top: 4px;
   color: var(--fs-ink-3);
 }
 
-.pf-keychip__words {
+.pf-sample__words {
   min-width: 0;
+}
+
+.pf-sample__word {
+  color: var(--fs-ink);
+  font-weight: 520;
 }
 
 .pf-nowrap {
   white-space: nowrap;
 }
 
-/* Who signed: the officers' stamps, then the key ids they signed with, on one line where it fits. */
-.pf-verify__signed {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px 8px;
+/* Who signed (round 4): a row per officer, readable without zooming. The avatar (white, a 1 px ink-2 ring, ink
+   initials: indigo is for action only) at the rail's 32 px; the person in ink and the role in ink-2 on the label
+   step; under them the key they signed with in the id role, on one line and cut in the middle (IdText). */
+.pf-signers {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
-.pf-verify__keys {
-  margin: 0;
+.pf-signer {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  align-items: center;
+  column-gap: 12px;
+}
+
+.pf-signer__avatar {
+  --fs-stamp-size: 32px;
+  grid-row: 1 / span 2;
+  width: 32px;
+  height: 32px;
+}
+
+/* Before the seed names the officer: an empty ring holds the avatar's place. */
+.pf-signer__avatar:not(.fs-avatar) {
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px var(--fs-rule-strong);
+}
+
+.pf-signer__who {
+  min-width: 0;
+  color: var(--fs-ink-2);
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+.pf-signer__name {
+  color: var(--fs-ink);
+  font-weight: 520;
+}
+
+.pf-signer__key {
+  grid-column: 2;
   color: var(--fs-ink-3);
-  overflow-wrap: anywhere;
 }
 
 .pf-verify__meta {
@@ -353,6 +379,12 @@
   color: var(--fs-ink-2);
   list-style: none;
   cursor: pointer;
+}
+
+/* Open, the disclosure takes the body's whole width under the press, so ids show whole. */
+.pf-verify__ids[open] {
+  flex: 1 1 100%;
+  min-width: 0;
 }
 
 .pf-verify__ids-summary::-webkit-details-marker {
@@ -416,6 +448,17 @@
   align-self: center;
   font-size: 0.75rem;
   line-height: 1rem;
+}
+
+/* Several ids in one row (the sample keys): one a line, each whole and never broken mid-word. */
+.pf-kv__ids {
+  display: grid;
+  justify-items: start;
+  gap: 4px;
+}
+
+.pf-kv .fs-idtext {
+  line-height: 1.25rem;
 }
 
 /* The six checks, two columns of three under both cards, in order down each column. */
@@ -656,9 +699,11 @@
   list-style: none;
 }
 
+/* The count and the amount keep to their figures' width, so the PayPal row's name and its micro-tag share a line in
+   the five-column card. */
 .pf-dist__key {
   display: grid;
-  grid-template-columns: 10px minmax(0, 1fr) 2.5rem minmax(6rem, auto);
+  grid-template-columns: 10px minmax(0, 1fr) 2rem minmax(5.5rem, auto);
   align-items: center;
   gap: 8px;
   min-height: 32px;
@@ -900,6 +945,17 @@
 
 .pf-plate__fact .fs-t-id {
   line-height: inherit;
+}
+
+/* An id never breaks mid-word (round 4): one that fits stays on one line (ProofId); a longer one is cut in the
+   middle (IdText), which clips its overflow, so its baseline would drop to its box's bottom edge and lift it off
+   the line: it takes the line's height and sits on the line's top instead. */
+.pf-id {
+  white-space: nowrap;
+}
+
+.pf-plate__fact .fs-idtext {
+  vertical-align: top;
 }
 
 .pf-fact__money {
@@ -1378,8 +1434,14 @@
   background: var(--fs-pod-wash);
 }
 
+/* A receipt chip's two figures (round 4): the serial in the id role at ink-3, the kilos in ink in tabular figures;
+   the slip's own red serial and ballpoint kilos appear only on the paper itself. */
+.pf-slipchip__no {
+  color: var(--fs-ink-3);
+}
+
 .pf-slipchip__kg {
-  color: var(--fs-ink-2);
+  color: var(--fs-ink);
 }
 
 .pf-trace__actions {
@@ -1907,10 +1969,6 @@ details[open] > summary > .pf-summary__chevron {
     padding: 16px;
   }
 
-  .pf-dist__key {
-    grid-template-columns: 10px minmax(0, 1fr) 2rem minmax(5.5rem, auto);
-  }
-
   .pf-ledger__row {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -1970,20 +2028,53 @@ details[open] > summary > .pf-summary__chevron {
 /* ------------------------------------------------------------------ wide (from 1120 px), last in the cascade */
 
 /* A laptop reads Proof as one wide sheet: a 1040 px column, the verdict card beside the money card, the six
-   checks under both, so the verdict, the money and every check are in the first screen (1280 x 800 and up). */
+   checks under both, so the verdict, the money and every check are in the first screen (1280 x 800 and up).
+   Round 4: the row sits on the console's one 12-column grid and its 24 px gutter. The verdict card takes seven
+   columns (the 180 px seal, and beside it the result, the sample keys and a row per signer), the money card five,
+   and the six checks run under them on the same two tracks, so every edge lines up. The two cards end level. */
 @media (min-width: 1120px) {
   .fsc-surface--proof {
     --fs-proof-column: 1040px;
   }
 
-  /* The verdict card takes a little more of the row: the 180 px seal, the result and the sample-keys chip sit
-     on one line each beside it. */
   .pf-verify {
-    grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    column-gap: 24px;
+    row-gap: 16px;
     align-items: stretch;
+  }
+
+  .pf-verify__card {
+    grid-column: 1 / span 7;
+  }
+
+  .pf-verify > .pf-card {
+    grid-column: 8 / -1;
   }
 
   .pf-checks {
     grid-column: 1 / -1;
+    grid-template-columns: subgrid;
+    column-gap: 24px;
+  }
+
+  .pf-checks__row {
+    grid-column: 1 / span 7;
+  }
+
+  .pf-checks__row:nth-child(n + 4) {
+    grid-column: 8 / -1;
+  }
+
+  .pf-checks__row:nth-child(3n + 1) {
+    grid-row: 1;
+  }
+
+  .pf-checks__row:nth-child(3n + 2) {
+    grid-row: 2;
+  }
+
+  .pf-checks__row:nth-child(3n) {
+    grid-row: 3;
   }
 }

@@ -129,14 +129,17 @@ export const VERIFY_COPY = {
   },
   /** After the verdict's time (set in the id role): Davao is on Philippine time. */
   atRest: " PHT · in this browser",
-  /** The sample-keys chip: a neutral key glyph and these words after the verdict word ("Sample"), never a check. */
+  /** The sample-keys line: a neutral key glyph and these words after the verdict word ("Sample"), never a check. */
   sampleRest: " keys · not PayPal-verified",
   sampleTitle: "Signed with sample keys, so this Proof reads Sample, never Verified.",
-  sampleKeys: (keys: readonly string[]) => keys.join(" · "),
+  /** The officers who signed, one row each (round 4): the list's name. */
+  signedBy: "Signed by",
   partial: "Plate 6 needs the receivers, which the public Proof withholds.",
-  keysPublished: "keys.json",
+  /** Behind "IDs" (round 4: no file name in view): the sample keys in full, and where the keys came from. */
+  sampleKeysRow: "Sample keys",
+  keysRow: "Keys",
   keysPublishedTitle: "Keys: /.well-known/fairsplit-keys.json, fetched apart from this record",
-  keysSeed: "seed sample keys",
+  keysSeed: "Seed sample keys",
   keysSeedTitle: "The seed's published sample keys: this mock API serves no keys document",
   keysFailed: "The published keys didn't load. Nothing was checked.",
   ids: "IDs",
