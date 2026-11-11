@@ -163,6 +163,8 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
   const validate = options.validate ?? true;
   let token: TokenSource = options.token ?? null;
   let lastRail: RailLabel | null = null;
+  // A hint only: the server's nonrefundable network budget remains authoritative.
+  let judgePreparationAttempt = 1;
 
   const resolveToken = async (override: string | null | undefined): Promise<string | null> => {
     if (override !== undefined) return override;
@@ -251,9 +253,16 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
     };
     if (!res.ok) {
       const failure = failureFromBody(res.status, text, { command: p.name, rail, requestId: meta.requestId });
+      if (p.name === "createJudgeSession" && failure instanceof ApiClientError) {
+        judgePreparationAttempt =
+          failure.code === "QUEUED" && failure.details.reason === "PREPARING_WORKSPACE"
+            ? Math.min(8, judgePreparationAttempt + 1)
+            : 1;
+      }
       report(failure);
       throw failure;
     }
+    if (p.name === "createJudgeSession") judgePreparationAttempt = 1;
     return { res, text, meta };
   }
 
@@ -318,6 +327,7 @@ export function createApiClient(options: ApiClientOptions = {}): ApiClient {
           ? ((a.body as { captureId?: string }).captureId ?? undefined)
           : undefined,
     });
+    if (name === "createJudgeSession") p.headers.set("x-fs-judge-attempt", String(judgePreparationAttempt));
     const { text, meta } = await send(p);
     if (validate && !(SUCCESS_STATUS[name] as readonly number[]).includes(meta.status)) {
       const failure = new ContractError(

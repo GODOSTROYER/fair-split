@@ -113,6 +113,15 @@ function sessionActor(sessionId: string) {
   return { kind: "human" as const, id: "judge", impersonatedBy: `judge_session:${sessionId}` };
 }
 
+/** Client-carried attempt is advisory; it never changes admission or the nonrefundable work budget. */
+function preparationRetryMs(c: AppContext): number {
+  const raw = c.req.header("x-fs-judge-attempt") ?? "1";
+  const attempt = /^[1-9]\d{0,15}$/.test(raw) ? Math.min(8, Number(raw)) : 1;
+  const ceiling = Math.min(2_000, 250 * attempt);
+  // Keep jitter at the cap too, so a crowded room does not retry in synchronized waves.
+  return Math.floor(ceiling * (0.8 + Math.random() * 0.2));
+}
+
 /** `POST /v1/judge/sessions` (IC-01 createJudgeSession). */
 export async function startJudgeSession(c: AppContext, deps: AppDeps): Promise<StartedSession> {
   const now = deps.clock.now();
@@ -195,7 +204,7 @@ export async function startJudgeSession(c: AppContext, deps: AppDeps): Promise<S
         if (!admissionLock?.acquired) {
           admissionContended = true;
           throw new ApiProblem("QUEUED", "Preparing a fresh workspace. You're next; try again in a moment.", {
-            retryAfterMs: 250,
+            retryAfterMs: preparationRetryMs(c),
             details: { reason: "PREPARING_WORKSPACE" },
           });
         }
@@ -218,7 +227,7 @@ export async function startJudgeSession(c: AppContext, deps: AppDeps): Promise<S
               "QUEUED",
               "Preparing a fresh workspace. You're next; try again in a moment.",
               {
-                retryAfterMs: 250,
+                retryAfterMs: preparationRetryMs(c),
                 details: { reason: "PREPARING_WORKSPACE" },
               },
             );
