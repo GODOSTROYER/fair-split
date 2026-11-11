@@ -542,9 +542,13 @@ function Statement({
           {/* 6. The seal and the rate card, and how AI was involved. */}
           <Rule />
           <SnapRow style={styles.footer} testID="M-MB-01.footer">
-            {dto.batchSha256 ? (
-              <SealView batchSha256={dto.batchSha256} size={48} keys={signers ? 2 : 0} engrave={false} />
-            ) : null}
+            {/* Round 6: a signed batch shows its seal; before that the rate card's row leads with the lock the console's
+                Rate card row wears (never an empty ring). */}
+            {dto.batchSha256 && signers ? (
+              <SealView batchSha256={dto.batchSha256} size={48} keys={2} engrave={false} />
+            ) : (
+              <Glyph name="lock" size={16} color={t.color.statementInk2} />
+            )}
             <View style={[styles.flex, styles.footerWords]}>
               {signers ? (
                 <Txt kind="caption" color="statementInk2">

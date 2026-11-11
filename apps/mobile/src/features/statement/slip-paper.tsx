@@ -218,9 +218,10 @@ const styles = StyleSheet.create({
     paddingBottom: 1,
     paddingHorizontal: 2,
   },
-  /** The synthetic glyph's chip: white at 90%, bottom left. */
+  /** The synthetic glyph's chip: white at 90%, in the paper's empty bottom-right corner. */
   // Separate objects rather than overriding a side with undefined: react-native-web drops undefined values.
-  mark: { position: "absolute", left: space.s8, bottom: space.s8, padding: 3 },
+  // Round 6: bottom right, where the form prints nothing (bottom left it sat on the word "Grade").
+  mark: { position: "absolute", right: space.s8, bottom: space.s8, padding: 3 },
   chip: { ...StyleSheet.absoluteFill, borderRadius: radius.cell, opacity: 0.9 },
   // A thumbnail's kilos fill its lower half: its mark takes the empty top-right corner instead.
   markThumb: { position: "absolute", right: space.s4, top: space.s4, padding: 2 },

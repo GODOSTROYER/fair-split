@@ -31,7 +31,6 @@ import { radius, space, target } from "../../_shims/tokens.native";
 import {
   type EquationTerm,
   feeFigures,
-  receiptBarWeights,
   receiptRows,
   type Trace,
   type TraceId,
@@ -58,11 +57,11 @@ export type ExpandState = "framed" | "expanded";
 /** An opened row comes up once the row that closed above it has glided shut (`glide` settles in about 300 ms). */
 const REVEAL_AFTER_MS = 320;
 
-/** A row's segment of the pay-split bar. */
+/** A row's part of the pay split (its legend key's look). */
 type Segment = "premium" | "bonus" | "deducted" | "credited";
 
 /**
- * A segment's look, on the bar and on its row's legend key. Round 5 (hatch only for cash): a ruled deduction is the
+ * A part's look, on its row's legend key. Round 5 (hatch only for cash): a ruled deduction is the
  * money taken out, an outline in ink 2 with nothing inside, never hatched.
  */
 function useSegmentLook(segment: Segment): { fill: string; edge: string } {
@@ -79,24 +78,10 @@ function useSegmentLook(segment: Segment): { fill: string; edge: string } {
   }
 }
 
-/** The row's legend key (round 5: the vocabulary's one square, 8 px), the same look as its segment of the bar. */
+/** The row's legend key (round 5: the vocabulary's one square, 8 px), one look a part. */
 function Swatch({ segment }: { segment: Segment }) {
   const look = useSegmentLook(segment);
   return <View style={[styles.swatch, { borderColor: look.edge, backgroundColor: look.fill }]} />;
-}
-
-/** One segment of the pay-split bar. */
-function BarSegment({ segment, weight }: { segment: Segment; weight: number }) {
-  const look = useSegmentLook(segment);
-  return (
-    <View
-      style={[
-        styles.segment,
-        { flex: weight, backgroundColor: look.fill, borderColor: look.edge },
-        segment === "deducted" ? styles.segmentOutline : null,
-      ]}
-    />
-  );
 }
 
 /**
@@ -424,7 +409,6 @@ export function ReceiptBar({
   const tr = useT();
   const rows = receiptRows(dto);
   const part = (text: string) => ({ text, state: states.parts });
-  const w = receiptBarWeights(dto);
   const fees = feeFigures();
   const stateOf = (id: TraceId) => (open?.id === id ? open.state : null);
   const body = (id: TraceId) => {
@@ -443,13 +427,8 @@ export function ReceiptBar({
 
   return (
     <View testID="M-MB-01.receipt" style={styles.root}>
-      <View style={styles.bar} importantForAccessibility="no-hide-descendants" aria-hidden>
-        <BarSegment segment="premium" weight={w.premium} />
-        <BarSegment segment="bonus" weight={w.bonus} />
-        {w.deducted > 0 ? <BarSegment segment="deducted" weight={w.deducted} /> : null}
-        {w.credited > 0 ? <BarSegment segment="credited" weight={w.credited} /> : null}
-      </View>
-
+      {/* Round 6: no bar above the rows. Each row carries its own key and amount; a strip repeating them said the
+          same thing twice. */}
       <View style={[styles.list, { borderTopColor: t.color.rule }]}>
         {rows.map((r) => {
           if (r.kind === "premium") {
@@ -549,7 +528,8 @@ export function ReceiptBar({
             open={stateOf("fees")}
             onPress={onSegment}
             label={
-              <Txt kind="figureS" color="statementInk2">
+              // Round 6: a label is the label role at width 100, never the condensed figure cut.
+              <Txt kind="label" color="statementInk2">
                 {tr("M-MB-01.feesShort", { paypal: fees.paypal, gcash: fees.gcash })}
               </Txt>
             }
@@ -565,10 +545,6 @@ export function ReceiptBar({
 
 const styles = StyleSheet.create({
   root: { gap: space.s12 },
-  bar: { flexDirection: "row", height: 10, gap: 2, overflow: "hidden" },
-  segment: { borderWidth: 0 },
-  /** A deduction's segment: the money taken out, an outline (round 5: hatch means cash only). */
-  segmentOutline: { borderWidth: 1 },
   list: { borderTopWidth: 1 },
   rowWrap: { borderWidth: 1, borderRadius: radius.card, marginTop: -1 },
   // A narrow column (200% zoom, a 2× font) wraps the figure under its words, right-aligned: the receipt becomes a

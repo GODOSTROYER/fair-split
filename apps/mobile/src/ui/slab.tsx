@@ -546,14 +546,20 @@ function HoldSlab(p: SlabProps & { hold: number }) {
           bolted={p.bolted}
         />
       </Pressable>
-      {motion.reduced && (hs === "holding" || hs === "armed") ? (
-        <View style={styles.stepped} accessibilityLiveRegion="polite" testID={`${p.testID}.steps`}>
-          {[25, 50, 75, 100].map((q) => (
-            <SteppedCell key={q} on={pct >= q} />
-          ))}
-          <Txt kind="figureS" color="ink2" style={{ marginLeft: space.s8 }}>
-            {tr("slab.progress", { pct })}
-          </Txt>
+      {/* Reduced motion's stepped progress. Round 6 (film U5): its row is reserved while the slab can be held, so
+          nothing under the slab moves when a hold starts or ends; the cells and the count show only during a hold. */}
+      {motion.reduced && !flush && hs !== "committed" ? (
+        <View style={styles.steppedSlot}>
+          {hs === "holding" || hs === "armed" ? (
+            <View style={styles.stepped} accessibilityLiveRegion="polite" testID={`${p.testID}.steps`}>
+              {[25, 50, 75, 100].map((q) => (
+                <SteppedCell key={q} on={pct >= q} />
+              ))}
+              <Txt kind="figureS" color="ink2" style={{ marginLeft: space.s8 }}>
+                {tr("slab.progress", { pct })}
+              </Txt>
+            </View>
+          ) : null}
         </View>
       ) : null}
       {p.below && !flush ? p.below : null}
@@ -613,7 +619,9 @@ const styles = StyleSheet.create({
     gap: space.s12,
     paddingHorizontal: space.s16,
   },
-  stepped: { flexDirection: "row", alignItems: "center", gap: space.s4, marginTop: space.s8 },
+  // The stepped row's reserved slot: one figure line (20 dp) and its 8 dp of air, whether or not a hold is on.
+  steppedSlot: { minHeight: 20, marginTop: space.s8, justifyContent: "center" },
+  stepped: { flexDirection: "row", alignItems: "center", gap: space.s4 },
   step: { flex: 1, height: 8, borderWidth: 1 },
   below: { marginTop: space.s4 },
   // Round 2: "Can't hold?" is a quiet link centred under the full-width slab.

@@ -447,8 +447,10 @@ function KeyNote({
 const RESERVED_DP = 580;
 
 const styles = StyleSheet.create({
-  content: { maxWidth: 560, width: "100%", alignSelf: "center", paddingBottom: space.s24 },
-  moment: { gap: space.s24 },
+  // Round 6: the seal's card takes the height the sheet has left above the pinned slab (the seal centred in it), so
+  // no band stands empty between the card and the thumb zone.
+  content: { maxWidth: 560, width: "100%", alignSelf: "center", paddingBottom: space.s24, flexGrow: 1 },
+  moment: { gap: space.s24, flexGrow: 1 },
   flex: { flex: 1 },
   header: { flexDirection: "row", alignItems: "center", gap: space.s8, marginLeft: -space.s12 },
   backButton: {
@@ -461,6 +463,8 @@ const styles = StyleSheet.create({
   // The seal's card (round 4: the card radius and even padding; the thumb zone is its own footer, so the card needs no
   // extra room at its foot).
   plate: {
+    flexGrow: 1,
+    justifyContent: "center",
     alignItems: "center",
     gap: space.s12,
     paddingVertical: space.s24,
