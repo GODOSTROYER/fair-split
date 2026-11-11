@@ -247,7 +247,8 @@ describe("formatting", () => {
   it("pluralises English counts with ICU", () => {
     expect(translate("en", "W-TR-05.summary", { holds: 3, byHand: 1 })).toBe("3 holds, 1 by hand");
     expect(translate("en", "W-TR-05.summary", { holds: 1, byHand: 0 })).toBe("1 hold, 0 by hand");
-    expect(translate("en", "W-TR-07.approve", { count: 8 })).toBe("Approve 8 payouts");
+    expect(translate("en", "W-TR-07.approve", { count: 8 })).toBe("Sign 1 of 2 · 8 payouts");
+    expect(translate("en", "W-TR-07.approve.sole", { count: 8 })).toBe("Sign for 8 payouts");
   });
 
   it("falls back to English for console keys asked in Cebuano", () => {

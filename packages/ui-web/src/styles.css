@@ -789,7 +789,8 @@
     gap: 4px;
     height: 18px;
     padding: 0;
-    color: var(--fs-ink-3);
+    /* Round 8: the honesty word is read, not decoration: ink-2 (9.8:1 on the plate), the mark stays steel. */
+    color: var(--fs-ink-2);
     font-family: var(--fs-font-ui);
     font-stretch: 100%;
     font-weight: 500;
@@ -930,8 +931,8 @@
     line-height: 1;
   }
 
-  /* A chart legend's key: the only square. Jade for confirmed money, hatch for cash, amber for a decision, a steel
-     dashed outline for planned (simulated, not yet confirmed), ink for the rest. */
+  /* A chart legend's key: the only square. Jade for confirmed money, hatch for cash, amber for a decision, solid
+     steel for planned (not yet confirmed), ink for the rest. */
   .fs-swatch {
     display: inline-block;
     flex: none;
@@ -963,9 +964,9 @@
     background: var(--fs-canary);
   }
 
+  /* Round 8: planned money is a solid steel square (a dashed outline read as a loading placeholder). */
   .fs-swatch[data-kind="planned"] {
-    border: 1px dashed var(--fs-steel-line);
-    background: transparent;
+    background: var(--fs-steel-line);
   }
 
   /* A pending amount: neutral, never dashed (dashed means simulated). */

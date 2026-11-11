@@ -87,7 +87,9 @@ describe("one marker vocabulary (round 5)", () => {
     expect(screen.getByTestId("h").dataset.size).toBe("12");
     expect(rule('.fs-swatch[data-kind="paid"]')).toContain("var(--fs-jade)");
     expect(rule('.fs-swatch[data-kind="cash"]')).toContain("var(--fs-hatch)");
-    expect(rule('.fs-swatch[data-kind="planned"]')).toContain("dashed var(--fs-steel-line)");
+    // Round 8: planned money is a solid steel square, never a dashed placeholder.
+    expect(rule('.fs-swatch[data-kind="planned"]')).toContain("background: var(--fs-steel-line)");
+    expect(rule('.fs-swatch[data-kind="planned"]')).not.toContain("dashed");
   });
 });
 

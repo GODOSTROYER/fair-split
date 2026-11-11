@@ -65,7 +65,7 @@ export function StepNumber({ n, label, testId, className }: StepNumberProps) {
 export type SwatchKind = "paid" | "cash" | "held" | "planned" | "ink";
 
 export interface SwatchProps {
-  /** paid: jade (confirmed money); cash: hatch; held: amber; planned: a steel dashed outline; ink: ink. */
+  /** paid: jade (confirmed money); cash: hatch; held: amber; planned: solid steel; ink: ink. */
   readonly kind: SwatchKind;
   /** 8 px beside a legend row; 12 px beside a hero's word. */
   readonly size?: 8 | 12;

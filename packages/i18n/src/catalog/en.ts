@@ -112,7 +112,7 @@ export const en = {
   "cash.word": "Cash",
   "seal.keys": "{signed} of 2",
   "seal.title": "Batch seal {hash}",
-  "confirm.title": "Approve {count, plural, one {# payout} other {# payouts}}",
+  "confirm.title": "Sign for {count, plural, one {# payout} other {# payouts}}",
   "confirm.body":
     "Sends {count, plural, one {# payout} other {# payouts}}, {amount}, through the simulated PayPal sandbox. No real money moves. This cannot be undone.",
   "confirm.recipients": "Recipients",
@@ -148,9 +148,9 @@ export const en = {
   "W-JG-01.pill.markPaid": "Next: mark the invoice paid",
   "W-JG-01.pill.recording": "Recording the payment…",
   "W-JG-01.pill.reading": "Reading 12 photos",
-  "W-JG-01.pill.byHand": "Next: enter slip {slip} by hand",
-  "W-JG-01.pill.holds": "Next: {count, plural, one {# hold needs} other {# holds need}} you",
-  "W-JG-01.pill.approve": "Next: approve {count, plural, one {# payout} other {# payouts}}",
+  "W-JG-01.pill.byHand": "Next: enter a slip by hand",
+  "W-JG-01.pill.holds": "Next: decide {count, plural, one {# hold} other {# holds}}",
+  "W-JG-01.pill.approve": "Next: sign 1 of 2 · {count, plural, one {# payout} other {# payouts}}",
   "W-JG-01.pill.cosign": "Next: Ernesto co-signs",
   "W-JG-01.pill.confirming": "Confirming payments",
   "W-JG-01.pill.rhea": "Next: decide on Rhea’s payment",
@@ -251,7 +251,9 @@ export const en = {
   "W-TR-07.feesLabel": "Published rates, not fees PayPal reported",
   "W-TR-07.safe":
     "{holds, plural, one {# hold} other {# holds}} resolved. {byHand, plural, one {# field} other {# fields}} entered by hand. Shrink {shrink}, inside {limit}. {explained} of {lines} lines explained. Rate card unchanged since {date}.",
-  "W-TR-07.approve": "Approve {count, plural, one {# payout} other {# payouts}}",
+  // UI gate round 8: the treasurer's press is the first of two signatures, and the button says so.
+  "W-TR-07.approve": "Sign 1 of 2 · {count, plural, one {# payout} other {# payouts}}",
+  "W-TR-07.approve.sole": "Sign for {count, plural, one {# payout} other {# payouts}}",
   "W-TR-07.blocked": "Resolve 1 hold that changes kilos first",
   "W-TR-07.key.treasurer": "Analyn R. Sumalinog, Treasurer",
   "W-TR-07.key.chair": "Ernesto P. Cabahug, Chairperson",
