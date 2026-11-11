@@ -117,16 +117,17 @@ test("film receipts list every script beat and keep the actual phase clock", () 
   assert.ok(receipts.every((entry) => entry.moment !== "MM-1"));
 });
 
-test("film pacing waits for v4's beat and in-beat cut times without inventing elapsed time", async () => {
+test("film pacing waits for the script's beat and in-beat cut times without inventing elapsed time", async () => {
   const delays: number[] = [];
   const record = async (ms: number) => {
     delays.push(ms);
   };
   await waitUntilBeat("funding", 1_000, () => 60_000, record);
-  // A capture slot cutting in partway through its beat: slip 0462 entered by hand at 1:16.5.
+  // A capture slot cutting in partway through its beat: slip 0462 entered by hand at 1:16.4
+  // (script v5: the sound pass aligned the cut to the recorded "by hand"; v4 had 1:16.5).
   await waitUntilBeat("reading-byhand", 1_000, () => 70_000, record);
   await waitUntilBeat("funding", 1_000, () => 70_000, record);
-  assert.deepEqual(delays, [6_000, 7_500]);
+  assert.deepEqual(delays, [6_000, 7_400]);
   await assert.rejects(
     waitUntilBeat("duplicate", 1_000, () => 0, record),
     /unknown film beat/i,
