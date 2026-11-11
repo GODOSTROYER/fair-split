@@ -314,6 +314,37 @@ replayed stand-in reading of all 48 slips from Claude's real readings of the 10 
     "Ibang paraan ng pagpirma").
 12. **This file records decisions 1–11.**
 
+**The review surface in round 5** (reading room, by hand, split review, the hold drawer, the rate card):
+- **Split review.** AG Grid scrolls its own viewport (its header and pinned decisions a sticky head, the total a
+  sticky foot), so `features/split/whole-rows.ts` sizes the grid's frame with `wholeRowsHeight` to whole 48 px lines
+  down to 32 px above the panel's foot, never more lines than there are (a filter hugs its lines); lines snap under
+  the head; the frame takes SnapScroll's 24 px fades. Deductions grows to 180 px at most and the number columns share
+  the rest; Member is pinned at one width with no rule beside it; the scrollbar overlays the lines (`scrollbarWidth`
+  0, a clear track), so lines, total and header end on one edge. A narrow grid (1,280) drops the hold notes' rows and
+  keeps the arithmetic for screen readers, so filters, the check and "Columns" share one row. The title row's chip
+  is the review's state ("3 holds open · 1 by hand" amber, then "PayPal complete · cash due" in hatch); the bench's
+  third column is "Next" and the link, with the 8 px held dot. The id line is the run id ("2026-A · r37", its title
+  the lines, the engine and the rate card's hash), then "seeded slips" or, once PayPal statuses show, "simulated
+  PayPal". Held dots, the held filter and pending amounts are 8 px dots.
+- **Hold drawer.** Every state hugs its content. The open H1 draws its two copies at 216 px; the pair is 48 px high,
+  the secondary's caption under the pair. A decided hold is the compact success card (the result, the card renamed
+  with the decider's stamp, "Evidence" behind a disclosure) with no blocking scrim, and "Next: hold H2" is the one
+  primary (the Slab's face on a link) on the drawer's sticky footer. H3's closed list names its rules; "Allowed"
+  carries the rule's id in its title.
+- **Rate card.** The screen fills its panel and each column scrolls on its own (SnapScroll, 32 px under the last
+  line). The title row: "Rate card 2026-A", "Ratified 14 Mar" (lock), the resolution as the id, "Hide resolution"
+  at its end (folded, the schedule takes the row in two columns). Refused, the refusal leads its column, the clause
+  that refuses it ("No other deductions") holds the band on the board's page and scrolls into view, and next
+  season's proposal is a `.fs-flat` secondary.
+- **By hand.** The title row's chip says "Needs a person" (amber) or "Entered"; the owner's line, the field or the
+  equation, and "Review 3 holds" (the one primary) span all twelve columns; the crop and the logbook strip sit side
+  by side under it at one height (container units), each paper hugging its sheet. A panel under 1,040 px puts the
+  decision in six columns and stacks the two witnesses in the other six.
+- **Reading room.** The photo takes the room's full height; the filmstrip and "Earlier" sit under the table. The
+  count is truthful (`replayProgress`: a slip counts read once nothing waits for a person): "47/48 · read · 1 needs a
+  person" with the held dot until slip 0462 is entered, then "48/48 slips read this run"; the status sentence counts
+  the same way. The chip: "Waits for payment", "Reading", "Needs a person" (amber), "All read".
+
 ## 11. The owner's reference reels
 
 Taken: one spacing scale; colour only where it means something (semantic dots, matching chart lines); thin line
