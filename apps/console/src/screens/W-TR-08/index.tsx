@@ -1,22 +1,36 @@
-// W-TR-08 Run (S1.7, design §6 C8; UI gate round 4): on the one 12-column grid, top-aligned under the title row.
-// The fan is the hero, full width (MM-6, "Honest fan-out"): the 180-unit seal, eight threads to eight named rows,
-// and the cash as one hatched ribbon into one labelled block. The run's one hero sits right above the seal: "7/8"
-// and "confirmed" while PayPal works, and once every payout is settled "7 PayPal · 57 cash" (a jade dot by 7, a
-// hatch swatch by 57; never "7/8" after the move to cash) with "Review cash handover" under it as the screen's one
-// primary while the cash is due. Beneath the fan Rhea's decision when she is parked (her move to cash is then said
-// once, on her row of the fan), the money bar with its one micro-tag; then the last five events (columns 1–8) and
-// the latency dots (9–12). PayPal's 201 draws eight threads to 70% in neutral: sent, not paid. Each verified SUCCESS
-// finishes its thread and floods its marker jade, one scale note each, landings at least 250 ms apart. Rhea's item
-// parks: her path runs on to her own marker in marigold, never red, and a slab moves her to cash. A repeated
-// delivery logs one quiet row and moves nothing. History is drawn in place; only live events animate. The event
-// toast lives in the top bar, so nothing covers the log.
+// W-TR-08 Run (S1.7, design §6 C8; UI gate rounds 4 and 5): on the one 12-column grid, top-aligned under the title
+// row ("Run 2026-A", the run's state as one chip, the run id and the screen's one provenance phrase). The fan is the
+// single hero, full width (MM-6, "Honest fan-out"): the 180-unit seal, eight threads to eight named rows, and the
+// cash as one hatched ribbon into one labelled row. The run's one count sits right above the seal: "7/8" and
+// "confirmed" while PayPal works, and once every payout is settled "7 PayPal  57 cash" (a 12 px jade dot before
+// "PayPal", a 12 px hatch swatch before "cash", 32 px apart; never "7/8" after the move to cash) with "Review cash
+// handover" under it as the screen's one primary while the cash is due; the run's one micro-tag beside the PayPal
+// count. Beneath the fan Rhea's decision when she is parked (her move to cash is then said once, on her row of the
+// fan, with her amount), then the last four events and "All N events" (columns 1–8, ending 32 px above the panel's
+// foot) and the latency dots with their median (9–12). Round 5: no money bar restates the fan; what the holds kept
+// for members is a caption on the cash row. PayPal's 201 draws eight threads to 70% in neutral: sent, not paid. Each
+// verified SUCCESS finishes its thread and floods its marker jade, one scale note each, landings at least 250 ms
+// apart. Rhea's item parks: her path runs on to her own marker in marigold, never red, and a slab moves her to cash.
+// A repeated delivery logs one quiet row and moves nothing. History is drawn in place; only live events animate. The
+// event toast folds into the top bar's Next pill, so nothing covers the log.
 
 import { webRoutes } from "@fairsplit/contracts";
-import { Chip, feedback, Glyph, MicroTag, Numeral, Slab, StateDot } from "@fairsplit/ui-web";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Chip,
+  type ChipTone,
+  feedback,
+  Glyph,
+  type GlyphName,
+  MicroTag,
+  Numeral,
+  Slab,
+  StateDot,
+  Swatch,
+} from "@fairsplit/ui-web";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppLink } from "../../chrome/AppLink.js";
 import { CommandNotice } from "../../chrome/CommandNotice.js";
-import { railTag } from "../../chrome/copy.js";
+import { PROVENANCE, railTag } from "../../chrome/copy.js";
 import { DataTable, Mirrored } from "../../chrome/DataTable.js";
 import { RunRouteGate } from "../../chrome/Fallbacks.js";
 import { PrintBed } from "../../chrome/PrintBed.js";
@@ -25,8 +39,8 @@ import { ScreenRoot } from "../../chrome/ScreenRoot.js";
 import { describeEvent, type LogRow } from "../../data/describe.js";
 import { useCommand, useDescribeContext, usePaypalRail } from "../../data/hooks.js";
 import { payoutReplayed, payoutStatus } from "../../data/payout-replay.js";
-import { MoneyBar, type MoneySegment } from "../../features/approve/MoneyBar.js";
 import {
+  type FanoutState,
   fanoutState,
   fanView,
   isPostedRun,
@@ -176,7 +190,20 @@ export function Screen({ runSlug }: RunScreenProps) {
     return view.events.map((e) => describeEvent(e, describe)).filter((r): r is LogRow => r !== null);
   }, [view, describe, snapshot]);
 
-  const title = <ScreenHead title={FANOUT.title} titleId="W-TR-08-title" meta={runLabel(runSlug).text} />;
+  // The title row (round 5): "Run 2026-A", the run's state as one chip, the run id and the one provenance phrase.
+  const runId = runLabel(runSlug);
+  const head = (status?: ReactNode) => (
+    <ScreenHead
+      title={FANOUT.title}
+      suffix={runId.season || undefined}
+      status={status}
+      titleId="W-TR-08-title"
+      meta={runId.run}
+      provenance={PROVENANCE.simulatedPaypal}
+      testId="W-TR-08.head"
+    />
+  );
+  const title = head();
 
   if (data.access !== "allowed") return <RunRouteGate data={data} />;
   if (data.error && !view) {
@@ -211,11 +238,12 @@ export function Screen({ runSlug }: RunScreenProps) {
   const lat = latency(view, fan);
   const tag = railTag(rail);
 
-  // The status: the run's one hero, then one fact or one pill beneath it. Never a sentence about the rail: the tag
-  // says it once. While PayPal works the hero is the count (confirmed of sent). Once every payout is settled it is
-  // the two outcomes, "7 PayPal · 57 cash" (a jade dot by the money PayPal confirmed, a hatch swatch by the cash),
-  // never "7/8" after the move to cash; the cash's day beneath, and "Review cash handover" as the screen's one
-  // primary until the cash is attested: PayPal complete, cash due, never "done".
+  // The status: the run's one hero, then one fact beneath it. Never a sentence about the rail: the micro-tag says it
+  // once, beside the PayPal count. While PayPal works the hero is the count (confirmed of sent). Once every payout is
+  // settled it is the two outcomes, "7 PayPal  57 cash" (a jade dot before the money PayPal confirmed, a hatch swatch
+  // before the cash), never "7/8" after the move to cash; the cash's day beside it, and "Review cash handover" as the
+  // screen's one primary until the cash is attested: PayPal complete, cash due, never "done". Whether a person must
+  // decide is the run's state, said once on the title row.
   const cashDue = fan.cash.members > 0 && fan.cash.amountState !== "attested";
   const status = (() => {
     if (state === "denied") return null;
@@ -228,13 +256,7 @@ export function Screen({ runSlug }: RunScreenProps) {
         settled: { paypal: counts.confirmed, cash: summary.cash },
         due: cashDue ? FANOUT.dueOn(cashDay) : FANOUT.cashHandedOver,
       } as const;
-    if (state === "parked")
-      return {
-        kind: "count",
-        count,
-        unit: FANOUT.confirmedWord,
-        pill: FANOUT.needsYou(counts.parked + counts.failed),
-      } as const;
+    if (state === "parked") return { kind: "count", count, unit: FANOUT.confirmedWord } as const;
     return {
       kind: "count",
       count,
@@ -244,57 +266,17 @@ export function Screen({ runSlug }: RunScreenProps) {
         : FANOUT.postedSeeded,
     } as const;
   })();
-
-  // The money bar's rows: what PayPal confirmed, what is still in flight, what waits on a person, and the cash.
-  const onRail = fan.threads.filter((t) => t.tone !== "moved");
-  const sum = (list: readonly { readonly cents: number }[]) => list.reduce((s, t) => s + t.cents, 0);
-  const group = (tones: readonly string[]) =>
-    onRail.filter((t) => !t.replayed && (tones as readonly string[]).includes(t.tone));
-  const replayedThreads = onRail.filter((t) => t.replayed);
-  const paypalRows: MoneySegment[] = (
-    [
-      ["confirmed", "confirmed", group(["landed"])],
-      ["flight", "flight", group(["sent"])],
-      ["planned", "planned", group(["unsent"])],
-      ["held", "held", group(["parked"])],
-      ["failed", "failed", group(["failed"])],
-      ["returned", "planned", group(["returned"])],
-      ["replayed", "flight", replayedThreads],
-    ] as const
-  )
-    .filter(([, , list]) => list.length > 0)
-    .map(([key, tone, list]) => ({
-      key,
-      tone,
-      cents: sum(list),
-      label: FANOUT.legend[key],
-      count: list.length,
-      amount: format.money(sum(list)),
-    }));
-  const segments: MoneySegment[] = [
-    ...paypalRows,
-    {
-      key: "cash",
-      tone: "cash",
-      cents: fan.cash.cents,
-      label: FANOUT.legend.cash,
-      count: fan.cash.members,
-      note: FANOUT.dueOn(cashDay),
-      amount: format.money(fan.cash.cents),
-    },
-    // Once every item is terminal: what the holds kept inside the members' share.
-    ...(state === "done" && snapshot.figures.redirectedCents > 0
-      ? [
-          {
-            key: "kept",
-            tone: "kept",
-            cents: snapshot.figures.redirectedCents,
-            label: FANOUT.legend.kept,
-            amount: summary.kept,
-          } as const,
-        ]
-      : []),
-  ];
+  const chip = runChip(state, {
+    posted: isPosted,
+    replayed,
+    cashDue,
+    needsYou: counts.parked + counts.failed,
+  });
+  // What the holds kept inside the members' share, once every payout is settled: a caption on the cash row.
+  const kept =
+    state === "done" && snapshot.figures.redirectedCents > 0 ? FANOUT.keptCaption(summary.kept) : undefined;
+  // The run's one micro-tag, beside its PayPal count (round 5: no money bar to carry it).
+  const microTag = <MicroTag label={tag} testId="W-TR-08.tag" className="fsr-fanout__tag" />;
 
   return (
     <ScreenRoot
@@ -304,7 +286,11 @@ export function Screen({ runSlug }: RunScreenProps) {
       className="fsr-fanout-screen"
       labelledBy="W-TR-08-title"
     >
-      {title}
+      {head(
+        <Chip tone={chip.tone} glyph={chip.glyph} testId="W-TR-08.stateChip">
+          {chip.text}
+        </Chip>,
+      )}
       {state === "denied" && (
         <p className="fsr-banner" data-tone="red" role="alert" data-testid="W-TR-08.denied">
           <Glyph name="rail" size={18} />
@@ -319,9 +305,12 @@ export function Screen({ runSlug }: RunScreenProps) {
         data-state={state}
         aria-labelledby="W-TR-08-figure"
       >
+        {/* The run's share of the money, said once (round 5: no money bar restates the fan): the count, its one
+            micro-tag, its day and its one primary. */}
         <header
           className="fsr-fanout__head"
           data-instrument={status?.kind === "line" ? undefined : status?.kind}
+          data-testid="W-TR-08.share"
         >
           <h2 id="W-TR-08-figure" className="fs-sr">
             {FANOUT.figure}
@@ -336,29 +325,32 @@ export function Screen({ runSlug }: RunScreenProps) {
             >
               {status.kind === "settled" ? (
                 <>
-                  {/* Settled: the two outcomes as the one hero, "7 PayPal · 57 cash" (read as one sentence), and
-                      the cash's day on its baseline. */}
+                  {/* Settled: the two outcomes as the one hero, "7 PayPal  57 cash" (read as one sentence): each
+                      count, then its 12 px key on the word's baseline (a jade dot, a hatch swatch), the two 32 px
+                      apart; the micro-tag beside the PayPal count and the cash's day on the baseline. */}
                   <span className="fsr-fanout__settled" data-testid="W-TR-08.settled">
+                    <span className="fs-sr">
+                      {FANOUT.settledSpoken(status.settled.paypal, status.settled.cash)}{" "}
+                    </span>
                     <span className="fsr-fanout__part" aria-hidden>
-                      <StateDot kind="paid" />
                       <Numeral
                         value={String(status.settled.paypal)}
                         decorative
                         className="fsr-fanout__count"
                         testId="W-TR-08.count"
                       />
-                      <span className="fsr-fanout__word fs-t-label">{FANOUT.settledPaypal}</span>
+                      <span className="fsr-fanout__key">
+                        <StateDot kind="paid" size={12} />
+                        <span className="fsr-fanout__word fs-t-label">{FANOUT.settledPaypal}</span>
+                      </span>
                     </span>
-                    <span className="fsr-fanout__sep fs-t-label" aria-hidden>
-                      ·
-                    </span>
+                    {microTag}
                     <span className="fsr-fanout__part" aria-hidden>
-                      <span className="fsr-fanout__swatch" />
                       <Numeral value={String(status.settled.cash)} decorative className="fsr-fanout__count" />
-                      <span className="fsr-fanout__word fs-t-label">{FANOUT.settledCash}</span>
-                    </span>
-                    <span className="fs-sr">
-                      {FANOUT.settledSpoken(status.settled.paypal, status.settled.cash)}{" "}
+                      <span className="fsr-fanout__key">
+                        <Swatch kind="cash" size={12} className="fsr-fanout__swatch" />
+                        <span className="fsr-fanout__word fs-t-label">{FANOUT.settledCash}</span>
+                      </span>
                     </span>
                     <span className="fsr-fanout__due fs-t-caption" data-testid="W-TR-08.cashDue">
                       {status.due}
@@ -367,21 +359,17 @@ export function Screen({ runSlug }: RunScreenProps) {
                 </>
               ) : status.kind === "count" ? (
                 <>
-                  {/* The screen's one hero count, in FS Sans tabular figures, read with its words. */}
+                  {/* The screen's one hero count, in FS Sans tabular figures, read with its words and its tag. */}
                   <span className="fsr-fanout__instrument">
                     <Numeral value={status.count} className="fsr-fanout__count" testId="W-TR-08.count" />
                     <span className="fsr-fanout__unit fs-t-label">{status.unit}</span>
+                    {microTag}
                   </span>
-                  <span className="fsr-fanout__facts">
-                    {"micro" in status && status.micro && (
+                  {"micro" in status && status.micro && (
+                    <span className="fsr-fanout__facts">
                       <span className="fsr-fanout__micro fs-t-caption">{status.micro}</span>
-                    )}
-                    {"pill" in status && status.pill && (
-                      <Chip tone="canary" glyph="ms:pause">
-                        {status.pill}
-                      </Chip>
-                    )}
-                  </span>
+                    </span>
+                  )}
                 </>
               ) : (
                 <span className="fsr-fanout__line fs-t-body">
@@ -394,6 +382,8 @@ export function Screen({ runSlug }: RunScreenProps) {
                       </AppLink>
                     </>
                   )}
+                  {/* The batch the fan's eight amounts wait on is the simulated PayPal's: its one tag. */}
+                  {"link" in status && microTag}
                 </span>
               )}
             </p>
@@ -415,7 +405,14 @@ export function Screen({ runSlug }: RunScreenProps) {
           testId="W-TR-08.figureBlock"
           className="fsr-fanout__figure"
           visual={
-            <SplitFan fan={fan} animate={landings} drawing={drawing} mode={moment.mode} cashDay={cashDay} />
+            <SplitFan
+              fan={fan}
+              animate={landings}
+              drawing={drawing}
+              mode={moment.mode}
+              cashDay={cashDay}
+              {...(kept ? { cashCaption: kept } : {})}
+            />
           }
           table={
             <DataTable
@@ -508,26 +505,15 @@ export function Screen({ runSlug }: RunScreenProps) {
             {payCash.error && <CommandNotice error={payCash.error} testId="W-TR-08.error" />}
           </section>
         )}
-
-        {/* Her move to cash is said once, on her row of the fan ("Rhea Jumawan → cash"), and in the money bar. */}
-        <div className="fsr-fanout__share" data-testid="W-TR-08.share">
-          <MoneyBar
-            label={FANOUT.shareLabel}
-            title={FANOUT.shareTitle}
-            segments={segments}
-            tag={<MicroTag label={tag} testId="W-TR-08.tag" />}
-            {...(replayed ? { footnote: FANOUT.replayedShare(counts.sent, counts.replayedSuccessful) } : {})}
-          />
-        </div>
       </section>
 
-      {/* The last events (columns 1–8) and the latency dots (9–12); stacked below 1,040 px of panel. */}
-      <Cell span={8} className="fsr-fanout__log">
+      {/* The last four events (columns 1–8, ending 32 px above the panel's foot) and the latency dots (9–12); stacked
+          below 1,040 px of panel. */}
+      <Cell span={8} className="fsr-fanout__log fsc-peek">
         <RunLog
           rows={rows}
           isLive={(id) => live.isLive(id)}
           seeded={view.events.length === 0 && view.origin === "showcase"}
-          tag={tag}
           {...(cashDue ? { settledAs: en("W-JG-01.pill.stateCashDue") } : {})}
           footer={
             <p className="fsr-fanout__fees fs-t-caption" data-testid="W-TR-08.fees">
@@ -536,7 +522,7 @@ export function Screen({ runSlug }: RunScreenProps) {
           }
         />
       </Cell>
-      <Cell span={4} as="aside" className="fsr-fanout__side">
+      <Cell span={4} as="aside" className="fsr-fanout__side fsc-peek">
         {replayed ? (
           <p className="fs-t-caption fsr-muted">{FANOUT.timingReplayed}</p>
         ) : (
@@ -548,4 +534,35 @@ export function Screen({ runSlug }: RunScreenProps) {
       </Cell>
     </ScreenRoot>
   );
+}
+
+interface RunChip {
+  readonly tone: ChipTone;
+  readonly glyph: GlyphName;
+  readonly text: string;
+}
+
+/**
+ * The run's state on its title row (round 5), said once: not posted, confirming, a person must decide, PayPal
+ * complete with the cash due ("PayPal complete · cash due", never "Settled" while cash is due), settled, replayed or
+ * PayPal's no.
+ */
+function runChip(
+  state: FanoutState,
+  run: {
+    readonly posted: boolean;
+    readonly replayed: boolean;
+    readonly cashDue: boolean;
+    readonly needsYou: number;
+  },
+): RunChip {
+  if (state === "denied") return { tone: "red", glyph: "rail", text: FANOUT.chip.denied };
+  if (!run.posted) return { tone: "neutral", glyph: "seal", text: FANOUT.chip.notPosted };
+  if (run.replayed) return { tone: "flight", glyph: "rail", text: FANOUT.chip.replayed };
+  if (state === "parked") return { tone: "canary", glyph: "ms:pause", text: FANOUT.needsYou(run.needsYou) };
+  if (state === "done")
+    return run.cashDue
+      ? { tone: "hatch", glyph: "cash", text: FANOUT.chip.cashDue }
+      : { tone: "neutral", glyph: "ms:check", text: FANOUT.chip.settled };
+  return { tone: "flight", glyph: "rail", text: FANOUT.chip.confirming };
 }

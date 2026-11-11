@@ -74,7 +74,7 @@ it("names a PayPal notice by what it means, its code kept for the details; the t
   expect(plainWords(onPaypal, "PayPal complete · cash due")).toBe("PayPal complete · cash due");
 });
 
-it("shows the last five events in plain words, newest first, and keeps every row in the lanes behind All", () => {
+it("shows the last four events in plain words, newest first, and keeps every row in the lanes behind All", () => {
   const rows: LogRow[] = Array.from({ length: 8 }, (_, i) => ({
     ...base,
     id: `e${i}`,
@@ -83,15 +83,32 @@ it("shows the last five events in plain words, newest first, and keeps every row
   }));
   const view = render(<RunLog rows={rows} isLive={() => false} seeded={false} />);
   const latest = view.container.querySelectorAll(".fsr-log__latest > li");
+  // Round 5: four rows (PEEK_ROWS), then "All N events".
+  expect(LATEST).toBe(4);
   expect(latest).toHaveLength(LATEST);
   expect(latest[0]?.getAttribute("title")).toContain("PAYMENT.PAYOUTSBATCH.SUCCESS");
   expect(view.container.querySelector(".fsr-log__all summary")?.textContent).toBe("All 8 events");
   expect(view.container.querySelectorAll(".fsr-log__row")).toHaveLength(8);
-  // The rail is said once, as a bare glyph (round 3: the run's one micro-tag is on its money, not on the log): no
-  // tag here, and a screen reader still hears what the PayPal rows are.
+  // Round 5, provenance once: no tag and no legend glyph on the log (the screen's id line says the rail); a screen
+  // reader still hears what each PayPal row is, beside its lane.
   expect(view.container.querySelectorAll("[data-fs-tag]")).toHaveLength(0);
-  const mark = view.container.querySelectorAll("[data-fs-glyph]");
-  expect(mark).toHaveLength(1);
-  expect(mark[0]?.textContent).toBe("Simulated PayPal sandbox");
-  expect(mark[0]?.getAttribute("data-kind")).toBe("simulated");
+  expect(view.container.querySelectorAll("[data-fs-glyph]")).toHaveLength(0);
+  expect(latest[0]?.querySelector(".fsr-log__lane-name .fs-sr")?.textContent).toBe(
+    ", Simulated PayPal sandbox",
+  );
+});
+
+it("marks a payment the simulated PayPal confirmed with the jade lane dot, never a replayed one", () => {
+  const paid: LogRow = { ...base, id: "p", at: null, words: "Paid Arnel Sumampao US$55.96" };
+  const replayed: LogRow = {
+    ...base,
+    id: "r",
+    at: null,
+    words: "Replayed (labelled): Paid Rhea Jumawan US$26.65",
+    provenance: "replay",
+  };
+  const notice: LogRow = { ...base, id: "n", at: null, words: "PayPal notice: PAYMENT.PAYOUTSBATCH.SUCCESS" };
+  const view = render(<RunLog rows={[notice, replayed, paid]} isLive={() => false} seeded={false} />);
+  const dots = [...view.container.querySelectorAll(".fsr-log__latest .fsr-log__dot")];
+  expect(dots.map((d) => d.hasAttribute("data-landed"))).toEqual([true, false, false]);
 });

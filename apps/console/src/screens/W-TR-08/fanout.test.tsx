@@ -26,10 +26,9 @@ const SLOW = 120_000;
 const WAIT = { timeout: 8_000 };
 
 const stateOf = () => screen.queryByTestId("W-TR-08")?.dataset.state;
-/** The money bar's legend rows, as their text: name, count, note and amount run together. */
-const legend = () =>
-  [...screen.getByTestId("W-TR-08.share").querySelectorAll(".fsr-money__row")].map((r) => r.textContent);
 const toneOf = (memberNo: string) => screen.getByTestId(`W-TR-08.thread.${memberNo}`).dataset.tone;
+/** The run's state chip on its title row (round 5). */
+const chipText = () => screen.getByTestId("W-TR-08.stateChip").textContent;
 
 async function approved(motion: "full" | "reduced" = "full") {
   const view = await renderConsole({
@@ -62,9 +61,17 @@ describe("W-TR-08 run: the honest fan-out", () => {
         if (!run) throw new Error("fixture has no run");
         return format.dateShort(cashDayForRun(seedSnapshot(), run));
       };
-      // Before the keys: the batch is still to send; the bar's one tag says the rail.
-      expect(legend()).toEqual(["To send8US$368.39", `Cash at the bodega56due ${day()}US$3,849.78`]);
+      // Before the keys: the batch is still to send; the run's one tag says the rail, and the fan's rows the amounts
+      // (round 5: no money bar restates them).
       expect(screen.getByTestId("W-TR-08.share").textContent).toContain("Simulated PayPal sandbox");
+      expect(chipText()).toBe("Not posted");
+      expect(screen.getByTestId("W-TR-08.cashLabel").textContent).toBe(
+        "56 members · cash at the bodegaUS$3,849.78",
+      );
+      expect(
+        screen.getByTestId("W-TR-08.cashLabel").querySelector(".fsr-fan__name")?.getAttribute("title"),
+      ).toBe(`due ${day()}`);
+      expect(screen.getByTestId("W-TR-08").querySelector(".fsr-money")).toBeNull();
       act(() => {
         view.world.cosign();
       });
@@ -91,13 +98,17 @@ describe("W-TR-08 run: the honest fan-out", () => {
       expect(celing.textContent).toBe("Consolacion BacusUS$64.45");
       expect(celing.querySelector(".fsr-fan__name")?.textContent).toBe("Consolacion Bacus");
       expect(celing.querySelector(".fs-t-figure")?.getAttribute("data-amount-state")).toBe("landed");
-      // Rhea's path runs on to her own marker, which turns marigold: nothing floats in mid-air (round 3).
+      // Rhea's path runs on to her own marker, which turns marigold: nothing floats in mid-air (round 3). Round 5:
+      // every line ends on a round marker (the one vocabulary's dot), never a square; her one circle is that marker.
       expect(screen.queryByTestId("W-TR-08.chip.M-031")).toBeNull();
       const rheaThread = screen.getByTestId("W-TR-08.thread.M-031");
       expect(
         rheaThread.querySelector<SVGPathElement>(".fsr-fan__thread")?.style.getPropertyValue("--fsr-p"),
       ).toBe("1");
-      expect(rheaThread.querySelector("circle")).toBeNull();
+      expect(rheaThread.querySelectorAll("circle")).toHaveLength(1);
+      expect(rheaThread.querySelector("circle")?.classList.contains("fsr-fan__stub-face")).toBe(true);
+      expect(fan.querySelectorAll("circle.fsr-fan__stub-face")).toHaveLength(8);
+      expect(fan.querySelectorAll("rect.fsr-fan__stub-face")).toHaveLength(0);
       // The cash route is one hatched ribbon: the 56 shares draw under one hatch mask.
       const ribbon = screen.getByTestId("W-TR-08.ribbon");
       expect(ribbon.getAttribute("mask")).toMatch(/^url\(#/);
@@ -107,26 +118,40 @@ describe("W-TR-08 run: the honest fan-out", () => {
       expect(screen.getByTestId("W-TR-08.count").classList.contains("fs-t-hero")).toBe(true);
       expect(screen.getByTestId("W-TR-08").querySelector(".fs-dm, [data-dot-matrix]")).toBeNull();
       expect(tagBudget(screen.getByTestId("W-TR-08"))).toMatchObject({ tags: 1, micro: 1, ok: true });
-      const run = view.runtime.client.getQueryData<RunView>(queryKeys.run(RUN));
-      if (!run) throw new Error("fixture has no run");
-      const cashDay = format.dateShort(cashDayForRun(seedSnapshot(), run));
       expect(screen.getByTestId("W-TR-08.cashLabel").textContent).toBe(
         "56 members · cash at the bodegaUS$3,849.78",
       );
+      expect(
+        screen.getByTestId("W-TR-08.cashLabel").querySelector(".fsr-fan__name")?.getAttribute("title"),
+      ).toBe(`due ${day()}`);
       const rhea = screen.getByTestId("W-TR-08.parked");
       expect(rhea.textContent).toMatch(/Rhea JumawanUS\$26\.65/);
       expect(rhea.textContent).toMatch(/No PayPal account · unclaimed · returns to the co-op in 30 days/);
-      // The run's instrument and the money bar say what the stage's Proof counter says: confirmed, parked, cash.
-      expect(screen.getByTestId("W-TR-08.status").textContent).toBe("7/8confirmed1 needs you");
-      expect(legend()).toEqual([
-        "Confirmed7US$341.74",
-        "Parked1US$26.65",
-        `Cash at the bodega56due ${cashDay}US$3,849.78`,
-      ]);
+      // The run's count with its one micro-tag beside it; that a person must decide is the run's state, said once
+      // on the title row (round 5). No money bar restates the fan.
+      const count = screen.getByTestId("W-TR-08.status").querySelector(".fsr-fanout__instrument");
+      expect(count?.textContent).toBe("7/8confirmedSimulatedSimulated PayPal sandbox");
+      expect(count?.querySelector('[data-testid="W-TR-08.tag"]')).toBeTruthy();
+      expect(chipText()).toBe("1 needs you");
+      expect(screen.getByTestId("W-TR-08.stateChip").dataset.tone).toBe("canary");
+      expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Run 2026-A");
+      expect(screen.getByTestId("W-TR-08.head.provenance").textContent).toContain(
+        "Synthetic co-op · simulated PayPal",
+      );
+      expect(screen.getByTestId("W-TR-08").querySelector(".fsr-money")).toBeNull();
       expect(screen.queryByTestId("W-TR-08.denied")).toBeNull();
       const log = screen.getByTestId("W-TR-08.lane.PAYPAL");
       expect(within(log).getAllByText(/^Paid /)).toHaveLength(7);
-      expect(screen.getByTestId("W-TR-08.latency.summary").textContent).toMatch(/^median .+ · slowest .+/);
+      // The log shows four rows and "All N events" (round 5), with no legend glyph; a confirmed payment's lane dot
+      // is jade, every other PayPal row a hollow ring.
+      const runLog = screen.getByTestId("W-TR-08.log");
+      expect(runLog.querySelectorAll(".fsr-log__latest > li")).toHaveLength(4);
+      expect(runLog.querySelectorAll("[data-fs-glyph]")).toHaveLength(0);
+      expect(runLog.closest(".fsc-peek")).toBeTruthy();
+      // Funding to confirmation: the dot strip and one line, the median.
+      expect(screen.getByTestId("W-TR-08.latency.summary").textContent).toMatch(/^Median \d/);
+      expect(screen.getByTestId("W-TR-08.latency").textContent).not.toMatch(/slowest/);
+      expect(tagBudget(screen.getByTestId("W-TR-08")).glyphs).toBe(0);
       await expectNoAxeViolations(screen.getByTestId("W-TR-08"));
     },
     SLOW,
@@ -166,20 +191,24 @@ describe("W-TR-08 run: the honest fan-out", () => {
       ).toBe(true);
       const fan = screen.getByTestId("W-TR-08.fan");
       expect(fan.querySelectorAll("path.fsr-fan__cash-line")).toHaveLength(57);
-      expect(screen.getByTestId("W-TR-08.label.M-031").textContent).toBe("Rhea Jumawan → cash");
-      expect(screen.getByTestId("W-TR-08.cashLabel").textContent).toMatch(/^57 members · cash at the bodega/);
+      // Round 5: her row keeps her amount, in ink-3 behind the hatch swatch (it rides with the cash now).
+      const rheaRow = screen.getByTestId("W-TR-08.label.M-031");
+      expect(rheaRow.textContent).toBe("Rhea Jumawan → cashUS$26.65");
+      expect(rheaRow.querySelector('[data-amount-state="moved"] .fs-swatch[data-kind="cash"]')).toBeTruthy();
+      expect(screen.getByTestId("W-TR-08.cashLabel").textContent).toMatch(
+        /^57 members · cash at the bodegaUS\$3,876\.43/,
+      );
+      // What the holds kept for members: a caption on the cash row (round 5: no "By value" bar or legend).
+      expect(screen.getByTestId("W-TR-08.kept").textContent).toBe("Kept for members US$21.14");
+      expect(screen.getByTestId("W-TR-08").querySelector(".fsr-money")).toBeNull();
       expect(screen.queryByTestId("W-TR-08.chip.M-031")).toBeNull();
       const run = view.runtime.client.getQueryData<RunView>(queryKeys.run(RUN));
       if (!run) throw new Error("fixture has no run");
       const cashDay = format.dateShort(cashDayForRun(seedSnapshot(), run));
-      expect(legend()).toEqual([
-        "Confirmed7US$341.74",
-        `Cash at the bodega57due ${cashDay}US$3,876.43`,
-        "Kept for membersUS$21.14",
-      ]);
-      // Settled routing, not settled cash (round 4): the hero is the two outcomes, "7 PayPal · 57 cash", with a jade
-      // dot by the 7 and a hatch swatch by the 57, never "7/8" after her move to cash; the cash's day on its
-      // baseline, and "Review cash handover" under it as the screen's one primary.
+      // Settled routing, not settled cash (rounds 4 and 5): the hero is the two outcomes, "7 PayPal  57 cash", a 12 px
+      // jade dot before "PayPal" and a 12 px hatch swatch before "cash", 32 px apart (no "·"), never "7/8" after her
+      // move to cash; the cash's day on its baseline, "Review cash handover" under it as the screen's one primary,
+      // and "PayPal complete · cash due" as the run's state on the title row.
       const status = screen.getByTestId("W-TR-08.status");
       const settled = screen.getByTestId("W-TR-08.settled");
       expect(
@@ -187,11 +216,15 @@ describe("W-TR-08 run: the honest fan-out", () => {
           .map((part) => part.textContent)
           .join(" ")
           .replace(/\s+/g, " "),
-      ).toBe("7PayPal · 57cash");
+      ).toBe("7PayPal 57cash");
       expect(screen.getByTestId("W-TR-08.count").getAttribute("data-value")).toBe("7");
       expect(status.textContent).not.toMatch(/7\/8/);
-      expect(status.querySelectorAll('.fs-state-dot[data-kind="paid"]')).toHaveLength(1);
-      expect(settled.querySelectorAll(".fsr-fanout__swatch")).toHaveLength(1);
+      expect(status.querySelectorAll('.fs-state-dot[data-kind="paid"][data-size="12"]')).toHaveLength(1);
+      expect(settled.querySelectorAll('.fsr-fanout__swatch[data-kind="cash"][data-size="12"]')).toHaveLength(
+        1,
+      );
+      expect(chipText()).toBe("PayPal complete · cash due");
+      expect(screen.getByTestId("W-TR-08.stateChip").dataset.tone).toBe("hatch");
       expect(status.querySelector(".fs-sr")?.textContent).toMatch(/^7 confirmed on PayPal · 57 in cash/);
       expect(screen.getByTestId("W-TR-08.cashDue").textContent).toBe(`due ${cashDay}`);
       const review = screen.getByTestId("W-TR-08.cashReview");
@@ -200,7 +233,7 @@ describe("W-TR-08 run: the honest fan-out", () => {
       expect(review.closest(".fs-slab")?.getAttribute("data-tone")).toBe("chalk");
       expect(screen.getByTestId("W-TR-08").querySelectorAll(".fs-slab")).toHaveLength(1);
       expect(status.textContent).not.toMatch(/Settled|Done/);
-      // Her move to cash is said once: on her row of the fan (and in the money bar), never as a line of its own.
+      // Her move to cash is said once: on her row of the fan, never as a line of its own.
       expect(screen.queryByTestId("W-TR-08.rerouted")).toBeNull();
       expect(screen.getByTestId("W-TR-08").textContent?.match(/Rhea Jumawan → cash/g)).toHaveLength(1);
       await waitFor(() => expect(tracedPhases("MM-6").slice(-1)[0]).toBe("settled"), WAIT);

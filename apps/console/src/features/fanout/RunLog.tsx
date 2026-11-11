@@ -1,23 +1,30 @@
-// The run log (design §5 "Webhook and live timeline"; UI gate round 3): the last five events in plain words, one
-// line each (a time, a lane and what happened), then "All N events" opens the three lanes (Machine, People,
+// The run log (design §5 "Webhook and live timeline"; UI gate rounds 3 and 5): the last four events in plain words,
+// one line each (a time, a lane and what happened), then "All N events" opens the three lanes (Machine, People,
 // PayPal), newest first, where each row adds its event name (the mono id role, as are the times), IDs, source and
 // signature result. While the members' cash is still due the run's SETTLED row reads "PayPal complete · cash due".
-// One
-// bare legend glyph at the log's head covers every PayPal row (round 3: the run's one micro-tag sits on its money,
-// so the log carries no second tag); its words are its tooltip and its accessible name. A repeated PayPal delivery
-// logs one quiet row and changes nothing. Latency dots sit beside it at the true receipt times, funding to each
-// confirmed payment.
+// Round 5: no legend glyph (provenance is said once, in the screen's id line); each row's lane is the one
+// vocabulary's 8 px round dot (graphite for the machine, ink for people, a hollow ring for PayPal that turns jade
+// only for a payment the simulated PayPal confirmed), the rail said in its words to a screen reader. The log shows
+// four rows (PEEK_ROWS) and ends 32 px above its panel's foot. A repeated PayPal delivery logs one quiet row and
+// changes nothing. Latency dots sit beside it at the true receipt times, funding to each confirmed payment, with one
+// line under them: the median.
 
-import { Glyph, HONESTY, LegendGlyph } from "@fairsplit/ui-web";
+import { Glyph, HONESTY } from "@fairsplit/ui-web";
 import { Fragment, type ReactNode } from "react";
 import { ScrollRegion } from "../../chrome/ScrollRegion.js";
+import { PEEK_ROWS } from "../../chrome/SnapScroll.js";
 import { type LogRow, rowTime } from "../../data/describe.js";
 import { format } from "../../lib/format.js";
 import { en, FANOUT } from "../split/shared/copy.js";
 import { byLane, LANES, type Latency } from "./model.js";
 
-/** How many events the log shows before "All N events". */
-export const LATEST = 5;
+/** How many events the log shows before "All N events" (round 5: four). */
+export const LATEST = PEEK_ROWS;
+
+/** A PayPal row the simulated PayPal confirmed as paid: its lane dot is jade. A replayed row never is. */
+function landedRow(row: LogRow): boolean {
+  return row.lane === "PAYPAL" && row.provenance !== "replay" && /^Paid /.test(row.words);
+}
 
 export interface RunLogProps {
   readonly rows: readonly LogRow[];
@@ -25,8 +32,6 @@ export interface RunLogProps {
   readonly isLive: (id: string) => boolean;
   /** Seeded history, labelled as such (the showcase run has no event stream). */
   readonly seeded: boolean;
-  /** The honesty glyph's words for the PayPal rows; the simulator's by default. */
-  readonly tag?: string;
   /** Said at the foot of the full log (the fee note). */
   readonly footer?: ReactNode;
   /**
@@ -105,26 +110,16 @@ function EventDetail({ row }: { readonly row: LogRow }) {
   );
 }
 
-export function RunLog({
-  rows,
-  isLive,
-  seeded,
-  tag = HONESTY.simulatedSandbox.label,
-  footer,
-  settledAs,
-}: RunLogProps) {
+export function RunLog({ rows, isLive, seeded, footer, settledAs }: RunLogProps) {
   const lanes = byLane(rows);
   const latest = rows.slice(-LATEST).reverse();
   // A replayed payout's long note is the log's, said once here; each replayed row names only what it replayed.
   const replayNote = rows.find((row) => row.replayNote)?.replayNote ?? null;
   return (
     <section className="fsr-log" data-testid="W-TR-08.log">
-      <div className="fsr-log__head">
-        <h2 id="W-TR-08-log" className="fs-t-heading">
-          {FANOUT.log}
-        </h2>
-        <LegendGlyph kind={HONESTY.simulatedSandbox.kind} label={tag} testId="W-TR-08.log.mark" />
-      </div>
+      <h2 id="W-TR-08-log" className="fsr-log__head fs-t-heading">
+        {FANOUT.log}
+      </h2>
       {seeded && <p className="fsr-log__note fs-t-caption">{FANOUT.seededLog}</p>}
       {replayNote && (
         <p className="fsr-log__note fs-t-caption" data-testid="W-TR-08.log.replayNote">
@@ -148,8 +143,16 @@ export function RunLog({
                 {rowTime(row.at)}
               </time>
               <span className="fsr-log__lane-name fs-t-caption">
-                <span className="fsr-log__dot" data-lane={row.lane} aria-hidden />
+                <span
+                  className="fsr-log__dot"
+                  data-lane={row.lane}
+                  data-landed={landedRow(row) ? "" : undefined}
+                  aria-hidden
+                />
                 {FANOUT.lane[row.lane]}
+                {row.lane === "PAYPAL" && (
+                  <span className="fs-sr">{`, ${HONESTY.simulatedSandbox.label}`}</span>
+                )}
               </span>
               <span className="fsr-log__words fs-t-label">
                 {row.duplicate && <Glyph name="ms:restart-alt" size={14} />}
@@ -238,6 +241,8 @@ export function LatencyDots({
         <p className="fs-t-caption fsr-muted">{emptyText}</p>
       ) : (
         <>
+          {/* Round 5: the dot strip and one line, the median (its tick on the strip); each dot's own time is its
+              title and in the list below for a screen reader. */}
           <div className="fsr-latency__track" aria-hidden>
             {latency.dots.map((d) => (
               <span
@@ -250,15 +255,9 @@ export function LatencyDots({
             {latency.p50 !== null && max > 0 && (
               <span className="fsr-latency__p50" style={{ left: at(latency.p50) }} />
             )}
-            <span className="fsr-latency__tick fs-t-caption" data-end="start">
-              {format.elapsedWords(lo)}
-            </span>
-            <span className="fsr-latency__tick fs-t-caption" data-end="end">
-              {format.elapsedWords(hi)}
-            </span>
           </div>
           <p className="fsr-latency__summary fs-t-caption" data-testid="W-TR-08.latency.summary">
-            {FANOUT.latencySummary(format.elapsedWords(latency.p50 ?? 0), format.elapsedWords(max))}
+            {FANOUT.latencySummary(format.elapsedWords(latency.p50 ?? 0))}
           </p>
           <ul className="fs-sr">
             {latency.dots.map((d) => (

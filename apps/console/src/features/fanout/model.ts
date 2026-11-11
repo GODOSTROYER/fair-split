@@ -3,7 +3,9 @@
 // every line leaves the hub beside the 180-unit seal. The eight PayPal threads fan out to one row each (a name and
 // an amount), at one even stroke, so seven confirmations read at a glance. The cash lines run together as one
 // 6-unit hatched ribbon into one compact block, each member's share of the ribbon as tall as their share of the
-// cash. The money bar under the fan carries the proportions. A thread's look follows the item's actual PayPal
+// cash. Round 5: the fan is the single hero (no money bar restates it), its rows 44 units apart, every line ending on
+// a round marker (the one vocabulary's dot: jade confirmed, marigold parked, hatch cash). A thread's look follows the
+// item's actual PayPal
 // status, never a test value: in flight to 70% when sent, jade only on a verified SUCCESS of this run (a replayed
 // one stays in flight), marigold to the member's own marker for UNCLAIMED (a decision, never red), red only for a
 // PayPal failure, neutral for our own return, retracted once moved to cash, when its own thin cash line leaves from
@@ -19,26 +21,30 @@ import { engineOutput, splitBasis } from "../split/model.js";
 
 export const FAN = {
   width: 1200,
-  height: 376,
+  height: 420,
   /**
-   * The seal the two keys completed, 180 units across. Its top sits 176 units down (round 4), so the run's hero ("7/8"
-   * with its words, or "7 PayPal · 57 cash" with its one primary under it) rests on the fan's top left right above it
+   * The seal the two keys completed, 180 units across. Its top sits 210 units down (round 5), so the run's hero ("7/8"
+   * with its words, or "7 PayPal  57 cash" with its one primary under it) rests on the fan's top left right above it
    * at any stage width.
    */
-  seal: { cx: 90, cy: 266, size: 180 },
+  seal: { cx: 90, cy: 300, size: 180 },
   /** The hub beside the seal, level with its centre: every line leaves it. */
-  bar: { x0: 196, x1: 200, y0: 239, y1: 293 },
+  bar: { x0: 196, x1: 200, y0: 273, y1: 327 },
   /** The eight threads leave the hub this far apart, the largest payment on top, so the bundle opens as a fan. */
   threadGap: 5,
   /** One even stroke for every thread: the amount beside each row says how much. */
   thread: 2.5,
-  /** Every line ends on this x: the eight PayPal stubs on top, the cash block beneath them. */
+  /** Every line ends on this x: the eight PayPal markers on top, the cash marker beneath them. */
   endX: 740,
-  /** The PayPal stubs, one row each, far enough apart for a name and an amount at the narrowest stage. */
-  stub: { y0: 14, step: 36, w: 16, h: 12 },
-  /** The cash route: one 6-unit hatched ribbon from the hub (below the threads) to one compact block at the end. */
-  band: { y0: 282, h: 6 },
-  cash: { y0: 314, w: 16 },
+  /**
+   * The PayPal rows, one each, 44 units apart (round 5: the single hero, room for a name and an amount at the
+   * narrowest stage). Each line ends on a round marker `dot` units across, centred on its row (`h` tall).
+   */
+  stub: { y0: 16, step: 44, w: 16, h: 12 },
+  dot: 10,
+  /** The cash route: one 6-unit hatched ribbon from the hub (below the threads) to one round marker at the end. */
+  band: { y0: 316, h: 6 },
+  cash: { y0: 380, w: 16 },
   /** Where the labels begin (they are HTML over the picture, so text keeps its type size at any width). */
   labelX: 772,
   /** A sent thread stops here until PayPal confirms it (design §1: "sent, not paid"). */

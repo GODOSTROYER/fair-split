@@ -4,6 +4,7 @@
 // "real", "live" or "verified" (S1.11). Every figure arrives as an argument formatted by `format.*`.
 
 import { type MessageKey, translate, type Values } from "@fairsplit/i18n";
+import { IDS_LABEL, KEY_CAPTION, SHRINK } from "../../../lib/plain.js";
 
 /** A catalog message in the console's language (English, in the co-op's own words). */
 export const en = (key: MessageKey, values?: Values): string => translate("en", key, values);
@@ -237,20 +238,38 @@ export const APPROVE = {
   checksLabel: "Checks before signing",
   checkOpen: "Open",
   checkHolds: "Holds resolved",
-  checkShrink: "Shrink within limit",
+  checkShrink: `${SHRINK} within limit`,
   checkLines: "Lines explained",
   checkRateCard: "Rate card unchanged",
   byHand: (n: number) => `${n} by hand`,
   since: (date: string) => `since ${date}`,
-  /** The details' summary: the fees and the hashes stay one click away (spec §3.9). */
-  detailsSummary: (fees: string) => `Fees ≈ ${fees} · what both keys sign`,
+  /** The details' summary (round 5): the fees, and every id and hash behind "IDs" (spec §3.9). */
+  detailsSummary: (fees: string) => `Fees ≈ ${fees} · ${IDS_LABEL}`,
   keyName: { treasurer: "Analyn · Treasurer", chair: "Ernesto · Chair" },
-  /** Why the Chair's key: "> US$300 · R5". */
-  chairWhy: (threshold: string, ruleId: string) => `> ${threshold} · ${ruleId}`,
-  tagDemoKey: "Demo key",
-  tagSampleKey: "Sample key",
-  keyBrowser: "browser key",
-  keyDevice: "device key",
+  /**
+   * Under a signer, where the key lives in words (round 5: no ids for people). The id itself sits behind "IDs".
+   * The Chair's caption before he signs is `chairCaption` ("Co-signs batches over US$300").
+   */
+  keyCaption: {
+    demo: KEY_CAPTION,
+    chairDemo: "Key on the Chair's phone",
+    sample: "Sample key",
+    web: "Browser key",
+    device: "Device key",
+  },
+  /** The ids behind "IDs": each signer's key, by name. */
+  keyIdLabel: { treasurer: "Analyn's key", chair: "Ernesto's key" },
+  /** Approve's state on its title row (round 5): how many keys signed, or what stops them. */
+  chip: {
+    holds: (n: number) => (n === 1 ? "1 hold open" : `${n} holds open`),
+    reading: "Reading",
+    denied: "PayPal declined",
+    paused: "Paused",
+    sentBack: "Sent back",
+  },
+  /** The PayPal recipients under the bar (round 5), for a screen reader. */
+  payeesLabel: (n: number) => `${n} PayPal payouts`,
+  payeeWord: { paid: "confirmed", held: "parked" },
   keyWebCrypto: "Made by WebCrypto in this browser; the private half can't be exported.",
   keyNoble: "Held in this page's memory for this session; it never leaves the browser.",
   keyDemoChair: "Made in the Chair's phone frame.",
@@ -297,6 +316,8 @@ export const APPROVE = {
     `Both approvals voided at ${time}. A payout changed after signing, so nothing was sent. Review and sign again.`,
   voidedKey: (time: string) => `Voided ${time}`,
   cosignTitle: "Co-sign on your phone",
+  /** The co-sign title's title (round 5: no glyph beside it). */
+  cosignDemo: en("W-TR-07.qr"),
   cosignMake: "Make a co-sign code",
   cosignCode: "Type it on the phone, once",
   cosignLink: "Open the pairing link",
@@ -324,9 +345,18 @@ export const FANOUT = {
   dueOn: (date: string) => `due ${date}`,
   replayedStatus: "Payout statuses replayed (labelled) from an earlier simulated PayPal sandbox run.",
   denied: "The simulated PayPal sandbox declined the batch. No money moved.",
-  /** The money bar under the fan (spec §1.9): one legend row per state, the tag at its head. */
-  shareLabel: "Where the run's money went, by value",
-  shareTitle: "By value",
+  /** The run's state on its title row (round 5), said once. */
+  chip: {
+    notPosted: "Not posted",
+    confirming: "Confirming",
+    replayed: "Replayed",
+    cashDue: en("W-JG-01.pill.stateCashDue"),
+    settled: en("run.SETTLED"),
+    denied: "PayPal declined",
+  },
+  /** Under the fan's cash row once every payout is settled (round 5: no "By value" bar restating the fan). */
+  keptCaption: (amount: string) => `Kept for members ${amount}`,
+  /** The payout states in words ("Sent" while in flight). */
   legend: {
     planned: "To send",
     flight: "Sent",
@@ -338,8 +368,6 @@ export const FANOUT = {
     cash: "Cash at the bodega",
     kept: "Kept for members",
   },
-  replayedShare: (sent: number, successful: number) =>
-    `${sent} payout statuses replayed (labelled), ${successful} successful in the earlier simulated PayPal sandbox run.`,
   cashBandMembers: (n: number) => `${n} members · cash at the bodega`,
   movedToCash: (name: string) => `${name} → cash`,
   title: "Run",
@@ -364,7 +392,8 @@ export const FANOUT = {
   logEmpty: "Nothing has happened in this run yet.",
   seededLog: "Seeded showcase history",
   latency: "Funding to confirmation",
-  latencySummary: (p50: string, max: string) => `median ${p50} · slowest ${max}`,
+  /** The dot strip's one line (round 5): the median, nothing else. */
+  latencySummary: (p50: string) => `Median ${p50}`,
   latencyEmpty: "No confirmations yet",
   latencySeeded: "Timed only on a live run",
   rheaLine: "No PayPal account · unclaimed",

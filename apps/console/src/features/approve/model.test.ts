@@ -274,6 +274,7 @@ describe("the batch both keys sign", () => {
     expect(chairRule(snapshot, snapshot.figures.batchTotalCents)).toEqual({
       required: true,
       threshold: "US$300",
+      overCents: 30_000,
       ruleId: "R5",
     });
     expect(wholeDollars(12_345)).toBe("US$123.45");

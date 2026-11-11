@@ -1,8 +1,9 @@
-/* W-TR-08 Run (UI gate round 4, on the one 12-column grid): the run's one hero ("7/8" in FS Sans with its words
-   while PayPal works; "7 PayPal · 57 cash" once settled, with "Review cash handover" under it as the one primary)
-   rests on the fan's empty top left, right above the 180-unit seal; the fan full width as the hero, Rhea's decision
-   as one strip beneath it, the money bar with its one micro-tag, then the last five events (columns 1–8) and the
-   latency dots (9–12).
+/* W-TR-08 Run (UI gate rounds 4 and 5, on the one 12-column grid): the run's one count ("7/8" in FS Sans with its
+   words and its one micro-tag while PayPal works; "7 PayPal  57 cash" once settled, each count's 12 px key on its
+   word's baseline, with "Review cash handover" under it as the one primary) rests on the fan's empty top left, right
+   above the 180-unit seal; the fan full width as the single hero (no money bar restates it), Rhea's decision as one
+   strip beneath it, then the last four events (columns 1–8) and the latency dots with their median (9–12), both
+   ending 32 px above the panel's foot.
    In flight is neutral, jade only PayPal-confirmed money, marigold a person's decision, red only a PayPal failure,
    the hatch is cash with its word. Dashed lines mean simulated, nothing else. Tokens only; durations from
    @fairsplit/motion's CSS variables. One focus ring (ui-web); nothing here declares its own. */
@@ -37,11 +38,12 @@
   margin: 0;
 }
 
-/* The count and its words, on one baseline. */
+/* The count, its words and its micro-tag, on one baseline. */
 .fsr-fanout__instrument {
   display: inline-flex;
+  flex-wrap: wrap;
   align-items: baseline;
-  gap: var(--fs-space-12);
+  gap: var(--fs-space-8) var(--fs-space-12);
 }
 
 .fsr-fanout__count {
@@ -55,13 +57,16 @@
   color: var(--fs-ink-2);
 }
 
-/* Settled: "● 7 PayPal · ▨ 57 cash" on one baseline, the two outcomes as the one hero. The jade dot says the 7 is
-   money the simulated PayPal confirmed; the hatch swatch says the 57 is cash. Never "7/8" after the move to cash. */
+/* Settled (round 5): "7 ● PayPal  57 ▨ cash" on one baseline, the two outcomes as the one hero, 32 px apart (no
+   "·"). Each count's 12 px key sits right before its word, on the word's baseline: the jade dot says the 7 is money
+   the simulated PayPal confirmed, the hatch swatch says the 57 is cash. The micro-tag follows the PayPal part, the
+   cash's day the cash part. Never "7/8" after the move to cash. */
 .fsr-fanout__settled {
   display: inline-flex;
   flex-wrap: wrap;
   align-items: baseline;
-  gap: var(--fs-space-4) var(--fs-space-12);
+  column-gap: var(--fs-space-12);
+  row-gap: var(--fs-space-4);
 }
 
 .fsr-fanout__part {
@@ -71,16 +76,20 @@
   white-space: nowrap;
 }
 
-.fsr-fanout__part > :is(.fs-state-dot, .fsr-fanout__swatch) {
-  align-self: center;
+/* The second outcome stands 32 px from the first (the tag between them hugs the PayPal part). */
+.fsr-fanout__settled > .fsr-fanout__part ~ .fsr-fanout__part {
+  margin-left: calc(var(--fs-space-32) - var(--fs-space-12));
+}
+
+/* The key and its word: the 12 px dot or swatch sits on the word's baseline (ui-web's size 12). */
+.fsr-fanout__key {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--fs-space-8);
 }
 
 .fsr-fanout__word {
   color: var(--fs-ink);
-}
-
-.fsr-fanout__sep {
-  color: var(--fs-ink-3);
 }
 
 /* The run's remaining action, a link on the slab's face: no underline, and a touch on it may still scroll. */
@@ -97,7 +106,7 @@
 }
 
 /* The hero rides on the fan's empty top left, its fact (or the settled run's one primary) beneath it, just above
-   the seal (176 units down, 133 px at the fan's narrowest overlay): hero and seal read as one. The tallest head, the
+   the seal (210 units down, 157 px at the fan's narrowest overlay): hero and seal read as one. The tallest head, the
    settled hero over its primary, is 120 px. Only while the fan is drawn and 900 px wide or more; otherwise, and in
    Data mode (the table), the hero sits above the fan in the flow. */
 @container (min-width: 900px) {
@@ -137,21 +146,6 @@
 
 .fsr-fanout__status {
   border-radius: var(--fs-radius-cell);
-}
-
-.fsr-fanout__swatch {
-  flex: none;
-  width: 10px;
-  height: 10px;
-  border-radius: 3px;
-  background:
-    repeating-linear-gradient(-45deg, var(--fs-cash-route) 0 1.5px, transparent 1.5px 4px), var(--fs-plate);
-  box-shadow: inset 0 0 0 1px var(--fs-rule-strong);
-}
-
-.fsr-fanout__share {
-  padding-top: var(--fs-space-16);
-  border-top: 1px solid var(--fs-rule);
 }
 
 /* ------------------------------------------------------------------ the fan */
@@ -409,6 +403,21 @@
   color: var(--fs-pending);
 }
 
+/* Moved to cash (round 5): her amount stays on her row in ink-3 behind the hatch swatch; it rides with the cash. */
+.fsr-fan__amount[data-amount-state="moved"] {
+  color: var(--fs-ink-3);
+}
+
+/* What the holds kept for members: one caption under the cash row, its start under the row's words. */
+.fsr-fan__caption {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: var(--fs-space-4);
+  color: var(--fs-ink-2);
+  white-space: nowrap;
+}
+
 /* ------------------------------------------------------------------ the parked decision (Rhea) */
 
 /* One strip under the fan: who, how much and why on the left; the two actions on the right. Its marigold dot marks
@@ -471,6 +480,13 @@
 
 /* ------------------------------------------------------------------ the run log and the latency dots */
 
+/* Stacked below 1,040 px of panel the latency dots come last: only they keep the 32 px above the panel's foot. */
+@container fsc-screen (max-width: 1039px) {
+  .fsr-fanout__log.fsc-peek {
+    margin-bottom: 0;
+  }
+}
+
 .fsr-fanout__side {
   display: grid;
   gap: var(--fs-space-16);
@@ -488,10 +504,7 @@
 }
 
 .fsr-log__head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--fs-space-8);
+  color: var(--fs-ink);
 }
 
 .fsr-log h2,
@@ -531,24 +544,29 @@
   color: var(--fs-ink-3);
 }
 
-/* A lane's dot: the machine in ink-3, a person in indigo, PayPal in the honesty tag's dashed steel. */
+/* A lane's dot (round 5: the one vocabulary's 8 px round dot, as the stage's Run log): the machine in graphite, a
+   person in ink (indigo is for action only), PayPal a hollow ring that turns jade only for a payment the simulated
+   PayPal confirmed. No dashed glyph: the screen's id line says the rail once. */
 .fsr-log__dot {
   flex: none;
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
-  background: var(--fs-ink-3);
+  background: var(--fs-pencil);
 }
 
 .fsr-log__dot[data-lane="PEOPLE"] {
-  background: var(--fs-pod);
+  background: var(--fs-ink);
 }
 
 .fsr-log__dot[data-lane="PAYPAL"] {
-  width: 8px;
-  height: 8px;
-  border: 1px dashed var(--fs-steel-line);
   background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--fs-pending);
+}
+
+.fsr-log__dot[data-lane="PAYPAL"][data-landed] {
+  background: var(--fs-jade);
+  box-shadow: inset 0 0 0 1px var(--fs-jade-flush-border);
 }
 
 .fsr-log__empty {
@@ -708,11 +726,11 @@
   color: var(--fs-ink);
 }
 
+/* The dot strip (round 5): the dots on one hairline, the median's tick through it, then one line under it. */
 .fsr-latency__track {
   position: relative;
   height: 24px;
-  margin-bottom: 20px;
-  border-bottom: 1px solid var(--fs-ink-3);
+  border-bottom: 1px solid var(--fs-rule-strong);
 }
 
 /* Each confirmed payment is money: a jade dot on its border (decision §4). */
@@ -725,21 +743,6 @@
   border-radius: 50%;
   background: var(--fs-jade);
   box-shadow: 0 0 0 1px var(--fs-jade-flush-border);
-}
-
-.fsr-latency__tick {
-  position: absolute;
-  top: calc(100% + 4px);
-  color: var(--fs-ink-3);
-  white-space: nowrap;
-}
-
-.fsr-latency__tick[data-end="start"] {
-  left: 0;
-}
-
-.fsr-latency__tick[data-end="end"] {
-  right: 0;
 }
 
 .fsr-latency__p50 {

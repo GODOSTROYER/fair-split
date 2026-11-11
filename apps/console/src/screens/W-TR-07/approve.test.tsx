@@ -100,6 +100,13 @@ function face(testId: string): HTMLElement {
   return screen.getByTestId(`${testId}.face`);
 }
 
+/** What a sighted reader sees in an element: its text without the screen-reader-only words. */
+function visibleText(el: Element): string {
+  const copy = el.cloneNode(true) as Element;
+  for (const sr of copy.querySelectorAll(".fs-sr")) sr.remove();
+  return copy.textContent ?? "";
+}
+
 describe("W-TR-07 approve", () => {
   it("a run from another visit shows the visit gate without an amount", async () => {
     await renderConsole({ path: webRoutes.approve("2026A-r99") });
@@ -189,6 +196,16 @@ describe("W-TR-07 approve", () => {
         "Simulated",
       );
       expect(tagBudget(root)).toMatchObject({ tags: 1, micro: 1, ok: true });
+      // Round 5, provenance once: no legend glyph anywhere on the screen; the id line says it in words.
+      expect(tagBudget(root).glyphs).toBe(0);
+      // Round 5, the title row: a noun title with its grey suffix, the state as one chip (the keys signed), the run
+      // id in the mono and the one provenance phrase.
+      expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Approve 2026-A");
+      expect(screen.getByTestId("W-TR-07.keysCount").closest(".fsc-screen__status")).toBeTruthy();
+      expect(screen.getByTestId("W-TR-07.head.provenance").textContent).toContain(
+        "Synthetic co-op · seeded slips",
+      );
+      expect(screen.getByTestId("W-TR-07.head").querySelector(".fsc-screen__id")?.textContent).toBe("r37");
       // The seal is the screen's hero, 220 px from a 1,600 px window (round 4), beside "Two officers sign this batch"
       // and its two named signers, each waiting on a hollow circle.
       expect(screen.getByTestId("W-TR-07.seal").getAttribute("width")).toBe("220");
@@ -199,9 +216,37 @@ describe("W-TR-07 approve", () => {
         expect(row.querySelector('.fs-state-dot[data-kind="waiting"]')).toBeTruthy();
         expect(screen.getByTestId(`W-TR-07.key.${officer}.status`).textContent).toBe("Waiting");
       }
+      // Round 5, no ids for people: each signer's line is words. The Chair's rule id is only its title.
+      const chairLine = screen.getByTestId("W-TR-07.key.chair.caption");
+      expect(chairLine.firstChild?.textContent).toBe("Co-signs batches over US$300");
+      expect(chairLine.getAttribute("title")).toBe("Rule R5");
+      expect(screen.getByTestId("W-TR-07.key.treasurer.caption").firstChild?.textContent).toBe(
+        "Key on this browser",
+      );
+      for (const officer of ["treasurer", "chair"]) {
+        expect(visibleText(screen.getByTestId(`W-TR-07.key.${officer}`))).not.toMatch(/\bR\d\b|fs-[a-z]+-|>/);
+      }
+      // The money bar: the PayPal segment a steel dashed outline until the simulated PayPal confirms it (round 5),
+      // each legend row keyed by the vocabulary's one square.
       expect(
         [...screen.getByTestId("W-TR-07.rail").querySelectorAll(".fsr-money__row")].map((r) => r.textContent),
       ).toEqual(["PayPal8US$368.39", expect.stringMatching(/^Cash at the bodega56.+US\$3,849\.78$/)]);
+      expect(
+        screen.getByTestId("W-TR-07.rail").querySelector(".fsr-money__seg")?.getAttribute("data-tone"),
+      ).toBe("planned");
+      expect(
+        [...screen.getByTestId("W-TR-07.rail").querySelectorAll(".fs-swatch")].map((s) =>
+          s.getAttribute("data-kind"),
+        ),
+      ).toEqual(["planned", "cash"]);
+      // Round 5, no dead band at 1,920: the eight PayPal recipients under the bar, the largest first, each a hollow
+      // 8 px dot until the simulated PayPal confirms it.
+      const payees = [...screen.getByTestId("W-TR-07.payees").querySelectorAll("li")];
+      expect(payees).toHaveLength(8);
+      expect(payees[0]?.textContent).toBe("Consolacion BacusUS$64.45");
+      expect(payees.every((p) => p.querySelector('.fs-state-dot[data-kind="pending"]'))).toBe(true);
+      // The checks: a 16 px line ✓ and the word (the one check mark), never a filled disc.
+      expect(screen.getByTestId("W-TR-07.safe").querySelectorAll(".fs-check")).toHaveLength(4);
       // The payload's lines root (IC-02) prints beside what two people sign, once this browser has recomputed it
       // from the run's own lines: the workspace's, whose returned mark (M-018) has the workspace's own mark ID, so
       // its root is not the seed's.
@@ -267,16 +312,19 @@ describe("W-TR-07 approve", () => {
       );
       await waitFor(() => expect(screen.getByTestId("W-TR-07.seal").dataset.state).toBe("keys-1"));
       expect(screen.getByTestId("W-TR-07.key.treasurer").dataset.state).toBe("signed");
-      // The session's demo key, as fs-api registered it (C-13): never the treasurer's own fs-analyn-w1. Its id
-      // prints on one line, whole, its value its title (round 4: ids never break mid-word).
+      // The session's demo key, as fs-api registered it (C-13): never the treasurer's own fs-analyn-w1. Round 5: her
+      // row says where the key lives in words; its id waits behind "IDs", on one line, whole, its value its title
+      // (round 4: ids never break mid-word).
       const treasurerRow = screen.getByTestId("W-TR-07.key.treasurer");
-      const keyIdText = treasurerRow.querySelector<HTMLElement>(".fs-idtext");
-      expect(keyIdText?.getAttribute("title")).toMatch(/^fs-analyn-demo-[a-z0-9]{6}$/);
-      expect(keyIdText?.querySelector("[aria-hidden]")?.textContent).toBe(keyIdText?.getAttribute("title"));
-      expect(treasurerRow.textContent).toMatch(/^Analyn · Treasurerfs-analyn-demo-[a-z0-9]{6}.*Demo key/);
-      expect(treasurerRow.textContent).not.toMatch(/fs-analyn-w1/);
-      // Now the Chair's co-sign block shows: his ways to sign arrive only after key 1.
+      expect(visibleText(treasurerRow)).toMatch(/^Analyn · TreasurerKey on this browserSigned \d\d:\d\d$/);
+      const keyIdText = screen.getByTestId("W-TR-07.keyId.treasurer");
+      expect(keyIdText.getAttribute("title")).toMatch(/^fs-analyn-demo-[a-z0-9]{6}$/);
+      expect(keyIdText.querySelector("[aria-hidden]")?.textContent).toBe(keyIdText.getAttribute("title"));
+      expect(keyIdText.closest("details")?.querySelector("summary")?.textContent).toMatch(/· IDs$/);
+      expect(screen.getByTestId("W-TR-07").textContent).not.toMatch(/fs-analyn-w1/);
+      // Now the Chair's co-sign block shows: his ways to sign arrive only after key 1, with no glyph beside it.
       expect(screen.getByTestId("W-TR-07.cosign")).toBeTruthy();
+      expect(tagBudget(root).glyphs).toBe(0);
 
       const approval = view.world.approvals().find((a) => a.role === "treasurer");
       if (!approval) throw new Error("no treasurer approval");

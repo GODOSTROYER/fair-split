@@ -1,16 +1,18 @@
-// SplitFan (S2.7, design §1 signature 6; UI gate round 3): the run's hero. One seal at 180 units, 64 lines: eight
-// PayPal threads fan out from the hub beside the seal to one row each, at one even stroke, and the cash members run
-// together as one 6-unit hatched ribbon in neutral-300 into one compact block. Threads draw to 70% in flight on
+// SplitFan (S2.7, design §1 signature 6; UI gate rounds 3 and 5): the run's single hero. One seal at 180 units, 64
+// lines: eight PayPal threads fan out from the hub beside the seal to one row each, at one even stroke, and the cash
+// members run together as one 6-unit hatched ribbon in neutral-300 into one marker. Threads draw to 70% in flight on
 // PayPal's 201 (sent, not paid), finish and turn jade only on a verified SUCCESS, run on to the member's own marker
 // in marigold when PayPal parks an item (the marker is the dot; nothing floats in mid-air), and retract when the
-// line moves to cash, while that member's own thin cash line draws from the same slot to the cash block. The seal's
-// rings fill in indigo per key, as on Approve and the Chair's phone. History is drawn in place; only live events
-// animate. Every word and figure is HTML laid over the picture at its own type size; the picture is hidden from
-// screen readers and mirrored in a table (Data mode).
+// line moves to cash, while that member's own thin cash line draws from the same slot to the cash marker. Round 5:
+// every line ends on a round marker (the one vocabulary: jade confirmed, marigold parked, hatch cash); a row moved to
+// cash keeps its amount in ink-3 behind the hatch swatch; what the holds kept for members is a caption under the cash
+// row. The seal's rings fill in indigo per key, as on Approve and the Chair's phone. History is drawn in place; only
+// live events animate. Every word and figure is HTML laid over the picture at its own type size; the picture is
+// hidden from screen readers and mirrored in a table (Data mode).
 
 import { TIMING } from "@fairsplit/motion";
 import { isRingSigned, seal } from "@fairsplit/seal";
-import { MoneyFigure, StateDot } from "@fairsplit/ui-web";
+import { MoneyFigure, StateDot, Swatch } from "@fairsplit/ui-web";
 import { type CSSProperties, useId, useMemo } from "react";
 import { format } from "../../lib/format.js";
 import { FANOUT } from "../split/shared/copy.js";
@@ -24,6 +26,8 @@ export interface SplitFanProps {
   readonly drawing: boolean;
   readonly mode: "full" | "reduced" | "low";
   readonly cashDay: string;
+  /** A caption under the cash row ("Kept for members US$21.14"), once every payout is settled. */
+  readonly cashCaption?: string;
 }
 
 function threadStyle(t: FanThread, delayMs: number | undefined, drawing: boolean): CSSProperties {
@@ -65,17 +69,23 @@ function MovedLine({ line, live, maskId }: { line: CashLine; live: number | unde
   );
 }
 
-/** A pending amount: neutral-500 with a hollow dot (never a dashed underline: dashed means simulated). */
+/**
+ * A pending amount: neutral-500 with a hollow dot (never a dashed underline: dashed means simulated). An amount moved
+ * to cash: ink-3 behind the hatch swatch (round 5), its money now riding with the cash row.
+ */
 function Amount({ cents, state }: { readonly cents: number; readonly state: string }) {
   return (
     <span className="fsr-fan__amount fs-t-figure" data-amount-state={state}>
       {state === "hollow" && <StateDot kind="pending" className="fsr-fan__pending" />}
+      {state === "moved" && <Swatch kind="cash" className="fsr-fan__pending" />}
       <MoneyFigure display={format.money(cents)} />
     </span>
   );
 }
 
-export function SplitFan({ fan, animate, drawing, mode, cashDay }: SplitFanProps) {
+const DOT_R = FAN.dot / 2;
+
+export function SplitFan({ fan, animate, drawing, mode, cashDay, cashCaption }: SplitFanProps) {
   const uid = useId().replaceAll(":", "");
   const geometry = useMemo(() => (fan.sealHash ? seal(fan.sealHash, FAN.seal.size) : null), [fan.sealHash]);
   const half = FAN.seal.size / 2;
@@ -191,13 +201,11 @@ export function SplitFan({ fan, animate, drawing, mode, cashDay }: SplitFanProps
             ))}
         </g>
         {fan.cashLines.length > 0 && (
-          <rect
+          <circle
             className="fsr-fan__block"
-            x={FAN.endX}
-            y={ribbonMid - FAN.stub.h / 2}
-            width={FAN.cash.w}
-            height={FAN.stub.h}
-            rx={3}
+            cx={FAN.endX + DOT_R}
+            cy={ribbonMid}
+            r={DOT_R}
             style={fan.cash.amountState === "attested" ? undefined : { fill: `url(#${hatchId})` }}
             data-attested={fan.cash.amountState === "attested" ? "" : undefined}
           />
@@ -229,11 +237,11 @@ export function SplitFan({ fan, animate, drawing, mode, cashDay }: SplitFanProps
                 data-animate={live !== undefined ? "" : undefined}
                 style={{ ["--fsr-delay" as string]: `${live ?? 0}ms` }}
               >
-                <rect
+                <circle
                   className="fsr-fan__stub-face"
-                  width={FAN.stub.w}
-                  height={FAN.stub.h}
-                  rx={3}
+                  cx={DOT_R}
+                  cy={FAN.stub.h / 2}
+                  r={DOT_R}
                   style={t.tone === "moved" ? { fill: `url(#${hatchId})` } : undefined}
                 />
               </g>
@@ -252,8 +260,11 @@ export function SplitFan({ fan, animate, drawing, mode, cashDay }: SplitFanProps
             data-testid={`W-TR-08.label.${t.memberNo}`}
           >
             {t.tone === "moved" ? (
-              // Her money now rides with the cash block beneath: the row says where it went.
-              <span className="fsr-fan__name fs-t-label">{FANOUT.movedToCash(t.name)}</span>
+              // Her money now rides with the cash row beneath: the row says where it went, and how much.
+              <>
+                <span className="fsr-fan__name fs-t-label">{FANOUT.movedToCash(t.name)}</span>
+                <Amount cents={t.cents} state="moved" />
+              </>
             ) : (
               <>
                 <span className="fsr-fan__name fs-t-label" title={t.statusWord}>
@@ -271,6 +282,11 @@ export function SplitFan({ fan, animate, drawing, mode, cashDay }: SplitFanProps
               {FANOUT.cashBandMembers(fan.cash.members)}
             </span>
             <Amount cents={fan.cash.cents} state={fan.cash.amountState} />
+            {cashCaption && (
+              <span className="fsr-fan__caption fs-t-caption" data-testid="W-TR-08.kept">
+                {cashCaption}
+              </span>
+            )}
           </p>
         )}
       </div>

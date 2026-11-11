@@ -372,7 +372,9 @@ export interface ChairRule {
   readonly required: boolean;
   /** "US$300" */
   readonly threshold: string;
-  /** The Schedule A rule that asks for the Chair ("R5"). */
+  /** The same threshold in cents, for the Chair's caption ("Co-signs batches over US$300"). */
+  readonly overCents: number;
+  /** The Schedule A rule that asks for the Chair ("R5"): in a title, never on screen (round 5). */
   readonly ruleId: string;
 }
 
@@ -381,6 +383,7 @@ export function chairRule(snapshot: SeasonSnapshot, totalCents: number): ChairRu
   return {
     required: snapshot.run.chairNeeded.required || totalCents > over,
     threshold: wholeDollars(over),
+    overCents: over,
     ruleId,
   };
 }

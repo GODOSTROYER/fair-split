@@ -1,25 +1,27 @@
-// W-TR-07's pieces (UI gate round 4): the seal at 180 px, 220 from a 1,600 px window (or its empty bands while the
-// batch is not final) with its hash under it, the two named signers beside it ("Two officers sign this batch"), the
-// checks above the slab, the details a person opens to compare hashes, the dialog route's body and the Chair's
-// co-sign block. Unsigned rings are the batch's own pattern at 1 px in neutral-400; each key fills its rings in
-// indigo, the same on the Chair's phone. A waiting signer is a hollow circle and "Waiting" ("Reviewing" while the
-// Chair is on the batch); a signed one a solid row with an ink dot and "Signed 19:03". Hashes and key IDs are the
-// mono id role on one line, cut in the middle when long (IdText); everything else is FS Sans. Words are few: each
-// piece is a title, a figure and one line (unslop spec §3.9).
+// W-TR-07's pieces (UI gate rounds 4 and 5): the seal at 180 px, 220 from a 1,600 px window (or its empty bands while
+// the batch is not final) with its hash under it, the two named signers beside it ("Two officers sign this batch"),
+// the checks above the slab, the PayPal recipients under the money bar, the details a person opens to compare hashes,
+// the dialog route's body and the Chair's co-sign block. Unsigned rings are the batch's own pattern at 1 px in
+// neutral-400; each key fills its rings in indigo, the same on the Chair's phone. A waiting signer is a hollow circle
+// and "Waiting" ("Reviewing" while the Chair is on the batch); a signed one a solid row with an ink dot and "Signed
+// 19:03". Round 5: no ids for people. A signer's line says in words where the key lives ("Key on this browser") or
+// what it is for ("Co-signs batches over US$300"); the key ids, like the hashes, wait behind "IDs" in the mono id role
+// on one line, cut in the middle when long (IdText). One marker vocabulary: a check is a line ✓ and its word, a state
+// an 8 px dot. Words are few: each piece is a title, a figure and one line (unslop spec §3.9).
 
 import { bandCircle, type RingIndex, seal, sealHash } from "@fairsplit/seal";
 import { LAYOUT } from "@fairsplit/tokens";
 import {
+  CheckMark,
   Glyph,
-  HONESTY,
-  type HonestyMark,
   IdText,
-  LegendGlyph,
+  MoneyFigure,
   Seal,
   type StampView,
   StateDot,
+  type StateDotKind,
 } from "@fairsplit/ui-web";
-import { type ReactNode, useMemo } from "react";
+import { type CSSProperties, type ReactNode, useMemo } from "react";
 import { Stamp } from "../../chrome/Stamp.js";
 import { format } from "../../lib/format.js";
 import { BREAKPOINTS, useViewportWidth } from "../../stage/layout.js";
@@ -121,16 +123,15 @@ export function SealBlock({ batchSha256, keys, engrave, size = SEAL_SIZE }: Seal
 }
 
 /**
- * The two named signers beside the seal: "Two officers sign this batch" and the count, then one row per key. Its
- * rows are KeySlots (Ernesto's presence is his row's status since round 4); anything after them sits under the list.
+ * The two named signers beside the seal: "Two officers sign this batch", then one row per key. Its rows are KeySlots
+ * (Ernesto's presence is his row's status since round 4); anything after them sits under the list. How many have
+ * signed is the screen's state, said once in its title row's chip (round 5).
  */
 export function Signers({
-  keys,
   officers,
   rows,
   after,
 }: {
-  readonly keys: 0 | 1 | 2;
   /** How many officers this batch needs: two over the Chair's threshold. */
   readonly officers: 1 | 2;
   readonly rows: ReactNode;
@@ -142,9 +143,6 @@ export function Signers({
         <h2 id="W-TR-07-signers" className="fsr-signers__title fs-t-label">
           {APPROVE.signersTitle(officers)}
         </h2>
-        <span className="fsr-signers__count fs-t-caption" data-testid="W-TR-07.keysCount">
-          {APPROVE.signedCount(keys)}
-        </span>
       </header>
       <ul className="fsr-keys" aria-labelledby="W-TR-07-signers" data-testid="W-TR-07.keys">
         {rows}
@@ -162,16 +160,21 @@ export interface CheckRow {
   readonly done: boolean;
 }
 
-/** The four checks above the slab: a ✓ and the word in ink, the figure in micro on the right (spec §1.8). */
+/**
+ * The four checks above the slab: a 16 px line ✓ and the word in ink, the figure on the right (spec §1.8; round 5:
+ * the one check mark). One still open is an 8 px amber dot: a person decides.
+ */
 export function CheckList({ rows, testId }: { readonly rows: readonly CheckRow[]; readonly testId: string }) {
   return (
     <ul className="fsr-checks" aria-label={APPROVE.checksLabel} data-testid={testId}>
       {rows.map((r) => (
         <li key={r.key} className="fsr-check" data-done={r.done ? "" : undefined}>
           {r.done ? (
-            <Glyph name="ms:check" size={16} />
+            <CheckMark className="fsr-check__mark" />
           ) : (
-            <span className="fsr-check__dot" role="img" aria-label={APPROVE.checkOpen} />
+            <span className="fsr-check__mark" role="img" aria-label={APPROVE.checkOpen}>
+              <StateDot kind="held" />
+            </span>
           )}
           <span className="fsr-check__label fs-t-label">{r.label}</span>
           <span className="fsr-check__value fs-t-caption">{r.value}</span>
@@ -179,6 +182,62 @@ export function CheckList({ rows, testId }: { readonly rows: readonly CheckRow[]
       ))}
     </ul>
   );
+}
+
+export interface PayeeRow {
+  readonly memberNo: string;
+  readonly name: string;
+  /** "US$64.45" */
+  readonly amount: string;
+  /** pending (to send or in flight, hollow), paid (the simulated PayPal confirmed it), held (parked). */
+  readonly state: Extract<StateDotKind, "pending" | "paid" | "held">;
+  /** The state in words for a screen reader, when it is not "to send". */
+  readonly stateWord?: string;
+}
+
+/**
+ * Who the batch pays (round 5: the second row under the money bar at 1,920): the PayPal recipients two columns
+ * across, each a hollow 8 px dot until the simulated PayPal confirms the payment, the name and the amount.
+ */
+export function Payees({
+  rows,
+  label,
+  testId,
+}: {
+  readonly rows: readonly PayeeRow[];
+  readonly label: string;
+  readonly testId: string;
+}) {
+  return (
+    <ul
+      className="fsr-payees"
+      aria-label={label}
+      data-testid={testId}
+      // Two columns reading down: half the rows each (the CSS lays them out column by column).
+      style={{ "--fsr-rows": String(Math.max(1, Math.ceil(rows.length / 2))) } as CSSProperties}
+    >
+      {rows.map((r) => (
+        <li key={r.memberNo} className="fsr-payee" data-state={r.state}>
+          <StateDot kind={r.state} />
+          <span className="fsr-payee__name fs-t-label">
+            {r.name}
+            {r.stateWord && <span className="fs-sr">, {r.stateWord}</span>}
+          </span>
+          <MoneyFigure display={r.amount} className="fsr-payee__amount fs-t-figure" />
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+export interface LedgerKey {
+  /** "Analyn's key" */
+  readonly label: string;
+  /** The key's id ("fs-analyn-demo-f4ew6o"). */
+  readonly id: string;
+  /** How it was made, on hover. */
+  readonly title?: string;
+  readonly testId: string;
 }
 
 export interface BatchLedgerProps {
@@ -192,6 +251,8 @@ export interface BatchLedgerProps {
   readonly lines: number;
   readonly cashLines: number;
   readonly rateCardSha256: string;
+  /** The signers' key ids (round 5: behind "IDs", never under a person's name). */
+  readonly keys?: readonly LedgerKey[];
 }
 
 /** What both keys sign, as key and value in hash type: a person compares them by eye with the Chair's phone. */
@@ -202,6 +263,7 @@ export function BatchLedger({
   lines,
   cashLines,
   rateCardSha256,
+  keys = [],
 }: BatchLedgerProps) {
   return (
     <dl className="fsr-ledger" data-testid="W-TR-07.ledger">
@@ -230,6 +292,14 @@ export function BatchLedger({
         <dt className="fs-t-caption">{APPROVE.rateCard}</dt>
         <dd className="fs-t-id">{format.hashGroups(rateCardSha256)}</dd>
       </div>
+      {keys.map((k) => (
+        <div key={k.testId} className="fsr-ledger__row">
+          <dt className="fs-t-caption">{k.label}</dt>
+          <dd className="fs-t-id" title={k.title}>
+            <IdText value={k.id} max={KEY_ID_MAX} tail={6} testId={k.testId} />
+          </dd>
+        </div>
+      ))}
     </dl>
   );
 }
@@ -237,14 +307,13 @@ export function BatchLedger({
 export interface KeySlotProps {
   /** "Analyn · Treasurer" */
   readonly name: string;
-  /** The key's ID in the id role ("fs-analyn-demo-f4ew6o"). */
-  readonly meta?: string;
-  /** Words beside it: why this key is needed ("> US$300 · R5") before there is one, or its kind ("browser key"). */
-  readonly why?: string;
-  /** Said on hover: how the key was made. */
-  readonly metaTitle?: string;
-  /** The honesty glyph for a key made for the demo ("Demo key", "Sample key"): a bare glyph, its words its name. */
-  readonly mark?: HonestyMark;
+  /**
+   * One line in words under the name (round 5: no ids for people): where the key lives ("Key on this browser",
+   * "Sample key") or what it is for ("Co-signs batches over US$300").
+   */
+  readonly caption?: string;
+  /** Behind the caption, for hover and a screen reader: the rule ("Rule R5") or how the key was made. */
+  readonly captionTitle?: string;
   readonly status: string;
   /** The whole sentence behind a short status ("Reviewing": "Ernesto is reviewing the batch"). */
   readonly statusTitle?: string;
@@ -261,10 +330,8 @@ export interface KeySlotProps {
  */
 export function KeySlot({
   name,
-  meta,
-  why,
-  metaTitle,
-  mark,
+  caption,
+  captionTitle,
   status,
   statusTitle,
   signed,
@@ -287,16 +354,10 @@ export function KeySlot({
       </span>
       <span className="fsr-key__text">
         <span className="fsr-key__name fs-t-label">{name}</span>
-        {(meta || why || mark) && (
-          <span className="fsr-key__meta">
-            {/* The key's id on one line, cut in the middle when long (round 4); how it was made on hover. */}
-            {meta && (
-              <span className="fsr-key__id" title={metaTitle}>
-                <IdText value={meta} max={KEY_ID_MAX} tail={6} />
-              </span>
-            )}
-            {why && <span className="fsr-key__why fs-t-caption">{why}</span>}
-            {mark && <LegendGlyph kind={mark.kind} label={mark.label} />}
+        {caption && (
+          <span className="fsr-key__why fs-t-caption" title={captionTitle} data-testid={`${testId}.caption`}>
+            {caption}
+            {captionTitle && <span className="fs-sr">{`. ${captionTitle}`}</span>}
           </span>
         )}
       </span>
@@ -311,12 +372,6 @@ export function KeySlot({
     </li>
   );
 }
-
-/** A key made in this browser for the demo, and a seeded showcase key: each a glyph, its words its name. */
-export const KEY_MARKS = {
-  demo: HONESTY.demoKey,
-  sample: { kind: "synthetic", label: APPROVE.tagSampleKey },
-} as const satisfies Record<string, HonestyMark>;
 
 export interface ConfirmBodyProps {
   readonly amount: string;
@@ -373,12 +428,10 @@ export function codeGroups(code6: string): string {
 export function CosignCard({ code, busy, onMake, onChairFrame, error }: CosignCardProps) {
   return (
     <aside className="fsr-cosign" aria-labelledby="W-TR-07-cosign" data-testid="W-TR-07.cosign">
-      <div className="fsr-cosign__head">
-        <h2 id="W-TR-07-cosign" className="fs-t-label">
-          {APPROVE.cosignTitle}
-        </h2>
-        <LegendGlyph {...KEY_MARKS.demo} />
-      </div>
+      {/* Round 5: no glyph beside the title; the demo key is said in the co-sign's own words and in its title. */}
+      <h2 id="W-TR-07-cosign" className="fs-t-label" title={APPROVE.cosignDemo}>
+        {APPROVE.cosignTitle}
+      </h2>
       {code ? (
         <div className="fsr-cosign__code" data-testid="W-TR-07.cosign.code">
           <p className="fsr-cosign__digits fs-t-amount-l">

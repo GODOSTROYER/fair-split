@@ -1,11 +1,12 @@
-/* W-TR-07 Approve (UI gate round 4, docs/DESIGN.md §3 and §9): the one 12-column grid (theme/grid.css), top-aligned
-   32 px under the title row, nothing centred in the stage's height. The moment's root spans the row and lays its
-   two cells on the same twelve columns: the batch in columns 1–7 as one composition (the seal, 180 px or 220 from a
-   1,600 px window; beside it "PayPal batch · 8 payouts" over the amount and the two named signers), then the money
-   bar and Details; the decision in columns 8–12, one neutral card that hugs its content (four checks, the one slab
-   until a key signs, the Chair's co-sign block after key 1). Below 720 px of panel the two stack. Tokens only;
-   spacing on the 4 px scale; radii from the one scale; one elevation each (a 1 px ring, no glow); one focus ring
-   (ui-web), none declared here. */
+/* W-TR-07 Approve (UI gate rounds 4 and 5, docs/DESIGN.md §3, §9 and §10): the one 12-column grid (theme/grid.css),
+   top-aligned 32 px under the title row, nothing centred in the stage's height. The moment's root spans the row and
+   lays its two cells on the same twelve columns: the batch in columns 1–7 as one composition (the seal, 180 px or 220
+   from a 1,600 px window; beside it "PayPal batch · 8 payouts" over the amount and the two named signers), then the
+   money bar, at 1,920 the eight PayPal recipients (round 5: the band under the bar holds who is paid), and Details;
+   the decision in columns 8–12, one neutral card that hugs its content (four checks, the one slab until a key signs,
+   the Chair's co-sign block after key 1). Below 720 px of panel the two stack. Tokens only; spacing on the 4 px
+   scale; radii from the one scale; one elevation each (a 1 px ring, no glow); one focus ring (ui-web), none declared
+   here. */
 
 .fsr-approve {
   min-width: 0;
@@ -158,8 +159,54 @@
   color: var(--fs-ink);
 }
 
-.fsr-signers__count {
-  color: var(--fs-ink-2);
+/* ------------------------------------------------------------------ who the batch pays (round 5) */
+
+/* The PayPal recipients under the money bar: two columns, the largest first reading down (as the Run's fan), 40 px
+   rows on 1 px rules, each an 8 px state dot, the name and the amount on one baseline. Only where the 1,920 stage has
+   the room (a 1,600 px window, 1,000 tall): on the laptops the screen ends at Details, and the dialog route lists
+   them too. */
+.fsr-payees {
+  display: none;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: repeat(var(--fsr-rows, 4), auto);
+  grid-auto-flow: column;
+  column-gap: var(--fs-space-32);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+@media (min-width: 1600px) and (min-height: 1000px) {
+  .fsr-payees {
+    display: grid;
+  }
+}
+
+.fsr-payee {
+  display: grid;
+  grid-template-columns: 8px minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: var(--fs-space-8);
+  min-height: 40px;
+  border-bottom: 1px solid var(--fs-rule);
+}
+
+.fsr-payee__name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--fs-ink);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fsr-payee__amount {
+  color: var(--fs-ink);
+  white-space: nowrap;
+}
+
+/* To send or in flight: the amount waits in neutral beside its hollow dot, as the fan's do. */
+.fsr-payee[data-state="pending"] .fsr-payee__amount {
+  color: var(--fs-pending);
 }
 
 /* Details: the fees, what both keys sign, and the engine's provenance, one click away, under the money bar. */
@@ -230,7 +277,7 @@
 
 .fsr-ledger__row {
   display: grid;
-  grid-template-columns: 96px minmax(0, 1fr);
+  grid-template-columns: 112px minmax(0, 1fr);
   align-items: baseline;
   gap: var(--fs-space-12);
 }
@@ -291,14 +338,14 @@
   list-style: none;
 }
 
+/* A check (round 5: the one vocabulary): the 16 px line ✓ (ui-web CheckMark), its word, the figure on the right. */
 .fsr-check {
   display: grid;
   grid-template-columns: 16px minmax(0, 1fr) auto;
   align-items: center;
-  gap: var(--fs-space-12);
+  gap: var(--fs-space-8);
   min-height: 36px;
   border-bottom: 1px solid var(--fs-rule);
-  /* The ✓ glyph draws in currentColor: a checked fact is ink. */
   color: var(--fs-ink);
 }
 
@@ -306,14 +353,12 @@
   border-bottom: 0;
 }
 
-/* Still open (H3 reserves its line; approval is not blocked): a person decides, a marigold dot. */
-.fsr-check__dot {
-  justify-self: center;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--fs-canary);
-  box-shadow: 0 0 0 1px var(--fs-canary-border);
+/* The mark's cell: the ✓, or the 8 px amber dot of a check still open (a person decides), centred in 16 px. */
+.fsr-check__mark {
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
 }
 
 .fsr-check__label {
@@ -346,14 +391,9 @@
   gap: var(--fs-space-8);
 }
 
-/* A person decides: a marigold dot, never a hue on the words. */
+/* A person decides: the 8 px amber state dot, never a hue on the words. */
 .fsr-approve__blocked-mark {
   align-self: center;
-  flex: none;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--fs-canary);
 }
 
 /* The one way to sign: the slab hugs its label, its caption and its one link to the other way under it. */
@@ -390,10 +430,6 @@
 }
 
 .fsr-approve__posted {
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--fs-space-8);
   color: var(--fs-ink);
 }
 
@@ -451,21 +487,8 @@
   color: var(--fs-ink);
 }
 
-.fsr-key__meta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--fs-space-4) 6px;
-  min-width: 0;
-}
-
-/* The key's id on one line (IdText: nowrap, cut in the middle), never broken mid-word. */
-.fsr-key__id {
-  min-width: 0;
-  color: var(--fs-ink-3);
-  white-space: nowrap;
-}
-
+/* The signer's one line in words ("Key on this browser", "Co-signs batches over US$300"); its rule or how the key was
+   made is its title. */
 .fsr-key__why {
   color: var(--fs-ink-2);
 }
@@ -512,15 +535,6 @@
   gap: var(--fs-space-12);
   padding-top: var(--fs-space-16);
   border-top: 1px solid var(--fs-rule);
-}
-
-/* The title and its demo-key glyph read together: the glyph sits beside the words it qualifies. */
-.fsr-cosign__head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--fs-space-8);
-  width: 100%;
 }
 
 .fsr-cosign h2,

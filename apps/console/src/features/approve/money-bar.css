@@ -1,5 +1,7 @@
-/* The money bar (unslop spec §1.9): a 12 px stacked bar, each segment as wide as its money (3 px at least), and one
-   legend row per segment. Colour only as meaning; the hatch is the one allowed pattern. Tokens only. */
+/* The money bar (unslop spec §1.9; UI gate round 5) on Approve: a 12 px stacked bar, each segment as wide as its
+   money (3 px at least), and one legend row per segment keyed by ui-web's Swatch. Colour only as meaning: the planned
+   PayPal batch is a steel dashed outline on the steel face (dashed means simulated) until the simulated PayPal
+   confirms it (jade); the hatch is the one allowed pattern, for cash. Tokens only. */
 
 .fsr-money {
   display: grid;
@@ -19,60 +21,28 @@
   flex: var(--fsr-grow, 1) 1 0;
   min-width: 3px;
   border-radius: var(--fs-radius-pill);
-  background: var(--fs-plate);
-  box-shadow: inset 0 0 0 1.5px var(--fs-ink-3);
 }
 
-.fsr-money__seg[data-tone="confirmed"],
-.fsr-money__swatch[data-tone="confirmed"] {
+/* Planned (signed or not, not yet confirmed): the batch the simulated PayPal is asked to move. */
+.fsr-money__seg[data-tone="planned"] {
+  border: 1px dashed var(--fs-steel-line);
+  background: var(--fs-steel-face);
+}
+
+.fsr-money__seg[data-tone="confirmed"] {
   background: var(--fs-jade);
   box-shadow: inset 0 0 0 1px var(--fs-jade-flush-border);
 }
 
-/* In flight (sent, not confirmed): hollow and neutral like any pending amount; it floods jade only when PayPal
-   confirms it. Never dashed (dashed means simulated) and never jade before then (round 3). */
-.fsr-money__seg[data-tone="flight"],
-.fsr-money__swatch[data-tone="flight"] {
-  background: var(--fs-plate);
-  box-shadow: inset 0 0 0 1.5px var(--fs-pending);
-}
-
-.fsr-money__seg[data-tone="held"],
-.fsr-money__swatch[data-tone="held"] {
+.fsr-money__seg[data-tone="held"] {
   background: var(--fs-canary);
   box-shadow: inset 0 0 0 1px var(--fs-canary-border);
 }
 
-/* PayPal said no: the only red. */
-.fsr-money__seg[data-tone="failed"],
-.fsr-money__swatch[data-tone="failed"] {
-  background: var(--fs-red);
-  box-shadow: none;
-}
-
-.fsr-money__seg[data-tone="cash"],
-.fsr-money__swatch[data-tone="cash"] {
+.fsr-money__seg[data-tone="cash"] {
   background:
     repeating-linear-gradient(-45deg, var(--fs-cash-route) 0 1.5px, transparent 1.5px 5px), var(--fs-plate);
   box-shadow: inset 0 0 0 1px var(--fs-rule-strong);
-}
-
-.fsr-money__seg[data-tone="kept"],
-.fsr-money__swatch[data-tone="kept"] {
-  background: var(--fs-ink-3);
-  box-shadow: none;
-}
-
-.fsr-money__head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--fs-space-8);
-}
-
-.fsr-money__title {
-  color: var(--fs-ink);
 }
 
 .fsr-money__rows {
@@ -84,20 +54,16 @@
   list-style: none;
 }
 
+/* The key, 8 px from its word (the vocabulary's rhythm). */
 .fsr-money__row {
   display: grid;
-  grid-template-columns: 10px auto auto minmax(0, 1fr) auto;
+  grid-template-columns: 8px auto auto minmax(0, 1fr) auto;
   align-items: baseline;
   column-gap: var(--fs-space-8);
 }
 
 .fsr-money__swatch {
   align-self: center;
-  width: 10px;
-  height: 10px;
-  border-radius: 3px;
-  background: var(--fs-plate);
-  box-shadow: inset 0 0 0 1.5px var(--fs-ink-3);
 }
 
 .fsr-money__name {
@@ -122,9 +88,4 @@
   color: var(--fs-ink);
   text-align: right;
   white-space: nowrap;
-}
-
-.fsr-money__foot {
-  margin: 0;
-  color: var(--fs-ink-3);
 }

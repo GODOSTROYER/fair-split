@@ -76,9 +76,12 @@ describe("the fan's geometry: eight rows and one cash band", () => {
     ]);
     // The amount beside each row says how much; the stroke is the same for all eight.
     expect(new Set(fan.threads.map((t) => t.width))).toEqual(new Set([FAN.thread]));
-    expect(fan.threads.map((t) => t.stubY)).toEqual([14, 50, 86, 122, 158, 194, 230, 266]);
-    // 36 units a row is 26 px at the 892 px stage: a 13 px name and a 14 px figure never touch.
-    expect(FAN.stub.step * (892 / FAN.width)).toBeGreaterThan(24);
+    expect(fan.threads.map((t) => t.stubY)).toEqual([16, 60, 104, 148, 192, 236, 280, 324]);
+    // 44 units a row (round 5) is 33 px at the 892 px stage: a 14 px name and a 14 px figure never touch.
+    expect(FAN.stub.step * (892 / FAN.width)).toBeGreaterThan(32);
+    // Every line ends on a round marker no wider than its row is tall, and the seal clears the picture's foot.
+    expect(FAN.dot).toBeLessThanOrEqual(FAN.stub.h);
+    expect(FAN.seal.cy + FAN.seal.size / 2).toBeLessThanOrEqual(FAN.height);
     // Every thread leaves the hub, the largest on top, a few px apart: the bundle opens as a fan.
     const starts = fan.threads.map((t) => ends(t.d).from);
     expect(starts.every(([x]) => x === FAN.bar.x1)).toBe(true);

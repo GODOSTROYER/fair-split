@@ -64,13 +64,7 @@ it("inv.i8.simulated payout copy names its rail with sentence case", () => {
   // rail once the batch posts (W-TR-05.simulated), and nothing there claims a confirmation.
   expect(SPLIT.decidedApproved).not.toMatch(/PayPal|confirm/i);
   // The run's own words never name the rail in a sentence (its one tag does); those that must, say simulated.
-  for (const text of [
-    FANOUT.feesSoFar,
-    FANOUT.denied,
-    FANOUT.replayedStatus,
-    FANOUT.replayedShare(8, 7),
-    SPLIT.declined,
-  ]) {
+  for (const text of [FANOUT.feesSoFar, FANOUT.denied, FANOUT.replayedStatus, SPLIT.declined]) {
     expect(text).toMatch(/simulated/i);
     expect(text).not.toContain(". the ");
   }

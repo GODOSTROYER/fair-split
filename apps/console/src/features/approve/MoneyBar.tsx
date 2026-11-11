@@ -1,14 +1,23 @@
-// The money bar (unslop spec §1.9) for Approve and Run: one stacked bar, each segment as wide as its money, and a
-// legend row per segment (swatch, name, count, a note, the amount). Colour is only meaning (UI gate round 3): jade
-// is only money the simulated PayPal confirmed; a hollow ink-3 outline is money not confirmed yet, to send or in
-// flight (never dashed: dashed lines mean simulated); marigold waits on a person, hatch is cash, solid ink-3 is
-// kept for members. The bar is decoration for the legend, which carries every figure in words.
+// The money bar (unslop spec §1.9) on Approve: one stacked bar, each segment as wide as its money, and a legend row per
+// segment (its key, the name, the count, a note, the amount). Colour is only meaning (UI gate rounds 3 and 5): the
+// PayPal batch is a steel dashed outline on the steel face while it is planned (dashed means simulated: the batch the
+// simulated PayPal is asked to move), and turns jade only once that PayPal confirmed it; marigold waits on a person;
+// hatch is cash. The legend's key is the vocabulary's one square, ui-web's Swatch. The bar is decoration for the
+// legend, which carries every figure in words. (Round 5: Run no longer draws a bar; its fan carries every amount.)
 
-import { MoneyFigure } from "@fairsplit/ui-web";
-import type { CSSProperties, ReactNode } from "react";
+import { MoneyFigure, Swatch, type SwatchKind } from "@fairsplit/ui-web";
+import type { CSSProperties } from "react";
 import "./money-bar.css";
 
-export type MoneyTone = "planned" | "flight" | "confirmed" | "held" | "failed" | "cash" | "kept";
+export type MoneyTone = "planned" | "confirmed" | "held" | "cash";
+
+/** Each tone's legend key. */
+const SWATCH: Readonly<Record<MoneyTone, SwatchKind>> = {
+  planned: "planned",
+  confirmed: "paid",
+  held: "held",
+  cash: "cash",
+};
 
 export interface MoneySegment {
   readonly key: string;
@@ -25,28 +34,16 @@ export interface MoneySegment {
 
 export interface MoneyBarProps {
   readonly segments: readonly MoneySegment[];
-  /** A short visible title for the head row ("By value"). */
-  readonly title?: string;
-  /** The honesty tag for the PayPal values this bar holds, at the right of the head row. */
-  readonly tag?: ReactNode;
-  /** A line under the legend (a labelled replay says where its statuses came from). */
-  readonly footnote?: ReactNode;
   readonly label: string;
   readonly testId?: string;
   readonly className?: string;
 }
 
-export function MoneyBar({ segments, title, tag, footnote, label, testId, className }: MoneyBarProps) {
+export function MoneyBar({ segments, label, testId, className }: MoneyBarProps) {
   const shown = segments.filter((s) => s.cents > 0 || s.count);
   return (
     <figure className={["fsr-money", className].filter(Boolean).join(" ")} data-testid={testId}>
       <figcaption className="fs-sr">{label}</figcaption>
-      {(title || tag) && (
-        <div className="fsr-money__head" aria-hidden={title && !tag ? true : undefined}>
-          {title && <span className="fsr-money__title fs-t-label">{title}</span>}
-          {tag}
-        </div>
-      )}
       <div className="fsr-money__bar" aria-hidden>
         {shown
           .filter((s) => s.cents > 0)
@@ -62,7 +59,7 @@ export function MoneyBar({ segments, title, tag, footnote, label, testId, classN
       <ul className="fsr-money__rows">
         {shown.map((s) => (
           <li key={s.key} className="fsr-money__row" data-tone={s.tone}>
-            <span className="fsr-money__swatch" data-tone={s.tone} aria-hidden />
+            <Swatch kind={SWATCH[s.tone]} className="fsr-money__swatch" />
             <span className="fsr-money__name fs-t-label">{s.label}</span>
             {s.count !== undefined && <span className="fsr-money__count fs-t-caption">{s.count}</span>}
             {s.note && <span className="fsr-money__note fs-t-caption">{s.note}</span>}
@@ -70,7 +67,6 @@ export function MoneyBar({ segments, title, tag, footnote, label, testId, classN
           </li>
         ))}
       </ul>
-      {footnote && <p className="fsr-money__foot fs-t-caption">{footnote}</p>}
     </figure>
   );
 }
