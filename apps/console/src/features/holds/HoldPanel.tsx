@@ -158,7 +158,11 @@ export function HoldPanel({
               {hold.state === "excluded"
                 ? en("hold.state.EXCLUDED")
                 : resolution
-                  ? en("hold.state.RESOLVED", { initials: resolution.initials, time: resolution.at })
+                  ? // Round 6: a stamp reads by name, as every other one does ("Resolved by Analyn · 18:58").
+                    HOLDS.resolvedBy(
+                      resolution.name.split(" ")[0] ?? resolution.initials,
+                      resolution.at.slice(0, 5),
+                    )
                   : en("hold.state.RESOLVED_UNSTAMPED")}
             </span>
           </p>

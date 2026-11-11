@@ -138,7 +138,9 @@ export const VERIFY_COPY = {
   stale: "The record moved on. Check again.",
   checking: "Checking the chain and six plates.",
   /** The explicit result under the hero count (UI gate round 3): seen and heard the same way. */
-  result: (n: number, of: number) => `${n} of ${of} integrity checks match`,
+  /** Round 6: "6 integrity checks passed": a check result, never a payment's (the money card says what was paid). */
+  result: (n: number, of: number) =>
+    n === of ? `${of} integrity checks passed` : `${n} of ${of} integrity checks passed`,
   checkedAt: (time: string) => `Checked in this browser at ${time}, Davao time.`,
   /** The words under the hero count before a result. */
   count: {
@@ -212,14 +214,25 @@ export const STATE_COPY = {
   liveSettled: (p: ProgressFacts, rail: PaypalRail) =>
     `${p.confirmed} of ${p.total} PayPal payouts confirmed ${railWhere(rail)}.${parkedWords(p)}`,
   /** The same line as the money card shows it: counts only, the card's tag names the rail. */
-  liveShort: (p: ProgressFacts, settled: boolean) =>
-    [
-      `${settled ? "" : "Waiting · "}${p.confirmed} of ${p.total} PayPal payouts confirmed`,
-      p.returned > 0 ? `${p.returned} moved to cash` : null,
-      p.parked > 0 ? `${p.parked} parked` : null,
-    ]
-      .filter(Boolean)
-      .join(" · "),
+  liveShort: (p: ProgressFacts, settled: boolean, cashDue = 0) =>
+    // Round 6: once PayPal has finished, what was paid and what is still owed, side by side: "7 confirmed on PayPal ·
+    // 57 cash due" (E-19: never "PayPal confirmed" bare; the card's tag and the bar name the simulated rail).
+    // Verification (the six checks) is never the payment's completion.
+    settled && cashDue > 0
+      ? [
+          `${p.confirmed} confirmed on PayPal`,
+          `${cashDue} cash due`,
+          p.parked > 0 ? `${p.parked} parked` : null,
+        ]
+          .filter(Boolean)
+          .join(" · ")
+      : [
+          `${settled ? "" : "Waiting · "}${p.confirmed} of ${p.total} PayPal payouts confirmed`,
+          p.returned > 0 ? `${p.returned} moved to cash` : null,
+          p.parked > 0 ? `${p.parked} parked` : null,
+        ]
+          .filter(Boolean)
+          .join(" · "),
   withheldTitle: "Proof withheld",
   withheldFigures: "The figures stay withheld until the record matches again.",
   loadFailed: "Proof didn't load.",

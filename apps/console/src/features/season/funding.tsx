@@ -608,10 +608,11 @@ export function FundingBlock({
         )}
       </header>
       {desked && balanced ? (
-        // The desk's pool (round 5): its own amount first, where the arc from the invoice lands, then the sum in
-        // words under it, "Invoice US$4,333.50 − costs US$60.00". Until the simulated PayPal funds it the pool is
-        // pending grey; then ink, with the one micro-tag. Then what the members share it as: the premium (never
-        // deducted) and the quality bonus.
+        // The desk's pool (rounds 5 and 6): its own amount first, a hero on the invoice's step, where the arc from the
+        // invoice lands; under it its one micro-tag (once the simulated PayPal funds it) and the sum in words,
+        // "Invoice US$4,333.50 − costs US$60.00". Until it is funded the pool is pending grey; then ink. Then what
+        // the members share it as, drawn once: a two-part bar (the premium, never deducted, and the quality bonus)
+        // with each part's amount under it.
         <>
           <p
             className="fsc-fund__eq"
@@ -629,45 +630,53 @@ export function FundingBlock({
                 cents={pool.poolCents}
                 solid={values.poolSolid}
                 landed={landed}
-                typeRole="amount-l"
+                typeRole={totalRole}
                 anchor={to}
                 testId={`${screen}.pool.amount`}
               />
-              {landed && compact && <RailMicroTag rail={rail} testId={`${screen}.pool.tag`} />}
             </span>
-            <span className="fsc-fund__eq-terms" aria-hidden>
-              <span className="fsc-fund__eq-term">
-                <span className="fsc-fund__eq-word">{FIRST_VIEW_COPY.eqInvoice}</span>
-                <InlineAmount cents={invoice.amountCents} landed={landed} />
-              </span>
-              <span className="fsc-fund__eq-op">−</span>
-              <span className="fsc-fund__eq-term">
-                <span className="fsc-fund__eq-word">{FIRST_VIEW_COPY.eqCosts}</span>
-                <InlineAmount
-                  cents={pool.disbursementCents}
-                  landed={landed}
-                  testId={`${screen}.pool.disbursement`}
-                />
+            <span className="fsc-fund__under">
+              {landed && compact && <RailMicroTag rail={rail} testId={`${screen}.pool.tag`} />}
+              <span className="fsc-fund__eq-terms" aria-hidden>
+                <span className="fsc-fund__eq-term">
+                  <span className="fsc-fund__eq-word">{FIRST_VIEW_COPY.eqInvoice}</span>
+                  <InlineAmount cents={invoice.amountCents} landed={landed} />
+                </span>
+                <span className="fsc-fund__eq-op">−</span>
+                <span className="fsc-fund__eq-term">
+                  <span className="fsc-fund__eq-word">{FIRST_VIEW_COPY.eqCosts}</span>
+                  <InlineAmount
+                    cents={pool.disbursementCents}
+                    landed={landed}
+                    testId={`${screen}.pool.disbursement`}
+                  />
+                </span>
               </span>
             </span>
           </p>
-          <dl className="fsc-fund__split">
-            <div className="fsc-fund__part">
-              <dt>
-                {SEASON_COPY.premium}
-                <Glyph name="ms:lock" size={12} label={SEASON_COPY.premiumNever} />
-              </dt>
-              <dd>
-                <InlineAmount cents={pool.premiumCents} landed={landed} testId={`${screen}.pool.premium`} />
-              </dd>
+          <div className="fsc-fund__share-of" data-state={landed ? "landed" : "pending"}>
+            <div className="fsc-fund__bar" aria-hidden>
+              <span data-part="premium" style={{ flexGrow: pool.premiumCents }} />
+              <span data-part="bonus" style={{ flexGrow: pool.bonusCents }} />
             </div>
-            <div className="fsc-fund__part">
-              <dt>{SEASON_COPY.bonus}</dt>
-              <dd>
-                <InlineAmount cents={pool.bonusCents} landed={landed} testId={`${screen}.pool.bonus`} />
-              </dd>
-            </div>
-          </dl>
+            <dl className="fsc-fund__split">
+              <div className="fsc-fund__seg" data-part="premium" style={{ flexGrow: pool.premiumCents }}>
+                <dt>
+                  {SEASON_COPY.premium}
+                  <Glyph name="ms:lock" size={12} label={SEASON_COPY.premiumNever} />
+                </dt>
+                <dd>
+                  <InlineAmount cents={pool.premiumCents} landed={landed} testId={`${screen}.pool.premium`} />
+                </dd>
+              </div>
+              <div className="fsc-fund__seg" data-part="bonus" style={{ flexGrow: pool.bonusCents }}>
+                <dt>{SEASON_COPY.bonus}</dt>
+                <dd>
+                  <InlineAmount cents={pool.bonusCents} landed={landed} testId={`${screen}.pool.bonus`} />
+                </dd>
+              </div>
+            </dl>
+          </div>
         </>
       ) : desked ? (
         // The desk's strip: the pool's total and its three parts on one line, so the paper sits high.

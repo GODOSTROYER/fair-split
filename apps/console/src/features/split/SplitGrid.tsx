@@ -76,7 +76,7 @@ export const SLIM_COLUMNS: readonly GridColumn[] = ["member", "net", "rail", "st
 export const SLIM_BELOW_PX = 760;
 
 /** The grid's column set: every column, the default ten, five in a narrow container, four beside a drawer. */
-export type ColumnSet = "all" | "default" | "narrow" | "slim";
+export type ColumnSet = "all" | "default" | "compact" | "narrow" | "slim";
 
 /**
  * A set that hides the line's parts (premium, bonus, deductions) opens them under a line instead (round 3). Beside
@@ -117,11 +117,18 @@ export interface SplitGridProps {
  * 3): a container that holds it keeps every part in its columns (the 1,470 px laptop), and only a narrower one opens
  * a line's parts under it (the 1,280 px laptop).
  */
-export function columnSetFor(width: number, showAll: boolean, defaultFits?: number): ColumnSet {
+export function columnSetFor(
+  width: number,
+  showAll: boolean,
+  defaultFits?: number,
+  compactFits?: number,
+): ColumnSet {
   if (showAll) return "all";
   if (width > 0 && width < SLIM_BELOW_PX) return "slim";
   if (width > 0 && width < NARROW_GRID_PX && !(defaultFits !== undefined && width >= defaultFits))
-    return "narrow";
+    // Round 6: the 1,280 px laptop keeps the line's evidence in its columns (premium, bonus, deductions) at their
+    // compact widths; only a container too narrow even for those opens a line's parts under it.
+    return compactFits !== undefined && width >= compactFits ? "compact" : "narrow";
   return "default";
 }
 
@@ -177,7 +184,7 @@ const rowId = (p: { readonly data: GridRow }) => p.data.memberNo;
  * Slips is as wide as its badge needs: "0457 ×2" fits the count's column, "0457 counted once" (round 4) takes 48 px
  * more, and only once a line shows it, so the default set still fits the 1,470 px laptop before then.
  */
-export const SLIPS_PX = { count: 112, countedOnce: 160 } as const;
+export const SLIPS_PX = { count: 112, countedOnce: 176 } as const;
 
 /**
  * Deductions holds its chips ("CBU −1.37", a second chip at most) and never grows past 180 px (round 5): the width
@@ -189,7 +196,17 @@ export const DEDUCTIONS_PX = { min: 128, max: 180 } as const;
 /** Member is pinned (it stays put as a narrow grid scrolls sideways): a name's width, the same in every set. */
 export const MEMBER_PX = 184;
 
-function columnDefs(premiumRate: string, slipsWide: boolean): Record<GridColumn, ColDef<GridRow>> {
+/** The compact set's floors (round 6): the 1,280 px laptop's 910 px holds the money's evidence in eight columns. */
+export const COMPACT_PX = { member: 168, kg: 96, deductions: 112, status: 128 } as const;
+
+/** Net never grows past this (round 6), so no wide gap opens between Deductions and Net at 1,920. */
+export const NET_MAX_PX = 136;
+
+function columnDefs(
+  premiumRate: string,
+  slipsWide: boolean,
+  compact = false,
+): Record<GridColumn, ColDef<GridRow>> {
   // A number column (rounds 4 and 5): right-aligned tabular figures, its floor its old fixed width, and a share of
   // the room left over, so the figures sit evenly across the row.
   const num = { type: "rightAligned", cellClass: "fsr-ag-num", flex: 1 } as const;
@@ -210,7 +227,7 @@ function columnDefs(premiumRate: string, slipsWide: boolean): Record<GridColumn,
       colId: "member",
       headerName: en("W-TR-05.col.member"),
       cellRenderer: MemberCell,
-      width: MEMBER_PX,
+      width: compact ? COMPACT_PX.member : MEMBER_PX,
       pinned: "left",
       lockPinned: true,
     },
@@ -221,7 +238,13 @@ function columnDefs(premiumRate: string, slipsWide: boolean): Record<GridColumn,
       cellRenderer: SlipsCell,
       width: slipsWide ? SLIPS_PX.countedOnce : SLIPS_PX.count,
     },
-    kg: { ...num, colId: "kg", headerName: en("W-TR-05.col.kg"), cellRenderer: KgCell, minWidth: 112 },
+    kg: {
+      ...num,
+      colId: "kg",
+      headerName: en("W-TR-05.col.kg"),
+      cellRenderer: KgCell,
+      minWidth: compact ? COMPACT_PX.kg : 112,
+    },
     confidence: {
       colId: "confidence",
       headerName: en("W-TR-05.col.confidence"),
@@ -253,7 +276,7 @@ function columnDefs(premiumRate: string, slipsWide: boolean): Record<GridColumn,
       headerName: SPLIT.deductionsColumn,
       cellRenderer: KaltasCell,
       flex: 1,
-      minWidth: DEDUCTIONS_PX.min,
+      minWidth: compact ? COMPACT_PX.deductions : DEDUCTIONS_PX.min,
       maxWidth: DEDUCTIONS_PX.max,
     },
     credit: {
@@ -265,13 +288,20 @@ function columnDefs(premiumRate: string, slipsWide: boolean): Record<GridColumn,
       minWidth: 120,
     },
     // The money column says its currency (round 3); the footer beneath it is the members' net total.
-    net: { ...num, colId: "net", headerName: SPLIT.netColumn, cellRenderer: NetCell, minWidth: 104 },
+    net: {
+      ...num,
+      colId: "net",
+      headerName: SPLIT.netColumn,
+      cellRenderer: NetCell,
+      minWidth: 104,
+      maxWidth: NET_MAX_PX,
+    },
     rail: { colId: "rail", headerName: en("W-TR-05.col.rail"), cellRenderer: RailCell, width: 84 },
     status: {
       colId: "status",
       headerName: en("W-TR-05.col.status"),
       cellRenderer: StatusCell,
-      minWidth: 152,
+      minWidth: compact ? COMPACT_PX.status : 152,
       flex: 1.3,
     },
   };
@@ -294,9 +324,23 @@ const ALL: readonly GridColumn[] = [
 /** Minimum confidence waits behind "All columns": 60 of 64 lines were read earlier and show none. */
 const DEFAULT: readonly GridColumn[] = ALL.filter((c) => c !== "confidence");
 
+/** The 1,280 px laptop (round 6): every part of the money in its column; the slip count and its badge step aside. */
+export const COMPACT_COLUMNS: readonly GridColumn[] = [
+  "member",
+  "kg",
+  "premium",
+  "bonus",
+  "kaltas",
+  "credit",
+  "net",
+  "rail",
+  "status",
+];
+
 const SETS: Readonly<Record<ColumnSet, readonly GridColumn[]>> = {
   all: ALL,
   default: DEFAULT,
+  compact: COMPACT_COLUMNS,
   narrow: NARROW_COLUMNS,
   slim: SLIM_COLUMNS,
 };
@@ -343,14 +387,19 @@ export function SplitGrid({
     () => minWidthOf(DEFAULT.filter((c) => !hidden.has(c)).map((c) => defs[c])),
     [defs, hidden],
   );
-  const set: ColumnSet = columns ?? columnSetFor(width, showAll, defaultFits);
+  const compactDefs = useMemo(() => columnDefs(context.premiumRate, false, true), [context.premiumRate]);
+  const compactFits = useMemo(
+    () => minWidthOf(COMPACT_COLUMNS.filter((c) => !hidden.has(c)).map((c) => compactDefs[c])),
+    [compactDefs, hidden],
+  );
+  const set: ColumnSet = columns ?? columnSetFor(width, showAll, defaultFits, compactFits);
   const parts = opensParts(set);
   const colDefs = useMemo(
     () =>
       [...(parts ? (["expand"] as const) : []), ...SETS[set]]
         .filter((c) => !hidden.has(c))
-        .map((c) => defs[c]),
-    [defs, set, parts, hidden],
+        .map((c) => (set === "compact" ? compactDefs[c] : defs[c])),
+    [defs, compactDefs, set, parts, hidden],
   );
   // A narrow grid opens a line's hidden parts under it (round 3). Lines opened stay open across filters; a wider
   // grid shows every part in its columns, so nothing opens there.

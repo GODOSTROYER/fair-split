@@ -31,7 +31,7 @@ import { env } from "../../lib/env.js";
 import { useFocusAfterRemoval } from "../../lib/focus.js";
 import { format } from "../../lib/format.js";
 import { useProofChecks } from "../../lib/proof-checks.js";
-import { prefocusQuietly, useNextStep, usePrefocus } from "../../stage/context.js";
+import { prefocusQuietly, usePrefocus } from "../../stage/context.js";
 import { sealedText } from "../ratecard/model.js";
 import { ExhibitLink } from "../reading/ExhibitLink.js";
 import { photoIsRead, replayPhotos } from "../reading/model.js";
@@ -85,7 +85,6 @@ function Desk() {
   const markPaid = useCommand("markPaid");
   const moment = useFundingMoment(inSession ? runSlug : null, view);
   const proof = useProofChecks(inSession ? (view?.runSlug ?? runSlug) : null);
-  const next = useNextStep();
   const slabArea = useRef<HTMLDivElement>(null);
   // The slab is remounted (at rest) after a failure, so the judge can press again.
   const [attempt, setAttempt] = useState(0);
@@ -134,12 +133,12 @@ function Desk() {
     if (!movedOn) return;
     const active = document.activeElement;
     if (active instanceof HTMLElement && active.closest('[data-testid="W-JG-01.markPaid"]')) {
-      const continueLink = actionEl?.querySelector<HTMLElement>('[data-testid="W-JG-01.continue"]');
-      if (!continueLink) return;
-      // One ring, on keyboard focus only (round 3): a press made with a key hands its ring on; a click, or the
-      // quiet pre-focus, hands the focus on without one until a key is pressed.
-      if (wasKeyed(active)) continueLink.focus({ preventScroll: true });
-      else prefocusQuietly(continueLink);
+      // Round 6: the step that is left is the top bar's pill (the card keeps no second link). The spent press hands
+      // its focus there: with its ring after a key, quietly after a click or the pre-focus (round 3: one ring).
+      const pill = document.querySelector<HTMLElement>('[data-testid="W-JG-01.runPill.next"]');
+      if (!pill) return;
+      if (wasKeyed(active)) pill.focus({ preventScroll: true });
+      else prefocusQuietly(pill);
     }
   }, [movedOn, actionEl]);
 
@@ -155,9 +154,15 @@ function Desk() {
       event.type === "invoice.state" &&
       (event.payload.to === "PAID" || event.payload.to === "MARKED_AS_PAID"),
   )?.at;
-  const recordText = `Marked paid by ${treasurer?.shortName.split(" ")[0] ?? "Analyn"}${paidAt ? `, ${format.time(paidAt).slice(0, 5)}` : ""}`;
+  // Round 6 (film U1): the record says whose money it is. Lantern Bay pays; the treasurer's part is recording that
+  // payment (on the simulated PayPal sandbox: the amount above carries the tag), so it never reads "paid by Analyn".
+  const recordText = FIRST_VIEW_COPY.recorded(
+    snapshot.lot.buyer,
+    treasurer?.shortName.split(" ")[0] ?? "the treasurer",
+    paidAt ? format.time(paidAt).slice(0, 5) : null,
+  );
   const record = (
-    <span>
+    <span className="fsc-first__record">
       {treasurer && (
         <Stamp
           stamp={{
@@ -166,8 +171,8 @@ function Desk() {
             at: paidAt ? format.time(paidAt) : "",
           }}
         />
-      )}{" "}
-      {recordText}
+      )}
+      <span>{recordText}</span>
     </span>
   );
   const photos = replayPhotos(snapshot);
@@ -290,14 +295,7 @@ function Desk() {
     : markPaid.queuedMs === null
       ? statusLine[phase]
       : `You're next, about ${Math.ceil(markPaid.queuedMs / 1000)} s`;
-  // Settled with cash due, the link names the step left ("Review cash handover"); otherwise "Next step".
-  const nextWords = next?.stateWord ? next.text : FIRST_VIEW_COPY.openNext;
-  const continueLink =
-    (phase === "funded" || settled) && next && next.id !== "mark-paid" ? (
-      <AppLink href={next.to} className="fs-link" data-testid="W-JG-01.continue">
-        {nextWords}
-      </AppLink>
-    ) : null;
+  // Round 6: no link under the record. The top bar's pill is the one route forward ("Next: …"), said once.
   const action = (
     <div
       className="fsc-first__action"
@@ -312,13 +310,7 @@ function Desk() {
           <Glyph name="rail" size={16} />
           <span>{status}</span>
         </p>
-      ) : continueLink ? (
-        // Funded or settled (round 5): the title row's chip says where the run is (and "Funded" is announced
-        // there); under the record, only the step that is left.
-        <p className="fsc-first__status fs-t-label" data-testid="W-JG-01.next">
-          {continueLink}
-        </p>
-      ) : movedOn ? (
+      ) : movedOn && !funded && !settled ? (
         <p className="fsc-first__note fs-t-caption">{FIRST_VIEW_COPY.movedOn}</p>
       ) : null}
       <CommandNotice
@@ -417,8 +409,15 @@ function Desk() {
         fundedMark={false}
       />
 
-      {/* The slips (round 5): one 12-up strip of small prints, their counts' scope and Claude's real readings beside
-          them; each print opens in the reading room. */}
+      {/* Round 6: the pipeline is the second row, right under the two cards. */}
+      <StoryTiles
+        snapshot={snapshot}
+        view={inSession ? view : undefined}
+        progress={{ proofChecked: proof.checked && proof.matched === proof.total }}
+      />
+
+      {/* The slips (rounds 5 and 6): one 12-up strip ending the screen, its head over it ("Slips", the counts'
+          scope, the recorded exhibit's link); each print opens in the reading room. */}
       <section className="fsc-first__desk" aria-labelledby="fsc-first-desk" data-testid="W-JG-01.desk">
         <header className="fsc-first__desk-head" title={FIRST_VIEW_COPY.deskNote(photos.length, funded)}>
           <h2 id="fsc-first-desk" className="fsc-first__desk-title fs-t-label">
@@ -438,12 +437,6 @@ function Desk() {
           columns={12}
         />
       </section>
-
-      <StoryTiles
-        snapshot={snapshot}
-        view={inSession ? view : undefined}
-        progress={{ proofChecked: proof.checked && proof.matched === proof.total }}
-      />
     </ScreenRoot>
   );
 }

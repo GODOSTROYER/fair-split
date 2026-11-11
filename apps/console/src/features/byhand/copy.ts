@@ -2,6 +2,8 @@
 // slip's text, the logbook's, or kilos arithmetic on them; nothing here is money.
 
 export const BY_HAND_COPY = {
+  /** The committed sum's label (round 6): what the line of kilos is. */
+  sumLabel: "Gross − tare = net",
   title: (serial: string) => `Slip ${serial}`,
   /** The header's grey context: what this screen does. */
   titleContext: "by hand",

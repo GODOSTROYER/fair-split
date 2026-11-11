@@ -1,6 +1,6 @@
 // Proof's hero, UI gate rounds 2 and 3: the verdict leads by the seal as the page's one hero count in FS Sans
 // ("0/6" until this browser has checked, then "6/6"; tabular figures, no dot-matrix), the explicit result under it
-// ("6 of 6 integrity checks match", seen and heard alike), the sample keys right under it on the body step with no
+// ("6 integrity checks passed", seen and heard alike), the sample keys right under it on the body step with no
 // check mark ("Sample keys · not PayPal-verified"; round 4: a line, not a chip), the ids and the keys document
 // behind "IDs", and the six checks read in a few words each.
 
@@ -71,15 +71,15 @@ describe("the verdict card", () => {
     expect(within(verdict).getByRole("button", { name: /Verify in your browser/ })).toBeTruthy();
   });
 
-  it("after a check: 6 of 6 integrity checks match, the sample keys beside it, the time in Philippine time", () => {
+  it("after a check: 6 integrity checks passed, the sample keys beside it, the time in Philippine time", () => {
     render(<VerifyPanel verification={done} />);
     const verdict = screen.getByTestId("W-PF-01.verdict");
     expect(count().textContent).toBe("6/6");
     expect(count().getAttribute("data-tone")).toBe("ink");
     // The explicit result, in view and in the live region, the same words.
-    expect(screen.getByTestId("W-PF-01.verdict.result").textContent).toBe("6 of 6 integrity checks match");
+    expect(screen.getByTestId("W-PF-01.verdict.result").textContent).toBe("6 integrity checks passed");
     const status = within(verdict).getByRole("status");
-    expect(status.textContent).toContain("6 of 6 integrity checks match");
+    expect(status.textContent).toContain("6 integrity checks passed");
     expect(status.textContent).toMatch(/Checked in this browser at \d\d:\d\d:\d\d, Davao time\./);
     // The sample keys: one line right under the result (round 4: the body step, not a chip), a key and the words,
     // with the verdict word inside it and no check mark.
@@ -146,7 +146,7 @@ describe("the verdict card", () => {
     expect(screen.getByTestId("W-PF-01.verdict.word").textContent).toBe(
       "five of six match; one replayed, labelled",
     );
-    expect(screen.getByTestId("W-PF-01.verdict.result").textContent).toBe("5 of 6 integrity checks match");
+    expect(screen.getByTestId("W-PF-01.verdict.result").textContent).toBe("5 of 6 integrity checks passed");
     expect(screen.getByTestId("W-PF-01.verdict.sample").textContent).toContain(
       "Sample keys · not PayPal-verified",
     );

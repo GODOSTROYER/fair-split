@@ -39,8 +39,8 @@
   width: min(440px, calc(100vw - var(--fsc-stage-gutter) * 2));
 }
 
-/* Round 5: a sheet that hugs its content (What's real) ends at its last row, never past the stage's foot, where it
-   scrolls; no empty band under its content. */
+/* A sheet that hugs its content ends at its last row, never past the stage's foot, where it scrolls. (What's real is
+   a full-height side sheet since round 6.) */
 .fsc-sheet--hug {
   bottom: auto;
   max-height: calc(100dvh - var(--fsc-stage-top) - var(--fsc-stage-gutter));
@@ -213,10 +213,11 @@
 
 /* ---------------------------------------------------------------- What's real: five rows (UI gate round 2) */
 
-/* Each row is one disclosure (round 4): its mark and name on the left, its one sentence beside them, a chevron at
-   the end; the details open under the sentence. Round 5: the only mark is the simulated PayPal sandbox's dashed
-   steel ring (the one the screens carry beside PayPal money); every other row keeps an empty slot, so the names
-   align. No hatch (it means cash), no squares. */
+/* Each row is one disclosure (rounds 4 and 6): a 16 px slot, its name over its one short line, a chevron at the end;
+   the details open under the line. The slot is the same on every row, so the names start on one edge; only the
+   simulated PayPal sandbox's holds a mark, the dashed steel ring the screens carry beside PayPal money. The three lead
+   rows (real code, simulated, replayed) set their name on the heading step; Synthetic and Not built are quieter. No
+   hatch (it means cash), no squares. */
 .fsc-truth {
   display: grid;
   margin: 0;
@@ -230,12 +231,16 @@
 
 .fsc-truth__summary {
   display: grid;
-  grid-template-columns: 184px minmax(0, 1fr) 16px;
-  align-items: start;
-  gap: 4px 16px;
-  padding: 16px 20px 16px 28px;
+  grid-template-columns: 16px minmax(0, 1fr) 16px;
+  align-items: center;
+  gap: 2px 12px;
+  padding: 12px 20px 12px 28px;
   cursor: pointer;
   list-style: none;
+}
+
+.fsc-truth__row[data-lead] > .fsc-truth__more > .fsc-truth__summary {
+  padding-block: 16px;
 }
 
 .fsc-truth__summary::-webkit-details-marker {
@@ -251,26 +256,32 @@
   outline-offset: -2px;
 }
 
-.fsc-truth__term {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-height: 24px;
-  color: var(--fs-ink);
-}
-
 .fsc-truth__mark {
-  flex: none;
-  width: 10px;
-  height: 10px;
+  grid-row: 1;
+  grid-column: 1;
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 24px;
 }
 
-.fsc-truth__line {
+.fsc-truth__term {
+  grid-row: 1;
+  grid-column: 2;
   min-width: 0;
   color: var(--fs-ink);
 }
 
+.fsc-truth__line {
+  grid-row: 2;
+  grid-column: 2;
+  min-width: 0;
+  color: var(--fs-ink-2);
+}
+
 .fsc-truth__chev {
+  grid-row: 1 / span 2;
+  grid-column: 3;
   display: inline-flex;
   align-self: center;
   color: var(--fs-ink-3);
@@ -281,33 +292,23 @@
   transform: rotate(180deg);
 }
 
-/* The details, under the sentence (aligned to it), in secondary ink. */
+/* The details, under the line (aligned to it), in secondary ink. */
 .fsc-truth__items {
   display: grid;
   gap: 8px;
   margin: 0;
-  padding: 0 52px 16px 228px;
+  padding: 0 52px 16px 56px;
   list-style: none;
   color: var(--fs-ink-2);
 }
 
 @media (max-width: 639px) {
   .fsc-truth__summary {
-    grid-template-columns: minmax(0, 1fr) 16px;
-    padding: 14px 16px 14px 20px;
-  }
-
-  .fsc-truth__line {
-    grid-column: 1;
-  }
-
-  .fsc-truth__chev {
-    grid-row: 1;
-    grid-column: 2;
+    padding-inline: 20px 16px;
   }
 
   .fsc-truth__items {
-    padding: 0 20px 14px;
+    padding: 0 20px 14px 48px;
   }
 }
 
@@ -568,5 +569,5 @@
 
 .fsc-datatable [data-numeric] {
   text-align: right;
-  font-stretch: 87.5%;
+  font-stretch: 100%;
 }

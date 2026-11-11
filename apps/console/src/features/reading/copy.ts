@@ -2,6 +2,8 @@
 // the slip's own text or a score the reading reported; nothing here is a number of its own.
 
 export const READING_COPY = {
+  /** The room's one primary while a slip waits for a person (round 6). */
+  enterByHand: (serial: string) => `Enter slip ${serial} by hand`,
   title: "Reading room",
   filmstrip: "Photos in the seed stand-in",
   progress: (read: number, total: number, needs = 0) =>

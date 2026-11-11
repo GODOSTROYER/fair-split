@@ -257,7 +257,9 @@ export function ProofView({ page, verification, rail, names = null, level = "h1"
                 payoutReplaySummary(page.progress.confirmed, page.progress.total)
               ) : (
                 <>
-                  <span aria-hidden>{STATE_COPY.liveShort(page.progress, settled)}</span>
+                  <span aria-hidden>
+                    {STATE_COPY.liveShort(page.progress, settled, figures.tiers.due.cash.members)}
+                  </span>
                   <span className="fs-sr">
                     {settled
                       ? STATE_COPY.liveSettled(page.progress, rail)

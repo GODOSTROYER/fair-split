@@ -23,7 +23,7 @@ const ATTEMPTS: readonly { kind: TamperKind; label: string }[] = [
   { kind: "amount", label: "Overcharge the invoice draft" },
   { kind: "offsetting", label: "Offset shipping with a discount" },
   { kind: "recipient", label: "Add an invoice recipient" },
-  { kind: "change_payout", label: "Arm a payout change before key 2" },
+  { kind: "change_payout", label: "Change a payout after signing" },
 ];
 
 /** The policy's verdict in the console's words: only a DENY reads "Refused". */
@@ -106,7 +106,15 @@ export function TamperControls() {
         {ATTEMPTS.map(({ kind, label }) => {
           const open = result?.kind === kind ? result : null;
           const state = pending === kind ? "pending" : open ? (open.armed ? "armed" : "refused") : "idle";
-          const word = open ? null : tried.has(kind) ? TRY_TO_BREAK.refused : null;
+          // Round 6: a Try that cannot be pressed says why, in place ("Only before the Chair signs").
+          const tooLate = kind === "change_payout" && secondKey && !open;
+          const word = open
+            ? null
+            : tooLate
+              ? TRY_TO_BREAK.tooLate
+              : tried.has(kind)
+                ? TRY_TO_BREAK.refused
+                : null;
           const blocked = open ? blockedFigure(open) : null;
           return (
             <li key={kind} className="fsc-tamper" data-kind={kind} data-state={state}>

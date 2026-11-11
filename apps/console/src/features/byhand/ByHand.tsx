@@ -28,6 +28,7 @@ import { ScreenRoot } from "../../chrome/ScreenRoot.js";
 import { Stamp } from "../../chrome/Stamp.js";
 import { useAdapter, useCommand, useJudgeSession, useRunEvents, useStageRun } from "../../data/hooks.js";
 import { holdCards } from "../../data/run-view.js";
+import { runLabel } from "../../lib/display.js";
 import { focusAndReveal, useFocusAfterRemoval } from "../../lib/focus.js";
 import { format } from "../../lib/format.js";
 import { useMoment } from "../../lib/moment.js";
@@ -371,6 +372,7 @@ function ByHandField({
             </Chip>
           )
         }
+        {...(inSession && runSlug ? { meta: runLabel(runSlug).text } : {})}
         provenance={PROVENANCE.standIn}
         className="fsc-hand__head"
       />
@@ -394,8 +396,9 @@ function ByHandField({
             {committed ? (
               // Focusable from script only: the field's focus lands here when the value prints in ink.
               <div ref={ink} className="fsc-hand__committed" tabIndex={-1} data-testid="W-TR-04.committed">
+                {/* Round 6: the sum's label says what the line is, "Gross − tare = net". */}
                 <p id={`${inputId}-label`} className="fs-t-label fsc-hand__muted">
-                  {BY_HAND_COPY.inputLabel(serial)}
+                  {BY_HAND_COPY.sumLabel}
                 </p>
                 {/* The result as one line of kilos in the money face (round 3): her entry in ink, the slip's tare,
                   the net it makes. Every figure is the slip's text or the server's derived net. */}

@@ -262,18 +262,30 @@ describe("W-TR-07 approve", () => {
       // Both on the one 12-column grid: the batch in columns 1–7, the decision in 8–12, under the title row.
       expect(screen.getByTestId("W-TR-07").classList.contains("fsc-screen")).toBe(true);
       expect(screen.getByTestId("W-TR-07.seal").closest("[data-span]")?.getAttribute("data-span")).toBe("7");
-      expect(screen.getByTestId("W-TR-07.safe").closest("[data-span]")?.getAttribute("data-span")).toBe("5");
-      // The batch first (the seal, the amount and the two signers as one composition, the money bar, the fees and
-      // what both keys sign behind Details), then the decision (the four checks, the slab).
+      // Round 6: the decision card stands in the right column's aside (columns 8–12), with who is paid under it.
+      const aside = screen.getByTestId("W-TR-07.safe").closest(".fsr-approve__aside");
+      expect(aside).toBeTruthy();
+      expect(aside?.querySelector(".fsr-approve__decide")?.contains(screen.getByTestId("W-TR-07.safe"))).toBe(
+        true,
+      );
+      expect(aside?.contains(screen.getByTestId("W-TR-07.payees"))).toBe(true);
+      expect(screen.getByTestId("W-TR-07.payees").querySelectorAll(".fsr-payee")).toHaveLength(8);
+      expect(screen.getByTestId("W-TR-07.firstKey").textContent).toBe(
+        "Your key is the first of two · the Chair signs next",
+      );
+      // The batch first (the seal, the amount and the two signers as one composition), its money bar, then the
+      // decision (the four checks, the slab) with who is paid, and last the fees and what both keys sign, behind
+      // Details (round 6).
       const order = [
         "W-TR-07.seal",
         "W-TR-07.amount",
         "W-TR-07.keys",
         "W-TR-07.rail",
-        "W-TR-07.fees",
-        "W-TR-07.ledger",
         "W-TR-07.safe",
         "W-TR-07.approve",
+        "W-TR-07.payees",
+        "W-TR-07.fees",
+        "W-TR-07.ledger",
       ].map((id) => screen.getByTestId(id));
       expect(screen.getByTestId("W-TR-07.ledger").closest("details")?.open).toBe(false);
       for (let i = 1; i < order.length; i++) {

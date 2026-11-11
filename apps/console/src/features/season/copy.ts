@@ -85,6 +85,13 @@ export function fundedSource(rail: PaypalRail): string {
     : "The payment was recorded on the untested PayPal sandbox rail, then the invoice read back as paid with nothing due.";
 }
 
+/** The buyer's short name on a line of words: "Lantern Bay" for "Lantern Bay Chocolate Co.". */
+export function shortBuyer(buyer: string): string {
+  return buyer
+    .replace(/\s+Chocolate(\s+(Co\.?|Company))?$/i, "")
+    .replace(/\s+(Co\.?|Company|Inc\.?|Ltd\.?)$/i, "");
+}
+
 /** The first view's single action (W-JG-01), and what happens while it runs (UI gate round 2: one line each). */
 export const FIRST_VIEW_COPY = {
   /**
@@ -101,7 +108,12 @@ export const FIRST_VIEW_COPY = {
   /** A settled run's status line: PayPal's part, then the cash still due (the pill's own words). */
   settledStatus: (replayed: boolean, cashDue: boolean) =>
     `${replayed ? "Payouts replayed" : "PayPal complete"}${cashDue ? " · cash due" : ""}`,
-  openNext: "Next step",
+  /**
+   * The spent press's record (round 6, film U1): whose payment it is, who recorded it and when. Lantern Bay pays;
+   * the treasurer records it. Never "paid by" the treasurer.
+   */
+  recorded: (buyer: string, by: string, time: string | null) =>
+    `${shortBuyer(buyer)}'s payment · recorded by ${by}${time ? ` · ${time}` : ""}`,
   openCard: "Open the rate card",
   /** The rate card's row, the pool card's foot (round 5): its name, its hash and seal date, then "Open". */
   card: "Rate card",
@@ -119,7 +131,7 @@ export const FIRST_VIEW_COPY = {
   eqSpoken: (invoice: string, costs: string) => `Invoice ${invoice} minus costs ${costs} equals the pool: `,
   /** The desk's counts with their scope (round 3): this run's photos and slips, then the season's slip images. */
   slipsMicro: (photos: number, counts: string) => `${photos} photos · ${counts}`,
-  exhibit: "Claude's real readings of 10 hero slips",
+  exhibit: "Claude's readings of 10 slips",
   invoice: "Invoice",
   desk: "Slips",
   deskNote: (count: number, funded: boolean) =>

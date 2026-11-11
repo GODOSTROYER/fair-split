@@ -8,22 +8,27 @@ export function HeroExhibits({ snapshot }: { readonly snapshot: SeasonSnapshot }
   return (
     <section className="fsc-heroes" aria-labelledby="fsc-heroes-title" data-testid="W-TR-03.heroes">
       <h2 id="fsc-heroes-title" className="fs-t-title-2" tabIndex={-1}>
-        Ten hero slips: the recorded exhibit
+        Ten slips: the recorded exhibit
       </h2>
       <p className="fs-t-caption">
-        All images are AI-generated, synthetic hero flats. Provisional: agent-checked labels, not reviewed by
-        a person. These readings are a separate exhibit. The hold cards and the pay run use the seed stand-in,
-        not these readings.
+        All ten images are AI-generated and synthetic. Their labels were checked by an agent, not yet by a
+        person. The pay run does not use these readings: its 48 slips replay the seed.
       </p>
       <div className="fsc-heroes__grid">
         {exhibits.map((tile) => (
           <article key={tile.id} className="fsc-heroes__tile" data-testid={`W-TR-03.hero.${tile.id}`}>
             <h3 className="fs-t-label">{tile.title}</h3>
-            <img
-              src={`/media/${tile.image}`}
-              alt={`${tile.title}. AI-generated, synthetic sample.`}
-              loading="lazy"
-            />
+            {/* Round 6 (film U4, no brown): the paper on a neutral ground. The photo's backdrop (a woven mat) is drawn
+                in grey; only the paper itself keeps its colour (the ballpoint's blue, the serial's red). */}
+            <span className="fsc-heroes__photo">
+              <img className="fsc-heroes__ground" src={`/media/${tile.image}`} alt="" loading="lazy" />
+              <img
+                className="fsc-heroes__paper"
+                src={`/media/${tile.image}`}
+                alt={`${tile.title}. AI-generated, synthetic sample.`}
+                loading="lazy"
+              />
+            </span>
             <p className="fs-t-caption">Claude's real reading of this slip, recorded 1 Nov 2026</p>
             <p className="fs-t-caption">Provisional: agent-checked labels. AI-generated, synthetic image.</p>
             <dl className="fsc-heroes__comparison fs-t-caption">

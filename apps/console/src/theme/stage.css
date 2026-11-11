@@ -640,10 +640,11 @@
   transition: opacity var(--fs-dur-drawer-in) var(--fs-ease-drawer);
 }
 
-/* In Hayag the drawer's scrim is a light veil (ink at 18%): the held rows under it stay recognisably marigold, never
-   a taupe mud, and the rest of the stage stays light. */
+/* In Hayag the drawer's scrim never dims the screen (round 6): the dial and the lines a hold is about stay lit while
+   its drawer is open, so nothing reads as disabled. The scrim still takes the click that closes the drawer, and the
+   drawer's e3 shadow is its lift. */
 :root[data-theme="adlaw"] .fsc-drawer-scrim {
-  background: color-mix(in srgb, var(--fs-ink) 18%, transparent);
+  background: transparent;
 }
 
 .fsc-drawer {
@@ -1010,9 +1011,19 @@
   z-index: var(--fs-z-dock);
 }
 
+/* Round 6: raised over the console, the dock's own row has no height (its panel floats from the body's top right),
+   so the console keeps the stage's whole height under the scrim and no empty band opens beneath it at 1,280. */
+.fsc-stage[data-layout="tab"][data-raised] .fsc-stage__body {
+  grid-template-rows: minmax(0, 1fr) 0;
+  row-gap: 0;
+}
+
 .fsc-stage[data-layout="tab"] .fsc-dock[data-raised] {
   position: static;
+  height: 0;
+  min-height: 0;
   overflow: visible;
+  background: none;
   box-shadow: none;
 }
 
@@ -1024,8 +1035,10 @@
     position: relative;
     grid-column: 2;
     grid-row: 1;
+    height: auto;
     min-width: 0;
     overflow: hidden auto;
+    background: var(--fs-plate);
     box-shadow: var(--fs-shadow-e2);
   }
   .fsc-stage[data-layout="tab"][data-raised="moment"] .fsc-dock__panel {
@@ -1203,7 +1216,7 @@
   margin: 0;
   color: var(--fs-ink);
   font-family: var(--fs-font-ui);
-  font-stretch: 87.5%;
+  font-stretch: 100%;
   font-weight: 500;
   font-size: 3rem;
   line-height: 3.25rem;
@@ -1446,6 +1459,7 @@
   background: var(--fs-ground);
 }
 
+/* biome-ignore lint/style/noDescendingSpecificity: layouts are exclusive; the tab rules never apply here */
 .fsc-stage[data-layout="phone-visit"] .fsc-stage__body {
   display: flex;
   flex-direction: column;
@@ -1583,21 +1597,12 @@
   z-index: calc(var(--fs-z-drawer) + 1);
 }
 
-/* Below 1680 px (round 5) What's real keeps its word: it is the judge's honesty entry, on the laptop widths a judge
-   uses most. Room comes from the indicator, which keeps its dashed circle and "Simulated" on screen (its whole name,
-   "Simulated PayPal sandbox", stays for assistive technology and in its title), and from the lockup's qualifier. */
+/* Below 1680 px What's real keeps its word (round 5) and the indicator keeps its whole name, "Simulated PayPal
+   sandbox", at every width (round 6: the disclosure is never shortened). Room comes from the lockup's qualifier and
+   from the bar's empty status column. */
 @media (max-width: 1679px) {
   .fsc-bar {
     gap: 8px 12px;
-  }
-
-  .fsc-bar__tagrest {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
   }
 
   .fsc-bar .fsc-wordmark__qualifier {

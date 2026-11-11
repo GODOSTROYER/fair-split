@@ -50,7 +50,18 @@ export function distribution(bundle: BundleMoney, figures: Pick<ProofFigures, "t
       members: tiers.due.paypal.members,
       label: "PayPal, sending",
     },
-    { kind: "cash", cents: cash, members: cashMembers, label: "Cash at the bodega" },
+    {
+      kind: "cash",
+      cents: cash,
+      members: cashMembers,
+      // Round 6: cash still owed says so ("cash due"); only cash the clerk attested reads as paid.
+      label:
+        tiers.due.cash.members === 0
+          ? "Cash paid at the bodega"
+          : tiers.attested.members === 0
+            ? "Cash due at the bodega"
+            : "Cash at the bodega",
+    },
     {
       kind: "reserved",
       cents: tiers.reserved.cents,

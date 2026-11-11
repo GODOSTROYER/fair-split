@@ -326,10 +326,6 @@
   line-height: 1.25rem;
 }
 
-.fsc-fund__eq .fs-cur {
-  font-size: max(0.5em, 0.75rem);
-}
-
 .fsc-fund__eq-op {
   color: var(--fs-ink-3);
   font-size: 0.875rem;
@@ -347,8 +343,67 @@
    quality bonus, each a label over its amount, with the pool's other figures; the rate card is the card's foot. */
 .fsc-fund__split {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px 32px;
+  gap: 2px;
+  margin: 0;
+}
+
+/* Round 6: the pool's two parts drawn once, as a bar in proportion (the premium in ink, the quality bonus in ink-2;
+   both pending grey until the simulated PayPal funds the pool), each part's name and amount under its own segment. */
+.fsc-fund__share-of {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.fsc-fund__bar {
+  display: flex;
+  gap: 2px;
+  height: 8px;
+}
+
+.fsc-fund__bar > span {
+  flex-basis: 0;
+  min-width: 0;
+  border-radius: 2px;
+  background: var(--fs-ink);
+  transition: background-color var(--fs-dur-crossfade) var(--fs-ease-out);
+}
+
+.fsc-fund__bar > [data-part="bonus"] {
+  background: var(--fs-ink-3);
+}
+
+.fsc-fund__share-of[data-state="pending"] .fsc-fund__bar > span {
+  background: var(--fs-rule-strong);
+}
+
+.fsc-fund__share-of[data-state="pending"] .fsc-fund__bar > [data-part="bonus"] {
+  background: var(--fs-rule);
+}
+
+/* Each part under its own segment: its name (the premium's lock: never deducted), then its amount. */
+.fsc-fund__seg {
+  display: grid;
+  flex-basis: 0;
+  gap: 2px;
+  min-width: 0;
+}
+
+.fsc-fund__seg dt {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--fs-ink-2);
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  white-space: nowrap;
+}
+
+.fsc-fund__seg .fs-glyph {
+  color: var(--fs-ink-3);
+}
+
+.fsc-fund__seg dd {
   margin: 0;
 }
 

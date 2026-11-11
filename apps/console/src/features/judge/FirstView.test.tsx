@@ -114,10 +114,15 @@ describe("W-JG-01 first view", { timeout: 60_000 }, () => {
       "hatch",
     );
     expect(screen.getByTestId("W-JG-01.title").textContent).not.toMatch(/settled|done|success/i);
-    expect(screen.getByTestId("W-JG-01.markPaid").textContent).toMatch(/Marked paid by Analyn/);
-    // Under the record, only the step that is left (the chip says the state once).
+    // Round 6 (film U1): the record says whose payment it is; the treasurer recorded it.
+    expect(screen.getByTestId("W-JG-01.markPaid").textContent).toMatch(
+      /Lantern Bay's payment · recorded by Analyn/,
+    );
+    expect(screen.getByTestId("W-JG-01.markPaid").textContent).not.toMatch(/paid by Analyn/i);
+    // Round 6: nothing under the record. The step that is left is the top bar's pill, said once.
     expect(screen.queryByTestId("W-JG-01.status")).toBeNull();
-    expect(screen.getByTestId("W-JG-01.continue").textContent).toBe("Review cash handover");
+    expect(screen.queryByTestId("W-JG-01.continue")).toBeNull();
+    expect(screen.getByTestId("W-JG-01.runPill.next").textContent).toMatch(/review cash handover/i);
     expect(screen.getByTestId("story-tiles.pay").textContent).toContain("7 PayPal · 57 cash");
     expect(screen.getByTestId("story-tiles.pay").dataset.phase).toBe("settled");
     expect(screen.getByTestId("story-tiles.pay").dataset.state).toBe("paid");
@@ -215,7 +220,7 @@ describe("W-JG-01 first view", { timeout: 60_000 }, () => {
   it("the desk's exhibit link opens the reading room and focuses the exhibit once its screen has drawn it", async () => {
     await renderConsole({ path: "/judge" });
     const link = within(screen.getByTestId("W-JG-01.desk")).getByRole("link", {
-      name: /Claude's real readings of 10 hero slips/,
+      name: /Claude's readings of 10 slips/,
     });
     // The reading room can commit after navigate() resolves (a lazy chunk, a transition): for a moment after the
     // route changes, its exhibit heading is not in the document yet.
@@ -242,12 +247,13 @@ describe("W-JG-01 first view", { timeout: 60_000 }, () => {
     }
   });
 
-  it("lays the first view on the grid: the invoice beside the pool, then the slips' strip, then the pipeline", async () => {
+  it("lays the first view on the grid: the invoice beside the pool, then the pipeline, then the slips' strip", async () => {
     await renderConsole({ path: "/judge", viewport: { width: 1470, height: 956 } });
     const funding = await screen.findByTestId("W-JG-01.funding");
     const root = screen.getByTestId("W-JG-01");
-    // Round 5: the first view sits on the one twelve-column grid: the invoice beside the pool it funds (the rate card
-    // the pool card's foot), then the slips as one strip, then the pipeline, each a row of the screen's grid.
+    // Rounds 5 and 6: the first view sits on the one twelve-column grid: the invoice beside the pool it funds (the
+    // rate card the pool card's foot), then the pipeline right under the cards, then the slips as one strip that ends
+    // the screen, each a row of the screen's grid.
     expect(root.classList.contains("fsc-screen")).toBe(true);
     expect(funding.dataset.layout).toBe("desk");
     expect(screen.getByTestId("W-JG-01.pool").dataset.variant).toBe("strip");
@@ -265,14 +271,14 @@ describe("W-JG-01 first view", { timeout: 60_000 }, () => {
       screen.getByTestId("W-JG-01.invoice"),
       screen.getByTestId("W-JG-01.pool"),
       screen.getByTestId("W-JG-01.rules"),
-      desk,
       screen.getByTestId("story-tiles"),
+      desk,
     ];
     for (let i = 1; i < order.length; i++) {
       const position = order[i - 1]?.compareDocumentPosition(order[i] as Node) ?? 0;
       expect(position & Node.DOCUMENT_POSITION_FOLLOWING).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     }
-    // The title row keeps the heading, its state and its id line only; the pipeline follows the slips.
+    // The title row keeps the heading, its state and its id line only; the slips follow the pipeline.
     expect(within(screen.getByTestId("W-JG-01")).getAllByRole("heading", { level: 1 })).toHaveLength(1);
     expect(
       screen.getByTestId("W-JG-01").querySelector(".fsc-first__head [data-testid='W-JG-01.rules']"),
@@ -315,9 +321,10 @@ describe("W-JG-01 first view", { timeout: 60_000 }, () => {
     expect(screen.getByTestId("W-JG-01.pool.eq").dataset.state).toBe("landed");
     expect(screen.getByTestId("W-JG-01.pool.tag").dataset.fsTag).toBe("micro");
     expect(tagBudget(screen.getByTestId("W-JG-01.stage")).ok).toBe(true);
-    // Under the record, the next step's link only (the chip says "Funded").
+    // Round 6: nothing under the record (the chip says "Funded", the pill says what is next).
     expect(screen.queryByTestId("W-JG-01.status")).toBeNull();
-    expect(screen.getByTestId("W-JG-01.next").contains(screen.getByTestId("W-JG-01.continue"))).toBe(true);
+    expect(screen.queryByTestId("W-JG-01.next")).toBeNull();
+    expect(screen.queryByTestId("W-JG-01.continue")).toBeNull();
     expect(screen.getByTestId("W-JG-01.markPaid").dataset.state).toBe("committed");
     expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Season 2026-A");
     await expectNoAxeViolations(view.container);

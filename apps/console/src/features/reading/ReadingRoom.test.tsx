@@ -67,9 +67,9 @@ describe("W-TR-03 reading room", { timeout: 60_000 }, () => {
     const head = screen.getByTestId("W-TR-03").querySelector(".fsc-screen__head");
     if (!(head instanceof HTMLElement)) throw new Error("no title row");
     expect(head.querySelector(".fsc-screen__provenance")?.textContent).toMatch(
-      /^Synthetic co-op · seed stand-in readings/,
+      /^Synthetic co-op · replayed readings/,
     );
-    const link = within(head).getByRole("link", { name: /Claude's real readings of 10 hero slips/ });
+    const link = within(head).getByRole("link", { name: /Claude's readings of 10 slips/ });
     fireEvent.click(link);
     expect(document.activeElement?.id).toBe("fsc-heroes-title");
     for (const row of side.querySelectorAll(".fsc-beds__row"))
@@ -182,7 +182,8 @@ describe("W-TR-03 reading room", { timeout: 60_000 }, () => {
         waitFor(() => {
           const toast = screen.getByTestId("W-JG-01.toast");
           expect(toast.dataset.lane).toBe("machine");
-          expect(toast.textContent).toMatch(`Read slip ${serial}`);
+          // Round 6: the pill says the slip, never the member's id.
+          expect(toast.textContent).toMatch(`Reading slip ${serial}`);
         });
       expect(progress()).toBe("0 of 48 slips read");
       // Photo B's rows one at a time: each prints as it arrives, never waiting for COMPUTED.

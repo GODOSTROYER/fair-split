@@ -225,7 +225,7 @@
   color: var(--fs-ink);
   caret-color: var(--fs-pod);
   font-family: var(--fs-font-ui);
-  font-stretch: 87.5%;
+  font-stretch: 100%;
   font-weight: 500;
   font-size: 3.5rem;
   line-height: 1;
@@ -321,7 +321,7 @@
    her entry and the net in ink, the slip's tare and the operators quieter. */
 .fsc-hand__sum.fs-money {
   font-family: var(--fs-font-ui);
-  font-stretch: 87.5%;
+  font-stretch: 100%;
   font-weight: 500;
   font-size: 3.5rem;
   line-height: 3.75rem;
@@ -420,5 +420,41 @@
   .fsc-hand__input {
     font-size: 2.75rem;
     line-height: 3rem;
+  }
+}
+
+/* Round 6, the wide panel (1,920): the two witnesses lead, under the title row, and the decision stands beneath them
+   on one row: the sum ("Gross − tare = net", who entered it) and, 48 px beside it, the screen's one primary, so
+   nothing floats between the title and the papers. */
+@container fsc-screen (min-width: 1040px) {
+  .fsc-hand.fsc-screen {
+    grid-template-rows: auto minmax(240px, 1fr) auto;
+  }
+
+  .fsc-hand > .fsc-hand__evidence {
+    order: 1;
+  }
+
+  .fsc-hand > .fsc-hand__lead {
+    order: 2;
+  }
+
+  .fsc-hand__committed {
+    display: grid;
+    grid-template-columns: max-content max-content;
+    justify-content: start;
+    align-items: center;
+    column-gap: var(--fs-space-48);
+  }
+
+  .fsc-hand__committed > * {
+    grid-column: 1;
+  }
+
+  .fsc-hand__committed > .fsc-hand__next {
+    grid-row: 1 / span 4;
+    grid-column: 2;
+    align-self: center;
+    margin: 0;
   }
 }

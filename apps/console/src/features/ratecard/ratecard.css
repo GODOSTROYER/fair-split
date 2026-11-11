@@ -371,7 +371,7 @@
 }
 
 .fsc-input--figure {
-  font-stretch: 87.5%;
+  font-stretch: 100%;
   font-variant-numeric: tabular-nums lining-nums;
 }
 
@@ -518,6 +518,34 @@
 .fsc-rc__side-body[data-refused] > .fsc-rc__schedule {
   padding-top: 20px;
   border-top: 1px solid var(--fs-rule);
+}
+
+/* Round 6, refused: the attempt is one struck row in ink-3 ("Iba pa (Other) · ₱150", then what locks it); the
+   schedule's list is the column's last element (no page number under it: the banded clause on the board's page shows
+   where it lives), and the seal's card waits with the resolution folded, so nothing ends half-faded at the foot. */
+.fsc-rc__refused-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 16px;
+  margin: 0;
+  color: var(--fs-ink-3);
+}
+
+.fsc-rc__add[data-plate] > .fsc-rc__row {
+  display: none;
+}
+
+.fsc-rc__refused-row > s {
+  color: var(--fs-ink-3);
+}
+
+.fsc-rc__side-body[data-refused] .fsc-rc__footer > [aria-hidden] {
+  display: none;
+}
+
+.fsc-rc:not(.fsc-rc--doc-closed) .fsc-rc__side-body[data-refused] > .fsc-bolted-plate {
+  display: none;
 }
 
 /* The resolution folded away: the schedule takes the row in two columns, the rules and the seal on the left, adding

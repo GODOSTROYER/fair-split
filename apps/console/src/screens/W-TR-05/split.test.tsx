@@ -124,7 +124,8 @@ describe("W-TR-05 split review", () => {
       // The open decisions are the title row's chip, in amber (a person must decide); the bench links the next one.
       expect(screen.getByTestId("W-TR-05.summary").textContent).toBe("3 holds open · 1 by hand");
       expect(screen.getByTestId("W-TR-05.summary").dataset.tone).toBe("canary");
-      expect(screen.getByTestId("W-TR-05.next").textContent).toBe("Enter slip 0462 by hand");
+      // Round 6: the bench names no next step (the pill and the held rows do): one next action, said once.
+      expect(screen.queryByTestId("W-TR-05.next")).toBeNull();
       expect(screen.getByTestId("W-TR-05.filter.held").textContent).toBe("Held 3");
       // Before the keys the rails are a plan, and say so; nothing PayPal is on the screen yet, so the id line says
       // the seeded slips.

@@ -82,8 +82,10 @@ describe("Proof replay and simulation labels", () => {
       "five of six match; one replayed, labelled",
     );
     expect(screen.getByTestId("W-PF-01.verdict").textContent).toContain(reason);
-    expect(screen.getByTestId("W-PF-01.verdict").textContent).not.toContain("6 of 6 integrity checks match");
-    expect(screen.getByTestId("W-PF-01.verdict.result").textContent).toBe("5 of 6 integrity checks match");
+    expect(screen.getByTestId("W-PF-01.verdict").textContent).not.toMatch(
+      /(?<!of )6 integrity checks passed/,
+    );
+    expect(screen.getByTestId("W-PF-01.verdict.result").textContent).toBe("5 of 6 integrity checks passed");
     expect(screen.getByTestId("W-PF-01.verdict.anchors").textContent).toContain("Simulated PayPal sandbox");
     expect(screen.getByTestId("W-PF-01.verdict.anchors").textContent).not.toContain("Match it in PayPal");
   });
@@ -346,9 +348,7 @@ describe("W-PF-01 Proof: the season's settled run", () => {
     );
     // The money card: counts in view, the whole sentence for a screen reader.
     const progress = screen.getByTestId("W-PF-01.progress");
-    expect(progress.querySelector("[aria-hidden]")?.textContent).toBe(
-      "7 of 8 PayPal payouts confirmed · 1 moved to cash",
-    );
+    expect(progress.querySelector("[aria-hidden]")?.textContent).toBe("7 confirmed on PayPal · 57 cash due");
     expect(progress.textContent).toContain("7 of 8 PayPal payouts confirmed in the simulated sandbox.");
     // The fine print: one legal line in view, the rest behind Details as a key and value list.
     const footer = screen.getByTestId("W-PF-01.footer");
@@ -409,7 +409,7 @@ describe("W-PF-01 Proof: the season's settled run", () => {
     );
     scrollIntoView.mockRestore();
     expect(screen.getByTestId("W-PF-01.verdict.keys").textContent).toContain("fs-analyn-s1");
-    expect(screen.getByTestId("W-PF-01.verdict.result").textContent).toBe("6 of 6 integrity checks match");
+    expect(screen.getByTestId("W-PF-01.verdict.result").textContent).toBe("6 integrity checks passed");
     expect(screen.getByTestId("W-PF-01.verdict.sample").textContent).toContain(
       "Sample keys · not PayPal-verified",
     );

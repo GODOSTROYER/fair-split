@@ -56,7 +56,7 @@ export const PROVENANCE = {
   },
   /** The reading room and slip by hand: the readings replay the seed stand-in. */
   standIn: {
-    text: "Synthetic co-op · seed stand-in readings",
+    text: "Synthetic co-op · replayed readings",
     title: "Synthetic co-op, people and slips. Seed stand-in, not a Claude recording.",
   },
   /** Run, Proof: PayPal runs on the simulated sandbox. */
@@ -251,7 +251,7 @@ function whatsRealSections(f: WhatsRealFacts): readonly WhatsRealSection[] {
     ? {
         id: "simulated-paypal",
         title: "Simulated PayPal sandbox",
-        line: "Invoice, payment, payouts, notices, untested on PayPal's own sandbox.",
+        line: "Invoice, payment and payouts",
         items: [
           "PayPal runs only on our simulated PayPal sandbox, contract-tested against PayPal's published OpenAPI specs. The calls use Agent Toolkit 1.11.0 and Server SDK code; this integration is untested against PayPal's own sandbox.",
           "Simulated: the invoice, record-payment, the payout batch, item notices signed the way PayPal signs them, Rhea's unclaimed item and its cancel, and one repeated delivery.",
@@ -274,7 +274,7 @@ function whatsRealSections(f: WhatsRealFacts): readonly WhatsRealSection[] {
     {
       id: "real",
       title: "Real code",
-      line: "Engine, holds, signatures, Proof: Claude never writes a number.",
+      line: "Every amount, hold and signature",
       items: [
         "Your presses, the holds you resolve and the approvals you sign. Signatures are Ed25519, made in your browser with a demo key for this session.",
         "Every amount, computed by the engine in integer cents. Claude never writes a number into a line, a payout or a statement.",
@@ -286,9 +286,9 @@ function whatsRealSections(f: WhatsRealFacts): readonly WhatsRealSection[] {
     {
       id: "replayed",
       title: "Replayed",
-      line: `${f.replaySlips} slip readings: a seed stand-in, not a Claude recording.`,
+      line: `${f.replaySlips} slip readings, replayed from the seed`,
       items: [
-        `${f.replaySlips} slips in ${f.replayPhotos} photos use the labelled seed stand-in, not a Claude recording. The reading room separately exhibits the real hero-slip readings when a committed recording exists.`,
+        `${f.replaySlips} slips in ${f.replayPhotos} photos use the labelled seed stand-in, not a Claude recording. The reading room separately exhibits the real readings of ten slips when a committed recording exists.`,
         "The invoice line labels are a placeholder written with the seed. The audit agent is paused; the live policy lattice checks every amount against the engine's quote.",
         `Seeded: the invoice-send approval and the ${f.earlierPhotos} earlier photo-manifest entries with their seeded read dates. Earlier photos are not imaged.`,
       ],
@@ -296,15 +296,15 @@ function whatsRealSections(f: WhatsRealFacts): readonly WhatsRealSection[] {
     {
       id: "synthetic",
       title: "Synthetic",
-      line: `Co-op, ${f.members} people, slips, voices: no real farmer is paid.`,
+      line: `Co-op, ${f.members} people, slips and voices`,
       items: [
-        `The ${f.members} members, the co-op and the brand are fictional. The 10 hero slips are Codex-made (OpenAI's image model via Codex CLI). The photos A–L are composed in code from hero flats and code-drawn slips. All images are synthetic. Voice clips, where served, use Gemini TTS; device voice is labelled separately. No real farmer is paid.`,
+        `The ${f.members} members, the co-op and the brand are fictional. Ten slip images were made with OpenAI's image model. The photos A–L are composed in code from those ten images and from slips drawn in code. All images are synthetic. Voice clips, where served, use Gemini TTS; device voice is labelled separately. No real farmer is paid.`,
       ],
     },
     {
       id: "not-built",
       title: "Not built",
-      line: "Partner onboarding, real SMS, push and offline capture.",
+      line: "Partner onboarding, SMS, push, offline capture",
       items: [
         "Production partner onboarding (PayPal must grant third-party permissions for Invoicing and Payouts), real SMS, push notifications and offline capture.",
         "Simulated on the phone instead: the push banners, the biometric step (a demo key made in your browser), the clerk's scanner (sample slips) and SMS previews.",
@@ -322,14 +322,16 @@ export const TRY_TO_BREAK = {
   tryWord: "Try",
   refused: "Refused",
   blocked: "blocked",
-  armed: "Armed before key 2",
-  voided: "Changed payout refused. Both approvals voided.",
+  armed: "Change set · the signatures will refuse it",
+  /** Why the last attempt cannot be tried once the Chair has signed (round 6: a disabled Try says why). */
+  tooLate: "Only before the Chair signs",
+  voided: "Refused · both signatures voided",
   why: "Why",
   /** The rows' names, as the sheet lists them until the season slice's controls fill it. */
   attempts: [
     "Overcharge the invoice draft",
     "Offset shipping with a discount",
     "Add an invoice recipient",
-    "Arm a payout change before key 2",
+    "Change a payout after signing",
   ],
 } as const;

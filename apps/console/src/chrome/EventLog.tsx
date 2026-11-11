@@ -172,7 +172,11 @@ export function usePillToast(runSlug: string | null): PillToast | null {
     if (meta.replay || !ctxRef.current) return;
     const row = describeEvent(event, ctxRef.current);
     if (!row) return;
-    setCurrent({ row, landed: landedEvent(row, event), words: toastWords(row, event) });
+    // Round 6: an event with nothing to say never takes the pill's words (it would leave a bare dot): the pill
+    // keeps "Next: …".
+    const words = toastWords(row, event).trim();
+    if (!words) return;
+    setCurrent({ row, landed: landedEvent(row, event), words });
     setShown(true);
   });
   useEffect(() => {

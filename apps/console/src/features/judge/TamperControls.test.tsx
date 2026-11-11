@@ -39,9 +39,9 @@ it("offers all four simulator tampers as rows, and the tried row opens in place 
     "Overcharge the invoice draft",
     "Offset shipping with a discount",
     "Add an invoice recipient",
-    "Arm a payout change before key 2",
+    "Change a payout after signing",
   ]);
-  expect(screen.getByRole("button", { name: "Try: Arm a payout change before key 2" })).toBe(
+  expect(screen.getByRole("button", { name: "Try: Change a payout after signing" })).toBe(
     screen.getByTestId("W-JG-01.tamper.change_payout"),
   );
   // "Try" is the one secondary button, never a third style.

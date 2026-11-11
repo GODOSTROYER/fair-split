@@ -28,7 +28,6 @@ import {
   filterRows,
   hasLines,
   massBalanceView,
-  nextOpenCard,
   openCounts,
   type SplitFilter,
   type SplitRow,
@@ -37,8 +36,8 @@ import {
   splitTotals,
 } from "../../features/split/model.js";
 import { SplitGrid } from "../../features/split/SplitGrid.js";
-import { type NextDecision, Reconcile, SplitHeader } from "../../features/split/SplitHeader.js";
-import { en, SPLIT } from "../../features/split/shared/copy.js";
+import { Reconcile, SplitHeader } from "../../features/split/SplitHeader.js";
+import { SPLIT } from "../../features/split/shared/copy.js";
 import { stampFor } from "../../features/split/shared/people.js";
 import { useLiveEvents, useRunData } from "../../features/split/shared/run-data.js";
 import { waveDelays } from "../../features/split/wave.js";
@@ -236,32 +235,7 @@ export function Screen({ runSlug, hold, member }: SplitScreenProps) {
   }
 
   const basis = splitBasis(view);
-  const output = engineOutput(snapshot, basis);
   const dial = massBalanceView(snapshot, view);
-  const card = nextOpenCard(view);
-  const byHandOpen = Object.values(view.holds).find((h) => h.kind === "LOW_CONFIDENCE" && h.state === "OPEN");
-  const byHandSerial = snapshot.holds.find((h) => h.kind === "LOW_CONFIDENCE")?.serials[0] ?? null;
-  let next: NextDecision | null = null;
-  if (byHandOpen && byHandSerial) {
-    next = {
-      kind: "by-hand",
-      href: webRoutes.byHand(snapshot.season.label, byHandSerial),
-      words: SPLIT.byHandNext(byHandSerial),
-    };
-  } else if (card) {
-    const seeded = snapshot.holds.find((h) => h.key === card.key);
-    const name = rows.find((r) => r.memberNo === card.memberNo)?.name ?? "";
-    next = {
-      kind: "hold",
-      href: webRoutes.holdDrawer(runSlug, card.label),
-      words: SPLIT.nextHold(
-        card.label,
-        seeded ? holdHeadline(card.kind, seeded.serials[0] ?? "", name) : name,
-      ),
-    };
-  } else if (open.holds === 0 && open.byHand === 0 && !POSTED.includes(view.state)) {
-    next = { kind: "approve", href: webRoutes.approve(runSlug), words: SPLIT.approveLink };
-  }
   // The reading before the last decision moved it: slip 0457 counted twice, once the by-hand slip is in.
   const was =
     basis === "resolved" ? format.percentBp(engineOutput(snapshot, "byHand").massBalance.shrinkBp) : null;
@@ -278,13 +252,6 @@ export function Screen({ runSlug, hold, member }: SplitScreenProps) {
         dial={dial}
         swing={live.isLive(basisEventId(view, basis))}
         was={was}
-        pools={{
-          premiumCents: output.conservation.premiumPoolCents,
-          bonusCents: output.conservation.bonusPoolCents,
-          poolCents: output.conservation.poolCents,
-          amountState: rows.some((r) => r.partsState === "ink") ? "ink" : "pencil",
-        }}
-        next={next}
         counts={filterCounts(rows)}
         filter={filter}
         onFilter={setFilter}
@@ -292,6 +259,7 @@ export function Screen({ runSlug, hold, member }: SplitScreenProps) {
         reconcile={
           <Reconcile
             totals={totals}
+            poolState={rows.some((r) => r.partsState === "ink") ? "ink" : "pencil"}
             check={
               <p
                 className="fsr-split__totals fs-t-label"
@@ -375,17 +343,4 @@ function SplitState({
       {words}
     </Chip>
   );
-}
-
-function holdHeadline(kind: string, serial: string, name: string): string {
-  switch (kind) {
-    case "DUPLICATE_SLIP":
-      return en("W-TR-06.H1.title", { slip: serial });
-    case "IMPLAUSIBLE_YIELD":
-      return en("W-TR-06.H2.title", { name });
-    case "NO_RULE":
-      return en("W-TR-06.H3.title", { slip: serial });
-    default:
-      return name;
-  }
 }

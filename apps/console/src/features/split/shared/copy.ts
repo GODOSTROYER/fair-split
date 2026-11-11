@@ -118,6 +118,10 @@ export const SPLIT = {
 
 export const HOLDS = {
   meta: (index: number, total: number) => en("W-TR-06.position", { index, total }),
+  /** A decided hold's place in the run (round 6): "Hold 1 of 3 · done". */
+  metaDone: (index: number, total: number) => `${en("W-TR-06.position", { index, total })} · done`,
+  /** Who decided it and when, by name (round 6: never initials alone). */
+  resolvedBy: (name: string, time: string) => `Resolved by ${name} · ${time}`,
   notFound: "No hold with that name in this run.",
   notFoundHelp: "Open the split review to see the holds this run has.",
   next: (label: string) => `Next: hold ${label}`,
@@ -159,7 +163,7 @@ export const HOLDS = {
   /** A written deduction Schedule A allows (round 5: the rule's id is its title, never on screen). */
   ruleOk: "Allowed",
   twoDeliveries: "Two deliveries",
-  twoDeliveriesNote: "A reason, then the Chair",
+  twoDeliveriesNote: "Needs a reason and the Chair's OK",
   twoDeliveriesTitle: "Why are these two deliveries?",
   twoDeliveriesHint: "Say what the clerk or the member told you. The Chair reads this before he signs.",
   reasonLabel: "Reason",
@@ -269,6 +273,8 @@ export const APPROVE = {
   },
   /** The PayPal recipients under the bar (round 5), for a screen reader. */
   payeesLabel: (n: number) => `${n} PayPal payouts`,
+  /** Under the slab while no key has signed (round 6): whose signature the press is, and whose comes next. */
+  firstKey: "Your key is the first of two · the Chair signs next",
   payeeWord: { paid: "confirmed", held: "parked" },
   keyWebCrypto: "Made by WebCrypto in this browser; the private half can't be exported.",
   keyNoble: "Held in this page's memory for this session; it never leaves the browser.",
@@ -369,6 +375,9 @@ export const FANOUT = {
     kept: "Kept for members",
   },
   cashBandMembers: (n: number) => `${n} members · cash at the bodega`,
+  /** The same words in two parts: the second steps aside on a narrow fan (round 6: nothing is cut mid-word). */
+  cashBandShort: (n: number) => `${n} members · cash`,
+  cashBandWhere: " at the bodega",
   movedToCash: (name: string) => `${name} → cash`,
   title: "Run",
   feesSoFar: "Simulated PayPal fees: none in this run's notices yet.",
@@ -395,6 +404,8 @@ export const FANOUT = {
   /** The dot strip's one line (round 5): the median, nothing else. */
   latencySummary: (p50: string) => `Median ${p50}`,
   latencyEmpty: "No confirmations yet",
+  /** Confirmed, but this page did not see the notices arrive (a reload): the count, and why there are no dots. */
+  latencyUntimed: (confirmed: number) => `${confirmed} confirmed · timed only while the run is live`,
   latencySeeded: "Timed only on a live run",
   rheaLine: "No PayPal account · unclaimed",
   rheaReplayed: "Unclaimed in the earlier simulated PayPal sandbox run · a labelled replay",

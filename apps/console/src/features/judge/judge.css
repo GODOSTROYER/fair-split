@@ -100,18 +100,12 @@
   gap: 4px;
 }
 
+/* From 1,040 px of panel (round 6) the strip takes all twelve columns under its head, a print a column: the prints
+   grow with the panel (77 px on the 1,470 laptop, about 114 px at 1,920) and the strip ends the screen. */
 @container fsc-screen (min-width: 1040px) {
-  .fsc-first__desk-head {
-    grid-row: 1;
-    grid-column: 1 / span 3;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 4px;
-  }
-
   .fsc-first__desk > .fsc-contact {
-    grid-row: 1;
-    grid-column: 4 / span 9;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    gap: var(--fs-console-gutter);
   }
 }
 
@@ -189,11 +183,11 @@
   white-space: nowrap;
 }
 
-/* Each step's count on the title step (24/30) in the numerals' 500 at 87.5 %: the invoice stays the one hero. */
+/* Each step's count on the title step (24/30) in the numerals' 500 at the text's width: the invoice stays the hero. */
 .fsc-tile__no {
   color: var(--fs-ink);
   font-family: var(--fs-font-ui);
-  font-stretch: 87.5%;
+  font-stretch: 100%;
   font-weight: 500;
   font-size: 1.5rem;
   line-height: 1.875rem;
@@ -221,23 +215,10 @@
   color: var(--fs-ink-3);
 }
 
-/* A tall window: the slips and the pipeline take the panel's spare height above them instead of leaving it as a band
-   under the pipeline (round 5: no dead band over 120 px). The 1,470 x 956 laptop gets 80 px (48 + the row's 32);
-   1,920 x 1,080 gets 96 (64 + 32), the scale's widest step on each. */
+/* A tall window (round 6): no fixed spacers. The pipeline is the second row, right under the two cards; the slips end
+   the panel as one strip across all twelve columns, their prints as wide as the columns give (about 114 px at 1,920),
+   so the spare height is the slips' own and no band stands empty between the rows. */
 @media (min-height: 900px) {
-  .fsc-first > .fsc-first__desk,
-  .fsc-first > .fsc-tiles {
-    margin-top: 48px;
-  }
-}
-
-@media (min-height: 1000px) {
-  .fsc-first > .fsc-first__desk,
-  .fsc-first > .fsc-tiles {
-    margin-top: 64px;
-  }
-
-  /* The larger pipeline strip the slips' 72 px prints hand their height to: 16 px between verb and count. */
   .fsc-first > .fsc-tiles {
     padding-top: 16px;
   }
@@ -249,8 +230,34 @@
   .fsc-first .fsc-tile {
     gap: 16px;
   }
-}
 
+  .fsc-first .fsc-fund__plate {
+    padding: 28px 32px;
+  }
+
+  /* The spare height is the two cards' (up to 500 px): each spreads its own parts evenly, the hero under its head,
+     the foot at its end, so the screen ends near the panel's foot with the phone docked or folded. */
+  .fsc-first.fsc-screen {
+    grid-template-rows: auto minmax(min-content, 500px) auto auto;
+    height: 100%;
+  }
+
+  .fsc-first > .fsc-fund {
+    align-self: stretch;
+  }
+
+  .fsc-first .fsc-fund__invoice {
+    align-content: space-between;
+  }
+
+  .fsc-first .fsc-fund[data-layout="desk"] .fsc-fund__pool {
+    justify-content: space-between;
+  }
+
+  .fsc-first .fsc-fund__pool > .fsc-fund__foot {
+    margin-top: 0;
+  }
+}
 /* A short window (1,280 x 800): every row stays whole in the panel (round 5: nothing clipped). The rows close to
    24 px, the invoice card tightens around its hero, and the pipeline's count sits under its verb. */
 @media (max-height: 899px) {
@@ -628,5 +635,28 @@
 
 .fsc-tamper__rule {
   color: var(--fs-ink-3);
+  white-space: nowrap;
+}
+
+/* The spent press (round 6, film U1): a record, never a pill. The treasurer's 20 px avatar, 8 px, then whose payment
+   it is and who recorded it, on the label step in ink-2: "Lantern Bay's payment · recorded by Analyn · 18:58". */
+.fsc-first__slab .fs-slab[data-state="committed"] .fs-slab__face {
+  min-height: 32px;
+  padding: 0;
+  background: transparent;
+}
+
+.fsc-first__record {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--fs-ink-2);
+  font-weight: 520;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+/* A Try that cannot be pressed says why beside it, on one line (round 6). */
+.fsc-tamper__was {
   white-space: nowrap;
 }

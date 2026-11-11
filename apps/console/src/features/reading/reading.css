@@ -63,12 +63,34 @@
   min-width: 0;
 }
 
-.fsc-heroes__tile > img {
+/* The slip's photo on a neutral ground (round 6, film U4: no brown). Two layers of the one image: under, the whole
+   photo in grey (its woven-mat backdrop reads as a cool neutral); over it, the paper alone in its own colours, cut to
+   the paper's place in the frame. */
+.fsc-heroes__photo {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  background: var(--fs-plate-2);
+}
+
+/* Both layers are cut 3% closer to the paper (the frame clips them), and the ground is a pale, low-contrast grey:
+   a quiet neutral under the paper, never a brown mat. */
+.fsc-heroes__photo > img {
   display: block;
   width: 100%;
-  max-height: 420px;
-  object-fit: contain;
-  background: var(--fs-plate-2);
+  height: auto;
+  transform: scale(1.06);
+}
+
+.fsc-heroes__ground {
+  filter: grayscale(1) contrast(0.42) brightness(1.5);
+}
+
+.fsc-heroes__paper {
+  position: absolute;
+  inset: 0;
+  /* About 7%, 10.5%, 6% and 10% of the frame once both layers are scaled: inside every paper's edge. */
+  clip-path: inset(9.4% 12.7% 8.5% 12.3%);
 }
 
 .fsc-heroes__tile summary {
@@ -1074,4 +1096,44 @@
   .fsc-read {
     --fsc-bench-h: 560px;
   }
+}
+
+/* Round 6: the slip that waits for a person is the room's one primary, at the count's end of the row. */
+.fsc-read__counter {
+  align-items: center;
+}
+
+.fsc-read__enter {
+  margin-left: auto;
+}
+
+/* Round 6: the composed photos carry their compositor's notes in the picture (a header, a line under each slip, a
+   footer). On the stage those are covered by strips in the desk's own tone at that height, edge to edge and soft at
+   their top and bottom, so the photo shows four slips on a desk and no production wording; what the photo is (a
+   synthetic sample, composed in code) stays in its accessible name and in What's real. */
+.fsc-mat__veil {
+  position: absolute;
+  right: 0;
+  left: 0;
+  pointer-events: none;
+  mask-image: linear-gradient(to bottom, transparent, #000 22%, #000 78%, transparent);
+}
+
+.fsc-mat__veil[data-at="head"] {
+  top: 0.9%;
+  height: 2.9%;
+  background: linear-gradient(90deg, rgb(212 220 232), rgb(199 207 217));
+}
+
+.fsc-mat__veil[data-at="mid"] {
+  top: 48.55%;
+  height: 1.95%;
+  background: linear-gradient(90deg, rgb(206 214 225), rgb(193 200 211));
+}
+
+.fsc-mat__veil[data-at="foot"] {
+  top: 94.45%;
+  height: 5.1%;
+  background: linear-gradient(90deg, rgb(199 207 218), rgb(186 194 204));
+  mask-image: linear-gradient(to bottom, transparent, #000 12%, #000 100%);
 }

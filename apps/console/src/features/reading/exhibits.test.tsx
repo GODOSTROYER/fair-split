@@ -17,12 +17,14 @@ describe("recorded hero-slip exhibits", () => {
     ).toBe("6?.50");
     render(<HeroExhibits snapshot={seedSnapshot()} />);
     expect(screen.getByTestId("W-TR-03.heroes").textContent).toContain(
-      "The hold cards and the pay run use the seed stand-in, not these readings.",
+      "The pay run does not use these readings: its 48 slips replay the seed.",
     );
     expect(tiles.every((tile) => !tile.title.startsWith("Spike:"))).toBe(true);
     for (const tile of tiles) {
       const exhibit = screen.getByTestId(`W-TR-03.hero.${tile.id}`);
+      // Round 6 (film U4): the paper in colour over the same photo in grey; one named image, one decorative.
       expect(within(exhibit).getByRole("img").getAttribute("src")).toBe(`/media/${tile.image}`);
+      expect(exhibit.querySelector(".fsc-heroes__ground")?.getAttribute("alt")).toBe("");
       expect(exhibit.textContent).toContain("Claude's real reading of this slip, recorded 1 Nov 2026");
       expect(exhibit.textContent).toContain("Seed stand-in, not a Claude recording");
       expect(exhibit.textContent).toContain("Provisional: agent-checked labels");

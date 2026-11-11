@@ -389,6 +389,30 @@ export function Screen({ runSlug }: RunScreenProps) {
               )}
             </p>
           )}
+          {/* Round 6: one layout in every state. A parked payout's primary stands where the settled run's does, right
+              under the hero count; its row under the fan keeps the facts on one line. */}
+          {parked && (
+            <div ref={slabRef} className="fsr-fanout__action">
+              <Slab
+                key={slabKey}
+                label={FANOUT.payCash}
+                srLabel={FANOUT.srPayCash(parked.name, format.money(parked.cents))}
+                depth="d2"
+                tone="chalk"
+                glyph="cash"
+                testId="W-TR-08.payCash"
+                {...(!data.live || !parkedLineId ? { unavailableReason: FANOUT.payCashUnavailable } : {})}
+                onCommit={() => {
+                  if (!parkedLineId) return;
+                  pressedCash.current = parked.memberNo;
+                  payCash.mutate(
+                    { params: { lineId: parkedLineId } },
+                    { onError: () => setSlabKey((k) => k + 1) },
+                  );
+                }}
+              />
+            </div>
+          )}
           {/* Under the settled hero, while the cash is due: the run's remaining action, the screen's one primary. */}
           {status?.kind === "settled" && cashDue && (
             <PrimaryLink
@@ -462,42 +486,18 @@ export function Screen({ runSlug }: RunScreenProps) {
                 {replayed ? FANOUT.rheaReplayed : `${FANOUT.rheaLine} · ${FANOUT.returns}`}
               </p>
             </div>
-            <div className="fsr-parked__actions">
-              <div ref={slabRef}>
-                <Slab
-                  key={slabKey}
-                  label={FANOUT.payCash}
-                  srLabel={FANOUT.srPayCash(parked.name, format.money(parked.cents))}
-                  depth="d2"
-                  tone="chalk"
-                  glyph="cash"
-                  testId="W-TR-08.payCash"
-                  {...(!data.live || !parkedLineId ? { unavailableReason: FANOUT.payCashUnavailable } : {})}
-                  onCommit={() => {
-                    if (!parkedLineId) return;
-                    pressedCash.current = parked.memberNo;
-                    payCash.mutate(
-                      { params: { lineId: parkedLineId } },
-                      { onError: () => setSlabKey((k) => k + 1) },
-                    );
-                  }}
-                />
-              </div>
-              <div className="fsr-parked__flat">
-                <button
-                  type="button"
-                  className="fs-flat"
-                  data-size="l"
-                  onClick={() => setResendAsked(true)}
-                  data-testid="W-TR-08.resend"
-                >
-                  {FANOUT.resend}
-                </button>
-                <span className="fs-t-caption fsr-muted">
-                  {resendAsked ? FANOUT.resendPending : FANOUT.resendNote}
-                </span>
-              </div>
-            </div>
+            {/* Round 6: one line. The decision's primary ("Pay in cash at the bodega") stands under the hero count, as
+                the settled run's does; the row keeps the one other way, quiet, its note in its title. */}
+            <button
+              type="button"
+              className="fs-flat fsr-parked__resend"
+              onClick={() => setResendAsked(true)}
+              title={resendAsked ? FANOUT.resendPending : FANOUT.resendNote}
+              data-testid="W-TR-08.resend"
+            >
+              {FANOUT.resend}
+              <span className="fs-sr">{`: ${resendAsked ? FANOUT.resendPending : FANOUT.resendNote}`}</span>
+            </button>
             {payCash.queuedMs !== null && (
               <p className="fs-t-caption fsr-muted" role="status" data-testid="W-TR-08.queued">
                 {`You're next, about ${Math.ceil(payCash.queuedMs / 1000)} s`}
@@ -529,7 +529,16 @@ export function Screen({ runSlug }: RunScreenProps) {
         ) : (
           <LatencyDots
             latency={lat}
-            {...(counts.confirmed > 0 && view.events.length === 0 ? { emptyText: FANOUT.latencySeeded } : {})}
+            // Round 6: a settled run read back after a reload has its confirmations but not their timings; it never
+            // says "No confirmations yet".
+            {...(counts.confirmed > 0 && lat.dots.length === 0
+              ? {
+                  emptyText:
+                    view.events.length === 0 && view.origin === "showcase"
+                      ? FANOUT.latencySeeded
+                      : FANOUT.latencyUntimed(counts.confirmed),
+                }
+              : {})}
           />
         )}
       </Cell>

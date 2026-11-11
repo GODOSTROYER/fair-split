@@ -67,7 +67,7 @@ describe("W-TR-04 by hand", { timeout: 60_000 }, () => {
     expect(screen.getByTestId("W-TR-04").querySelectorAll("[data-fs-glyph]")).toHaveLength(0);
     const provenance = screen.getByTestId("W-TR-04").querySelector(".fsc-screen__provenance");
     expect(provenance?.getAttribute("title")).toMatch(/Seed stand-in, not a Claude recording/);
-    expect(provenance?.textContent).toMatch(/^Synthetic co-op · seed stand-in readings/);
+    expect(provenance?.textContent).toMatch(/^Synthetic co-op · replayed readings/);
     expect(screen.getByTestId("W-TR-04.prompt").querySelector(".fs-honesty")).toBeNull();
     expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Slip 0462 by hand");
     // The title row says the slip's state in one chip: a person must decide.

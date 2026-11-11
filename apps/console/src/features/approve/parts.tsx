@@ -24,7 +24,7 @@ import {
 import { type CSSProperties, type ReactNode, useMemo } from "react";
 import { Stamp } from "../../chrome/Stamp.js";
 import { format } from "../../lib/format.js";
-import { BREAKPOINTS, useViewportWidth } from "../../stage/layout.js";
+import { BREAKPOINTS, useViewportHeight, useViewportWidth } from "../../stage/layout.js";
 import { APPROVE, en } from "../split/shared/copy.js";
 
 /** The seal's size on Approve: 180 px (`LAYOUT.console.seal`), the same drawing as the Chair's phone. */
@@ -34,10 +34,22 @@ export const SEAL_SIZE: number = LAYOUT.console.seal;
  * height on its own, top-aligned, never centred in it.
  */
 export const SEAL_SIZE_WIDE = 220;
+/**
+ * On the 1,920 stage (a window 1,600 by 1,000 or more) the seal is the screen's hero at 280 px (round 6): the spare
+ * height goes to it and to the recipients' rows, never to an empty band under "Fees".
+ */
+export const SEAL_SIZE_HERO = 280;
+/** The window height from which Approve has the room for the hero seal and the taller recipient rows. */
+export const APPROVE_TALL_PX = 1000;
 
-/** The seal's size for this window: 180 px, 220 px from 1,600 px. */
+/** The seal's size for this window: 180 px, 220 px from 1,600 px wide, 280 px where it is also 1,000 px tall. */
+export function sealSizeFor(width: number, height: number): number {
+  if (width < BREAKPOINTS.overlay) return SEAL_SIZE;
+  return height >= APPROVE_TALL_PX ? SEAL_SIZE_HERO : SEAL_SIZE_WIDE;
+}
+
 export function useSealSize(): number {
-  return useViewportWidth() >= BREAKPOINTS.overlay ? SEAL_SIZE_WIDE : SEAL_SIZE;
+  return sealSizeFor(useViewportWidth(), useViewportHeight());
 }
 
 /** A key id prints whole up to this many characters ("fs-ernesto-demo-mj2ng2"), cut in the middle beyond. */

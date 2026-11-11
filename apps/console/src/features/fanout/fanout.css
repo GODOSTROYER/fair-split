@@ -420,15 +420,17 @@
 
 /* ------------------------------------------------------------------ the parked decision (Rhea) */
 
-/* One strip under the fan: who, how much and why on the left; the two actions on the right. Its marigold dot marks
+/* One row under the fan (round 6): the amber dot, who, how much and why on one line, then "Re-send" as the row's one
+   quiet button. The decision's primary stands under the hero count, as the settled run's does. Its marigold dot marks
    it as a person's decision (never a coloured side bar); one 1 px rule is its only edge. */
 .fsr-parked {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: var(--fs-space-12) var(--fs-space-24);
-  padding: var(--fs-space-16) var(--fs-space-20);
+  gap: var(--fs-space-8) var(--fs-space-24);
+  min-height: 56px;
+  padding: var(--fs-space-8) var(--fs-space-8) var(--fs-space-8) var(--fs-space-20);
   border: 1px solid var(--fs-rule-strong);
   border-radius: var(--fs-radius-card);
   background: var(--fs-plate-2);
@@ -440,8 +442,11 @@
 }
 
 .fsr-parked__who {
-  display: grid;
-  gap: var(--fs-space-4);
+  display: flex;
+  flex: 1 1 0;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--fs-space-4) var(--fs-space-16);
   min-width: 0;
 }
 
@@ -465,17 +470,8 @@
   color: var(--fs-ink-2);
 }
 
-.fsr-parked__actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  gap: var(--fs-space-12);
-}
-
-.fsr-parked__flat {
-  display: grid;
-  justify-items: start;
-  gap: var(--fs-space-4);
+.fsr-parked__resend {
+  flex: none;
 }
 
 /* ------------------------------------------------------------------ the run log and the latency dots */
@@ -500,7 +496,7 @@
     margin-top: var(--fs-space-48);
   }
 
-  .fsr-fanout-screen:not(:has(.fsr-parked)) .fsr-fanout__log .fsr-log__item {
+  .fsr-fanout-screen .fsr-fanout__log .fsr-log__item {
     padding: var(--fs-space-12) 0;
   }
 }
@@ -780,5 +776,13 @@
   .fsr-log__row .fsr-log__time {
     grid-column: 1;
     grid-row: auto;
+  }
+}
+
+/* Round 6: under 1,040 px of fan the cash row keeps "57 members · cash" whole; "at the bodega" steps aside (its
+   day is the row's title, and the hero says "cash"). */
+@container (max-width: 1039px) {
+  .fsr-fan__more {
+    display: none;
   }
 }

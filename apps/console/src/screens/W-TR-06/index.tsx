@@ -155,7 +155,9 @@ export function Screen({ runSlug, holdId }: HoldDrawerProps) {
   const pos = view && hold ? position(view, hold) : null;
   const drawerLabel = hold ? `Hold ${hold.label}` : `Hold ${holdId}`;
   const meta = pos
-    ? HOLDS.meta(pos.index, pos.total)
+    ? hold?.resolvedAt
+      ? HOLDS.metaDone(pos.index, pos.total)
+      : HOLDS.meta(pos.index, pos.total)
     : seeded?.serials[0]
       ? HOLDS.slipMeta(seeded.serials[0])
       : null;

@@ -158,9 +158,17 @@ export function RateCard({ snapshot }: { readonly snapshot: SeasonSnapshot }) {
   const banded = pinned ?? (refusal ? "closed" : null);
   useEffect(() => {
     if (!banded || !docOpen) return;
-    pages.current
-      ?.querySelector<HTMLElement>("[data-band]")
-      ?.scrollIntoView({ block: "center", behavior: mode === "reduced" ? "instant" : "smooth" });
+    const band = pages.current?.querySelector<HTMLElement>("[data-band]");
+    if (!band) return;
+    // Round 6: only as far as it must. A clause already in view (or within the foot's 32 px fade of it) leaves the
+    // pages where they are, page 1 from its top, so no heading rests half under the panel's edge.
+    const scroller = band.closest<HTMLElement>(".fsc-snap__scroller");
+    if (scroller) {
+      const box = scroller.getBoundingClientRect();
+      const at = band.getBoundingClientRect();
+      if (at.top >= box.top && at.bottom <= box.bottom + 32) return;
+    }
+    band.scrollIntoView({ block: "nearest", behavior: mode === "reduced" ? "instant" : "smooth" });
   }, [banded, docOpen, mode]);
 
   const labelId = useId();
@@ -311,6 +319,7 @@ export function RateCard({ snapshot }: { readonly snapshot: SeasonSnapshot }) {
               aria-labelledby="fsc-rc-add"
               data-testid="W-TR-02.add"
               data-state={refusal ? "refused" : adding ? "open" : "closed"}
+              data-plate={plateShown && plate ? "" : undefined}
               {...moment.rootProps}
             >
               {/* Said once (round 4): while closed, the button says it and the heading names the section for screen
@@ -371,6 +380,17 @@ export function RateCard({ snapshot }: { readonly snapshot: SeasonSnapshot }) {
                     </p>
                   </div>
                 </div>
+              )}
+              {/* Round 6: once the refusal is printed, the attempt reads as one struck row (the fields and the bolted
+                  slab step aside, still in the document for the moment and its tests): never a button that looks
+                  disabled. The refusal above it is the state; next season's proposal is the column's one control. */}
+              {plateShown && plate && (
+                <p className="fsc-rc__refused-row" data-testid="W-TR-02.refusedRow">
+                  <s className="fs-t-body">{`${label.trim()} · ${amountText.trim()}`}</s>
+                  <span className="fs-t-caption fsc-rc__muted">
+                    {RATECARD_COPY.locked(card.canonical.resolutionNo)}
+                  </span>
+                </p>
               )}
               <CommandNotice error={otherError} testId="W-TR-02.error" />
               {plateShown && plate && (

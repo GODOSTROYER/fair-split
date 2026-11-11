@@ -174,25 +174,32 @@
 
 /* ------------------------------------------------------------------ who the batch pays (round 5) */
 
-/* The PayPal recipients under the money bar: two columns, the largest first reading down (as the Run's fan), 40 px
-   rows on 1 px rules, each an 8 px state dot, the name and the amount on one baseline. Only where the 1,920 stage has
-   the room (a 1,600 px window, 1,000 tall): on the laptops the screen ends at Details, and the dialog route lists
-   them too. */
+/* The right column (round 6): the decision card and, under it, who the batch pays, so the eight recipients are on
+   screen before anyone signs at every width. From 720 px of panel it holds columns 8–12 beside the batch, the money
+   bar and Details (three rows), top-aligned. */
+.fsr-approve__aside {
+  display: grid;
+  align-content: start;
+  gap: var(--fs-space-24);
+  min-width: 0;
+}
+
+@container fsc-screen (min-width: 720px) {
+  .fsr-approve > .fsr-approve__aside {
+    grid-column: 8 / -1;
+    grid-row: 1 / span 3;
+  }
+}
+
+/* The PayPal recipients: the largest first reading down (as the Run's fan), each an 8 px state dot, the name and the
+   amount on one baseline, on 1 px rules. On the laptops one column of 32 px rows under the decision card. */
 .fsr-payees {
-  display: none;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  grid-template-rows: repeat(var(--fsr-rows, 4), auto);
-  grid-auto-flow: column;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
   column-gap: var(--fs-space-32);
   margin: 0;
   padding: 0;
   list-style: none;
-}
-
-@media (min-width: 1600px) and (min-height: 1000px) {
-  .fsr-payees {
-    display: grid;
-  }
 }
 
 .fsr-payee {
@@ -200,8 +207,60 @@
   grid-template-columns: 8px minmax(0, 1fr) auto;
   align-items: center;
   column-gap: var(--fs-space-8);
-  min-height: 40px;
+  min-height: 32px;
   border-bottom: 1px solid var(--fs-rule);
+}
+
+.fsr-payee:last-child {
+  border-bottom: 0;
+}
+
+/* The 1,920 stage (a 1,600 px window, 1,000 tall): the aside steps out of the layout, so the card packs back beside
+   the batch (columns 8–12, the screen's dense flow) and the recipients take a row of their own under the money bar,
+   two columns of 72 px rows across all twelve columns. With the 280 px seal the spare height is the content's: Details
+   ends near the panel's foot, never over an empty band. */
+@media (min-width: 1600px) and (min-height: 1000px) {
+  .fsr-approve > .fsr-approve__aside {
+    display: contents;
+  }
+
+  .fsr-approve.fsc-screen > :is(.fsr-approve__money, .fsr-approve__more) {
+    grid-column: 1 / -1;
+  }
+
+  .fsr-approve__aside > .fsr-approve__decide {
+    grid-column: span 5;
+  }
+
+  .fsr-approve__aside > .fsr-payees {
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: repeat(var(--fsr-rows, 4), auto);
+    grid-auto-flow: column;
+  }
+
+  .fsr-payee {
+    min-height: 72px;
+  }
+
+  .fsr-payee:last-child {
+    border-bottom: 1px solid var(--fs-rule);
+  }
+
+  .fsr-payee__name {
+    font-size: 1rem;
+    line-height: 1.5rem;
+  }
+
+  .fsr-payee__amount {
+    font-size: 1rem;
+    line-height: 1.5rem;
+  }
+
+  /* The batch beside the hero seal: the amount and the two signers centred against its 280 px. */
+  .fsr-approve__hero {
+    align-items: center;
+  }
 }
 
 .fsr-payee__name {
@@ -618,4 +677,10 @@
 
 .fsr-banner__quote {
   color: var(--fs-ink);
+}
+
+/* Under the slab's caption (round 6): whose key the press is, in ink-2. */
+.fsr-approve__first {
+  margin: 0;
+  color: var(--fs-ink-2);
 }

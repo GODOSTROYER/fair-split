@@ -9,7 +9,7 @@ const EXHIBIT_TITLE = "fsc-heroes-title";
 const exhibitTitle = () => document.getElementById(EXHIBIT_TITLE);
 
 /** The link's whole name; a shorter face (the first view's) keeps it as the accessible name. */
-const EXHIBIT_NAME = "Claude's real readings of 10 hero slips, recorded 1 Nov 2026. Open the exhibit";
+const EXHIBIT_NAME = "Claude's readings of 10 slips, recorded 1 Nov 2026. Open the exhibit";
 
 export function ExhibitLink({
   season,
@@ -34,7 +34,7 @@ export function ExhibitLink({
     >
       {children ?? (
         <>
-          Claude's real readings of 10 hero slips
+          Claude's readings of 10 slips
           <span className="fs-sr">, recorded 1 Nov 2026. Open the exhibit</span>
         </>
       )}

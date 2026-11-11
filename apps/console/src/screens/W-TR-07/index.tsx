@@ -757,7 +757,7 @@ export function Screen({ runSlug }: RunScreenProps) {
             as a second grid row across all twelve columns once the batch and the decision card stand side by side (the
             screen packs the card back beside the batch, .fsr-approve's dense flow); on the laptops it stays under the
             batch (seven columns). The reading order stays the batch, its money, then the decision. */}
-        <Cell span={12} spanMd={7} className="fsr-approve__money">
+        <Cell span={7} spanMd={7} className="fsr-approve__money">
           <MoneyBar
             testId="W-TR-07.rail"
             label={APPROVE.railLabel}
@@ -781,12 +781,127 @@ export function Screen({ runSlug }: RunScreenProps) {
               },
             ]}
           />
+        </Cell>
 
-          {/* The second row at 1,920 (round 5): who the PayPal segment pays, two columns across. */}
+        {/* The decision (columns 8–12), one card that hugs its content: the checks, one way to sign while no key
+            has signed, and only after key 1 the Chair's co-sign block. Round 6: who the batch pays is on screen
+            before anyone signs, at every width: under the card on the laptops (one column), and on the 1,920 stage a
+            row of its own under the money bar (the aside steps out of the layout there: approve.css). */}
+        <div className="fsr-approve__aside">
+          <div className="fsr-approve__decide">
+            {batch.final ? (
+              <CheckList rows={checks} testId="W-TR-07.safe" />
+            ) : (
+              <BlockedList reasons={reasons} />
+            )}
+
+            {(!signedNow || state === "killed") && (
+              <div ref={slabRef} className="fsr-approve__slab">
+                <Slab
+                  key={slabKey}
+                  label={label}
+                  srLabel={APPROVE.srApprove(label, amount.spoken)}
+                  depth="d3"
+                  tone="jade"
+                  hold={TIMING.holdConsole}
+                  size="l"
+                  glyph="seal"
+                  confirm={{
+                    title: APPROVE.confirmTitle(batch.itemCount),
+                    body: (
+                      <ConfirmBody
+                        amount={amount.display}
+                        count={batch.itemCount}
+                        recipients={rows}
+                        batchSha256={batchSha256}
+                      />
+                    ),
+                  }}
+                  {...(unavailable !== undefined ? { unavailableReason: unavailable } : {})}
+                  {...(onReason ? { onReasonClick: onReason } : {})}
+                  bolted={state === "killed"}
+                  hint={!signedNow}
+                  testId="W-TR-07.approve"
+                  onHoldChange={onHoldChange}
+                  onCommit={approve}
+                />
+                {/* Round 6: the press is the treasurer's key, the first of two; the Chair's comes next. */}
+                {chair.required && keys === 0 && state !== "killed" && batch.final && (
+                  <p className="fsr-approve__first fs-t-caption" data-testid="W-TR-07.firstKey">
+                    {APPROVE.firstKey}
+                  </p>
+                )}
+              </div>
+            )}
+            {state === "killed" && (
+              <p className="fsr-approve__killed fs-t-label" data-testid="W-TR-07.killed">
+                <Glyph name="ms:pause" size={16} />
+                {APPROVE.killed}
+              </p>
+            )}
+
+            {done && (
+              <div className="fsr-approve__done" data-testid="W-TR-07.approved">
+                <span className="fs-sr">{APPROVE.approved}</span>
+                {state === "posting" && (
+                  <p className="fsr-approve__posting fs-t-caption" data-testid="W-TR-07.posting">
+                    {APPROVE.posting(batchId)}
+                  </p>
+                )}
+                {/* Round 5: no glyph; the amount's micro-tag and the bar's indicator already say the rail. */}
+                {isPosted(view) && (
+                  <p className="fsr-approve__posted fs-t-label" title={railTag(rail)}>
+                    {APPROVE.posted}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {keys === 2 && (
+              <AppLink
+                href={webRoutes.fanout(view.runSlug)}
+                className="fs-flat"
+                data-size="l"
+                data-testid="W-TR-07.fanout"
+              >
+                {APPROVE.watchPayouts}
+              </AppLink>
+            )}
+
+            {payloadError && (
+              <CommandNotice
+                error={payloadError}
+                testId="W-TR-07.payload.error"
+                onRetry={reloadPayload}
+                retryLabel={APPROVE.payloadRetry}
+              />
+            )}
+            {submit.queuedMs !== null && (
+              <p role="status" className="fs-t-caption" data-testid="W-TR-07.queued">
+                You're next, about {Math.ceil(submit.queuedMs / 1000)} s
+              </p>
+            )}
+            {failure !== null && <CommandNotice error={failure} testId="W-TR-07.error" onRetry={reload} />}
+
+            {/* The Chair's ways to co-sign, only once key 1 is in: before it, the slab is the one way to sign. */}
+            {inJudgeMode && state === "key1" && chair.required && (
+              <CosignCard
+                code={pairing.data ?? null}
+                busy={pairing.isPending}
+                onMake={() => pairing.mutate({ body: { persona: "ernesto", role: "board" } })}
+                {...(stage ? { onChairFrame: () => stage.raisePhone("chair") } : {})}
+                error={
+                  pairing.error ? <CommandNotice error={pairing.error} testId="W-TR-07.cosign.error" /> : null
+                }
+              />
+            )}
+          </div>
           {batch.final && payees.length > 0 && (
             <Payees rows={payees} label={APPROVE.payeesLabel(payees.length)} testId="W-TR-07.payees" />
           )}
-
+        </div>
+        {/* The fees and the ids a person opens to compare by eye: the last row under the money. */}
+        <Cell span={7} spanMd={7} className="fsr-approve__more">
           <details className="fsr-approve__details">
             <summary className="fsr-approve__summary fs-t-label">
               <Glyph name="ms:expand-more" size={16} />
@@ -815,111 +930,6 @@ export function Screen({ runSlug }: RunScreenProps) {
               </p>
             </div>
           </details>
-        </Cell>
-
-        {/* The decision (columns 8–12), one card that hugs its content: the checks, one way to sign while no key
-            has signed, and only after key 1 the Chair's co-sign block. */}
-        <Cell span={5} spanMd={5} className="fsr-approve__decide">
-          {batch.final ? (
-            <CheckList rows={checks} testId="W-TR-07.safe" />
-          ) : (
-            <BlockedList reasons={reasons} />
-          )}
-
-          {(!signedNow || state === "killed") && (
-            <div ref={slabRef} className="fsr-approve__slab">
-              <Slab
-                key={slabKey}
-                label={label}
-                srLabel={APPROVE.srApprove(label, amount.spoken)}
-                depth="d3"
-                tone="jade"
-                hold={TIMING.holdConsole}
-                size="l"
-                glyph="seal"
-                confirm={{
-                  title: APPROVE.confirmTitle(batch.itemCount),
-                  body: (
-                    <ConfirmBody
-                      amount={amount.display}
-                      count={batch.itemCount}
-                      recipients={rows}
-                      batchSha256={batchSha256}
-                    />
-                  ),
-                }}
-                {...(unavailable !== undefined ? { unavailableReason: unavailable } : {})}
-                {...(onReason ? { onReasonClick: onReason } : {})}
-                bolted={state === "killed"}
-                hint={!signedNow}
-                testId="W-TR-07.approve"
-                onHoldChange={onHoldChange}
-                onCommit={approve}
-              />
-            </div>
-          )}
-          {state === "killed" && (
-            <p className="fsr-approve__killed fs-t-label" data-testid="W-TR-07.killed">
-              <Glyph name="ms:pause" size={16} />
-              {APPROVE.killed}
-            </p>
-          )}
-
-          {done && (
-            <div className="fsr-approve__done" data-testid="W-TR-07.approved">
-              <span className="fs-sr">{APPROVE.approved}</span>
-              {state === "posting" && (
-                <p className="fsr-approve__posting fs-t-caption" data-testid="W-TR-07.posting">
-                  {APPROVE.posting(batchId)}
-                </p>
-              )}
-              {/* Round 5: no glyph; the amount's micro-tag and the bar's indicator already say the rail. */}
-              {isPosted(view) && (
-                <p className="fsr-approve__posted fs-t-label" title={railTag(rail)}>
-                  {APPROVE.posted}
-                </p>
-              )}
-            </div>
-          )}
-
-          {keys === 2 && (
-            <AppLink
-              href={webRoutes.fanout(view.runSlug)}
-              className="fs-flat"
-              data-size="l"
-              data-testid="W-TR-07.fanout"
-            >
-              {APPROVE.watchPayouts}
-            </AppLink>
-          )}
-
-          {payloadError && (
-            <CommandNotice
-              error={payloadError}
-              testId="W-TR-07.payload.error"
-              onRetry={reloadPayload}
-              retryLabel={APPROVE.payloadRetry}
-            />
-          )}
-          {submit.queuedMs !== null && (
-            <p role="status" className="fs-t-caption" data-testid="W-TR-07.queued">
-              You're next, about {Math.ceil(submit.queuedMs / 1000)} s
-            </p>
-          )}
-          {failure !== null && <CommandNotice error={failure} testId="W-TR-07.error" onRetry={reload} />}
-
-          {/* The Chair's ways to co-sign, only once key 1 is in: before it, the slab is the one way to sign. */}
-          {inJudgeMode && state === "key1" && chair.required && (
-            <CosignCard
-              code={pairing.data ?? null}
-              busy={pairing.isPending}
-              onMake={() => pairing.mutate({ body: { persona: "ernesto", role: "board" } })}
-              {...(stage ? { onChairFrame: () => stage.raisePhone("chair") } : {})}
-              error={
-                pairing.error ? <CommandNotice error={pairing.error} testId="W-TR-07.cosign.error" /> : null
-              }
-            />
-          )}
         </Cell>
       </section>
     </ScreenRoot>

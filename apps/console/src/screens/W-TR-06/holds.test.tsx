@@ -111,7 +111,7 @@ describe("W-TR-06 hold drawer", () => {
         "W-TR-06.card-flat-note",
       );
       expect(card.querySelector(".fs-hold__buttons")?.nextElementSibling?.textContent).toBe(
-        "A reason, then the Chair",
+        "Needs a reason and the Chair's OK",
       );
       expect(screen.getByTestId("W-TR-06.drawer").hasAttribute("data-hug")).toBe(true);
       expect(screen.getByTestId("W-TR-06.twin.verdict").textContent).toBe(
@@ -169,7 +169,9 @@ describe("W-TR-06 hold drawer", () => {
       expect(screen.getByTestId("W-TR-06.result").textContent).toBe("+US$17.94 back to 63 members");
       expect(document.getElementById("W-TR-06.card-title")?.textContent).toBe("Slip 0457, counted once");
       expect(screen.queryByTestId("W-TR-06.card.effect")).toBeNull();
-      expect(screen.getByTestId("W-TR-06.card.resolution").textContent).toMatch(/Resolved by AS/);
+      expect(screen.getByTestId("W-TR-06.card.resolution").textContent).toMatch(
+        /Resolved by Analyn · \d\d:\d\d/,
+      );
       expect(screen.getByTestId("W-TR-06.next").textContent).toBe("Next: hold H2");
       await expectNoAxeViolations(screen.getByTestId("W-TR-06.drawer"));
     },

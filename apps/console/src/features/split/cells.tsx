@@ -637,14 +637,16 @@ export function StatusCell({ data, context }: Props) {
           className="fsr-status__text"
           title={data.status.kind === "reserved" ? SPLIT.reservedTitle : undefined}
         >
-          <span className="fs-t-label">
+          {/* Round 6: a held line says it once on screen, the amber dot and its hold's tag ("H1", an amber outline);
+              the word ("Held", "Reserved") stays for assistive technology. */}
+          <span className={data.status.kind !== "line" && !byHandHold(data) ? "fs-sr" : "fs-t-label"}>
             {statusWords(data)}
             {statusLabel(data) && <span className="fs-sr">{statusLabel(data)}</span>}
           </span>
           {data.status.kind !== "line" && !byHandHold(data) && (
             <>
               {" "}
-              <span className="fsr-status__hold fs-t-caption">{data.status.hold.label}</span>
+              <span className="fsr-status__hold fs-t-label">{data.status.hold.label}</span>
             </>
           )}
         </span>

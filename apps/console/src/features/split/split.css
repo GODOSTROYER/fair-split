@@ -125,13 +125,14 @@
   box-shadow: inset 0 0 0 1px var(--fs-rule-strong);
 }
 
+/* Round 6: the dial's state is the machine's reading, so its mark is ink (amber is a hold's dot and tag only). */
 .fsr-dialstate[data-status="OUTSIDE"]::before {
   content: "";
   flex: none;
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
-  background: var(--fs-canary);
+  background: var(--fs-ink);
 }
 
 .fsr-dialstate[data-status="PENDING"] {
@@ -169,73 +170,16 @@
   }
 }
 
-/* The pool: the screen's money at amount-l, in pencil (the engine's figure; nobody has signed), its two parts on
-   one line, then the balance check and the provenance of every figure on the screen. */
+/* The money summary's cell: columns 5–12 of the bench, on the dial's centre line. */
 .fsr-pools {
   grid-row: 1;
-  grid-column: 5 / span 4;
+  grid-column: 5 / -1;
   display: grid;
   align-content: center;
   justify-items: start;
-  gap: var(--fs-space-4);
   min-width: 0;
   margin: 0;
 }
-
-.fsr-pools__total {
-  margin: 0;
-  color: var(--fs-pencil);
-  white-space: nowrap;
-}
-
-.fsr-pools__total[data-amount-state="ink"] {
-  color: var(--fs-ink);
-}
-
-/* The pool's two parts on one line, label then figure, then the balance check. */
-.fsr-pools__parts {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--fs-space-4) var(--fs-space-16);
-  margin: 0;
-}
-
-.fsr-pools__item {
-  display: inline-flex;
-  align-items: baseline;
-  gap: var(--fs-space-8);
-}
-
-.fsr-pools dt {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--fs-space-4);
-  color: var(--fs-ink-3);
-}
-
-.fsr-pools dd {
-  margin: 0;
-}
-
-.fsr-pools dd[data-amount-state="pencil"] {
-  color: var(--fs-pencil);
-}
-
-/* The next decision: its word, then the link with the held dot (the open counts are the title row's chip). */
-.fsr-bench__summary {
-  grid-row: 1;
-  grid-column: 9 / span 4;
-  display: grid;
-  justify-items: start;
-  align-content: center;
-  gap: var(--fs-space-8);
-  min-width: 0;
-}
-
-.fsr-bench__summary > .fsr-bench__label {
-  margin: 0;
-}
-
 .fsr-bench__tools {
   grid-row: 2;
   grid-column: 1 / -1;
@@ -314,15 +258,14 @@
   box-shadow: inset 0 0 0 1px var(--fs-rule-strong);
 }
 
-/* The grid's arithmetic above it (round 3): "Pool US$4,273.50 − deductions 58.65 = member net US$4,214.85", then
-   the balance check. Labels in caption grey, figures in the money face; it sits at the tools row's end, over the
-   Net column, and wraps to its own line on a narrow screen. */
+/* The screen's one money summary (round 6), beside the dial: "Pool − deductions = member net", each term its word
+   over its figure on the title step, the operators on the figures' line, then the balance check. Labels in caption
+   grey, figures in the money face (the pool in pencil until both keys sign). It wraps as whole terms. */
 .fsr-recon {
   display: inline-flex;
   flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--fs-space-4) var(--fs-space-16);
-  margin-left: auto;
+  align-items: flex-end;
+  gap: var(--fs-space-8) var(--fs-space-24);
 }
 
 .fsr-recon__eq {
@@ -332,13 +275,13 @@
 .fsr-recon__line {
   display: inline-flex;
   flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--fs-space-4) var(--fs-space-8);
+  align-items: flex-end;
+  gap: var(--fs-space-8) var(--fs-space-16);
 }
 
 .fsr-recon__term {
-  display: inline-flex;
-  align-items: baseline;
+  display: inline-grid;
+  justify-items: start;
   gap: var(--fs-space-4);
   white-space: nowrap;
 }
@@ -351,8 +294,14 @@
   color: var(--fs-ink);
 }
 
+.fsr-recon__figure[data-amount-state="pencil"] {
+  color: var(--fs-pencil);
+}
+
 .fsr-recon__op {
   color: var(--fs-ink-3);
+  font-size: 1.25rem;
+  line-height: 1.875rem;
 }
 
 /* "Columns": the secondary figures behind one quiet control. */
@@ -782,7 +731,7 @@
   box-sizing: border-box;
 }
 
-/* Net is the line's answer, the one scanned column: figure-net, 87.5/600 (pencil until the keys, as every engine
+/* Net is the line's answer, the one scanned column: figure-net, 600 at the text's width (pencil until the keys, as every engine
    figure). Money is never bold beyond it. */
 .fsr-amount--net {
   font-weight: 600;
@@ -952,14 +901,14 @@
   box-shadow: inset 0 0 0 1px var(--fs-rule-strong);
 }
 
-/* The filled H-tag: the hold's label on the marigold face (the held row's one filled mark). */
+/* The H-tag (round 6): the hold's label in ink inside a 1 px amber outline, after the amber dot. Never filled, and
+   no "Held" word beside it: a held line says it once. */
 .fsr-status__hold {
-  padding: 0 5px;
+  padding: 0 6px;
   border: 1px solid var(--fs-canary-border);
-  border-radius: 5px;
-  background: var(--fs-canary);
-  color: var(--fs-on-canary);
-  font-weight: 560;
+  border-radius: var(--fs-radius-cell);
+  background: transparent;
+  color: var(--fs-ink);
 }
 
 /* ------------------------------------------------------------------ the balance check */
@@ -978,67 +927,34 @@
   color: var(--fs-red);
 }
 
-/* The 1,280 px laptop (a panel under 1,040 px): the instrument takes five columns, the pool four, the next decision
-   three, still one row; the filters, the balance check and "Columns" share one row (round 5), the arithmetic for
-   screen readers and in the check's title (the pool is on the bench, the net on the total), so the lines get the
-   height. */
-@container fsc-screen (max-width: 1039px) {
-  .fsr-recon__line {
-    display: none;
-  }
+/* The balance check stands on the sum's figures' line (round 6). */
+.fsr-recon > .fsr-split__totals {
+  min-height: 30px;
+}
 
+/* The 1,280 px laptop (a panel under 1,040 px): the instrument takes five columns and the money summary the other
+   seven, still one row, and the sum stays whole (round 6: the reconciliation is on screen at every width). */
+@container fsc-screen (max-width: 1039px) {
   .fsr-bench__dial {
     grid-column: 1 / span 5;
   }
 
   .fsr-pools {
-    grid-column: 6 / span 4;
+    grid-column: 6 / -1;
   }
 
-  .fsr-bench__summary {
-    grid-column: 10 / span 3;
+  .fsr-recon__line {
+    column-gap: var(--fs-space-12);
   }
 }
 
-/* Beside an open drawer (a panel under 720 px): the dial and the pool share the first row, the decisions take the
-   second, the filters the third; the reconciliation takes its own line under the filters. */
+/* Beside an open drawer (a panel under 720 px): the dial, then the sum, then the filters, each on its own row. */
 @container fsc-screen (max-width: 719px) {
   .fsr-bench {
     row-gap: var(--fs-space-12);
   }
 
   .fsr-bench__dial {
-    grid-column: 1 / span 6;
-  }
-
-  .fsr-pools {
-    grid-column: 7 / span 6;
-  }
-
-  .fsr-bench__summary {
-    grid-row: 2;
-    grid-column: 1 / -1;
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--fs-space-8) var(--fs-space-16);
-  }
-
-  .fsr-bench__tools {
-    grid-row: 3;
-  }
-
-  .fsr-recon {
-    order: 3;
-    flex-basis: 100%;
-    margin-left: 0;
-  }
-}
-
-/* Pushed aside by a drawer on the 1,280 px laptop (a panel under 560 px): the dial and the pool each take a row, so
-   the hero reading never runs into the pool. */
-@container fsc-screen (max-width: 559px) {
-  .fsr-bench__dial {
     grid-column: 1 / -1;
   }
 
@@ -1047,15 +963,24 @@
     grid-column: 1 / -1;
   }
 
-  .fsr-bench__summary {
+  .fsr-bench__tools {
     grid-row: 3;
   }
 
-  .fsr-bench__tools {
-    grid-row: 4;
+  .fsr-recon__figure {
+    font-size: 1rem;
+    line-height: 1.5rem;
+  }
+
+  .fsr-recon__op {
+    font-size: 1rem;
+    line-height: 1.5rem;
+  }
+
+  .fsr-recon > .fsr-split__totals {
+    min-height: 24px;
   }
 }
-
 /* ------------------------------------------------------------------ the static table (before the grid is measured) */
 
 .fsr-grid__frame--static {

@@ -278,8 +278,11 @@ export function SplitFan({ fan, animate, drawing, mode, cashDay, cashCaption }: 
         ))}
         {fan.cashLines.length > 0 && (
           <p className="fsr-fan__group" style={at(FAN.labelX, ribbonMid)} data-testid="W-TR-08.cashLabel">
+            {/* Round 6: on a narrow fan the row says "57 members · cash" whole (never cut with an ellipsis); "at the
+                bodega" joins it where there is room. */}
             <span className="fsr-fan__name fs-t-label" title={FANOUT.dueOn(cashDay)}>
-              {FANOUT.cashBandMembers(fan.cash.members)}
+              {FANOUT.cashBandShort(fan.cash.members)}
+              <span className="fsr-fan__more">{FANOUT.cashBandWhere}</span>
             </span>
             <Amount cents={fan.cash.cents} state={fan.cash.amountState} />
             {cashCaption && (

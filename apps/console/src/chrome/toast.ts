@@ -48,6 +48,9 @@ export function toastWords(row: LogRow, event?: RunEvent): string {
     const shrink = shrinkToast(row.words);
     if (shrink) return shrink;
   }
+  // Round 6: a slip's reading is said without the member's id ("Reading slip 0428"): the pill is not a log line.
+  const read = /^Read slip (\d+)\b/.exec(row.words);
+  if (read?.[1]) return `Reading slip ${read[1]}`;
   if (event?.type === "item.updated" && !/^Replayed/.test(row.words)) {
     const p = event.payload;
     const paid = /^Paid (.+?) (US\$[\d,]+\.\d{2})/.exec(plain(row.words));

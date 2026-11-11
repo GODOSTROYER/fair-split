@@ -23,6 +23,12 @@ const SECTION_GLYPH: Readonly<Record<string, HonestyKind>> = {
   "real-paypal": "simulated",
 };
 
+/**
+ * The three lead rows (round 6): what is real code, what is simulated and what is replayed, each a name over one
+ * short line. Synthetic and Not built follow as two quieter rows.
+ */
+const LEAD_SECTIONS: ReadonlySet<string> = new Set(["real", "simulated-paypal", "real-paypal", "replayed"]);
+
 export interface WhatsRealSheetProps {
   readonly open: boolean;
   readonly onOpenChange: (open: boolean) => void;
@@ -35,10 +41,11 @@ export function WhatsRealSheet({ open, onOpenChange, facts }: WhatsRealSheetProp
     <Dialog.Root open={open} onOpenChange={(next) => onOpenChange(next)}>
       <Dialog.Portal>
         <Dialog.Backdrop className="fsc-sheet__scrim" />
-        {/* Round 5: the sheet hugs its rows (no empty band under "Try to break it"), scrolling past the stage's foot. */}
+        {/* Round 6: a full-height side sheet, from under the top bar to the stage's foot, like the hold drawer: nothing
+            of the stage shows under its edge. */}
         <Dialog.Popup
           finalFocus={false}
-          className="fsc-sheet fsc-sheet--hug"
+          className="fsc-sheet"
           data-testid="W-JG-01.whatsReal"
           data-rail={facts.rail}
         >
@@ -60,20 +67,33 @@ export function WhatsRealSheet({ open, onOpenChange, facts }: WhatsRealSheetProp
               end; the details open under the sentence (no "More" repeated five times). */}
           <ul className="fsc-truth" data-testid="W-JG-01.whatsReal.rows">
             {sections.map((section) => (
-              <li key={section.id} className="fsc-truth__row" data-section={section.id}>
+              <li
+                key={section.id}
+                className="fsc-truth__row"
+                data-section={section.id}
+                data-lead={LEAD_SECTIONS.has(section.id) ? "" : undefined}
+              >
                 <details className="fsc-truth__more">
                   <summary className="fsc-truth__summary">
-                    <span className="fsc-truth__term fs-t-label">
-                      {/* The legend: the same glyph the screens carry bare (round 3), hidden here beside its words. */}
-                      {SECTION_GLYPH[section.id] ? (
-                        <LegendMark kind={SECTION_GLYPH[section.id] ?? "real"} />
-                      ) : (
-                        <span className="fsc-truth__mark" aria-hidden />
-                      )}
+                    {/* Every row keeps the same 16 px slot (round 6), so the names start on one edge; only the
+                        simulated PayPal row's holds a mark, the dashed circle the screens carry beside PayPal money. */}
+                    <span
+                      className="fsc-truth__mark"
+                      aria-hidden={SECTION_GLYPH[section.id] ? undefined : true}
+                    >
+                      {SECTION_GLYPH[section.id] && <LegendMark kind={SECTION_GLYPH[section.id] ?? "real"} />}
+                    </span>
+                    <span
+                      className={`fsc-truth__term ${LEAD_SECTIONS.has(section.id) ? "fs-t-heading" : "fs-t-label"}`}
+                    >
                       {section.title}
                     </span>
                     <span className="fs-sr">: </span>
-                    <span className="fsc-truth__line fs-t-body">{section.line}</span>
+                    <span
+                      className={`fsc-truth__line ${LEAD_SECTIONS.has(section.id) ? "fs-t-body" : "fs-t-caption"}`}
+                    >
+                      {section.line}
+                    </span>
                     <span className="fsc-truth__chev" aria-hidden>
                       <Glyph name="ms:expand-more" size={16} />
                     </span>

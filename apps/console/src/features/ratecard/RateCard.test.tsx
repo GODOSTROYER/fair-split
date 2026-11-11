@@ -141,6 +141,11 @@ describe("W-TR-02 rate card", { timeout: 60_000 }, () => {
       screen.getByTestId("W-TR-02.addCommit").compareDocumentPosition(plate) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
+    // Round 6: the refused attempt reads as one struck row; the schedule's page number steps aside.
+    const refusedRow = screen.getByTestId("W-TR-02.refusedRow");
+    expect(refusedRow.querySelector("s")?.textContent).toMatch(/ · /);
+    expect(refusedRow.textContent).toContain("Locked by");
+    expect(screen.getByTestId("W-TR-02.add").hasAttribute("data-plate")).toBe(true);
     const why = screen.getByTestId("W-TR-02.why");
     expect(why.tagName).toBe("DETAILS");
     expect(why.hasAttribute("open")).toBe(false);

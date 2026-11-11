@@ -22,6 +22,7 @@ import { format } from "../../lib/format.js";
 import { useMoment } from "../../lib/moment.js";
 import { useShortcut } from "../../lib/shortcuts.js";
 import { useOptionalStage } from "../../stage/context.js";
+import { PrimaryLink } from "../fanout/PrimaryLink.js";
 import { useOnline } from "../season/online.js";
 import { ConfirmZoomRead, RequestRescan } from "./Actions.js";
 import { Beds, type Landing } from "./Beds.js";
@@ -310,6 +311,8 @@ export function ReadingRoom({
       : progress.read < progress.total
         ? { tone: "neutral" as const, glyph: "pencil" as const, words: READING_COPY.stateReading }
         : { tone: "neutral" as const, glyph: "ms:check" as const, words: READING_COPY.stateRead };
+  // The slip that waits for a person (0462, under its stain), for the room's primary beside the count.
+  const needsSerial = snapshot.holds.find((h) => h.kind === "LOW_CONFIDENCE")?.serials[0] ?? null;
   const toConfirm = state === "confirm-one" ? confirmRow(rows) : null;
   const confirmHold = toConfirm && view ? confirmHoldFor(view, snapshot, toConfirm.serial) : undefined;
 
@@ -384,6 +387,18 @@ export function ReadingRoom({
                 {progress.needs > 0 && <StateDot kind="held" />}
                 {progress.needs > 0 ? READING_COPY.progressNeeds(progress.needs) : READING_COPY.progressUnit}
               </span>
+              {/* Round 6: the exception owns the screen. While a slip waits for a person, its entry is the room's one
+                  primary, right beside the count it holds back; the row's own button stays the quiet way in. */}
+              {progress.needs > 0 && needsSerial && (
+                <PrimaryLink
+                  href={webRoutes.byHand(season, needsSerial)}
+                  glyph="pencil"
+                  className="fsc-read__enter"
+                  testId="W-TR-03.enterByHand"
+                >
+                  {READING_COPY.enterByHand(needsSerial)}
+                </PrimaryLink>
+              )}
               <span
                 id="fsc-reading-provenance"
                 className="fs-sr"

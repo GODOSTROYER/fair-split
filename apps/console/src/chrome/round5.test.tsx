@@ -214,13 +214,13 @@ describe("the top bar keeps six calm items (round 5)", () => {
     );
   });
 
-  it.each([1280, 1470])("What's real keeps its word at %i px; the indicator keeps 'Simulated'", (width) => {
+  it.each([1280, 1470])("What's real keeps its word at %i px, and the indicator its whole name", (width) => {
     const link = el("fsc-barlink fsc-barlink--real");
     const label = el("fs-t-label", {}, link);
     expect(cascaded(stage, label, "clip-path", at(width))).toBeUndefined();
     expect(cascaded(stage, label, "position", at(width))).toBeUndefined();
-    // The indicator's rest of its name leaves the screen (never the accessibility tree).
-    expect(cascaded(stage, el("fsc-bar__tagrest"), "clip-path", at(width))).toBe("inset(50%)");
+    // Round 6: the disclosure is never shortened; "Simulated PayPal sandbox" stays whole at every width.
+    expect(cascaded(stage, el("fsc-bar__tagrest"), "clip-path", at(width))).toBeUndefined();
   });
 
   it("at 1920 the indicator says its whole name", () => {

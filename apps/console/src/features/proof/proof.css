@@ -597,7 +597,7 @@
   height: 24px;
   border-top: 1px solid var(--fs-ink-3);
   color: var(--fs-ink-3);
-  font-stretch: 87.5%;
+  font-stretch: 100%;
   font-weight: 500;
   font-size: 0.875rem;
   line-height: 1.25rem;
@@ -712,10 +712,10 @@
   min-width: 0;
 }
 
-/* Counts and money in the figure role (tabular, 87.5 %, 500), right-aligned. */
+/* Counts and money in the figure role (tabular, the text's width, 500), right-aligned. */
 .pf-dist__count {
   color: var(--fs-ink-3);
-  font-stretch: 87.5%;
+  font-stretch: 100%;
   font-weight: 500;
   font-size: 0.875rem;
   text-align: right;
@@ -723,7 +723,7 @@
 
 .pf-dist__value {
   color: var(--fs-ink);
-  font-stretch: 87.5%;
+  font-stretch: 100%;
   font-weight: 500;
   font-size: 0.875rem;
   text-align: right;
@@ -1349,7 +1349,7 @@
 
 /* The net on the amount-l step (24/30 numerals). */
 .pf-receipt__row--net dd {
-  font-stretch: 87.5%;
+  font-stretch: 100%;
   font-weight: 500;
   font-size: 1.5rem;
   line-height: 1.875rem;
@@ -1491,7 +1491,7 @@
 .pf-crop__pen {
   fill: var(--fs-paper-ink);
   font-family: var(--fs-font-ui);
-  font-stretch: 87.5%;
+  font-stretch: 100%;
   font-weight: 640;
   font-size: 14px;
 }
@@ -1651,7 +1651,7 @@
 }
 
 .pf-tier__amount {
-  font-stretch: 87.5%;
+  font-stretch: 100%;
   font-weight: 500;
   text-align: right;
   white-space: nowrap;
