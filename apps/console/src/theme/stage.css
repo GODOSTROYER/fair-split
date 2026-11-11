@@ -294,9 +294,17 @@
   display: contents;
 }
 
-/* A drawer in push mode takes its 560 px from the screen instead of covering it (S1.6, 1280–1599 px). */
-.fsc-console__body:has(.fsc-drawer[data-mode="push"]) > .fsc-console__screen {
+/* A drawer takes its 560 px from the screen instead of covering it, from 1280 px up (round 7: the 1,920 stage too),
+   so the screen's key figures and its lines reflow beside the sheet and nothing is cut or left peeking under it. */
+.fsc-console__body:has(.fsc-drawer:is([data-mode="push"], [data-mode="overlay"])) > .fsc-console__screen {
   right: var(--fs-console-drawer);
+}
+
+/* Beside a drawer on the laptops the screen gives its side padding back to its content. */
+@media (max-width: 1439px) {
+  .fsc-console__body:has(.fsc-drawer[data-mode="push"]) > .fsc-console__screen {
+    padding-inline: 24px;
+  }
 }
 
 /* ---------------------------------------------------------------- rail */
@@ -388,22 +396,27 @@
   color: var(--fs-ink-2);
 }
 
+/* Round 7: where the run's next step is, is navigation, not a status: a small pointer (never the round dot a held
+   row or the pill wears), in the colour of whoever moves next: the person's indigo, graphite for the machine, ink
+   when done; the simulated PayPal keeps its dashed ring (dashed means simulated). */
 .fsc-rail__square {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
+  width: 7px;
+  height: 9px;
   background: var(--fs-canary);
+  clip-path: polygon(0 0, 100% 50%, 0 100%);
 }
 
-/* The pill's marks: amber only for a person's decision, graphite for the machine, the dashed steel ring for the
-   simulated PayPal (dashed means simulated; jade waits for a confirmed payment), ink when done. */
 .fsc-rail__square[data-actor="machine"] {
   background: var(--fs-pencil);
 }
 
 .fsc-rail__square[data-actor="paypal"] {
+  width: 8px;
+  height: 8px;
   border: 1px dashed var(--fs-steel-line);
+  border-radius: 50%;
   background: transparent;
+  clip-path: none;
 }
 
 .fsc-rail__square[data-actor="done"] {
@@ -729,12 +742,16 @@
   padding: 24px;
 }
 
-/* Round 5: a drawer hugs its content. It ends at its content's foot (never past the stage's), standing at the top of
-   the screen's column with the panel radius all round, so a short state never leaves an empty band under it. */
-.fsc-drawer[data-hug] {
-  bottom: auto;
-  max-height: 100%;
-  border-radius: var(--fs-radius-panel);
+/* Where a sheet's content runs past its foot, the last 24 px fade to the plate (nothing ends on a cut line). */
+.fsc-drawer::after {
+  content: "";
+  position: sticky;
+  bottom: 0;
+  flex: none;
+  height: 24px;
+  margin-top: -24px;
+  background: linear-gradient(to bottom, transparent, var(--fs-plate));
+  pointer-events: none;
 }
 
 /* Round 5: the drawer's action on a sticky footer at its foot: the primary and at most one secondary, both 48 px,
@@ -755,6 +772,14 @@
 
 .fsc-drawer__foot :is(.fs-flat, .fs-slab) {
   min-height: 48px;
+}
+
+/* Round 7: every drawer is a full-height sheet (the same frame as What's real), so no row of the screen shows under
+   a rounded foot (round 5's hugging drawer ended at its content). A hugging state keeps its action right under its
+   content (the result and the next step read as one group at the top of the sheet); the plate runs on to the foot. */
+.fsc-drawer[data-hug] > .fsc-drawer__foot {
+  position: static;
+  margin-top: 0;
 }
 
 /* Without the blocking scrim (a compact success state), the drawer lifts on e2 like the stage's panels. */
@@ -1046,19 +1071,37 @@
   }
 }
 
+/* Round 7: the opened phone never dims the page. Its backdrop is clear: it takes the press that closes the sheet
+   (as a hold's drawer does), and the sheet's e3 shadow is its lift. */
 .fsc-dock__backdrop {
   position: absolute;
   inset: 0;
   z-index: var(--fs-z-scrim);
-  background: var(--fs-scrim);
+  background: transparent;
   pointer-events: auto;
-  transition: opacity var(--fs-dur-drawer-in) var(--fs-ease-drawer);
 }
 
-@starting-style {
-  .fsc-dock__backdrop {
-    opacity: 0;
-  }
+/* The sheet's own way out, at the end of its head. */
+.fsc-dock__close.fs-flat {
+  gap: 4px;
+  min-height: 34px;
+  margin-left: auto;
+  padding: 0 10px 0 8px;
+  border-color: transparent;
+}
+
+.fsc-stage[data-layout="tab"] .fsc-dock[data-raised] .fsc-dock__head {
+  width: 100%;
+  padding-inline: 6px 2px;
+}
+
+.fsc-stage[data-layout="tab"] .fsc-dock[data-raised] .fsc-dock__tabsroot {
+  width: 100%;
+}
+
+.fsc-stage[data-layout="tab"] .fsc-dock[data-raised] .fsc-dock__tab {
+  min-width: 64px;
+  padding: 0 10px;
 }
 
 /* Raised below 1440 px, the panel stands at the right, over the rail's column, above the console. It is visible in

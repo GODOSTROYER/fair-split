@@ -22,8 +22,16 @@ import { byLane, LANES, type Latency } from "./model.js";
 export const LATEST = PEEK_ROWS;
 
 /** A PayPal row the simulated PayPal confirmed as paid: its lane dot is jade. A replayed row never is. */
+/**
+ * One rule for the jade dot (round 7): every row that says the simulated PayPal confirmed money wears it, the
+ * member's "Paid …" row and PayPal's own notice of it ("Payment confirmed") alike. A replay never does.
+ */
 function landedRow(row: LogRow): boolean {
-  return row.lane === "PAYPAL" && row.provenance !== "replay" && /^Paid /.test(row.words);
+  return (
+    row.lane === "PAYPAL" &&
+    row.provenance !== "replay" &&
+    (/^Paid /.test(row.words) || row.words === "PayPal notice: PAYMENT.PAYOUTS-ITEM.SUCCEEDED")
+  );
 }
 
 export interface RunLogProps {

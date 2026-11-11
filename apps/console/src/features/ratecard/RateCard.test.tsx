@@ -44,18 +44,19 @@ describe("W-TR-02 rate card", { timeout: 60_000 }, () => {
     expect(root.dataset.state).toBe("ratified");
     const rules = within(screen.getByTestId("W-TR-02.rules")).getAllByRole("button");
     expect(rules).toHaveLength(8);
-    // Each rule is its id and four words or fewer (round 4), every figure the card's own term; its whole clause
-    // opens under it.
+    // Each rule is four words or fewer (round 4), every figure the card's own term; its whole clause opens under
+    // it. Round 7: no rule ids on screen (R0–R6 are the document's own); the id is the row's title.
     expect(rules.map((r) => r.textContent)).toEqual([
-      "R0Premium never deducted",
-      "R1CBU 5% of bonus",
-      "R2Hauling ₱1.50 a kg",
-      "R3Loan ≤ 50% of bonus",
-      "R4Advance ≤ 30% of bonus",
-      "R5Chair co-signs over US$300.00",
-      "R6Holds need a person",
+      "Premium never deducted",
+      "CBU 5% of bonus",
+      "Hauling ₱1.50 a kg",
+      "Loan ≤ 50% of bonus",
+      "Advance ≤ 30% of bonus",
+      "Chair co-signs over US$300.00",
+      "Holds need a person",
       "No other deductions",
     ]);
+    expect(screen.getByTestId("W-TR-02.rule.R1").querySelector("[title]")?.getAttribute("title")).toBe("R1");
     // Four words or fewer beside the id (a sign such as "≤" is not a word).
     for (const rule of rules) {
       const words = (rule.textContent ?? "").replace(/^R\d/, "").trim().split(/\s+/);
@@ -141,10 +142,17 @@ describe("W-TR-02 rate card", { timeout: 60_000 }, () => {
       screen.getByTestId("W-TR-02.addCommit").compareDocumentPosition(plate) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
-    // Round 6: the refused attempt reads as one struck row; the schedule's page number steps aside.
+    // Round 7: the refused attempt stays readable (in ink, never struck through) and says what became of it; the
+    // paper turns to the page that refuses it, alone, with the card's seal under it.
     const refusedRow = screen.getByTestId("W-TR-02.refusedRow");
-    expect(refusedRow.querySelector("s")?.textContent).toMatch(/ · /);
-    expect(refusedRow.textContent).toContain("Locked by");
+    expect(refusedRow.querySelector("s")).toBeNull();
+    expect(refusedRow.querySelector(".fsc-rc__refused-what")?.textContent).toMatch(/ · /);
+    expect(refusedRow.textContent).toContain("Not added · locked by BR 2026-04");
+    const pages = screen.getByTestId("W-TR-02.pages");
+    expect(pages.hasAttribute("data-cited")).toBe(true);
+    expect(pages.querySelectorAll(".fsc-rc-page")).toHaveLength(1);
+    expect(pages.querySelector(".fsc-rc-page__folio")?.textContent).toBe("2 / 2");
+    expect(screen.getByTestId("W-TR-02.bolted").closest(".fsc-rc__sealed")).not.toBeNull();
     expect(screen.getByTestId("W-TR-02.add").hasAttribute("data-plate")).toBe(true);
     const why = screen.getByTestId("W-TR-02.why");
     expect(why.tagName).toBe("DETAILS");

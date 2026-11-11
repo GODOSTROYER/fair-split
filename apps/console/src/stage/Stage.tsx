@@ -129,7 +129,18 @@ function firstViewRows(snapshot: SeasonSnapshot | undefined, rail: string): Reco
 }
 
 export function Stage({ children }: { readonly children: ReactNode }) {
-  const layout = useStageLayout();
+  const windowLayout = useStageLayout();
+  // Round 7: a drawer beside the screen below 1440 px folds the console rail to its glyphs, so the screen keeps the
+  // room for its key figures (the split's sum, the lines' names) beside the 560 px sheet.
+  const [drawers, setDrawers] = useState(0);
+  const noteDrawer = useCallback((open: boolean) => setDrawers((n) => Math.max(0, n + (open ? 1 : -1))), []);
+  const layout = useMemo(
+    () =>
+      drawers > 0 && windowLayout.phone === "tab" && !windowLayout.railCollapsed
+        ? { ...windowLayout, railCollapsed: true }
+        : windowLayout,
+    [windowLayout, drawers],
+  );
   const viewportHeight = useViewportHeight();
   const navigate = useNavigate();
   const pathname = useLocation({ select: (location) => location.pathname });
@@ -201,17 +212,25 @@ export function Stage({ children }: { readonly children: ReactNode }) {
   // column ran under the phone, the fan's labels overlapped), so the phone rises over the scrim, as S1.6's table
   // has it for that width.
   // The docked phone (1440 px and wider) always has its own column, whatever the rail does beside it.
-  const besideAt = (l: typeof layout) => l.phone === "dock" || !l.railCollapsed;
-  const roomBeside = useRef(besideAt(layout));
-  roomBeside.current = besideAt(layout);
+  // Round 7: below 1440 px the phone has no column, so a beat never opens it over the screen. The rail turns to the
+  // frame the beat is about (its avatar, its status dot) and the console keeps every name and amount; the sheet
+  // opens only when the viewer asks (an avatar, the phone glyph, the pill's step, "Open the Chair's phone").
+  const tabLayout = useRef(layout.phone === "tab");
+  tabLayout.current = layout.phone === "tab";
   const raisePhone = useCallback(
-    (p: FramePersona) => {
+    (p: FramePersona, by: "viewer" | "moment" = "viewer") => {
       setPersona(p);
-      if (roomBeside.current) setRaisedBy((current) => (current === "user" ? "user" : "moment"));
-      else {
-        askedFrame.current = p !== shown.current;
-        raiseByViewer();
+      if (!tabLayout.current) {
+        setRaisedBy((current) => (current === "user" ? "user" : "moment"));
+        return;
       }
+      if (by === "moment") {
+        // Already open by the viewer's own hand: the sheet turns to the asked frame and focus follows to its tab.
+        if (raisedByRef.current === "user") askedFrame.current = p !== shown.current;
+        return;
+      }
+      askedFrame.current = p !== shown.current;
+      raiseByViewer();
     },
     [raiseByViewer],
   );
@@ -230,8 +249,6 @@ export function Stage({ children }: { readonly children: ReactNode }) {
   // then drops it to <body> (lib/focus.ts).
   // Below 1440 px the lowered phone keeps its rail (round 3), whose avatars stay live: focus left on one of them, or
   // anywhere in the phone, still goes back to what raised it, as it did when the whole panel went inert.
-  const tabLayout = useRef(layout.phone === "tab");
-  tabLayout.current = layout.phone === "tab";
   useLayoutEffect(() => {
     const lowering = lowerTo.current;
     lowerTo.current = null;
@@ -244,17 +261,26 @@ export function Stage({ children }: { readonly children: ReactNode }) {
   const lastStep = useRef(next.id);
   useEffect(() => {
     if (next.id !== lastStep.current) {
-      if (next.persona) raisePhone(next.persona);
+      if (next.persona) raisePhone(next.persona, "moment");
       else if (raisedByRef.current === "moment") lowerPhone();
     }
     lastStep.current = next.id;
   }, [next, raisePhone, lowerPhone]);
 
+  // A window narrowed under 1440 px keeps no raise it made while the phone had its column (round 7): the sheet
+  // never stands over the screen unless the viewer opened it at this width.
+  const lastPhoneLayout = useRef(layout.phone);
+  useEffect(() => {
+    const entered = layout.phone === "tab" && lastPhoneLayout.current !== "tab";
+    lastPhoneLayout.current = layout.phone;
+    if (entered && raisedByRef.current !== null) lowerPhone();
+  }, [layout.phone, lowerPhone]);
+
   // When M-014's payment lands in this run, the phone rises for MM-1 (S1.6). History never raises it, and neither
   // does a replayed SUCCESS: it is the earlier run's, never this one's landing.
   useRunEvents(inSession ? runSlug : null, (event, meta) => {
     if (meta.replay) return;
-    if (heroPaymentLanded(event)) raisePhone("member");
+    if (heroPaymentLanded(event)) raisePhone("member", "moment");
   });
 
   const prefs = useMemo<FramePrefs>(
@@ -268,7 +294,7 @@ export function Stage({ children }: { readonly children: ReactNode }) {
   );
   const bridge = useStageBridge(prefs, {
     onFocus: (p) => {
-      if (p === next.persona) raisePhone(p);
+      if (p === next.persona) raisePhone(p, "moment");
     },
   });
   const ready = useMemo(
@@ -343,8 +369,9 @@ export function Stage({ children }: { readonly children: ReactNode }) {
       next,
       autoplay,
       setAutoplay,
+      noteDrawer,
     }),
-    [layout, persona, raised, raisedBy, ready, raisePhone, lowerPhone, director, next, autoplay],
+    [layout, persona, raised, raisedBy, ready, raisePhone, lowerPhone, director, next, autoplay, noteDrawer],
   );
 
   const skipLink = useRef<HTMLAnchorElement>(null);
@@ -440,7 +467,9 @@ export function Stage({ children }: { readonly children: ReactNode }) {
                   view={view}
                   next={next}
                   items={items}
-                  toast={toast}
+                  // Round 7: while a parked payment waits for the viewer the pill keeps their decision in words
+                  // ("Next: decide on Rhea's payment"); no toast stands in its place.
+                  toast={next.id === "rhea" ? null : toast}
                   onStep={(s) => s.persona && raisePhone(s.persona)}
                   // Round 4: the run log, sound and Reset live in the chevron's menu (six items in the bar).
                   utilities={{

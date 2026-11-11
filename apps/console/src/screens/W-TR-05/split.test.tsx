@@ -72,7 +72,7 @@ describe("W-TR-05 split review", () => {
       // simulated PayPal's (the grid holds its statuses). No glyph anywhere on the screen.
       expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Split review 2026-A");
       const provenance = screen.getByTestId("W-TR-05.provenance");
-      expect(provenance.textContent).toBe("2026-A · r37");
+      expect(provenance.textContent).toBe("r37");
       expect(provenance.closest(".fs-t-id")).not.toBeNull();
       expect(provenance.getAttribute("title")).toMatch(/^64 lines · engine v1 · .* · rate card f2d7 026d$/);
       expect(screen.getByTestId("W-TR-05.head.provenance").textContent).toMatch(

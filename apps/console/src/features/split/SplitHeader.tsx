@@ -161,6 +161,27 @@ export function DialState({ dial, testId }: { readonly dial: MassBalanceView; re
   return (
     <span className="fsr-dialstate fs-t-label" data-status={dial.status} data-testid={testId}>
       {dial.status === "INSIDE" && <Glyph name="ms:check" size={14} />}
+      {/* Round 7: a breached limit is an exception, not a selection dot: a line warning mark (the set's 1.4 px
+          stroke) in ink before the words, in an ink outline. Never amber, never red (red is PayPal's no). */}
+      {dial.status === "OUTSIDE" && (
+        <svg
+          className="fs-glyph fsr-dialstate__warn"
+          width={14}
+          height={14}
+          viewBox="0 0 16 16"
+          aria-hidden
+          focusable="false"
+        >
+          <path
+            d="M8 2.6 14.2 13.2H1.8L8 2.6Z"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={1.4}
+            strokeLinejoin="round"
+          />
+          <path d="M8 6.6v3M8 11.3v.1" stroke="currentColor" strokeWidth={1.4} strokeLinecap="round" />
+        </svg>
+      )}
       {dialLabel(dial)}
     </span>
   );
@@ -273,7 +294,7 @@ function FilterChip({
       {SPLIT.filter[filter]}{" "}
       <span className="fsr-chip__count fs-t-micro">
         {count}
-        {planned ? ` ${SPLIT.railPlanned}` : ""}
+        {planned && <span className="fsr-chip__planned">{` ${SPLIT.railPlanned}`}</span>}
       </span>
     </button>
   );

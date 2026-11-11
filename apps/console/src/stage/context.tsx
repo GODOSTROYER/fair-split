@@ -39,6 +39,8 @@ export interface StageApi {
   readonly autoplay: AutoplayState;
   /** The stage's `data-state` shows `autoplay` or `paused` while this is not "off". */
   setAutoplay(state: AutoplayState): void;
+  /** A drawer beside the screen opened or closed (round 7): below 1440 px the console rail folds while one is open. */
+  noteDrawer?(open: boolean): void;
 }
 
 export const StageContext = createContext<StageApi | null>(null);

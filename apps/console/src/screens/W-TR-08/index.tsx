@@ -199,7 +199,7 @@ export function Screen({ runSlug }: RunScreenProps) {
       status={status}
       titleId="W-TR-08-title"
       // One run id everywhere (round 5): "2026-A · r37", as Season, Reading room and Split review read it.
-      meta={runId.text}
+      meta={runId.run}
       provenance={PROVENANCE.simulatedPaypal}
       testId="W-TR-08.head"
     />
@@ -333,28 +333,34 @@ export function Screen({ runSlug }: RunScreenProps) {
                     <span className="fs-sr">
                       {FANOUT.settledSpoken(status.settled.paypal, status.settled.cash)}{" "}
                     </span>
-                    <span className="fsr-fanout__part" aria-hidden>
+                    {/* Round 7: each count keeps its own qualifier under its word (the tag under "PayPal", the cash's
+                        day under "cash"), so at no width does "due 12 Nov" read as PayPal's date. */}
+                    <span className="fsr-fanout__part">
                       <Numeral
                         value={String(status.settled.paypal)}
                         decorative
                         className="fsr-fanout__count"
                         testId="W-TR-08.count"
                       />
-                      <span className="fsr-fanout__key">
-                        <StateDot kind="paid" size={12} />
-                        <span className="fsr-fanout__word fs-t-label">{FANOUT.settledPaypal}</span>
+                      <span className="fsr-fanout__keys">
+                        <span className="fsr-fanout__key" aria-hidden>
+                          <StateDot kind="paid" size={12} />
+                          <span className="fsr-fanout__word fs-t-label">{FANOUT.settledPaypal}</span>
+                        </span>
+                        {microTag}
                       </span>
                     </span>
-                    {microTag}
-                    <span className="fsr-fanout__part" aria-hidden>
+                    <span className="fsr-fanout__part">
                       <Numeral value={String(status.settled.cash)} decorative className="fsr-fanout__count" />
-                      <span className="fsr-fanout__key">
-                        <Swatch kind="cash" size={12} className="fsr-fanout__swatch" />
-                        <span className="fsr-fanout__word fs-t-label">{FANOUT.settledCash}</span>
+                      <span className="fsr-fanout__keys">
+                        <span className="fsr-fanout__key" aria-hidden>
+                          <Swatch kind="cash" size={12} className="fsr-fanout__swatch" />
+                          <span className="fsr-fanout__word fs-t-label">{FANOUT.settledCash}</span>
+                        </span>
+                        <span className="fsr-fanout__due fs-t-caption" data-testid="W-TR-08.cashDue">
+                          {status.due}
+                        </span>
                       </span>
-                    </span>
-                    <span className="fsr-fanout__due fs-t-caption" data-testid="W-TR-08.cashDue">
-                      {status.due}
                     </span>
                   </span>
                 </>
@@ -395,7 +401,9 @@ export function Screen({ runSlug }: RunScreenProps) {
             <div ref={slabRef} className="fsr-fanout__action">
               <Slab
                 key={slabKey}
-                label={FANOUT.payCash}
+                // Round 7: the action says whose payment it acts on ("Pay Rhea in cash at the bodega"), never one
+                // that could read as the whole cash cohort's.
+                label={FANOUT.payCash(parked.name.split(" ")[0] ?? parked.name)}
                 srLabel={FANOUT.srPayCash(parked.name, format.money(parked.cents))}
                 depth="d2"
                 tone="chalk"
@@ -437,6 +445,47 @@ export function Screen({ runSlug }: RunScreenProps) {
               mode={moment.mode}
               cashDay={cashDay}
               {...(kept ? { cashCaption: kept } : {})}
+              {...(parked
+                ? {
+                    parkedNote: {
+                      memberNo: parked.memberNo,
+                      // Round 7: why her payment is parked, and the one other way, as the second line of her own
+                      // row in the fan (no card under it repeats her name and amount). The decision's primary
+                      // stands under the hero count.
+                      node: (
+                        <section
+                          className="fsr-parked"
+                          aria-labelledby="W-TR-08-parked"
+                          data-testid="W-TR-08.parked"
+                        >
+                          <h3 id="W-TR-08-parked" className="fs-sr">
+                            {`${replayed ? "Replayed" : FANOUT.parkedChip} · ${parked.name} · ${format.money(parked.cents)}`}
+                          </h3>
+                          <p className="fsr-parked__line fs-t-caption">
+                            {replayed ? (
+                              FANOUT.rheaReplayed
+                            ) : (
+                              <>
+                                {FANOUT.rheaLine}
+                                <span className="fsr-fan__more">{` · ${FANOUT.returns}`}</span>
+                              </>
+                            )}
+                          </p>
+                          <button
+                            type="button"
+                            className="fs-link fs-t-label fsr-parked__resend"
+                            onClick={() => setResendAsked(true)}
+                            title={resendAsked ? FANOUT.resendPending : FANOUT.resendNote}
+                            data-testid="W-TR-08.resend"
+                          >
+                            {FANOUT.resend}
+                            <span className="fs-sr">{`: ${resendAsked ? FANOUT.resendPending : FANOUT.resendNote}`}</span>
+                          </button>
+                        </section>
+                      ),
+                    },
+                  }
+                : {})}
             />
           }
           table={
@@ -473,38 +522,15 @@ export function Screen({ runSlug }: RunScreenProps) {
           }
         />
 
-        {parked && (
-          <section className="fsr-parked" aria-labelledby="W-TR-08-parked" data-testid="W-TR-08.parked">
-            <div className="fsr-parked__who">
-              <h3 id="W-TR-08-parked" className="fsr-parked__title">
-                <StateDot kind="held" />
-                <span className="fs-t-label">{replayed ? "Replayed" : FANOUT.parkedChip}</span>
-                <span className="fsr-parked__name fs-t-label">{parked.name}</span>
-                <span className="fsr-parked__amount fs-t-figure">{format.money(parked.cents)}</span>
-              </h3>
-              <p className="fsr-parked__line fs-t-caption">
-                {replayed ? FANOUT.rheaReplayed : `${FANOUT.rheaLine} · ${FANOUT.returns}`}
-              </p>
-            </div>
-            {/* Round 6: one line. The decision's primary ("Pay in cash at the bodega") stands under the hero count, as
-                the settled run's does; the row keeps the one other way, quiet, its note in its title. */}
-            <button
-              type="button"
-              className="fs-flat fsr-parked__resend"
-              onClick={() => setResendAsked(true)}
-              title={resendAsked ? FANOUT.resendPending : FANOUT.resendNote}
-              data-testid="W-TR-08.resend"
-            >
-              {FANOUT.resend}
-              <span className="fs-sr">{`: ${resendAsked ? FANOUT.resendPending : FANOUT.resendNote}`}</span>
-            </button>
+        {parked && (payCash.queuedMs !== null || payCash.error) && (
+          <div className="fsr-fanout__notices">
             {payCash.queuedMs !== null && (
               <p className="fs-t-caption fsr-muted" role="status" data-testid="W-TR-08.queued">
                 {`You're next, about ${Math.ceil(payCash.queuedMs / 1000)} s`}
               </p>
             )}
             {payCash.error && <CommandNotice error={payCash.error} testId="W-TR-08.error" />}
-          </section>
+          </div>
         )}
       </section>
 

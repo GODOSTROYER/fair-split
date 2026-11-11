@@ -196,8 +196,20 @@ export const DEDUCTIONS_PX = { min: 128, max: 180 } as const;
 /** Member is pinned (it stays put as a narrow grid scrolls sideways): a name's width, the same in every set. */
 export const MEMBER_PX = 184;
 
-/** The compact set's floors (round 6): the 1,280 px laptop's 910 px holds the money's evidence in eight columns. */
-export const COMPACT_PX = { member: 168, kg: 96, deductions: 112, status: 128 } as const;
+/**
+ * The compact set's floors (round 7): the 1,280 px laptop's 910 px holds a whole name (Member keeps its width), the
+ * kilos, the premium, the deductions, a credit, the net, the rail and the state. Bonus waits behind "Columns" (the
+ * total still sums it). Beside a drawer the slim set takes the same floors.
+ */
+export const COMPACT_PX = {
+  kg: 88,
+  premium: 88,
+  deductions: 112,
+  credit: 104,
+  net: 100,
+  rail: 80,
+  status: 116,
+} as const;
 
 /** Net never grows past this (round 6), so no wide gap opens between Deductions and Net at 1,920. */
 export const NET_MAX_PX = 136;
@@ -227,7 +239,7 @@ function columnDefs(
       colId: "member",
       headerName: en("W-TR-05.col.member"),
       cellRenderer: MemberCell,
-      width: compact ? COMPACT_PX.member : MEMBER_PX,
+      width: MEMBER_PX,
       pinned: "left",
       lockPinned: true,
     },
@@ -257,7 +269,7 @@ function columnDefs(
       headerName: en("W-TR-05.col.premium"),
       headerTooltip: "Never deducted (R0)",
       cellRenderer: PremiumCell,
-      minWidth: 92,
+      minWidth: compact ? COMPACT_PX.premium : 92,
       tooltip: (p) => {
         const row = lineOf(p.data);
         return row ? `${format.kg(row.verifiedG)} × ${premiumRate}, R0, engine v1.` : null;
@@ -285,7 +297,7 @@ function columnDefs(
       headerName: en("W-TR-05.col.credit"),
       cellRenderer: CreditCell,
       // Room for a credit that waits for its hold ("Waits for H3") as well as the figure.
-      minWidth: 120,
+      minWidth: compact ? COMPACT_PX.credit : 120,
     },
     // The money column says its currency (round 3); the footer beneath it is the members' net total.
     net: {
@@ -293,10 +305,15 @@ function columnDefs(
       colId: "net",
       headerName: SPLIT.netColumn,
       cellRenderer: NetCell,
-      minWidth: 104,
+      minWidth: compact ? COMPACT_PX.net : 104,
       maxWidth: NET_MAX_PX,
     },
-    rail: { colId: "rail", headerName: en("W-TR-05.col.rail"), cellRenderer: RailCell, width: 84 },
+    rail: {
+      colId: "rail",
+      headerName: en("W-TR-05.col.rail"),
+      cellRenderer: RailCell,
+      width: compact ? COMPACT_PX.rail : 84,
+    },
     status: {
       colId: "status",
       headerName: en("W-TR-05.col.status"),
@@ -324,12 +341,11 @@ const ALL: readonly GridColumn[] = [
 /** Minimum confidence waits behind "All columns": 60 of 64 lines were read earlier and show none. */
 const DEFAULT: readonly GridColumn[] = ALL.filter((c) => c !== "confidence");
 
-/** The 1,280 px laptop (round 6): every part of the money in its column; the slip count and its badge step aside. */
+/** The 1,280 px laptop (round 7): a whole name and the money's parts; the slip count and Bonus wait behind "Columns". */
 export const COMPACT_COLUMNS: readonly GridColumn[] = [
   "member",
   "kg",
   "premium",
-  "bonus",
   "kaltas",
   "credit",
   "net",
@@ -398,7 +414,7 @@ export function SplitGrid({
     () =>
       [...(parts ? (["expand"] as const) : []), ...SETS[set]]
         .filter((c) => !hidden.has(c))
-        .map((c) => (set === "compact" ? compactDefs[c] : defs[c])),
+        .map((c) => (set === "compact" || set === "slim" ? compactDefs[c] : defs[c])),
     [defs, compactDefs, set, parts, hidden],
   );
   // A narrow grid opens a line's hidden parts under it (round 3). Lines opened stay open across filters; a wider
@@ -435,7 +451,9 @@ export function SplitGrid({
   // decide). The held lines may be pinned above the others as decisions: each note follows its line wherever it is.
   // A narrow grid (the 1,280 px laptop, or beside a drawer) gives their rows to the lines (round 5): the held line's
   // status says "Held H1" and the bench links the next hold.
-  const roomy = set === "default" || set === "all";
+  // Round 7: the 1,280 px laptop (the compact set) keeps them: the evidence and its "Open H1" are why the screen
+  // exists; only the slim and narrow sets (beside a drawer) give their rows to the lines.
+  const roomy = set === "default" || set === "all" || set === "compact";
   const notes = useMemo(
     () => (roomy ? holdNotes([...decisions, ...rows], context.yieldLimit, context.slip) : []),
     [roomy, decisions, rows, context.yieldLimit, context.slip],

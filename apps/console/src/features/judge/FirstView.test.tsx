@@ -314,7 +314,8 @@ describe("W-JG-01 first view", { timeout: 60_000 }, () => {
     expect(screen.getByTestId("W-JG-01.pool").querySelector("[data-testid='W-JG-01.funded']")).toBeNull();
     // The session's own run: its id in the id line, its invoice id on the card.
     expect(screen.getByTestId("W-JG-01.head").querySelector(".fsc-screen__id")?.textContent).toMatch(
-      /^2026-A · r\d+$/,
+      // Round 7: the run id alone; the title's suffix says the season.
+      /^r\d+$/,
     );
     expect(screen.getByTestId("W-JG-01.invoice.id").textContent).toMatch(/^FS-2026A-r\d+$|^draft$/);
     // Funded, the pool is ink and wears the second micro-tag: still three tags on the stage at most.

@@ -19,11 +19,13 @@ describe("Proof's ground", () => {
     surface.remove();
   });
 
-  it("reads as one wide sheet from 1120 px: a 1040 px column, the verdict beside the money", () => {
+  it("reads as one wide sheet from 1120 px: a 1040 px column (1,200 from 1,600 px), the verdict beside the money", () => {
     const surface = document.createElement("div");
     surface.className = "fsc-surface fsc-surface--proof";
     document.body.append(surface);
-    expect(cascaded(rules, surface, "--fs-proof-column", WIDE)).toBe("1040px");
+    // Round 7: 1,200 px on the 1,920 stage (from 1,600 px wide); the laptops keep 1,040.
+    expect(cascaded(rules, surface, "--fs-proof-column", WIDE)).toBe("1200px");
+    expect(cascaded(rules, surface, "--fs-proof-column", { width: 1470, motion: "full" })).toBe("1040px");
     expect(cascaded(rules, surface, "--fs-proof-column", { width: 1280, motion: "full" })).toBe("1040px");
     expect(cascaded(rules, surface, "--fs-proof-column", { width: 1024, motion: "full" })).toBeUndefined();
     surface.remove();

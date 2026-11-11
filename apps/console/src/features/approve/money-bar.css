@@ -24,9 +24,11 @@
 }
 
 /* Planned (signed or not, not yet confirmed): the batch the simulated PayPal is asked to move. */
+/* Round 7: a planned segment is a steel face in its dashed outline at full strength, so it reads as money planned on
+   the simulated rail, never as a loading skeleton. */
 .fsr-money__seg[data-tone="planned"] {
-  border: 1px dashed var(--fs-steel-line);
-  background: var(--fs-steel-face);
+  border: 1px dashed var(--fs-ink-3);
+  background: color-mix(in oklab, var(--fs-steel-line) 38%, var(--fs-plate));
 }
 
 .fsr-money__seg[data-tone="confirmed"] {

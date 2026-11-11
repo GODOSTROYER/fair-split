@@ -181,10 +181,10 @@ export function Screen({ runSlug, hold, member }: SplitScreenProps) {
             data-testid="W-TR-05.provenance"
             title={`${SPLIT.provenanceTitle(rows.length, SPLIT.basis[splitBasis(view)])} · ${SPLIT.rateCardWord} ${format.hashGroups(snapshot.rateCard.sha256)}`}
           >
-            {runLabel(runSlug).text}
+            {runLabel(runSlug).run}
           </span>
         ) : (
-          runLabel(runSlug).text
+          runLabel(runSlug).run
         )
       }
       provenance={lined ? (simulated ? PROVENANCE.simulatedPaypal : PROVENANCE.seededSlips) : undefined}

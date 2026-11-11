@@ -407,10 +407,12 @@ export const FANOUT = {
   /** Confirmed, but this page did not see the notices arrive (a reload): the count, and why there are no dots. */
   latencyUntimed: (confirmed: number) => `${confirmed} confirmed · timed only while the run is live`,
   latencySeeded: "Timed only on a live run",
-  rheaLine: "No PayPal account · unclaimed",
+  /** Round 7: the parked reason is the second line of her own fan row, so it is short; the day count steps aside on a narrow fan. */
+  rheaLine: "No PayPal account",
   rheaReplayed: "Unclaimed in the earlier simulated PayPal sandbox run · a labelled replay",
-  returns: "returns to the co-op in 30 days",
-  payCash: "Pay in cash at the bodega",
+  returns: "returns in 30 days",
+  /** Round 7: the primary names whose payment it acts on ("Pay Rhea in cash at the bodega"). */
+  payCash: (first: string) => `Pay ${first} in cash at the bodega`,
   payCashUnavailable: "Moving a line to cash needs the live run. This is the seeded showcase.",
   srPayCash: (name: string, amount: string) =>
     `Pay ${name} ${amount} in cash at the bodega, changes a line, button`,

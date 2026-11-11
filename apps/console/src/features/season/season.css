@@ -374,11 +374,11 @@
 }
 
 .fsc-fund__share-of[data-state="pending"] .fsc-fund__bar > span {
-  background: var(--fs-rule-strong);
+  background: var(--fs-pending);
 }
 
 .fsc-fund__share-of[data-state="pending"] .fsc-fund__bar > [data-part="bonus"] {
-  background: var(--fs-rule);
+  background: var(--fs-rule-strong);
 }
 
 /* Each part under its own segment: its name (the premium's lock: never deducted), then its amount. */
@@ -422,10 +422,12 @@
   gap: 4px 12px;
 }
 
+/* Round 7: before funding the pool's hero is ink-2 (9.8:1 on the plate), never a disabled grey: "Not funded" is said
+   by the hollow dot and its words at the head's end, and by the bar's pending tone. */
 .fsc-fund__eq[data-state="pending"]
   .fsc-figure
   :is(.fsc-figure__hollow, .fsc-figure__solid, .fsc-figure__ink) {
-  color: var(--fs-pending);
+  color: var(--fs-ink-2);
 }
 
 /* The head's end: "Funded" (W-TR-01) or "Not funded"; a narrow card keeps it at the right on its own line. */

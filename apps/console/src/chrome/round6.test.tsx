@@ -99,11 +99,14 @@ describe("every width keeps the whole disclosure and the evidence (round 6)", ()
     expect(columnSetFor(880, false, 1100, compactFits)).toBe("narrow");
     expect(columnSetFor(700, false, 1100, compactFits)).toBe("slim");
     expect(columnSetFor(910, true, 1100, compactFits)).toBe("all");
-    for (const column of ["member", "kg", "premium", "bonus", "kaltas", "net", "rail", "status"] as const)
+    // Round 7: Bonus waits behind "Columns" so Member keeps a whole name's width (never an ellipsis).
+    for (const column of ["member", "kg", "premium", "kaltas", "net", "rail", "status"] as const)
       expect(COMPACT_COLUMNS).toContain(column);
     expect(COMPACT_COLUMNS).not.toContain("slips");
+    expect(COMPACT_COLUMNS).not.toContain("bonus");
     expect(opensParts("compact")).toBe(false);
-    expect(COMPACT_PX.member).toBeLessThan(MEMBER_PX);
+    expect(MEMBER_PX).toBeGreaterThanOrEqual(184);
+    expect(COMPACT_PX.net).toBeLessThanOrEqual(NET_MAX_PX);
     expect(NET_MAX_PX).toBeLessThanOrEqual(136);
   });
 
@@ -166,16 +169,17 @@ describe("each thing once (round 6)", () => {
       expect(figure.classList.contains("fs-t-amount-l")).toBe(true);
   });
 
-  it("a held line's tag is an outline in the decision's colour with ink text: never filled; the dial's dot is ink", () => {
+  it("a held line's tag is an outline in the decision's colour with ink text: never filled; the dial's mark is ink", () => {
     const status = el("fsr-status", { "data-tone": "canary" });
     const tag = el("fsr-status__hold", {}, status);
     expect(cascaded(split, tag, "background", at(1920))).toBe("transparent");
     expect(cascaded(split, tag, "color", at(1920))).toBe("var(--fs-ink)");
     expect(cascaded(split, tag, "border", at(1920))).toBe("1px solid var(--fs-canary-border)");
     const css = readFileSync(resolve(process.cwd(), "src/features/split/split.css"), "utf8");
-    expect(
-      /\.fsr-dialstate\[data-status="OUTSIDE"\]::before \{[^}]*background: var\(--fs-ink\);/.test(css),
-    ).toBe(true);
+    // Round 7: over the limit is an ink outline around a warning glyph and the words, never a round dot.
+    expect(/\.fsr-dialstate\[data-status="OUTSIDE"\] \{[^}]*inset 0 0 0 1px var\(--fs-ink\)/.test(css)).toBe(
+      true,
+    );
   });
 
   it("a hold's drawer never dims the screen: its scrim is clear in Hayag", () => {

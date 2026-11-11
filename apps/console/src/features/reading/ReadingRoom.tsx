@@ -339,7 +339,7 @@ export function ReadingRoom({
               {roomState.words}
             </Chip>
           }
-          {...(runSlug ? { meta: runLabel(runSlug).text } : {})}
+          {...(runSlug ? { meta: runLabel(runSlug).run } : {})}
           provenance={PROVENANCE.standIn}
           actions={<ExhibitLink season={season} />}
           className="fsc-read__head"

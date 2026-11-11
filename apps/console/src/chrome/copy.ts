@@ -103,6 +103,8 @@ export const PHONE_RAIL = {
   /** The folded rail's phone glyph, as its tooltip says it (round 5). */
   expand: "Open phone",
   collapse: "Hide the phone",
+  /** The opened sheet's own way out below 1440 px (round 7). */
+  close: "Close",
 } as const;
 
 export const STAGE = {
@@ -324,7 +326,7 @@ export const TRY_TO_BREAK = {
   blocked: "blocked",
   armed: "Change set · the signatures will refuse it",
   /** Why the last attempt cannot be tried once the Chair has signed (round 6: a disabled Try says why). */
-  tooLate: "Only before the Chair signs",
+  tooLate: "After key 1, before the Chair",
   voided: "Refused · both signatures voided",
   why: "Why",
   /** The rows' names, as the sheet lists them until the season slice's controls fill it. */

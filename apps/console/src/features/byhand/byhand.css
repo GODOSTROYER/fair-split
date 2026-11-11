@@ -22,9 +22,22 @@
   min-width: 0;
 }
 
+/* Round 7: whose slip, then why it needs a person, on one line above the field or the sum. */
+.fsc-hand__context {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 16px;
+  margin-bottom: 8px;
+}
+
 .fsc-hand__who {
   margin: 0;
-  color: var(--fs-ink-3);
+  color: var(--fs-ink-2);
+}
+
+.fsc-hand__who .fs-t-id {
+  color: var(--fs-ink-2);
 }
 
 /* One line and the stand-in's reading as a figure (spec §3.5; round 5: the stand-in is said in the id line). */
@@ -91,14 +104,6 @@
 
   .fsc-hand__figure {
     --fsc-hand-h: min(calc(100cqh - 32px), calc((50cqw - 12px) / 1.95));
-  }
-}
-
-/* A tall, wide panel (1,920 x 1,080): the crop's 1.85 : 1 lets the papers fill the columns' width before the row's
-   height, so the height they cannot take is shared above and below them, never left as one band at the foot. */
-@media (min-height: 1000px) {
-  .fsc-hand__evidence {
-    align-content: center;
   }
 }
 
@@ -199,10 +204,6 @@
   justify-items: start;
   gap: 12px;
   max-width: 760px;
-}
-
-.fsc-hand__entry > .fsc-hand__prompt {
-  margin-bottom: 8px;
 }
 
 .fsc-hand__label {
@@ -427,16 +428,44 @@
    on one row: the sum ("Gross − tare = net", who entered it) and, 48 px beside it, the screen's one primary, so
    nothing floats between the title and the papers. */
 @container fsc-screen (min-width: 1040px) {
+  /* Round 7: top-aligned and grouped. The witnesses start 24 px under the title row, each paper as wide as its six
+     columns (the logbook ends on the grid's edge) at one height that the columns' width sets; the decision (the sum,
+     who entered it and the one primary) stands 32 px under them, high on the screen. What a tall window leaves is
+     the panel's foot, never a band between the parts. */
   .fsc-hand.fsc-screen {
-    grid-template-rows: auto minmax(240px, 1fr) auto;
+    grid-template-rows: auto auto auto;
+    row-gap: var(--fs-space-24);
+    height: auto;
   }
 
   .fsc-hand > .fsc-hand__evidence {
     order: 1;
+    container-type: inline-size;
   }
 
   .fsc-hand > .fsc-hand__lead {
     order: 2;
+    margin-top: var(--fs-space-8);
+  }
+
+  .fsc-hand__figure {
+    /* The crop's 1.85 : 1 in a six-column paper (its 10 px mat each side), never taller than a short window leaves. */
+    --fsc-hand-h: min(calc((50cqw - 32px) / 1.85 + 20px), calc(100dvh - 540px));
+    justify-items: stretch;
+  }
+
+  .fsc-hand__figure > .fs-paper {
+    width: 100%;
+  }
+
+  /* Each sheet stands whole and centred on its paper. */
+  .fsc-hand__figure .fs-paper__body {
+    display: grid;
+    place-items: center;
+  }
+
+  .fsc-hand__logbook {
+    transform: none;
   }
 
   .fsc-hand__committed {

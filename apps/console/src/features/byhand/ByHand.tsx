@@ -372,17 +372,11 @@ function ByHandField({
             </Chip>
           )
         }
-        {...(inSession && runSlug ? { meta: runLabel(runSlug).text } : {})}
+        {...(inSession && runSlug ? { meta: runLabel(runSlug).run } : {})}
         provenance={PROVENANCE.standIn}
         className="fsc-hand__head"
       />
       <Cell span={12} className="fsc-hand__lead">
-        {/* The owner's name, and her member number in the id role (the one mono). */}
-        <p className="fsc-hand__who fs-t-caption">
-          {member?.displayName ?? field.slip.memberNo}
-          {BY_HAND_COPY.whoJoin}
-          <span className="fs-t-id">{field.slip.memberNo}</span>
-        </p>
         <div className="fsc-hand__body" {...moment.rootProps} data-motion={mode}>
           <section
             ref={setEntry}
@@ -390,9 +384,18 @@ function ByHandField({
             aria-labelledby={`${inputId}-label`}
             data-testid="W-TR-04.entry"
           >
-            <p className="fsc-hand__prompt" data-testid="W-TR-04.prompt">
-              {prompt}
-            </p>
+            {/* Round 7: whose slip and why it needs a person, on one line (fewer small lines above the sum): the
+                owner's name, her member number in the id role (the one mono), then the reason. */}
+            <div className="fsc-hand__context">
+              <p className="fsc-hand__who fs-t-caption">
+                {member?.displayName ?? field.slip.memberNo}
+                {BY_HAND_COPY.whoJoin}
+                <span className="fs-t-id">{field.slip.memberNo}</span>
+              </p>
+              <p className="fsc-hand__prompt" data-testid="W-TR-04.prompt">
+                {prompt}
+              </p>
+            </div>
             {committed ? (
               // Focusable from script only: the field's focus lands here when the value prints in ink.
               <div ref={ink} className="fsc-hand__committed" tabIndex={-1} data-testid="W-TR-04.committed">

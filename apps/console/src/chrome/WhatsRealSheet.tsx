@@ -83,17 +83,11 @@ export function WhatsRealSheet({ open, onOpenChange, facts }: WhatsRealSheetProp
                     >
                       {SECTION_GLYPH[section.id] && <LegendMark kind={SECTION_GLYPH[section.id] ?? "real"} />}
                     </span>
-                    <span
-                      className={`fsc-truth__term ${LEAD_SECTIONS.has(section.id) ? "fs-t-heading" : "fs-t-label"}`}
-                    >
-                      {section.title}
-                    </span>
+                    {/* Round 7: one row style for all five (the name on the heading step, its line a caption in
+                        ink-2), so the list never steps down halfway. */}
+                    <span className="fsc-truth__term fs-t-heading">{section.title}</span>
                     <span className="fs-sr">: </span>
-                    <span
-                      className={`fsc-truth__line ${LEAD_SECTIONS.has(section.id) ? "fs-t-body" : "fs-t-caption"}`}
-                    >
-                      {section.line}
-                    </span>
+                    <span className="fsc-truth__line fs-t-caption">{section.line}</span>
                     <span className="fsc-truth__chev" aria-hidden>
                       <Glyph name="ms:expand-more" size={16} />
                     </span>

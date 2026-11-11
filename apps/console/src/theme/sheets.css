@@ -239,8 +239,20 @@
   list-style: none;
 }
 
-.fsc-truth__row[data-lead] > .fsc-truth__more > .fsc-truth__summary {
+/* Round 7: every row has one height and one type pair; a tall window gives each row more air, so the sheet's
+   content runs most of its height instead of leaving its lower third empty. */
+.fsc-truth__summary {
   padding-block: 16px;
+}
+
+@media (min-height: 1000px) {
+  .fsc-truth__summary {
+    padding-block: 22px;
+  }
+
+  .fsc-sheet__break .fsc-tamper__row {
+    min-height: 60px;
+  }
 }
 
 .fsc-truth__summary::-webkit-details-marker {

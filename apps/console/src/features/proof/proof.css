@@ -2013,3 +2013,11 @@ details[open] > summary > .pf-summary__chevron {
     grid-row: 3;
   }
 }
+
+/* Round 7: on the 1,920 stage the sheet is 1,200 px (the console's own screen is about 1,550), so the public page
+   no longer reads as a narrow column between two 440 px margins; the 12-column row keeps every edge. */
+@media (min-width: 1600px) {
+  .fsc-surface--proof {
+    --fs-proof-column: 1200px;
+  }
+}

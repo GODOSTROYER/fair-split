@@ -277,7 +277,7 @@ describe("captions for people (round 5)", () => {
 });
 
 describe("drawers hug their content or pin their action (round 5)", () => {
-  it("a footer is sticky at the foot; a hugging drawer ends at its content; no scrim when asked", () => {
+  it("a footer is sticky at the foot; a hugging drawer is still a full-height sheet; no scrim when asked", () => {
     render(
       <ShortcutsProvider>
         <StageDrawer
@@ -300,7 +300,8 @@ describe("drawers hug their content or pin their action (round 5)", () => {
     expect(foot.textContent).toBe("Next hold");
     expect(cascaded(stage, el("fsc-drawer__foot"), "position", at(1920))).toBe("sticky");
     expect(cascaded(stage, el("fsc-drawer__foot"), "bottom", at(1920))).toBe("0");
-    expect(cascaded(stage, el("fsc-drawer", { "data-hug": "" }), "bottom", at(1920))).toBe("auto");
+    // Round 7: every drawer is a full-height sheet; a hugging state keeps its action right under its content.
+    expect(cascaded(stage, el("fsc-drawer", { "data-hug": "" }), "bottom", at(1920))).toBe("0");
   });
 });
 

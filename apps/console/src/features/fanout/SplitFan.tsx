@@ -13,7 +13,7 @@
 import { TIMING } from "@fairsplit/motion";
 import { isRingSigned, seal } from "@fairsplit/seal";
 import { MoneyFigure, StateDot, Swatch } from "@fairsplit/ui-web";
-import { type CSSProperties, useId, useMemo } from "react";
+import { type CSSProperties, type ReactNode, useId, useMemo } from "react";
 import { format } from "../../lib/format.js";
 import { FANOUT } from "../split/shared/copy.js";
 import { type CashLine, FAN, type FanThread, type FanView } from "./model.js";
@@ -28,6 +28,11 @@ export interface SplitFanProps {
   readonly cashDay: string;
   /** A caption under the cash row ("Kept for members US$21.14"), once every payout is settled. */
   readonly cashCaption?: string;
+  /**
+   * Round 7: a parked payout's reason and its quiet way out, as the second line of that member's own row (never a
+   * card that repeats her under the fan). It is the one part of the fan a reader and a pointer reach.
+   */
+  readonly parkedNote?: { readonly memberNo: string; readonly node: ReactNode };
 }
 
 function threadStyle(t: FanThread, delayMs: number | undefined, drawing: boolean): CSSProperties {
@@ -85,7 +90,8 @@ function Amount({ cents, state }: { readonly cents: number; readonly state: stri
 
 const DOT_R = FAN.dot / 2;
 
-export function SplitFan({ fan, animate, drawing, mode, cashDay, cashCaption }: SplitFanProps) {
+export function SplitFan({ fan, animate, drawing, mode, cashDay, cashCaption, parkedNote }: SplitFanProps) {
+  const notedThread = parkedNote ? fan.threads.find((t) => t.memberNo === parkedNote.memberNo) : undefined;
   const uid = useId().replaceAll(":", "");
   const geometry = useMemo(() => (fan.sealHash ? seal(fan.sealHash, FAN.seal.size) : null), [fan.sealHash]);
   const half = FAN.seal.size / 2;
@@ -101,13 +107,13 @@ export function SplitFan({ fan, animate, drawing, mode, cashDay, cashCaption }: 
       data-motion={mode}
       data-drawing={drawing ? "" : undefined}
       data-testid="W-TR-08.fan"
-      aria-hidden="true"
     >
       <svg
         className="fsr-fan__svg"
         viewBox={`0 0 ${FAN.width} ${FAN.height}`}
         role="presentation"
         focusable="false"
+        aria-hidden="true"
       >
         <defs>
           <pattern
@@ -250,7 +256,7 @@ export function SplitFan({ fan, animate, drawing, mode, cashDay, cashCaption }: 
         })}
       </svg>
 
-      <div className="fsr-fan__labels">
+      <div className="fsr-fan__labels" aria-hidden="true">
         {fan.threads.map((t) => (
           <p
             key={t.memberNo}
@@ -293,6 +299,11 @@ export function SplitFan({ fan, animate, drawing, mode, cashDay, cashCaption }: 
           </p>
         )}
       </div>
+      {parkedNote && notedThread && (
+        <div className="fsr-fan__note" style={at(FAN.labelX, notedThread.stubY + FAN.stub.h / 2)}>
+          {parkedNote.node}
+        </div>
+      )}
     </div>
   );
 }

@@ -235,10 +235,12 @@
     padding: 28px 32px;
   }
 
-  /* The spare height is the two cards' (up to 500 px): each spreads its own parts evenly, the hero under its head,
-     the foot at its end, so the screen ends near the panel's foot with the phone docked or folded. */
+  /* Round 7: the two cards are top-aligned and hug one rhythm (the label, the amount, its supporting line, then the
+     action or the record 24 px under it); each card's foot (Invoice lines, the rate card) is pinned to its end, so
+     what height the row gives beyond the content collects above the foot's rule, never between an amount and the
+     action it acts on. The row is capped at 440 px; the rest of a tall window is the slips' and the panel's foot. */
   .fsc-first.fsc-screen {
-    grid-template-rows: auto minmax(min-content, 500px) auto auto;
+    grid-template-rows: auto minmax(min-content, 440px) auto auto;
     height: 100%;
   }
 
@@ -247,15 +249,22 @@
   }
 
   .fsc-first .fsc-fund__invoice {
-    align-content: space-between;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  .fsc-first .fsc-fund__invoice > .fsc-fund__draft {
+    margin-top: auto;
   }
 
   .fsc-first .fsc-fund[data-layout="desk"] .fsc-fund__pool {
-    justify-content: space-between;
+    justify-content: flex-start;
+    gap: 24px;
   }
 
   .fsc-first .fsc-fund__pool > .fsc-fund__foot {
-    margin-top: 0;
+    margin-top: auto;
   }
 }
 /* A short window (1,280 x 800): every row stays whole in the panel (round 5: nothing clipped). The rows close to

@@ -80,7 +80,8 @@ describe("Judge stage", () => {
   });
 
   it("lowers a moment when the next step has no persona, and resets scroll only for a pathname", async () => {
-    const view = await renderConsole({ path: "/judge", viewport: { width: 1366 } });
+    // Round 7: a beat raises the phone only where it has its own column (1440 px and up).
+    const view = await renderConsole({ path: "/judge", viewport: { width: 1700, height: 1000 } });
     await press("W-JG-01.markPaid");
     await waitFor(() => expect(view.world.run.state).toBe("FUNDED"));
     act(() => {
@@ -507,43 +508,38 @@ describe("Judge stage", () => {
     await waitFor(() => expect(document.activeElement).toBe(tab));
   });
 
-  it("a moment raises the phone beside a lit console: no scrim, both screens read at once", async () => {
-    const view = await renderConsole({ path: "/judge", viewport: { width: 1366 } });
-    await press("W-JG-01.markPaid");
-    await waitFor(() => expect(screen.getByTestId("W-JG-01.stage").dataset.state).toBe("session"));
-    await waitFor(() => expect(view.world.run.state).toBe("FUNDED"));
-    // Key 1 signs: the co-sign request raises the Chair's frame (S1.6), as a moment.
-    act(() => {
-      view.world.settle();
-      view.world.resolveAll();
-      view.world.sign("treasurer");
-    });
-    await waitFor(() => expect(screen.getByTestId("W-JG-01.stage").dataset.raised).toBe("moment"));
-    expect(screen.queryByTestId("W-JG-01.phoneBackdrop")).toBeNull();
-    expect(screen.getByTestId("W-JG-01.phoneTab").getAttribute("aria-expanded")).toBe("true");
-    expect(screen.getByTestId("W-JG-01.poster.chair")).toBeTruthy();
-  });
+  it.each([1366, 1100])(
+    "below 1440 px (%i) a beat never opens the phone: the rail turns to the Chair and the console keeps the screen (round 7)",
+    async (width) => {
+      const view = await renderConsole({ path: "/judge", viewport: { width, height: 800 } });
+      await press("W-JG-01.markPaid");
+      await waitFor(() => expect(screen.getByTestId("W-JG-01.stage").dataset.state).toBe("session"));
+      await waitFor(() => expect(view.world.run.state).toBe("FUNDED"));
+      // Key 1 signs: the co-sign request turns the rail to the Chair's frame (S1.6), and opens nothing.
+      act(() => {
+        view.world.settle();
+        view.world.resolveAll();
+        view.world.sign("treasurer");
+      });
+      await waitFor(() =>
+        expect(screen.getByTestId("W-JG-01.tab.chair").getAttribute("aria-selected")).toBe("true"),
+      );
+      expect(screen.getByTestId("W-JG-01.stage").dataset.raised).toBeUndefined();
+      expect(screen.getByTestId("W-JG-01.stage").dataset.phone).toBe("folded");
+      expect(screen.queryByTestId("W-JG-01.phoneBackdrop")).toBeNull();
+      expect(screen.queryByTestId("W-JG-01.phoneClose")).toBeNull();
+      expect(screen.getByTestId("W-JG-01.phoneTab").getAttribute("aria-expanded")).toBe("false");
+      expect(document.querySelector(".fsc-console")?.hasAttribute("inert")).toBe(false);
+      // The viewer opens it: the sheet shows the Chair's frame, never dims the page, and says how to leave it.
+      fireEvent.click(screen.getByTestId("W-JG-01.phoneTab"));
+      await waitFor(() => expect(screen.getByTestId("W-JG-01.stage").dataset.raised).toBe("user"));
+      expect(screen.getByTestId("W-JG-01.poster.chair")).toBeTruthy();
+      fireEvent.click(screen.getByTestId("W-JG-01.phoneClose"));
+      await waitFor(() => expect(screen.getByTestId("W-JG-01.stage").dataset.raised).toBeUndefined());
+    },
+  );
 
-  it("below 1280 px a moment's raise takes the phone over a scrim: no room to squeeze the screen beside it", async () => {
-    // At 1024 px the squeeze left the screen 488 px: the approve column ran under the phone and the fan's labels
-    // overlapped. Below 1280 px the moment raises the phone the way S1.6's table has it, over the scrim.
-    const view = await renderConsole({ path: "/judge", viewport: { width: 1100, height: 800 } });
-    await press("W-JG-01.markPaid");
-    await waitFor(() => expect(view.world.run.state).toBe("FUNDED"));
-    act(() => {
-      view.world.settle();
-      view.world.resolveAll();
-      view.world.sign("treasurer");
-    });
-    await waitFor(() =>
-      expect(screen.getByTestId("W-JG-01.phoneTab").getAttribute("aria-expanded")).toBe("true"),
-    );
-    expect(screen.getByTestId("W-JG-01.stage").dataset.raised).toBe("user");
-    expect(screen.getByTestId("W-JG-01.phoneBackdrop")).toBeTruthy();
-    expect(document.querySelector(".fsc-console")?.hasAttribute("inert")).toBe(true);
-  });
-
-  it("the co-sign's raise over the scrim puts focus on the Chair's tab, the frame the phone now shows", async () => {
+  it("the viewer's raise after a co-sign request puts focus on the Chair's tab, the frame the phone now shows", async () => {
     const view = await renderConsole({ path: "/judge", viewport: { width: 1100, height: 800 } });
     await press("W-JG-01.markPaid");
     await waitFor(() => expect(view.world.run.state).toBe("FUNDED"));
@@ -555,6 +551,9 @@ describe("Judge stage", () => {
     });
     const chair = screen.getByTestId("W-JG-01.tab.chair");
     await waitFor(() => expect(chair.getAttribute("aria-selected")).toBe("true"));
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("W-JG-01.phoneTab"));
+    });
     await waitFor(() => expect(document.activeElement).toBe(chair));
   });
 
@@ -614,6 +613,13 @@ describe("Judge stage", () => {
           view.world.resolveAll();
           view.world.sign("treasurer");
         });
+        // Round 7: the co-sign request turns the rail to the Chair; the viewer opens the sheet.
+        await waitFor(() =>
+          expect(screen.getByTestId("W-JG-01.tab.chair").getAttribute("aria-selected")).toBe("true"),
+        );
+        await act(async () => {
+          fireEvent.click(screen.getByTestId("W-JG-01.phoneTab"));
+        });
         await waitFor(() => expect(console_?.hasAttribute("inert")).toBe(true));
         // The browser's focus fixup: the inert console's focused control loses focus to <body>.
         const held = document.activeElement;
@@ -643,6 +649,10 @@ describe("Judge stage", () => {
       view.world.settle();
       view.world.resolveAll();
       view.world.sign("treasurer");
+    });
+    // Round 7: the viewer opens the sheet (a beat no longer does below 1440 px); focus was on the screen.
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("W-JG-01.phoneTab"));
     });
     await waitFor(() => expect(console_?.hasAttribute("inert")).toBe(true));
     await waitFor(() =>
@@ -688,22 +698,25 @@ describe("Judge stage", () => {
       const console_ = document.querySelector<HTMLElement>(".fsc-console");
       const panel = document.getElementById("fsc-phone-panel") as HTMLElement;
       const main = document.getElementById("fsc-main") as HTMLElement;
-      // Key 1 raises the Chair; the judge lowers it and the Chair co-signs.
+      // Key 1, then the Chair co-signs: M-014's payment lands and the rail turns to the Member's frame (round 7:
+      // the beat opens nothing below 1440 px).
       act(() => {
         view.world.settle();
         view.world.resolveAll();
         view.world.sign("treasurer");
       });
-      await waitFor(() => expect(stage.dataset.raised).toBe("user"));
-      await act(async () => {
-        fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
-      });
-      await waitFor(() => expect(stage.dataset.raised).toBeUndefined());
-      // The followed link is gone: focus is on <body> when M-014's payment lands.
-      (document.activeElement as HTMLElement | null)?.blur();
-      expect(document.activeElement).toBe(document.body);
       act(() => {
         view.world.cosign();
+      });
+      await waitFor(() =>
+        expect(screen.getByTestId("W-JG-01.tab.member").getAttribute("aria-selected")).toBe("true"),
+      );
+      expect(stage.dataset.raised).toBeUndefined();
+      // The followed link is gone: focus is on <body> when the viewer opens the phone from its rail.
+      (document.activeElement as HTMLElement | null)?.blur();
+      expect(document.activeElement).toBe(document.body);
+      await act(async () => {
+        fireEvent.click(screen.getByTestId("W-JG-01.phoneTab"));
       });
       await waitFor(() => expect(stage.dataset.raised).toBe("user"));
       await waitFor(() => expect(console_?.hasAttribute("inert")).toBe(true));
@@ -782,6 +795,10 @@ describe("Judge stage", () => {
       view.world.settle();
       view.world.resolveAll();
       view.world.sign("treasurer");
+    });
+    // Round 7: the viewer opens the sheet over the console (a beat no longer does below 1440 px).
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("W-JG-01.phoneTab"));
     });
     await waitFor(() => expect(console_?.hasAttribute("inert")).toBe(true));
 

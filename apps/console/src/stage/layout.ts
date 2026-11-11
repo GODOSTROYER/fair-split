@@ -84,7 +84,10 @@ export interface PhoneSize {
  * phone visit's is its bar (88 px with the honesty line under the lockup) and three 8 px gutters, until the bar is
  * measured (useVisitHeight).
  */
-const PHONE_CHROME_PX = { dock: 250, tab: 280, visit: 112 } as const;
+// Round 7: the opened sheet (below 1440 px) spends the stage's whole height on the statement: the bar and its
+// gutters (86), the sheet's padding and head (78) and the bezel leave a 600 px screen on an 800 px laptop, and the
+// sheet scrolls where even that is too tall.
+const PHONE_CHROME_PX = { dock: 250, tab: 200, visit: 112 } as const;
 
 /** The phone visit's side gutters (the stage's 8 px each side): the statement is edge to edge with the bar. */
 const VISIT_GUTTERS_PX = 16;

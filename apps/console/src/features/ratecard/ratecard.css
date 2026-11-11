@@ -115,7 +115,7 @@
 }
 
 .fsc-rc__muted {
-  color: var(--fs-ink-3);
+  color: var(--fs-ink-2);
 }
 
 /* The title row's quiet control that folds the board's resolution away (round 5). */
@@ -147,6 +147,15 @@
 
 .fsc-rc-page:nth-child(2) {
   transform: rotate(-0.35deg);
+}
+
+/* Round 7: the cited page stands alone and straight, the card's seal 24 px under it. */
+.fsc-rc-pages[data-cited] > .fsc-rc-page {
+  transform: none;
+}
+
+.fsc-rc__sealed {
+  padding: 12px 4px 4px 0;
 }
 
 .fsc-rc-page:first-child {
@@ -245,12 +254,12 @@
 .fsc-rc__rule {
   appearance: none;
   display: grid;
-  grid-template-columns: 32px minmax(0, 1fr) 16px;
+  grid-template-columns: minmax(0, 1fr) 16px;
   align-items: center;
   gap: 12px;
   width: 100%;
-  min-height: 40px;
-  padding: 0 12px 0 4px;
+  min-height: 44px;
+  padding: 0 12px;
   border: 0;
   background: transparent;
   color: var(--fs-ink);
@@ -276,11 +285,15 @@
   color: var(--fs-ink-3);
 }
 
-.fsc-rc__rule-id .fs-glyph {
-  color: var(--fs-steel-line);
+.fsc-rc__rule-short > .fs-glyph {
+  flex: none;
+  color: var(--fs-ink-2);
 }
 
 .fsc-rc__rule-short {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -298,7 +311,7 @@
 /* The whole clause, under its row, aligned with the row's words. */
 .fsc-rc__clause {
   max-width: 60ch;
-  padding: 0 12px 12px 48px;
+  padding: 0 12px 12px;
   color: var(--fs-ink-2);
 }
 
@@ -526,25 +539,27 @@
 .fsc-rc__refused-row {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
-  gap: 4px 16px;
+  align-items: center;
+  gap: 4px 8px;
   margin: 0;
-  color: var(--fs-ink-3);
+  color: var(--fs-ink-2);
+}
+
+/* Round 7: the attempt reads whole, in ink (no strike-through); what became of it follows in ink-2. */
+.fsc-rc__refused-what {
+  color: var(--fs-ink);
+}
+
+.fsc-rc__refused-why {
+  margin-left: 8px;
+  color: var(--fs-ink-2);
 }
 
 .fsc-rc__add[data-plate] > .fsc-rc__row {
   display: none;
 }
 
-.fsc-rc__refused-row > s {
-  color: var(--fs-ink-3);
-}
-
 .fsc-rc__side-body[data-refused] .fsc-rc__footer > [aria-hidden] {
-  display: none;
-}
-
-.fsc-rc:not(.fsc-rc--doc-closed) .fsc-rc__side-body[data-refused] > .fsc-bolted-plate {
   display: none;
 }
 

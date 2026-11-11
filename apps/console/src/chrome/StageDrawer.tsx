@@ -91,6 +91,14 @@ export function StageDrawer({
     return () => main.removeAttribute("inert");
   }, [covers]);
 
+  // Round 7: the stage knows a drawer stands beside the screen (it folds the console rail below 1440 px).
+  const noteDrawer = stage && target ? stage.noteDrawer : undefined;
+  useLayoutEffect(() => {
+    if (!noteDrawer) return;
+    noteDrawer(true);
+    return () => noteDrawer(false);
+  }, [noteDrawer]);
+
   // What opened the drawer (a grid row, a link), with its key, as the drawer first renders: before anything
   // inside it takes focus.
   const opener = useRef<FocusPlace | null | undefined>(undefined);

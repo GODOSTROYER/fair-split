@@ -31,6 +31,8 @@ export const RATECARD_COPY = {
     `Add to Schedule A. Locked: ${resolution} was ratified on ${date} and its rules don't change this season.`,
   /** The locked slab's caption ("locked", never "bolted": UI gate round 3). */
   locked: (card: string) => `Locked by ${card}`,
+  /** The refused attempt's row (round 7): the attempt stays readable; this says what became of it. */
+  notAdded: (card: string) => `Not added · locked by ${card}`,
   /** The refusal's title (round 3): what was refused and until when; the explanation waits behind "Why". */
   refused: (next: string) => `Refused · Schedule A is closed until ${next}`,
   why: "Why",

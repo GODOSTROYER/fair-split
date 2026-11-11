@@ -57,12 +57,13 @@
   flex-wrap: wrap;
   align-items: baseline;
   margin: 0;
-  color: var(--fs-ink-3);
+  /* Round 7: the id line carries meaning (which run, what is synthetic): ink-2, 9.8:1 on the plate. */
+  color: var(--fs-ink-2);
   white-space: nowrap;
 }
 
 .fsc-screen__provenance {
-  color: var(--fs-ink-3);
+  color: var(--fs-ink-2);
   cursor: help;
 }
 

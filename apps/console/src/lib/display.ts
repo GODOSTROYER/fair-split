@@ -18,7 +18,12 @@ export function seasonLabel(codeOrLabel: string): string {
   return m ? `${m[1]}-${m[2]}` : codeOrLabel;
 }
 
-/** A run slug for display: "2026A-r37" → { season: "2026-A", run: "r37", text: "2026-A · r37" }. */
+/**
+ * A run slug for display: "2026A-r37" → { season: "2026-A", run: "r37", text: "2026-A · r37" }.
+ * Round 7: a screen's id line reads `run` alone ("r37 · Synthetic co-op · seeded slips"), one format on every
+ * screen: the title's suffix says the season, so the row never says "2026-A" twice. `text` is the whole id, for a
+ * title or a spoken name.
+ */
 export function runLabel(runSlug: string): {
   readonly season: string;
   readonly run: string;
@@ -30,7 +35,6 @@ export function runLabel(runSlug: string): {
   const run = m[2] ?? runSlug;
   return { season, run, text: `${season} · ${run}` };
 }
-
 /** Where an invoice id comes from: the showcase run (before the first press) or the judge's own run. */
 export type InvoiceSource = "showcase" | "session";
 

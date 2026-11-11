@@ -105,15 +105,19 @@ export function ResolutionPages({
   card,
   highlight,
   testId,
+  only,
 }: {
   readonly card: Card;
   readonly highlight: readonly ClauseRef[];
   readonly testId: string;
+  /** Round 7: show these pages alone (the page a refusal cites), each still with its own folio ("2 / 2"). */
+  readonly only?: ReadonlySet<number>;
 }) {
   const total = card.textLayer.pages.length;
+  const shown = only ? card.textLayer.pages.filter((p) => only.has(p.page)) : card.textLayer.pages;
   return (
-    <div className="fsc-rc-pages" data-testid={testId}>
-      {card.textLayer.pages.map((page) => (
+    <div className="fsc-rc-pages" data-testid={testId} data-cited={only ? "" : undefined}>
+      {shown.map((page) => (
         <Paper
           key={page.page}
           alt={`${card.canonical.resolutionNo}, ${RATECARD_COPY.page(page.page, total).toLowerCase()}`}

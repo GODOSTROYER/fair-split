@@ -418,7 +418,7 @@ export function Screen({ runSlug }: RunScreenProps) {
       status={status}
       titleId="W-TR-07-title"
       // One run id everywhere (round 5): "2026-A · r37", as Season, Reading room and Split review read it.
-      meta={runId.text}
+      meta={runId.run}
       provenance={PROVENANCE.seededSlips}
       testId="W-TR-07.head"
     />

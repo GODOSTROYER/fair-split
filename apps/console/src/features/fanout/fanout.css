@@ -64,21 +64,26 @@
 .fsr-fanout__settled {
   display: inline-flex;
   flex-wrap: wrap;
-  align-items: baseline;
-  column-gap: var(--fs-space-12);
+  align-items: flex-end;
+  column-gap: var(--fs-space-32);
   row-gap: var(--fs-space-4);
 }
 
+/* Round 7: each outcome is its count and, beside it, two short lines: its key and word ("● PayPal", "▨ cash") over
+   its own qualifier (the "Simulated" tag, the cash's day). The qualifier never leaves its count, at any width. */
 .fsr-fanout__part {
   display: inline-flex;
-  align-items: baseline;
+  align-items: flex-end;
   gap: var(--fs-space-8);
   white-space: nowrap;
 }
 
-/* The second outcome stands 32 px from the first (the tag between them hugs the PayPal part). */
-.fsr-fanout__settled > .fsr-fanout__part ~ .fsr-fanout__part {
-  margin-left: calc(var(--fs-space-32) - var(--fs-space-12));
+.fsr-fanout__keys {
+  display: inline-grid;
+  justify-items: start;
+  gap: 2px;
+  /* The two 20 px lines stand on the 56 px numeral's baseline. */
+  padding-bottom: 9px;
 }
 
 /* The key and its word: the 12 px dot or swatch sits on the word's baseline (ui-web's size 12). */
@@ -420,20 +425,24 @@
 
 /* ------------------------------------------------------------------ the parked decision (Rhea) */
 
-/* One row under the fan (round 6): the amber dot, who, how much and why on one line, then "Re-send" as the row's one
-   quiet button. The decision's primary stands under the hero count, as the settled run's does. Its marigold dot marks
-   it as a person's decision (never a coloured side bar); one 1 px rule is its only edge. */
+/* Round 7: the parked payout is one row of the fan, hers. Her name and amount are the row; the second line under
+   them says why it is parked and gives the one quiet way out ("Re-send"); the decision's primary stands under the
+   hero count. No card under the fan repeats her. The indigo marker and thread already say a person must decide. */
+.fsr-fan__note {
+  position: absolute;
+  top: var(--fsr-y);
+  right: 0;
+  left: var(--fsr-x);
+  /* Under the row's own 20 px line (centred on the marker). */
+  margin-top: 10px;
+}
+
 .fsr-parked {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
+  align-items: baseline;
   justify-content: space-between;
-  gap: var(--fs-space-8) var(--fs-space-24);
-  min-height: 56px;
-  padding: var(--fs-space-8) var(--fs-space-8) var(--fs-space-8) var(--fs-space-20);
-  border: 1px solid var(--fs-rule-strong);
-  border-radius: var(--fs-radius-card);
-  background: var(--fs-plate-2);
+  gap: var(--fs-space-12);
+  min-width: 0;
 }
 
 .fsr-parked h3,
@@ -441,37 +450,19 @@
   margin: 0;
 }
 
-.fsr-parked__who {
-  display: flex;
-  flex: 1 1 0;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--fs-space-4) var(--fs-space-16);
-  min-width: 0;
-}
-
-.fsr-parked__title {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--fs-space-8);
-  color: var(--fs-ink);
-}
-
-.fsr-parked__name {
-  color: var(--fs-ink);
-}
-
-.fsr-parked__amount {
-  color: var(--fs-ink);
-}
-
 .fsr-parked__line {
+  min-width: 0;
   color: var(--fs-ink-2);
 }
 
 .fsr-parked__resend {
   flex: none;
+}
+
+/* The queue or an error of the cash decision: under the fan, never over a row. */
+.fsr-fanout__notices {
+  display: grid;
+  gap: var(--fs-space-8);
 }
 
 /* ------------------------------------------------------------------ the run log and the latency dots */
@@ -492,8 +483,8 @@
    further from the fan and each row breathes, so the settled run's panel ends near its 32 px foot instead of in a
    band (round 5: still four rows and "All N events"). While Rhea's card shows, the screen is full as it is. */
 @media (min-height: 1000px) {
-  .fsr-fanout-screen:not(:has(.fsr-parked)) :is(.fsr-fanout__log, .fsr-fanout__side) {
-    margin-top: var(--fs-space-48);
+  .fsr-fanout-screen :is(.fsr-fanout__log, .fsr-fanout__side) {
+    margin-top: var(--fs-space-16);
   }
 
   .fsr-fanout-screen .fsr-fanout__log .fsr-log__item {
@@ -539,7 +530,7 @@
   align-items: baseline;
   gap: var(--fs-space-12);
   padding: var(--fs-space-8) 0;
-  border-bottom: 1px solid var(--fs-rule);
+  border-bottom: 1px solid var(--fsc-rule-row);
 }
 
 .fsr-log__item:last-child {
@@ -550,7 +541,7 @@
   display: inline-flex;
   align-items: center;
   gap: var(--fs-space-8);
-  color: var(--fs-ink-3);
+  color: var(--fs-ink-2);
 }
 
 /* A lane's dot (round 5: the one vocabulary's 8 px round dot, as the stage's Run log): the machine in graphite, a
@@ -691,7 +682,7 @@
 }
 
 .fsr-log__time {
-  color: var(--fs-ink-3);
+  color: var(--fs-ink-2);
 }
 
 .fsr-log__row .fsr-log__time {

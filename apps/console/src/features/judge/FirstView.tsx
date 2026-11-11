@@ -389,7 +389,7 @@ function Desk() {
             {stateChip}
           </span>
         }
-        meta={inSession && view ? runLabel(view.runSlug).text : undefined}
+        meta={inSession && view ? runLabel(view.runSlug).run : undefined}
         provenance={PROVENANCE.seededSlips}
         testId="W-JG-01.head"
         className="fsc-first__head"

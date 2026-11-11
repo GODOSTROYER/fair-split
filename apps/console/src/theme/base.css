@@ -1,6 +1,13 @@
 /* The console's browser surfaces (Adlaw, shown as Hayag, everywhere since ADR-0016): the parts no component
    draws, themed from the --fs-* tokens so nothing ships with a browser default. Every value here is a token. */
 
+/* Round 7: a divider between rows of data (the split's lines, the run log) is the row rule, halfway from `rule` to
+   `rule-strong` (about 1.4:1 on the plate, where `rule` is 1.25:1), so a table's lines read without growing heavy.
+   Panels, cards and decorative separators keep `rule`. */
+:root {
+  --fsc-rule-row: color-mix(in oklab, var(--fs-rule), var(--fs-rule-strong));
+}
+
 @layer base {
   .fs-t-title-1 {
     text-wrap: balance;

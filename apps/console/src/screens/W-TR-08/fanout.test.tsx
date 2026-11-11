@@ -125,8 +125,14 @@ describe("W-TR-08 run: the honest fan-out", () => {
         screen.getByTestId("W-TR-08.cashLabel").querySelector(".fsr-fan__name")?.getAttribute("title"),
       ).toBe(`due ${day()}`);
       const rhea = screen.getByTestId("W-TR-08.parked");
-      expect(rhea.textContent).toMatch(/Rhea JumawanUS\$26\.65/);
-      expect(rhea.textContent).toMatch(/No PayPal account · unclaimed · returns to the co-op in 30 days/);
+      // Round 7: the parked reason is the second line of her own fan row (no card repeats her under the fan); her
+      // name and amount are its heading for assistive technology, and the primary names whose payment it is.
+      expect(rhea.closest(".fsr-fan__note")).not.toBeNull();
+      expect(rhea.querySelector("h3.fs-sr")?.textContent).toBe("Parked · Rhea Jumawan · US$26.65");
+      expect(rhea.textContent).toMatch(/No PayPal account · returns in 30 days/);
+      expect(screen.getByTestId("W-TR-08.payCash.face").textContent).toContain(
+        "Pay Rhea in cash at the bodega",
+      );
       // The run's count with its one micro-tag beside it; that a person must decide is the run's state, said once
       // on the title row (round 5). No money bar restates the fan.
       const count = screen.getByTestId("W-TR-08.status").querySelector(".fsr-fanout__instrument");
@@ -211,12 +217,22 @@ describe("W-TR-08 run: the honest fan-out", () => {
       // and "PayPal complete · cash due" as the run's state on the title row.
       const status = screen.getByTestId("W-TR-08.status");
       const settled = screen.getByTestId("W-TR-08.settled");
+      // Round 7: each count carries its own qualifier under its word, so the cash's day never leaves the cash.
       expect(
-        [...settled.querySelectorAll(":scope > [aria-hidden]")]
-          .map((part) => part.textContent)
+        [...settled.querySelectorAll(".fsr-fanout__part")]
+          .map((part) =>
+            [
+              part.querySelector(".fsr-fanout__count")?.textContent,
+              part.querySelector(".fsr-fanout__key")?.textContent,
+            ].join(""),
+          )
           .join(" ")
           .replace(/\s+/g, " "),
       ).toBe("7PayPal 57cash");
+      expect(screen.getByTestId("W-TR-08.cashDue").closest(".fsr-fanout__part")?.textContent).toMatch(
+        /^57cash/,
+      );
+      expect(screen.getByTestId("W-TR-08.tag").closest(".fsr-fanout__part")?.textContent).toMatch(/^7PayPal/);
       expect(screen.getByTestId("W-TR-08.count").getAttribute("data-value")).toBe("7");
       expect(status.textContent).not.toMatch(/7\/8/);
       expect(status.querySelectorAll('.fs-state-dot[data-kind="paid"][data-size="12"]')).toHaveLength(1);

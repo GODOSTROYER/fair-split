@@ -21,15 +21,15 @@ import { engineOutput, splitBasis } from "../split/model.js";
 
 export const FAN = {
   width: 1200,
-  height: 420,
+  height: 432,
   /**
-   * The seal the two keys completed, 180 units across. Its top sits 210 units down (round 5), so the run's hero ("7/8"
-   * with its words, or "7 PayPal  57 cash" with its one primary under it) rests on the fan's top left right above it
-   * at any stage width.
+   * The seal the two keys completed, 180 units across. Round 7 raises it 30 units: its top sits 180 down, so the
+   * run's hero ("7/8" with its words, or "7 PayPal  57 cash", and the one primary under it, 120 px in all) still
+   * clears it on the 1,280 px laptop (137 px), and its hub stands nearer the rows' midpoint, so the fan leans less.
    */
-  seal: { cx: 90, cy: 300, size: 180 },
+  seal: { cx: 90, cy: 270, size: 180 },
   /** The hub beside the seal, level with its centre: every line leaves it. */
-  bar: { x0: 196, x1: 200, y0: 273, y1: 327 },
+  bar: { x0: 196, x1: 200, y0: 243, y1: 297 },
   /** The eight threads leave the hub this far apart, the largest payment on top, so the bundle opens as a fan. */
   threadGap: 5,
   /** One even stroke for every thread: the amount beside each row says how much. */
@@ -43,8 +43,9 @@ export const FAN = {
   stub: { y0: 16, step: 44, w: 16, h: 12 },
   dot: 10,
   /** The cash route: one 6-unit hatched ribbon from the hub (below the threads) to one round marker at the end. */
-  band: { y0: 316, h: 6 },
-  cash: { y0: 380, w: 16 },
+  band: { y0: 286, h: 6 },
+  /** Round 7: the cash row stands 12 units lower, so a parked row's second line (why, and "Re-send") clears it. */
+  cash: { y0: 392, w: 16 },
   /** Where the labels begin (they are HTML over the picture, so text keeps its type size at any width). */
   labelX: 772,
   /** A sent thread stops here until PayPal confirms it (design §1: "sent, not paid"). */

@@ -154,6 +154,16 @@ export function RateCard({ snapshot }: { readonly snapshot: SeasonSnapshot }) {
       ?.scrollIntoView({ block: "nearest", behavior: mode === "reduced" ? "instant" : "smooth" });
     announce(refusalHeading.current.textContent ?? "");
   }, [plateShown, refusal, announce, mode]);
+  // Round 7: once the refusal is printed, the paper turns to the page that refuses it (the clause banded, whole, the
+  // page from its top edge), with the card's seal under it; opening another rule shows every page again. So no page
+  // starts half-hidden, no line ghosts under the top fade and the cited clause is never cut at the panel's foot.
+  const citedOnly = plateShown && pinned === null && highlight.length > 0;
+  const citedPages = citedOnly ? new Set(highlight.map((h) => h.page)) : null;
+  useEffect(() => {
+    if (!citedOnly) return;
+    const scroller = pages.current?.querySelector<HTMLElement>(".fsc-snap__scroller");
+    if (scroller) scroller.scrollTop = 0;
+  }, [citedOnly]);
   // A pinned rule, or the refusal, brings its banded clause into view in the pages' own scroll.
   const banded = pinned ?? (refusal ? "closed" : null);
   useEffect(() => {
@@ -228,7 +238,18 @@ export function RateCard({ snapshot }: { readonly snapshot: SeasonSnapshot }) {
               label={RATECARD_COPY.docLabel(card.canonical.resolutionNo)}
               className="fsc-rc__scroll"
             >
-              <ResolutionPages card={card} highlight={highlight} testId="W-TR-02.pages" />
+              <ResolutionPages
+                card={card}
+                highlight={highlight}
+                testId="W-TR-02.pages"
+                {...(citedPages ? { only: citedPages } : {})}
+              />
+              {/* The card's seal stands under the page that refuses (round 7): the document and what bolts it. */}
+              {citedOnly && (
+                <div className="fsc-rc__sealed">
+                  <HashPlate snapshot={snapshot} testId="W-TR-02.bolted" />
+                </div>
+              )}
             </SnapScroll>
           </div>
         </Cell>
@@ -268,10 +289,15 @@ export function RateCard({ snapshot }: { readonly snapshot: SeasonSnapshot }) {
                       onBlur={() => setHovered(null)}
                       onClick={() => setPinned((p) => (p === rule.id ? null : rule.id))}
                     >
-                      <span className="fsc-rc__rule-id fs-t-id">
-                        {rule.ruleId === "CLOSED" ? <Glyph name="bolt" size={14} /> : rule.ruleId}
+                      {/* Round 7: no rule ids on screen (R0–R6 are the document's own, on its page): each row is its
+                          words; the closing clause wears the bolt. The id stays in the row's title. */}
+                      <span
+                        className="fsc-rc__rule-short fs-t-body"
+                        title={rule.ruleId === "CLOSED" ? undefined : rule.ruleId}
+                      >
+                        {rule.ruleId === "CLOSED" && <Glyph name="bolt" size={14} />}
+                        {rule.short}
                       </span>
-                      <span className="fsc-rc__rule-short fs-t-body">{rule.short}</span>
                       <Glyph name="ms:expand-more" size={16} className="fsc-rc__rule-mark" />
                     </button>
                     <div
@@ -307,12 +333,14 @@ export function RateCard({ snapshot }: { readonly snapshot: SeasonSnapshot }) {
 
             {/* Once a deduction is being added, the plate keeps its seal line only: the full hash and the two signatures
               step back so the refusal sits in view (round 3). */}
-            <HashPlate
-              snapshot={snapshot}
-              testId="W-TR-02.bolted"
-              compact={adding}
-              bright={mode === "reduced" && refusing}
-            />
+            {!(citedOnly && docOpen) && (
+              <HashPlate
+                snapshot={snapshot}
+                testId="W-TR-02.bolted"
+                compact={adding}
+                bright={mode === "reduced" && refusing}
+              />
+            )}
 
             <section
               className="fsc-rc__add"
@@ -385,10 +413,13 @@ export function RateCard({ snapshot }: { readonly snapshot: SeasonSnapshot }) {
                   slab step aside, still in the document for the moment and its tests): never a button that looks
                   disabled. The refusal above it is the state; next season's proposal is the column's one control. */}
               {plateShown && plate && (
+                // Round 7: the attempt stays readable, in ink (never struck through): a compact rejected-change row,
+                // "✕ Iba pa (Other) · ₱150", then what locks it.
                 <p className="fsc-rc__refused-row" data-testid="W-TR-02.refusedRow">
-                  <s className="fs-t-body">{`${label.trim()} · ${amountText.trim()}`}</s>
-                  <span className="fs-t-caption fsc-rc__muted">
-                    {RATECARD_COPY.locked(card.canonical.resolutionNo)}
+                  <Glyph name="ms:close" size={16} />
+                  <span className="fsc-rc__refused-what fs-t-body">{`${label.trim()} · ${amountText.trim()}`}</span>
+                  <span className="fs-t-caption fsc-rc__refused-why">
+                    {RATECARD_COPY.notAdded(card.canonical.resolutionNo)}
                   </span>
                 </p>
               )}

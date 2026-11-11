@@ -295,6 +295,18 @@ export function PhoneDock({
                   );
                 })}
               </Tabs.List>
+              {/* Round 7: opened over the screen (below 1440 px) the sheet says how to leave it. */}
+              {layout === "tab" && raised && (
+                <button
+                  type="button"
+                  className="fsc-dock__close fs-flat"
+                  onClick={onLower}
+                  data-testid="W-JG-01.phoneClose"
+                >
+                  <Glyph name="ms:close" size={18} />
+                  <span>{PHONE_RAIL.close}</span>
+                </button>
+              )}
             </div>
           )}
           <div

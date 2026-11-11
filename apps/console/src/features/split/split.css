@@ -103,7 +103,7 @@
 }
 
 .fsr-reading__micro {
-  color: var(--fs-ink-3);
+  color: var(--fs-ink-2);
 }
 
 /* The dial's state: over the limit is a person's decision (a marigold dot in a white pill); inside is a checked
@@ -118,21 +118,16 @@
   white-space: nowrap;
 }
 
+/* Round 7: over the limit is an exception with its own treatment, never a dot like a selection or a held row: a
+   line warning mark and the words in ink, inside a 1 px ink outline (the machine's reading stays ink; the person's
+   indigo is the holds' alone). */
 .fsr-dialstate[data-status="OUTSIDE"] {
-  padding: 0 10px 0 9px;
+  min-height: 28px;
+  padding: 0 12px 0 9px;
   border-radius: var(--fs-radius-pill);
   background: var(--fs-plate);
-  box-shadow: inset 0 0 0 1px var(--fs-rule-strong);
-}
-
-/* Round 6: the dial's state is the machine's reading, so its mark is ink (amber is a hold's dot and tag only). */
-.fsr-dialstate[data-status="OUTSIDE"]::before {
-  content: "";
-  flex: none;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--fs-ink);
+  box-shadow: inset 0 0 0 1px var(--fs-ink);
+  font-weight: 600;
 }
 
 .fsr-dialstate[data-status="PENDING"] {
@@ -223,7 +218,7 @@
 }
 
 .fsr-chip__count {
-  color: var(--fs-ink-3);
+  color: var(--fs-ink-2);
 }
 
 /* The chosen segment is a white face on the porcelain track. */
@@ -287,7 +282,7 @@
 }
 
 .fsr-recon__word {
-  color: var(--fs-ink-3);
+  color: var(--fs-ink-2);
 }
 
 .fsr-recon__figure {
@@ -350,7 +345,9 @@
 }
 
 .fsr-grid .ag-root-wrapper {
-  border-color: var(--fs-rule);
+  border-color: var(--fs-rule-strong);
+  /* Round 7: the lines' separators are the row rule (base.css), a step stronger than a panel's hairline. */
+  --ag-row-border: 1px solid var(--fsc-rule-row);
 }
 
 /* The scrollbar overlays the lines on a clear track (round 5: a stable gutter), so the lines, the total and the
@@ -461,7 +458,7 @@
 
 .fsr-note__micro {
   margin-left: var(--fs-space-8);
-  color: var(--fs-ink-3);
+  color: var(--fs-ink-2);
 }
 
 .fsr-note__open.fs-flat {
@@ -571,8 +568,10 @@
   white-space: nowrap;
 }
 
+/* Round 7: a member id is evidence (it ties the line to its slips): 13 px in ink-2 (9.8:1), never a faint 12. */
 .fsr-member__meta {
-  color: var(--fs-ink-3);
+  color: var(--fs-ink-2);
+  font-size: 0.8125rem;
   line-height: 1rem;
 }
 
@@ -1063,4 +1062,21 @@
   height: 48px;
   padding: 0;
   background: var(--fs-plate-2);
+}
+
+/* Round 7: the lines rest on whole rows, so the fade above the total only hints that more lie below: 10 px, inside
+   the last row's own padding, so it never washes a member id (the row's second line). */
+.fsr-grid__frame > .fsc-snap__fade[data-edge="end"] {
+  height: 10px;
+}
+
+/* Beside a drawer (a panel under 720 px) the filters keep one row: "planned" steps aside (the chip's title says it). */
+@container fsc-screen (max-width: 719px) {
+  .fsr-chip__planned {
+    display: none;
+  }
+
+  .fsr-chip {
+    padding: 0 var(--fs-space-8);
+  }
 }
