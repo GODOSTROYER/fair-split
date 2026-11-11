@@ -394,6 +394,14 @@
     color: var(--fs-ink);
   }
 
+  /* "Hold to sign · Other ways to sign": the caption and the one link are data on one line, joined by " · " (round
+     4), never read as one run-on phrase. The dot is drawn, not spoken. */
+  .fs-slab__caption::after {
+    content: "·" / "";
+    margin-inline-end: 6px;
+    color: var(--fs-ink-3);
+  }
+
   .fs-slab__steps {
     display: flex;
     align-items: center;
