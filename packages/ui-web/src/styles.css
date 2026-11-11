@@ -4,7 +4,7 @@
    e3, and paper keeps the strongest shadow. UI gate round 2: one flat primary button (the slab: indigo, radius 12,
    48 px, no lip, no glow) and one outline secondary (.fs-flat); no bolts or corner dots; money is never drawn in
    outline. The one glow is the jade halo, one beat after the simulated PayPal confirms. No glass, no gradient
-   text, no noise. UI gate round 3 (DESIGN.md): one family and one mono, every number in tabular figures; a surface
+   text, no noise. UI gate round 3 (docs/DESIGN.md): one family and one mono, every number in tabular figures; a surface
    is lifted by a border or by a shadow, never both; jade only on money the simulated PayPal confirmed. */
 
 :root {
@@ -772,7 +772,7 @@
 
   /* ------------------------------------------------------------------ honesty marks with a budget (round 3) */
 
-  /* The micro-tag beside a PayPal money value: a 12 px dashed circle and "Sandbox" at 12 px (the id step's size,
+  /* The micro-tag beside a PayPal money value: a 12 px dashed circle and "Simulated" at 12 px (the id step's size,
      the 12 px floor), 18 px tall, ink-3. No pill around it: the dashed circle is the mark. */
   .fs-microtag {
     display: inline-flex;
@@ -927,17 +927,65 @@
     text-align: left;
   }
 
+  /* A person's initials (round 4): white, a 1 px ink-2 ring, ink initials. Indigo is for action only, so the stamp a
+     decision carries and every avatar (the treasurer the judge acts as, a signer, a clerk) share this one look. */
   .fs-stamp {
     display: inline-grid;
     place-items: center;
     flex: none;
     width: var(--fs-stamp-size);
     height: var(--fs-stamp-size);
-    border-radius: var(--fs-radius-cell);
-    background: var(--fs-slab-chalk-face);
-    color: var(--fs-slab-chalk-label);
+    border-radius: 50%;
+    background: var(--fs-plate);
+    box-shadow: inset 0 0 0 1px var(--fs-ink-2);
+    color: var(--fs-ink);
     text-decoration: none;
     cursor: help;
+  }
+
+  .fs-avatar {
+    display: inline-grid;
+    place-items: center;
+    flex: none;
+    width: var(--fs-stamp-size);
+    height: var(--fs-stamp-size);
+    border-radius: 50%;
+    background: var(--fs-plate);
+    box-shadow: inset 0 0 0 1px var(--fs-ink-2);
+    color: var(--fs-ink);
+  }
+
+  /* An id on one line in the mono (round 4): never broken mid-word; IdText cuts a long one in the middle. */
+  .fs-idtext {
+    display: inline-block;
+    max-width: 100%;
+    overflow: hidden;
+    white-space: nowrap;
+    vertical-align: baseline;
+  }
+
+  /* A slip a line was weighed on, as data (round 4): the serial in the id style, the kilos in ink, flat on a 1 px
+     rule. No evidence red or ballpoint blue: those belong to the paper itself. */
+  .fs-receipt-chip {
+    display: inline-flex;
+    flex: none;
+    align-items: baseline;
+    gap: 8px;
+    min-height: 28px;
+    padding: 4px 10px;
+    border: 1px solid var(--fs-rule);
+    border-radius: var(--fs-radius-cell);
+    background: var(--fs-plate);
+    white-space: nowrap;
+  }
+
+  .fs-receipt-chip__serial {
+    color: var(--fs-ink-3);
+  }
+
+  .fs-receipt-chip__kg {
+    color: var(--fs-ink);
+    font-variant-numeric: tabular-nums lining-nums;
   }
 
   .fs-conf {

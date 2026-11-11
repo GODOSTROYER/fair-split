@@ -217,7 +217,7 @@ describe("the dial's reading", () => {
   });
 });
 
-describe("the stylesheet after round 3 (DESIGN.md)", () => {
+describe("the stylesheet after round 3 (docs/DESIGN.md)", () => {
   it("jade is only money the simulated PayPal confirmed: a paid chip, capsule, dot or rail share", () => {
     for (const r of rules) {
       const jade = Object.values(r.decls).some((v) => /--fs-jade(?!-halo)/.test(v));

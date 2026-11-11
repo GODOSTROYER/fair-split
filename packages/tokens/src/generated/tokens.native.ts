@@ -456,6 +456,9 @@ export const layout = {
   primary: 56,
   hero: 64,
   seal: 180,
+  cosignSeal: 140,
+  statusChip: 32,
+  fade: 24,
 } as const;
 
 export const hatch = {

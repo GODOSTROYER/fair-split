@@ -23,7 +23,7 @@
 // wears the same indigo face, because green is only money the simulated PayPal confirmed. One numeral voice:
 // money, figures and hashes are FS Sans semi-condensed, and there is no outline face any more.
 //
-// UI gate round 3 (the owner's "one family + mono", DESIGN.md): FS Sans sets every heading, label, body line and
+// UI gate round 3 (the owner's "one family + mono", docs/DESIGN.md): FS Sans sets every heading, label, body line and
 // number, numbers in tabular figures (one money style); one monospace sets hashes, IDs and timestamps, nothing
 // else. No dot-matrix, stencil, outline or condensed display face, and no Atkinson: a member's statement is FS Sans
 // too. Five size steps (TYPE_STEPS): id 12 (the mono), label 14, body 16, title 24, hero 56; the phone sets
@@ -746,13 +746,20 @@ export const LAYERS = {
 } as const;
 
 /**
- * Layout constants. phoneRail: the stage's folded phone (56 px); toast: the stage's one event toast (40 px tall);
- * seal: the seal on Approve and on the Chair's phone (180 px, the same drawing on both).
+ * Layout constants. columns and gutter: the one 12-column grid every console screen sits on (UI gate round 4);
+ * headGap: content starts 32 px under a screen's title row, top-aligned, never centred in a tall panel; bar: the
+ * stage's top bar (56 px), under which every drawer and sheet starts; phoneRail: the stage's folded phone (56 px);
+ * toast: the one event toast (40 px tall, in the top bar's status area); seal: the seal on Approve and on the Chair's
+ * phone (180 px, the same drawing on both). On the phone, cosignSeal: the seal on the Chair's co-sign card (140 px,
+ * so the card ends 16 px above its sticky button); statusChip: the status pill (32 px, the label step); fade: the
+ * 24 px fade under the status inset (the tab bar keeps its 12 px fade above it).
  */
 export const LAYOUT = {
   console: {
     columns: 12,
     gutter: 24,
+    headGap: 32,
+    bar: 56,
     rail: 220,
     drawer: 560,
     approve: 640,
@@ -763,7 +770,18 @@ export const LAYOUT = {
     toast: 40,
     seal: 180,
   },
-  app: { gutter: 16, rhythm: 8, section: 24, target: 48, primary: 56, hero: 64, seal: 180 },
+  app: {
+    gutter: 16,
+    rhythm: 8,
+    section: 24,
+    target: 48,
+    primary: 56,
+    hero: 64,
+    seal: 180,
+    cosignSeal: 140,
+    statusChip: 32,
+    fade: 24,
+  },
   proof: { column: 680, measure: 72, gutter: 16 },
 } as const;
 

@@ -323,4 +323,17 @@ describe("type, space and layout", () => {
     expect(LAYOUT.console).toMatchObject({ phoneRail: 56, toast: 40, seal: 180 });
     expect(LAYOUT.app.seal).toBe(LAYOUT.console.seal);
   });
+
+  it("round 4: one 12-column grid, content 32 px under the title row, drawers under the 56 px bar", () => {
+    expect(LAYOUT.console).toMatchObject({ columns: 12, gutter: 24, headGap: 32, bar: 56 });
+    // Every layout step sits on the 4-based space scale.
+    for (const v of [LAYOUT.console.gutter, LAYOUT.console.headGap, LAYOUT.app.fade]) {
+      expect(SPACE as readonly number[]).toContain(v);
+    }
+  });
+
+  it("round 4 on the phone: a 140 px co-sign seal, a 32 px status pill, 24 px fades", () => {
+    expect(LAYOUT.app).toMatchObject({ cosignSeal: 140, statusChip: 32, fade: 24 });
+    expect(LAYOUT.app.cosignSeal).toBeLessThan(LAYOUT.app.seal);
+  });
 });

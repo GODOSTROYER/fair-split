@@ -271,6 +271,8 @@
   --fs-z-flight: 70;
   --fs-console-columns: 12;
   --fs-console-gutter: 24px;
+  --fs-console-head-gap: 32px;
+  --fs-console-bar: 56px;
   --fs-console-rail: 220px;
   --fs-console-drawer: 560px;
   --fs-console-approve: 640px;
@@ -287,6 +289,9 @@
   --fs-app-primary: 56px;
   --fs-app-hero: 64px;
   --fs-app-seal: 180px;
+  --fs-app-cosign-seal: 140px;
+  --fs-app-status-chip: 32px;
+  --fs-app-fade: 24px;
   --fs-proof-column: 680px;
   --fs-proof-measure: 72ch;
   --fs-proof-gutter: 16px;

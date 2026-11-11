@@ -1,7 +1,8 @@
 // Honesty marks with a budget (UI gate round 3). The meaning survives; the pills go.
 // - One quiet indicator in the top bar: the honesty tag with `quiet` ("Simulated PayPal sandbox", no outline).
-// - One micro-tag, MicroTag: a 12 px dashed circle and the word "Sandbox" at 12 px, 18 px tall, only on PayPal money
-//   values, at most two a screen. A screen reader hears the whole label ("Simulated PayPal sandbox").
+// - One micro-tag, MicroTag: a 12 px dashed circle and the word "Simulated" at 12 px (round 4; it read "Sandbox"),
+//   18 px tall, only on PayPal money values, at most two a screen. A screen reader hears the whole label ("Simulated
+//   PayPal sandbox").
 // - Every other provenance pill ("Seed stand-in", "Seeded sample", "Synthetic sample", "Demo key", "Demo data")
 //   becomes a bare LegendGlyph: a hatched square for synthetic, a dashed circle for simulated, a solid square for
 //   real. Its words are its tooltip and its accessible name. The full legend (HonestyLegend) lives only in the
@@ -177,8 +178,11 @@ export function LegendMark({ kind, size = 14 }: { readonly kind: HonestyKind; re
   );
 }
 
+/** The micro-tag's one word on screen (UI gate round 4: "Simulated", which says what the dashed circle means). */
+export const MICRO_WORD = "Simulated";
+
 export interface MicroTagProps {
-  /** The word on screen: "Sandbox". */
+  /** The word on screen: "Simulated". */
   readonly children?: ReactNode;
   /** What a screen reader hears and the tooltip says: "Simulated PayPal sandbox". */
   readonly label?: string;
@@ -187,11 +191,11 @@ export interface MicroTagProps {
 }
 
 /**
- * The micro-tag beside a PayPal money value: a 12 px dashed circle and "Sandbox" at 12 px, 18 px tall, in ink-3.
- * At most two a screen (TAG_BUDGET); the screen reader hears the whole label, never just "Sandbox".
+ * The micro-tag beside a PayPal money value: a 12 px dashed circle and "Simulated" at 12 px, 18 px tall, in ink-3.
+ * At most two a screen (TAG_BUDGET); the screen reader hears the whole label ("Simulated PayPal sandbox").
  */
 export function MicroTag({
-  children = "Sandbox",
+  children = MICRO_WORD,
   label = HONESTY.simulatedSandbox.label,
   testId,
   className,

@@ -26,13 +26,13 @@ const wrap = (node: ReactNode) => (
 );
 
 describe("honesty marks (round 3)", () => {
-  it("the micro-tag shows 'Sandbox' and says the whole label to a screen reader and in its tooltip", () => {
+  it("the micro-tag shows 'Simulated' (round 4) and says the whole label to a screen reader and in its tooltip", () => {
     render(wrap(<MicroTag testId="mt" />));
     const tag = screen.getByTestId("mt");
     expect(tag.dataset.fsTag).toBe("micro");
     expect(tag.getAttribute("title")).toBe("Simulated PayPal sandbox");
     const word = tag.querySelector(".fs-microtag__word");
-    expect(word?.textContent).toBe("Sandbox");
+    expect(word?.textContent).toBe("Simulated");
     expect(word?.getAttribute("aria-hidden")).toBe("true");
     expect(tag.querySelector(".fs-sr")?.textContent).toBe("Simulated PayPal sandbox");
     const circle = tag.querySelector("svg circle");
