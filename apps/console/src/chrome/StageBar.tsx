@@ -1,10 +1,11 @@
-// The Judge stage's top bar (S1.6; UI gate round 4): one row of six items at most. "Fair Split" leads at every width
-// (the rail no longer carries the lockup); then the status area, where the mock-data chip and the one event toast
-// live (the toast never floats over the screen); in the centre the run pill, "● Next: …" with "Play it for me" and
-// the chevron (whose menu holds the screens, the run log, sound, Reset and Shortcuts); on the right What's real, the
-// Proof counter on Proof's six checks ("Proof 0/6" until this browser has checked, then "6/6") and the stage's one
-// quiet honesty indicator, "Simulated PayPal sandbox". The phone visit (no pill, so no chevron) keeps the log, sound
-// and Reset as line icons beside What's real, with its own overflow menu.
+// The Judge stage's top bar (S1.6; UI gate rounds 4 and 5): one row of six calm items at most, at all times. "Fair
+// Split" leads at every width (the rail no longer carries the lockup); then the status area, where only the mock-data
+// chip lives (round 5: the event toast folds into the Next pill); in the centre the run pill, "● Next: …" with "Play it
+// for me" and the chevron (whose menu holds the screens, the run log, sound, Reset and Shortcuts); on the right What's
+// real (its word kept at 1,280 and 1,470), the Proof counter on Proof's six checks ("Proof 0/6" until this browser has
+// checked, then "6/6") and the stage's one quiet honesty indicator, "Simulated PayPal sandbox" ("Simulated" under
+// 1,680 px, its whole name kept for assistive technology). The phone visit (no pill, so no chevron) keeps two icons:
+// What's real and its overflow menu, which holds the log, sound and Reset (round 5).
 
 import { Glyph, HonestyTag, useT } from "@fairsplit/ui-web";
 import { type ReactNode, useRef } from "react";
@@ -20,7 +21,7 @@ export interface StageBarProps {
   readonly mock: boolean;
   /** The run pill (its chevron's menu holds the run log, sound and Reset). */
   readonly pill?: ReactNode;
-  /** The status area's live content: the one event toast (round 4: in the bar, never over a row). */
+  /** The status area's content beside the mock chip (round 5: empty on the stage; the toast lives in the pill). */
   readonly status?: ReactNode;
   readonly proofHref: string | null;
   /** Proof's six checks: how many matched in this browser (0 until it has checked). */
@@ -101,8 +102,11 @@ export function StageBar({
 }: StageBarProps) {
   const t = useT();
   const proof = proofChipLabel(t, { ...checks, replayed });
-  // With the run pill on the bar, its chevron's menu holds the log, sound and Reset (round 4: six items at most).
-  const utilitiesInMenu = Boolean(pill);
+  // With the run pill on the bar, its chevron's menu holds the log, sound and Reset (round 4: six items at most); on
+  // the phone visit the overflow menu holds them (round 5: two icons in its header).
+  const utilitiesInMenu = Boolean(pill) || Boolean(overflow);
+  const tag = railTag(rail);
+  const space = tag.indexOf(" ");
   return (
     <header className="fsc-bar" data-testid="W-JG-01.bar">
       <Wordmark compact />
@@ -168,8 +172,19 @@ export function StageBar({
             </span>
           </AppLink>
         )}
-        <span className="fsc-bar__tag" data-testid="W-JG-01.notice">
-          <HonestyTag quiet>{railTag(rail)}</HonestyTag>
+        <span className="fsc-bar__tag" data-testid="W-JG-01.notice" title={tag}>
+          {/* Under 1,680 px the first word stays on screen ("Simulated") and the rest is for assistive technology,
+              so What's real keeps its word at 1,280 and 1,470 (round 5). */}
+          <HonestyTag quiet>
+            {space > 0 ? (
+              <>
+                {tag.slice(0, space)}
+                <span className="fsc-bar__tagrest">{tag.slice(space)}</span>
+              </>
+            ) : (
+              tag
+            )}
+          </HonestyTag>
         </span>
       </nav>
     </header>

@@ -141,7 +141,7 @@ it.each([
   ["dock", 1920],
   ["tab", 1280],
 ] as const)(
-  "folded on the %s layout at %i px: a 56 px rail, the frame words kept for assistive tech",
+  "folded on the %s layout at %i px: a 56 px rail, each avatar's role word under it (round 5)",
   (layout, width) => {
     const { dock, word, device } = railIn(layout);
     const medium = { width, height: 956, motion: "full" as const };
@@ -154,8 +154,10 @@ it.each([
       "var(--fs-console-phone-rail)",
     );
     expect(LAYOUT.console.phoneRail).toBe(56);
-    // The word leaves the screen, never the accessibility tree (clipped, not display: none).
-    expect(cascaded(rules, word, "clip-path", medium)).toBe("inset(50%)");
+    // Round 5: the role word (Member, Chair, Clerk) stays on screen under its avatar, on the 13 px floor.
+    expect(cascaded(rules, word, "clip-path", medium) ?? "none").toBe("none");
+    expect(cascaded(rules, word, "position", medium)).toBe("static");
+    expect(cascaded(rules, word, "font-size", medium)).toBe("0.8125rem");
     expect(cascaded(rules, word, "display", medium)).toBeUndefined();
     // The frames stay loaded at their size, only hidden: opening shows their last good state.
     expect(cascaded(rules, device, "visibility", medium)).toBe("hidden");

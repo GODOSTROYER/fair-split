@@ -16,7 +16,7 @@ import { type ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRe
 import { ConnectionBanner } from "../chrome/ConnectionBanner.js";
 import { ConsoleRail } from "../chrome/ConsoleRail.js";
 import { STAGE } from "../chrome/copy.js";
-import { EventToast, LogSheet } from "../chrome/EventLog.js";
+import { LogSheet, usePillToast } from "../chrome/EventLog.js";
 import { nextStep } from "../chrome/next-step.js";
 import { RunPill } from "../chrome/RunPill.js";
 import { activeRailItem, placeStates, railItems } from "../chrome/rail-items.js";
@@ -299,6 +299,8 @@ export function Stage({ children }: { readonly children: ReactNode }) {
   const checks = useProofChecks(inSession ? runSlug : null);
   const seeded = useMemo(() => firstViewRows(snapshot, rail), [snapshot, rail]);
   const visit = layout.phone === "phone-visit";
+  // Round 5: the newest live event shows in the Next pill for 3 s (the bar keeps six items).
+  const toast = usePillToast(inSession && !visit ? runSlug : null);
   // The phone visit's statement runs to the window's foot (round 4): the height the bar leaves, measured.
   const visitHeight = useVisitHeight(visit);
 
@@ -438,6 +440,7 @@ export function Stage({ children }: { readonly children: ReactNode }) {
                   view={view}
                   next={next}
                   items={items}
+                  toast={toast}
                   onStep={(s) => s.persona && raisePhone(s.persona)}
                   // Round 4: the run log, sound and Reset live in the chevron's menu (six items in the bar).
                   utilities={{
@@ -449,12 +452,24 @@ export function Stage({ children }: { readonly children: ReactNode }) {
                 />
               )
             }
-            // Round 4: the one event toast lives in the bar's status area, so it never covers a row.
-            status={visit ? null : <EventToast runSlug={inSession ? runSlug : null} />}
-            // The phone visit's bar keeps the product, the simulation status and its controls; Proof moves into
-            // its overflow menu, with the laptop line and the link (round 3).
+            // Round 5: the one event toast lives in the Next pill, so the status area holds only the mock chip.
+            status={null}
+            // The phone visit's bar keeps the product, the simulation status and two icons: What's real and its
+            // overflow menu, which holds Proof, the laptop line, the link, the log, sound and Reset (round 5).
             proofHref={!visit && runSlug ? webRoutes.proof(runSlug) : null}
-            overflow={visit ? <VisitMenu proofHref={runSlug ? webRoutes.proof(runSlug) : null} /> : null}
+            overflow={
+              visit ? (
+                <VisitMenu
+                  proofHref={runSlug ? webRoutes.proof(runSlug) : null}
+                  utilities={{
+                    onLog: () => setLogOpen(true),
+                    canReset: inSession || session.status === "failed",
+                    resetting: session.status === "resetting",
+                    onReset: () => void onReset(),
+                  }}
+                />
+              ) : null
+            }
             checks={checks}
             replayed={replayed}
             canReset={inSession || session.status === "failed"}

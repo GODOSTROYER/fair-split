@@ -8,8 +8,10 @@ import { Menu } from "@base-ui/react/menu";
 import { Glyph } from "@fairsplit/ui-web";
 import { useState } from "react";
 import { AppLink } from "../chrome/AppLink.js";
-import { STAGE } from "../chrome/copy.js";
+import { LOG, STAGE } from "../chrome/copy.js";
+import type { StageUtilities } from "../chrome/RunPill.js";
 import { ChromeSlot } from "../chrome/slots.js";
+import { useSound } from "../sound/sound.js";
 
 export function PhoneVisit() {
   return (
@@ -40,10 +42,18 @@ function MoreMark() {
 }
 
 /**
- * The phone visit's overflow (round 3), at the end of the stage bar's controls: the laptop recommendation, "Copy
- * the link", and Proof once there is a run. "Copied" is said in the menu's live line.
+ * The phone visit's overflow (rounds 3 and 5), at the end of the stage bar's two icons: the laptop recommendation,
+ * "Copy the link", Proof once there is a run, then the run log, sound and Reset (while there is a session), as the
+ * console's chevron menu holds them. "Copied" is said in the menu's live line.
  */
-export function VisitMenu({ proofHref }: { readonly proofHref: string | null }) {
+export function VisitMenu({
+  proofHref,
+  utilities,
+}: {
+  readonly proofHref: string | null;
+  readonly utilities?: StageUtilities;
+}) {
+  const sound = useSound();
   const [copied, setCopied] = useState(false);
   const copy = async () => {
     try {
@@ -93,6 +103,43 @@ export function VisitMenu({ proofHref }: { readonly proofHref: string | null }) 
                   </Menu.LinkItem>
                 )}
               </Menu.Group>
+              {utilities && (
+                <>
+                  <Menu.Separator className="fsc-menu__rule" />
+                  <Menu.Item
+                    className="fsc-menu__item"
+                    onClick={utilities.onLog}
+                    data-testid="W-JG-01.logOpen"
+                  >
+                    <Glyph name="ms:schedule" size={18} />
+                    <span>{LOG.title}</span>
+                  </Menu.Item>
+                  <Menu.CheckboxItem
+                    className="fsc-menu__item"
+                    checked={sound.on}
+                    onCheckedChange={() => sound.toggle()}
+                    data-testid="W-JG-01.sound"
+                  >
+                    <Glyph name={sound.on ? "ms:volume-up" : "ms:volume-off"} size={18} />
+                    <span>{STAGE.sound}</span>
+                    <span className="fsc-menu__state">{sound.on ? STAGE.on : STAGE.off}</span>
+                  </Menu.CheckboxItem>
+                  {utilities.canReset && (
+                    <Menu.Item
+                      className="fsc-menu__item"
+                      onClick={() => {
+                        if (!utilities.resetting) utilities.onReset();
+                      }}
+                      aria-disabled={utilities.resetting || undefined}
+                      aria-busy={utilities.resetting || undefined}
+                      data-testid="W-JG-01.reset"
+                    >
+                      <Glyph name="ms:restart-alt" size={18} />
+                      <span>{STAGE.reset}</span>
+                    </Menu.Item>
+                  )}
+                </>
+              )}
             </Menu.Popup>
           </Menu.Positioner>
         </Menu.Portal>

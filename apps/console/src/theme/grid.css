@@ -40,10 +40,30 @@
   color: var(--fs-ink);
 }
 
+/* Round 5: the noun title's grey suffix ("Season 2026-A"), in the same heading. */
+.fsc-screen__suffix {
+  color: var(--fs-ink-2);
+}
+
+/* The state's one StatusChip, on the title's row. */
+.fsc-screen__status {
+  display: inline-flex;
+  align-self: center;
+}
+
+/* The id line: the run id in the mono, then the screen's one provenance phrase in words, both ink-3. */
 .fsc-screen__meta {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
   margin: 0;
   color: var(--fs-ink-3);
   white-space: nowrap;
+}
+
+.fsc-screen__provenance {
+  color: var(--fs-ink-3);
+  cursor: help;
 }
 
 .fsc-screen__actions {

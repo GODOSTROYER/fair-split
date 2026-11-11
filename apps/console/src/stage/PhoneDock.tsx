@@ -1,7 +1,7 @@
 // The stage's one phone (S1.6; UI gate round 3): Member, Chair and Clerk over the Expo web export at /app, one
 // iframe per persona (named after it) so each keeps its own token and screen. On the steps where the phone shows
-// nothing new it folds to a 56 px rail at the right: the phone glyph (it opens the phone), one avatar per frame (it
-// opens that frame) and the shown frame's status dot. It opens on its own on the phone's beats (key 2's co-sign,
+// nothing new it folds to a 56 px rail at the right: the phone glyph ("Open phone"), one avatar per frame with its
+// role word under it (round 5: Member, Chair, Clerk; it opens that frame) and the shown frame's status dot. It opens on its own on the phone's beats (key 2's co-sign,
 // "Bayad na", the traced peso) and when the viewer asks. Open from 1440 px it has a column of its own (a narrower
 // one below 1680), at full contrast, with "Use the phone" on a line under it until it is the focus; below 1440 px it
 // rises beside the screen (a moment's raise leaves the console lit) or over the scrim (the viewer's own raise). The
@@ -262,7 +262,9 @@ export function PhoneDock({
                   className="fsc-dock__toggle"
                   aria-expanded={!isFolded}
                   aria-controls="fsc-phone-device"
-                  title={`${toggleWords} · ${words}`}
+                  // Round 5: the tooltip is the action alone ("Open phone"); whose phone and its state are in the
+                  // name, and on the rail under each avatar.
+                  title={toggleWords}
                   onClick={onToggle}
                   data-testid="W-JG-01.phoneTab"
                 >

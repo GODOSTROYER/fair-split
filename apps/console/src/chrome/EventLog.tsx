@@ -1,15 +1,17 @@
-// The run's events without a ticker (UI gate round 3). The three-lane ribbon is gone: each new event the run's
-// stream delivers shows once, as one 40 px toast at the bottom left for 3 s, and the whole timeline sits behind the
-// top bar's Log, newest first. The space the ribbon took goes back to the screens. Each row keeps its lane as a
-// mark (graphite for the machine, ink for people, and for PayPal the simulated glyph, which turns to a jade dot only
-// for a payment the simulated PayPal confirmed), its time in Davao (PHT) and its words; the detail (an item ID, a
-// webhook's name and how it was checked) is the row's title. A seeded or replayed row carries its legend glyph,
-// whose words a screen reader hears, never a pill. History the stream replays never toasts: motion is evidence.
+// The run's events without a ticker (UI gate rounds 3 and 5). Each new event the run's stream delivers shows once,
+// for 3 s, folded into the top bar's Next pill (round 5: the pill crossfades to the event in plain words, then back to
+// "Next: …", so the bar never grows a seventh item), and the whole timeline sits behind the chevron menu's Run log,
+// newest first, where the times live. Each row keeps its lane as an 8 px round mark (graphite for the machine, ink
+// for people, a hollow ring for PayPal that turns to the jade dot only for a payment the simulated PayPal confirmed),
+// its time in Davao (PHT) and its words; the detail (an item ID, a webhook's name and how it was checked, a seeded or
+// replayed row's provenance) is the row's title. No legend glyphs (round 5: provenance once, in a screen's id line).
+// History the stream replays never toasts: motion is evidence.
 
 import { Dialog } from "@base-ui/react/dialog";
 import type { LogLane, RunEvent } from "@fairsplit/contracts";
-import { Glyph, HONESTY, LegendGlyph, useT } from "@fairsplit/ui-web";
-import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { TWEENS } from "@fairsplit/motion/presets";
+import { Glyph, HONESTY, useT } from "@fairsplit/ui-web";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { describeEvent, type LogRow } from "../data/describe.js";
 import { useDescribeContext, useRunEvents } from "../data/hooks.js";
 import { payoutStatus } from "../data/payout-replay.js";
@@ -18,6 +20,7 @@ import { davaoShort } from "../features/proof/davao.js";
 import { FocusReturn } from "../lib/focus.js";
 import { format } from "../lib/format.js";
 import { LOG, RIBBON, TOAST_MS } from "./copy.js";
+import { toastWords } from "./toast.js";
 
 /** PayPal's event names in plain words ("PAYMENT.PAYOUTS-ITEM.SUCCEEDED" is "payout succeeded"). */
 const NOTICE_NOUNS: Readonly<Record<string, string>> = {
@@ -63,38 +66,47 @@ const LANE_KEY: Readonly<Record<LogLane, "machine" | "people" | "paypal">> = {
   PAYPAL: "paypal",
 };
 
-/** The row's lane mark. PayPal's is the simulated glyph (its name says the rail) until a payment lands. */
+/**
+ * The row's lane mark: an 8 px round dot (round 5: one marker vocabulary). PayPal's is a hollow ring (the simulated
+ * sandbox, not yet money anyone holds) until a payment lands, then the jade dot. Its words are for screen readers.
+ */
 function LaneMark({ lane, landed }: { readonly lane: LogLane; readonly landed: boolean }) {
   const t = useT();
-  if (lane === "PAYPAL") {
-    return landed ? (
-      <span className="fsc-log__mark" data-lane="paypal" data-landed="">
-        <span className="fs-sr">{`${HONESTY.simulatedSandbox.label}, confirmed: `}</span>
-      </span>
-    ) : (
-      <LegendGlyph {...HONESTY.simulatedSandbox} className="fsc-log__glyph" />
-    );
-  }
+  const words =
+    lane === "PAYPAL"
+      ? landed
+        ? `${HONESTY.simulatedSandbox.label}, confirmed: `
+        : `${HONESTY.simulatedSandbox.label}: `
+      : `${t(`W-JG-01.lane.${LANE_KEY[lane]}`)}: `;
   return (
-    <span className="fsc-log__mark" data-lane={LANE_KEY[lane]}>
-      <span className="fs-sr">{`${t(`W-JG-01.lane.${LANE_KEY[lane]}`)}: `}</span>
+    <span className="fsc-log__mark" data-lane={LANE_KEY[lane]} data-landed={landed ? "" : undefined}>
+      <span className="fs-sr">{words}</span>
     </span>
   );
 }
 
-/** A seeded or replayed row's legend glyph: the words are its title and its accessible name. */
-function RowGlyph({ row }: { readonly row: LogRow }): ReactNode {
-  if (row.replayNote) return <LegendGlyph kind="simulated" label={row.replayNote} />;
-  if (seededRow(row)) return <LegendGlyph {...HONESTY.seedStandIn} />;
+/** Where a seeded or replayed row came from, said in its title (never a glyph on the row). */
+function provenanceNote(row: LogRow): string | null {
+  if (row.replayNote) return row.replayNote;
+  if (seededRow(row)) return HONESTY.seedStandIn.label;
   return null;
 }
 
 function rowTitle(row: LogRow): string {
-  return `${row.words}${row.detail ? `. ${row.detail}` : ""}${row.at ? `. ${davaoShort(row.at)} ${RIBBON.zone}` : ""}`;
+  const note = provenanceNote(row);
+  return [
+    row.words,
+    row.detail || null,
+    note && !row.detail.includes(note) ? note : null,
+    row.at ? `${davaoShort(row.at)} ${RIBBON.zone}` : null,
+  ]
+    .filter(Boolean)
+    .join(". ");
 }
 
-/** One row: mark, time, words and its glyph, on one line. */
+/** One log row: mark, time and words, on one line; a seeded or replayed row's provenance is said, not drawn. */
 function Row({ row, landed }: { readonly row: LogRow; readonly landed: boolean }) {
+  const note = provenanceNote(row);
   return (
     <>
       <LaneMark lane={row.lane} landed={landed} />
@@ -106,7 +118,7 @@ function Row({ row, landed }: { readonly row: LogRow; readonly landed: boolean }
       <span className="fsc-log__words fs-t-label" data-duplicate={row.duplicate ? "" : undefined}>
         {logWords(row.words)}
       </span>
-      <RowGlyph row={row} />
+      {note && <span className="fs-sr">{`. ${note}`}</span>}
     </>
   );
 }
@@ -134,41 +146,64 @@ export function useLogRows(
   }, [ctx, view, seeded]);
 }
 
-export interface EventToastProps {
-  /** The run on the stage; only its live events toast. */
-  readonly runSlug: string | null;
+/** The newest live event, as the Next pill shows it for 3 s (round 5). */
+export interface PillToast {
+  readonly row: LogRow;
+  readonly landed: boolean;
+  /** Its words in the toast catalog's plain words (chrome/toast.ts): no time, no "Notice:", no full stop. */
+  readonly words: string;
+  /** In for TIMING.toast, then out; it leaves the pill one swap (150 ms) later. */
+  readonly shown: boolean;
 }
 
 /**
- * One toast, bottom left, 40 px: the newest live event for 3 s. A new event replaces it and starts its 3 s again.
- * It never takes focus or a click (the Log has everything), and it is not a live region: the run's own
+ * The run's newest live event for the Next pill: in for 3 s (TIMING.toast), then out, then gone after the 150 ms
+ * crossfade back to "Next: …". A new event replaces it and starts its 3 s again. History the stream replays never
+ * toasts. It never takes focus or a click (the Run log has everything), and it is not a live region: the run's own
  * announcements speak, so 48 slip readings never read out 48 times.
  */
-export function EventToast({ runSlug }: EventToastProps) {
+export function usePillToast(runSlug: string | null): PillToast | null {
   const ctx = useDescribeContext();
   const ctxRef = useRef(ctx);
   ctxRef.current = ctx;
-  const [current, setCurrent] = useState<{ row: LogRow; landed: boolean } | null>(null);
+  const [current, setCurrent] = useState<Omit<PillToast, "shown"> | null>(null);
   const [shown, setShown] = useState(false);
   useRunEvents(runSlug, (event, meta) => {
     if (meta.replay || !ctxRef.current) return;
     const row = describeEvent(event, ctxRef.current);
     if (!row) return;
-    setCurrent({ row, landed: landedEvent(row, event) });
+    setCurrent({ row, landed: landedEvent(row, event), words: toastWords(row, event) });
     setShown(true);
   });
   useEffect(() => {
-    if (!shown || !current) return;
-    const timer = setTimeout(() => setShown(false), TOAST_MS);
-    return () => clearTimeout(timer);
+    if (!current) return;
+    if (shown) {
+      const timer = setTimeout(() => setShown(false), TOAST_MS);
+      return () => clearTimeout(timer);
+    }
+    const gone = setTimeout(() => setCurrent(null), TWEENS.swap.ms);
+    return () => clearTimeout(gone);
   }, [shown, current]);
-  if (!current) return null;
-  const { row, landed } = current;
+  useEffect(() => {
+    if (runSlug === null) {
+      setCurrent(null);
+      setShown(false);
+    }
+  }, [runSlug]);
+  return current ? { ...current, shown } : null;
+}
+
+/**
+ * The toast inside the Next pill: the event's plain words over the pill's own, crossfading (150 ms). Hidden from
+ * assistive technology (the pill's name stays "Next: …"); its title carries the row's detail and its time.
+ */
+export function PillToastWords({ toast }: { readonly toast: PillToast }) {
+  const { row, landed, words, shown } = toast;
   return (
-    <aside
+    <span
       key={row.id}
       className="fsc-toast"
-      aria-label={LOG.toast}
+      aria-hidden
       data-state={shown ? "in" : "out"}
       data-lane={LANE_KEY[row.lane]}
       data-landed={landed ? "" : undefined}
@@ -176,8 +211,8 @@ export function EventToast({ runSlug }: EventToastProps) {
       title={rowTitle(row)}
       data-testid="W-JG-01.toast"
     >
-      <Row row={row} landed={landed} />
-    </aside>
+      {words}
+    </span>
   );
 }
 

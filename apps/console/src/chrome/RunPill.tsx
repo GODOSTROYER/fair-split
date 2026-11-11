@@ -1,18 +1,22 @@
-// The run pill (S1.6; UI gate round 4): the top bar's one centre group. "● Next: …" links to the screen whose control
-// is pre-focused; a small mark says who moves the run next (canary when a person must decide, pencil while the
+// The run pill (S1.6; UI gate rounds 4 and 5): the top bar's one centre group. "● Next: …" links to the screen whose
+// control is pre-focused; a small mark says who moves the run next (canary when a person must decide, pencil while the
 // machine reads, an open ring while PayPal confirms); "Play it for me" (the season slice's) sits in its accessory slot;
 // the chevron opens the stage's one menu: the six console screens, the run log, sound, Reset (while there is a session
 // to end) and Shortcuts. The run's state word is no longer a grey segment that repeats the page title: it is spoken
 // with the pill (it still never overclaims: "PayPal complete · cash due" while cash is due).
+// Round 5: the toast folds into the pill. For 3 s a live event's plain words crossfade (150 ms) over "Next: …", then
+// the pill says "Next: …" again; the bar never grows a seventh item. Its words always start "Next:" and are never
+// underlined (hover is the plate-2 fill, like every bar control).
 
 import { Menu } from "@base-ui/react/menu";
-import { Glyph, HONESTY, LegendGlyph, useT } from "@fairsplit/ui-web";
+import { Glyph, useT } from "@fairsplit/ui-web";
 import type { RunView } from "../data/run-view.js";
 import { useShortcuts } from "../lib/shortcuts.js";
 import { useSound } from "../sound/sound.js";
 import { AppLink } from "./AppLink.js";
 import { LOG, STAGE } from "./copy.js";
-import type { NextStep } from "./next-step.js";
+import { type PillToast, PillToastWords } from "./EventLog.js";
+import { type NextStep, pillWords } from "./next-step.js";
 import type { RailItem } from "./rail-items.js";
 import { ChromeSlot } from "./slots.js";
 
@@ -32,9 +36,11 @@ export interface RunPillProps {
   readonly items: readonly RailItem[];
   readonly onStep?: (step: NextStep) => void;
   readonly utilities?: StageUtilities;
+  /** The newest live event, shown in the pill's words for 3 s (round 5: the toast lives in the pill). */
+  readonly toast?: PillToast | null;
 }
 
-export function RunPill({ view, next, items, onStep, utilities }: RunPillProps) {
+export function RunPill({ view, next, items, onStep, utilities, toast = null }: RunPillProps) {
   const t = useT();
   const shortcuts = useShortcuts();
   const sound = useSound();
@@ -43,7 +49,13 @@ export function RunPill({ view, next, items, onStep, utilities }: RunPillProps) 
     ? (next.stateWord ?? t(`run.${view.state}`, { treasurer: "Analyn", chair: "Ernesto" }))
     : "";
   return (
-    <div className="fsc-pill" data-testid="W-JG-01.runPill" data-step={next.id} data-actor={next.actor}>
+    <div
+      className="fsc-pill"
+      data-testid="W-JG-01.runPill"
+      data-step={next.id}
+      data-actor={next.actor}
+      data-toast={toast?.shown ? (toast.landed ? "landed" : "event") : undefined}
+    >
       {state && (
         <span
           className="fsc-pill__state fs-sr"
@@ -57,12 +69,18 @@ export function RunPill({ view, next, items, onStep, utilities }: RunPillProps) 
         href={next.to}
         className="fsc-pill__next fs-t-label"
         data-testid="W-JG-01.runPill.next"
+        data-swap={toast?.shown ? "event" : undefined}
         onClick={() => onStep?.(next)}
       >
         <span className="fsc-pill__mark" aria-hidden />
-        <span>{next.text}</span>
-        {/* The reading replays the seed stand-in: its glyph says so (the pinned phrase is its name), no sentence. */}
-        {next.id === "reading" && <LegendGlyph {...HONESTY.seedStandIn} className="fsc-pill__glyph" />}
+        {/* The pill's words and, for 3 s, an event's over them (one cell, crossfading). The reading's seed stand-in
+            is said once, in the reading room's id line (round 5: no glyph in the bar). */}
+        <span className="fsc-pill__words">
+          <span className="fsc-pill__say" data-testid="W-JG-01.runPill.words">
+            {pillWords(next.text)}
+          </span>
+          {toast && <PillToastWords toast={toast} />}
+        </span>
       </AppLink>
       <ChromeSlot name="pill.accessory" as="span" className="fsc-pill__slot" />
       <Menu.Root>

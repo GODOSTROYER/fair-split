@@ -526,16 +526,30 @@
   padding: 0 16px 0 14px;
   color: var(--fs-ink);
   text-decoration: none;
+  transition: background-color var(--fs-dur-swap) var(--fs-ease-out);
 }
 
-.fsc-pill__next > span:last-child {
+/* Never underlined (round 5): hover is the plate-2 fill, like every control in the bar. */
+.fsc-pill__next:hover {
+  background: var(--fs-plate-2);
+}
+
+/* The pill's words and, for 3 s, an event's (round 5: the toast folds into the pill), stacked in one cell and
+   crossfading over 150 ms. The pill takes the wider of the two while both are there, never a second row. */
+.fsc-pill__words {
+  display: grid;
+  min-width: 0;
+}
+
+.fsc-pill__words > * {
+  grid-area: 1 / 1;
+  min-width: 0;
   white-space: nowrap;
+  transition: opacity var(--fs-dur-swap) var(--fs-ease-out);
 }
 
-.fsc-pill__next:hover > span:last-child {
-  text-decoration: underline;
-  text-decoration-color: var(--fs-ink-3);
-  text-underline-offset: 3px;
+.fsc-pill__next[data-swap="event"] .fsc-pill__say {
+  opacity: 0;
 }
 
 /* Who moves the run next: amber when a person must decide, graphite while the machine reads, the dashed steel
@@ -562,6 +576,15 @@
 
 .fsc-pill[data-actor="done"] .fsc-pill__mark {
   background: var(--fs-ink);
+}
+
+/* While the pill shows a payment the simulated PayPal confirmed, its mark is the jade dot (jade only for that). */
+.fsc-pill[data-toast="landed"] .fsc-pill__mark {
+  width: 8px;
+  height: 8px;
+  border: 0;
+  background: var(--fs-jade);
+  box-shadow: inset 0 0 0 1px var(--fs-jade-flush-border);
 }
 
 .fsc-pill__slot {
@@ -705,6 +728,39 @@
   padding: 24px;
 }
 
+/* Round 5: a drawer hugs its content. It ends at its content's foot (never past the stage's), standing at the top of
+   the screen's column with the panel radius all round, so a short state never leaves an empty band under it. */
+.fsc-drawer[data-hug] {
+  bottom: auto;
+  max-height: 100%;
+  border-radius: var(--fs-radius-panel);
+}
+
+/* Round 5: the drawer's action on a sticky footer at its foot: the primary and at most one secondary, both 48 px,
+   on plate above a 1 px rule, so the action is always in view and nothing sits on the panel's edge. */
+.fsc-drawer__foot {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-top: auto;
+  padding: 16px 24px 24px;
+  border-top: 1px solid var(--fs-rule);
+  background: var(--fs-plate);
+}
+
+.fsc-drawer__foot :is(.fs-flat, .fs-slab) {
+  min-height: 48px;
+}
+
+/* Without the blocking scrim (a compact success state), the drawer lifts on e2 like the stage's panels. */
+.fsc-drawer[data-scrim="none"] {
+  box-shadow: var(--fs-shadow-e2);
+}
+
 /* ---------------------------------------------------------------- phone dock and its rail (round 3) */
 
 .fsc-dock {
@@ -834,13 +890,16 @@
   background: transparent;
 }
 
+/* Round 5: each avatar keeps its role word under it (Member, Chair, Clerk), so the rail says whose phone it is. */
 .fsc-dock[data-folded] .fsc-dock__tab {
   display: grid;
-  place-items: center;
+  justify-items: center;
+  align-content: start;
+  gap: 2px;
   min-width: 0;
-  width: 40px;
-  min-height: 40px;
-  padding: 0;
+  width: 52px;
+  min-height: 52px;
+  padding: 4px 0;
   background: transparent;
   box-shadow: none;
 }
@@ -883,13 +942,18 @@
   box-shadow: 0 0 0 2px var(--fs-plate);
 }
 
+/* The role word, on the 13 px floor for secondary words, ink-2 (ink on the shown frame). */
 .fsc-dock[data-folded] .fsc-dock__tabword {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
+  position: static;
+  color: var(--fs-ink-2);
+  font-weight: 520;
+  font-size: 0.8125rem;
+  line-height: 1rem;
   white-space: nowrap;
+}
+
+.fsc-dock[data-folded] .fsc-dock__tab[aria-selected="true"] .fsc-dock__tabword {
+  color: var(--fs-ink);
 }
 
 .fsc-dock[data-folded] .fsc-dock__device {
@@ -1105,11 +1169,6 @@
   color: var(--fs-ink-2);
 }
 
-/* The machine-translated mark: a legend glyph after the line it covers, its words in its name and tooltip. */
-.fsc-poster__glyph {
-  margin-left: 6px;
-}
-
 /* What the frame shows (a preview, asleep, a stand-in): one quiet line with its glyph at the frame's foot. */
 .fsc-poster__note {
   display: flex;
@@ -1199,45 +1258,27 @@
 
 /* ---------------------------------------------------------------- toast and Log (round 3) */
 
-/* One toast (round 4), in the top bar's status area beside the run pill, 40 px: the newest live event for 3 s. It
-   sits in the bar, so it never covers a row of the screen; it never takes a click or focus. A flat plate-2 pill (the
-   bar is its surface: no shadow, no border), its words cut with an ellipsis before the pill would move. */
+/* The toast (round 5): the newest live event's plain words inside the Next pill, over its "Next: …" for 3 s, a 150 ms
+   crossfade each way. It is the pill's own text (no surface, no shadow, no time: times live in the Run log), so the
+   bar keeps six items and nothing ever covers a row. It never takes a click or focus. */
 .fsc-toast {
   position: relative;
-  display: flex;
-  flex: 0 1 auto;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-  max-width: 560px;
-  height: var(--fs-console-toast);
-  padding: 0 16px 0 14px;
-  border-radius: var(--fs-radius-pill);
-  background: var(--fs-plate-2);
+  max-width: 44ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
   color: var(--fs-ink);
-  white-space: nowrap;
   pointer-events: none;
-  transition:
-    opacity var(--fs-dur-popover) var(--fs-ease-out),
-    transform var(--fs-dur-popover) var(--fs-ease-out),
-    visibility 0s linear;
+  opacity: 1;
 }
 
 @starting-style {
   .fsc-toast {
     opacity: 0;
-    transform: translateY(calc(-4px * var(--fs-motion, 1)));
   }
 }
 
 .fsc-toast[data-state="out"] {
   opacity: 0;
-  visibility: hidden;
-  transform: translateY(calc(-4px * var(--fs-motion, 1)));
-  transition:
-    opacity var(--fs-dur-popover) var(--fs-ease-out),
-    transform var(--fs-dur-popover) var(--fs-ease-out),
-    visibility 0s linear var(--fs-dur-popover);
 }
 
 /* The Log: the whole timeline, newest first, one line a row. */
@@ -1266,13 +1307,14 @@
   color: var(--fs-ink-3);
 }
 
-/* The lane's mark: graphite for the machine, ink for people, the simulated glyph for PayPal (a jade dot only when
-   the simulated PayPal confirmed a payment). */
+/* The lane's mark, an 8 px round dot (round 5: one marker vocabulary, no squares outside a chart's legend): graphite
+   for the machine, ink for people, a hollow ring for PayPal, the jade dot only when the simulated PayPal confirmed a
+   payment. */
 .fsc-log__mark {
   flex: none;
   width: 8px;
   height: 8px;
-  border-radius: 2px;
+  border-radius: 50%;
   background: var(--fs-pencil);
 }
 
@@ -1280,14 +1322,14 @@
   background: var(--fs-ink);
 }
 
-.fsc-log__mark[data-lane="paypal"][data-landed] {
-  border-radius: 50%;
-  background: var(--fs-jade);
-  box-shadow: inset 0 0 0 1px var(--fs-jade-flush-border);
+.fsc-log__mark[data-lane="paypal"] {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--fs-pending);
 }
 
-.fsc-log__glyph {
-  flex: none;
+.fsc-log__mark[data-lane="paypal"][data-landed] {
+  background: var(--fs-jade);
+  box-shadow: inset 0 0 0 1px var(--fs-jade-flush-border);
 }
 
 .fsc-log__time {
@@ -1302,26 +1344,6 @@
 
 .fsc-log__words[data-duplicate] {
   color: var(--fs-ink-3);
-}
-
-/* In the toast the words keep one line. */
-.fsc-toast .fsc-log__words {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* Below 1,440 px the bar's status area is narrow: the toast keeps its mark and words, and its time is in its title
-   (and the log). */
-@media (max-width: 1439px) {
-  .fsc-toast .fsc-log__time {
-    display: none;
-  }
-}
-
-/* The reading step's seed stand-in glyph, after the pill's words. */
-.fsc-pill__glyph {
-  margin-left: 2px;
 }
 
 /* A screen's first pre-focus wears no ring until the viewer presses a key (stage/context.tsx): one ring, on
@@ -1451,13 +1473,37 @@
   justify-content: flex-start;
 }
 
-/* The line icons (What's real, Sound, Reset) sit beside the lockup, on its row. */
+/* Two icons sit beside the lockup, on its row (round 5): What's real and the overflow, which holds the log, sound and
+   Reset. What's real keeps its word for assistive technology and in its title. */
 .fsc-stage[data-layout="phone-visit"] .fsc-bar__utils {
   position: absolute;
   top: 6px;
   right: 8px;
+  gap: 4px;
   padding-right: 0;
   border-right: 0;
+}
+
+.fsc-stage[data-layout="phone-visit"] .fsc-barlink--real {
+  padding: 0;
+}
+
+/* The indicator has its own row here: it says its whole name. */
+.fsc-stage[data-layout="phone-visit"] .fsc-bar__tagrest {
+  position: static;
+  width: auto;
+  height: auto;
+  overflow: visible;
+  clip-path: none;
+}
+
+.fsc-stage[data-layout="phone-visit"] .fsc-barlink--real .fs-t-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .fsc-stage[data-layout="phone-visit"] .fsc-bar > .fsc-bar__status {
@@ -1537,19 +1583,24 @@
   z-index: calc(var(--fs-z-drawer) + 1);
 }
 
-/* Below 1680 px What's real folds to its line icon too (its word stays for assistive technology and in a
-   title): the run pill keeps its whole next step, and Proof and the honesty tag keep theirs. The narrow dock
-   (1440-1679 px) and the tab layout share it. */
+/* Below 1680 px (round 5) What's real keeps its word: it is the judge's honesty entry, on the laptop widths a judge
+   uses most. Room comes from the indicator, which keeps its dashed circle and "Simulated" on screen (its whole name,
+   "Simulated PayPal sandbox", stays for assistive technology and in its title), and from the lockup's qualifier. */
 @media (max-width: 1679px) {
   .fsc-bar {
     gap: 8px 12px;
   }
 
-  .fsc-barlink--real {
-    padding: 0;
+  .fsc-bar__tagrest {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
 
-  .fsc-barlink--real .fs-t-label {
+  .fsc-bar .fsc-wordmark__qualifier {
     position: absolute;
     width: 1px;
     height: 1px;
@@ -1586,18 +1637,6 @@
     grid-row: 2;
     grid-column: 1;
     justify-content: flex-start;
-  }
-}
-
-/* Below 1440 px the lockup keeps its name and lets its qualifier go (its words stay in the page). */
-@media (max-width: 1439px) {
-  .fsc-bar .fsc-wordmark__qualifier {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip-path: inset(50%);
-    white-space: nowrap;
   }
 }
 

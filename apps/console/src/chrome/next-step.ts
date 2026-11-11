@@ -76,6 +76,21 @@ export function cashStillDue(view: RunView, cashMembers = 0): boolean {
 
 const en = (key: MessageKey, values?: Record<string, string | number>) => translate("en", key, values);
 
+/** Names the pill keeps capitalised after "Next:" (people, PayPal, Proof). */
+const PROPER = /^(PayPal|Proof|Ernesto|Analyn|Rhea|Claude|Lantern)\b/;
+
+/**
+ * The pill's words always start "Next:" (round 5): "Review cash handover" reads "Next: review cash handover", "Open
+ * Proof" reads "Next: open Proof". Words that already start "Next:" are kept; a name keeps its capital.
+ */
+export function pillWords(text: string): string {
+  const words = text.trim();
+  if (/^Next:/.test(words)) return words;
+  const first =
+    PROPER.test(words) || /^[A-Z]{2}/.test(words) ? words : words.charAt(0).toLowerCase() + words.slice(1);
+  return `Next: ${first}`;
+}
+
 /** What deciding each hold card means, in the pill's words (S1.7 W-TR-06's slabs). */
 const HOLD_DECISION: Partial<Record<RunHold["kind"], string>> = {
   DUPLICATE_SLIP: "count it once",

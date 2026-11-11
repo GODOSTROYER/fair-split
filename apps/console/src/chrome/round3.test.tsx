@@ -90,8 +90,12 @@ describe("the toast and the Log replace the ribbon", () => {
     });
     const toast = await screen.findByTestId("W-JG-01.toast");
     expect(toast.dataset.state).toBe("in");
-    expect(toast.getAttribute("aria-label")).toBe("Latest event");
-    await waitFor(() => expect(toast.dataset.state).toBe("out"), { timeout: TOAST_MS + 2000 });
+    // Round 5: the toast is the Next pill's own words for 3 s, hidden from assistive technology (the pill's name stays
+    // "Next: …"; the run's own announcements speak). Then it leaves the pill.
+    expect(toast.getAttribute("aria-hidden")).toBe("true");
+    await waitFor(() => expect(screen.queryByTestId("W-JG-01.toast")).toBeNull(), {
+      timeout: TOAST_MS + 2000,
+    });
     // Round 4: the run log opens from the chevron's menu.
     await clickStageMenuItem("W-JG-01.logOpen");
     expect((await screen.findByTestId("W-JG-01.log.rows")).children.length).toBeGreaterThan(0);

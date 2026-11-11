@@ -37,6 +37,35 @@ export function railLine(rail: PaypalRail): string {
   return `${lead} ${rest}`;
 }
 
+/**
+ * Provenance once a screen (UI gate round 5): one phrase in the title row's id line, its whole sentence in its title.
+ * It replaces every inline legend glyph on the screen; only the "Simulated" micro-tag stays, beside PayPal money.
+ */
+export interface ProvenancePhrase {
+  /** The id line's words: a few, joined by " · ". */
+  readonly text: string;
+  /** What it covers, in full: the title and the accessible description. */
+  readonly title: string;
+}
+
+export const PROVENANCE = {
+  /** Season, Rate card, Split review, Approve: the co-op is made up and its slips are seeded. */
+  seededSlips: {
+    text: "Synthetic co-op · seeded slips",
+    title: "Synthetic co-op, people and slips. Seed stand-in, not a Claude recording.",
+  },
+  /** The reading room and slip by hand: the readings replay the seed stand-in. */
+  standIn: {
+    text: "Synthetic co-op · seed stand-in readings",
+    title: "Synthetic co-op, people and slips. Seed stand-in, not a Claude recording.",
+  },
+  /** Run, Proof: PayPal runs on the simulated sandbox. */
+  simulatedPaypal: {
+    text: "Synthetic co-op · simulated PayPal",
+    title: "Synthetic co-op and people. Every PayPal value comes from the simulated PayPal sandbox.",
+  },
+} as const satisfies Record<string, ProvenancePhrase>;
+
 export function stageCaption(_recordedOn: string): string {
   return "Synthetic co-op, people and slips. Seed stand-in, not a Claude recording.";
 }
@@ -71,7 +100,8 @@ export const TOAST_MS = TIMING.toast;
 /** The phone's 56 px rail (round 3): the phone glyph expands it, the avatars pick a frame. */
 export const PHONE_RAIL = {
   name: "Phone",
-  expand: "Show the phone",
+  /** The folded rail's phone glyph, as its tooltip says it (round 5). */
+  expand: "Open phone",
   collapse: "Hide the phone",
 } as const;
 

@@ -93,7 +93,7 @@ describe("the top bar keeps six items (round 4)", () => {
     expect(await screen.findByTestId("W-JG-01.log")).toBeTruthy();
   });
 
-  it("the toast lives in the bar's status area, so it never sits over a row", async () => {
+  it("the toast lives in the bar (round 5: inside the Next pill), so it never sits over a row", async () => {
     const view = await renderConsole({ path: "/judge" });
     await press("W-JG-01.markPaid");
     await waitFor(() => expect(view.world.run.state).toBe("FUNDED"));
@@ -105,7 +105,7 @@ describe("the top bar keeps six items (round 4)", () => {
     await waitFor(() => {
       const toast = screen.getByTestId("W-JG-01.toast");
       expect(screen.getByTestId("W-JG-01.bar").contains(toast)).toBe(true);
-      expect(toast.parentElement?.classList.contains("fsc-bar__status")).toBe(true);
+      expect(screen.getByTestId("W-JG-01.runPill.next").contains(toast)).toBe(true);
     });
   });
 });

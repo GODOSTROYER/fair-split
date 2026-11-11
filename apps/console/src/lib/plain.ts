@@ -3,6 +3,8 @@
 // refusal reads "Refused · invoice must equal quote", and the rule's own id stays in the id style behind "Why" (or in
 // a row's detail), where a technical reader looks for it. File names (keys.json) belong behind an IDs disclosure.
 
+import { format } from "./format.js";
+
 /** Each policy rule (packages/domain POLICIES, register §9) in a few plain words. */
 const RULE_WORDS: Readonly<Record<string, string>> = {
   killSwitch: "payouts are paused",
@@ -64,6 +66,43 @@ export function refusalTitle(decidedBy: readonly string[], refused = "Refused"):
   const rule = tellingRule(decidedBy);
   return rule ? `${refused} · ${ruleWords(rule)}` : refused;
 }
+
+// ------------------------------------------------------------------ captions for people (round 5: no ids for people)
+
+/** A whole-dollar amount without its cents ("US$300"); other amounts keep them. */
+function wholeMoney(cents: number): string {
+  return format.money(cents).replace(/\.00$/, "");
+}
+
+/**
+ * Under the Chair, what his key is for, in words: "Co-signs batches over US$300" (never "> US$300 · R5"). The rule's
+ * id belongs in the row's title (`ruleTitle`).
+ */
+export function chairCaption(thresholdCents: number): string {
+  return `Co-signs batches over ${wholeMoney(thresholdCents)}`;
+}
+
+/** Under the treasurer: where her key lives. Its id sits behind an "IDs" disclosure, never in this line. */
+export const KEY_CAPTION = "Key on this browser";
+
+/** The disclosure that holds ids, hashes and file names for a technical reader (as on Proof). */
+export const IDS_LABEL = "IDs";
+
+/** A rule's id for a title or an accessible name, never the visible text: "Rule R5". */
+export function ruleTitle(ruleId: string, words?: string): string {
+  return words ? `Rule ${ruleId} · ${words}` : `Rule ${ruleId}`;
+}
+
+/**
+ * One term for the season's dial everywhere (the dial, Approve's checklist, a toast): "Shrink · limit 2.0%". The
+ * engine's figure beside it is its own ("2.05%").
+ */
+export function shrinkLabel(tolBp: number): string {
+  return `Shrink · limit ${format.percentBp(tolBp, 1)}`;
+}
+
+/** The dial's word on its own, where the limit is already said ("Shrink within limit"). */
+export const SHRINK = "Shrink";
 
 /**
  * The developer words in a visible string: camelCase identifiers (phaseGate), snake_case names (create_invoice) and

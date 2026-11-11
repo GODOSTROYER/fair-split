@@ -125,9 +125,10 @@ describe("Judge stage", () => {
     const log = await screen.findByTestId("W-JG-01.log");
     expect(log.textContent).toMatch(/\d\d:\d\d:\d\d PHT/);
     expect(within(log).getByTestId("W-JG-01.log.paypal").textContent).toMatch(/FS-2026A-r37/);
-    // The seeded rows carry the seed stand-in glyph: the canonical phrase is its name and its title.
+    // The seeded rows say the seed stand-in in their title and to assistive technology (round 5: no glyph).
     const machine = within(log).getByTestId("W-JG-01.log.machine");
-    expect(machine.querySelector('[title="Seed stand-in, not a Claude recording"]')).toBeTruthy();
+    expect(machine.getAttribute("title")).toContain("Seed stand-in, not a Claude recording");
+    expect(machine.querySelector("[data-fs-glyph]")).toBeNull();
     expect(machine.textContent).toMatch(/Seed stand-in, not a Claude recording/);
     expect(screen.queryByTestId("W-JG-01.caption")).toBeNull();
     expect(screen.queryByTestId("W-JG-01.reset")).toBeNull();
@@ -802,7 +803,7 @@ describe("Judge stage", () => {
     // Folded, the frames stay loaded, only hidden (never a skeleton on the way back), and nothing in them takes a key.
     expect(document.getElementById("fsc-phone-device")?.hasAttribute("inert")).toBe(true);
     const toggle = screen.getByTestId("W-JG-01.phoneTab");
-    expect(toggle.textContent).toMatch(/Show the phone\. Nang Celing: Gisusi pa/);
+    expect(toggle.textContent).toMatch(/Open phone\. Nang Celing: Gisusi pa/);
     await act(async () => {
       fireEvent.click(toggle);
     });
