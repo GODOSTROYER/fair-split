@@ -2,8 +2,8 @@
 // (video/proto/STYLE.md §1: later acts stay bright). One readable word per step, the camera pushing node to node:
 // Claude (slips go to Claude), Engine, Signed (two keys sign one batch hash), Funded (a PayPal invoice funds it),
 // PayPal (simulated PayPal Payouts pay members, each call safe to retry); then the line holds as the overview. Ink
-// lines, the indigo trace with its travelling
-// light, one jade pulse on the PayPal node; the standard "Simulated PayPal sandbox" tag turns on with the PayPal node.
+// lines and an ink trace with its travelling light carry the batch (review v4 item 1: indigo only for Claude's reading
+// and the two keys), one jade pulse on the PayPal node; the standard "Simulated PayPal sandbox" tag turns on with the PayPal node.
 // Every step lands on the narration word that names it, at the recorded voice's word time (script.ts `words`), so the
 // build moves with the narration.
 // No GSAP and no third-party code or artwork: every tween is compiled here into CSS keyframes sampled once per frame,
@@ -93,7 +93,7 @@ const C = {
   ink2: "#3A4456",
   ink3: "#5A6476",
   steel: "#7E8898",
-  pod: "#4A2FD6", // indigo: Claude's reading, a person's hand, the trace
+  pod: "#4A2FD6", // indigo: Claude's reading (its icon) and a person's hand (the two keys), nothing else
   jade: "#14CC90", // jade: money that arrived (the trace's final pulse)
 };
 
@@ -169,7 +169,7 @@ const wave = poly(wavePts);
 const ce = link(Cn, En);
 const eh = link(En, H);
 const ho = link(H, O);
-// 5. Invoice -> PayPal: the connection (ink), the lost call and the retried one (indigo).
+// 5. Invoice -> PayPal: the connection (ink), the lost call and the retried one (the ink trace).
 const op = link(O, P);
 const DROP = 0.55; // where the first call is lost
 // 64 member lines fan out of the engine and converge on the ring: the batch hash covers every line.
@@ -392,51 +392,35 @@ const NODES = [
   { id: "paypal", at: P, r: R, icon: "paypal", land: T.paypal, sim: true },
 ];
 const node = (id) => NODES.find((n) => n.id === id);
-// One readable word per step; a passed step's word leaves with the camera, the four step words return for the overview,
-// each from the first frame of the pull-back on which it sits whole inside the frame (never at an edge).
-function backAt(at, half) {
-  for (let f = Math.ceil((T.retryOut + 0.3) * FPS); f <= N; f++) {
-    const c = camAt(f / FPS);
-    const [x] = toScreen(at, c);
-    if (x - half * c.s >= 120 && x + half * c.s <= 1800) return f / FPS;
-  }
-  throw new Error("a step word never fits the frame");
-}
+// One readable word per step; a passed step's word leaves with the camera. The overview carries no labels (review v4
+// item 8): at camera scale 1 they would read about 29 px tall, and Slips and the invoice had none, so the finished
+// line is icons only, every node treated alike; PayPal's word leaves with "Safe to retry" as the camera pulls back.
 const LABELS = [
   { id: "slips", node: "slips", text: "Slips", windows: [[T.slipsLb, T.slipsOut]] },
   {
     id: "claude",
     node: "claude",
     text: "Claude",
-    windows: [
-      [T.claudeLb, T.claudeOut],
-      [backAt(Cn, 90), null],
-    ],
+    windows: [[T.claudeLb, T.claudeOut]],
   },
   {
     id: "engine",
     node: "engine",
     text: "Engine",
-    windows: [
-      [T.engineLb, T.engineOut],
-      [backAt(En, 90), null],
-    ],
+    windows: [[T.engineLb, T.engineOut]],
   },
   {
     id: "signed",
     node: "hash",
     text: "Signed",
     top: RR + 20,
-    windows: [
-      [T.signedLb, T.signedOut],
-      [backAt(H, 90), null],
-    ],
+    windows: [[T.signedLb, T.signedOut]],
   },
   { id: "funded", node: "funded", text: "Funded", windows: [[T.fundedLb, T.fundedOut]] },
   { id: "retry", node: "funded", text: "Safe to retry", windows: [[T.retryLb, T.retryOut]] },
-  { id: "paypal", node: "paypal", text: "PayPal", windows: [[T.paypalLb, null]] },
+  { id: "paypal", node: "paypal", text: "PayPal", windows: [[T.paypalLb, T.retryOut]] },
 ];
-const LB = 40; // label size at the overview (camera scale 1); every push is closer, so never under 36 px
+const LB = 40; // label size at camera scale 1; every label shows only on a push (1.6x or more), so 64 px and up
 function nodeHtml(n) {
   const [x, y] = n.at;
   const ic = n.r === KR ? 40 : 56;
@@ -753,9 +737,9 @@ const css = `
 .retry{stroke:${C.ink2};stroke-width:2.6}
 .sig{stroke:${C.pod};stroke-width:3}
 .tr{fill:none;stroke-linecap:round;stroke-dasharray:1 2;stroke-dashoffset:1.002}
-.tr.glow{stroke:${C.pod};stroke-opacity:.3;stroke-width:13;filter:url(#arch-glow)}
-.tr.main{stroke:${C.pod};stroke-width:5}
-.tr.core{stroke:#fff;stroke-opacity:.35;stroke-width:1.5}
+.tr.glow{stroke:${C.steel};stroke-opacity:.26;stroke-width:12;filter:url(#arch-glow)}
+.tr.main{stroke:${C.ink2};stroke-width:4}
+.tr.core{stroke:#fff;stroke-opacity:.4;stroke-width:1.3}
 .node{position:absolute;width:0;height:0;opacity:0}
 .disc{position:absolute;border-radius:50%;background:${C.plate};box-shadow:0 1px 2px rgb(11 18 32/.08),0 20px 36px -16px rgb(11 18 32/.3),0 0 0 1px rgb(11 18 32/.06)}
 .disc.sim{background:rgb(255 255 255/.9);border:2.5px dashed ${C.steel};box-shadow:0 18px 32px -18px rgb(11 18 32/.22)}
@@ -763,9 +747,10 @@ const css = `
 .ic svg{display:block;overflow:visible}
 .disc.sim .ic{margin:-2.5px 0 0 -2.5px}
 .ic .ln{fill:none;stroke:${C.ink};stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:1 2;stroke-dashoffset:var(--icd)}
+#arch-n-claude .ic .ln{stroke:${C.pod}}
 .lb{position:absolute;left:-300px;width:600px;text-align:center;white-space:nowrap;opacity:0;font-size:${LB}px;line-height:48px;font-stretch:112.5%;font-weight:660;letter-spacing:-.02em;color:${C.ink}}
 #arch-head,#arch-pen{position:absolute;left:0;top:0;width:0;height:0;opacity:0}
-#arch-head i{position:absolute;left:-26px;top:-26px;width:52px;height:52px;border-radius:50%;background:radial-gradient(circle,#fff 0,rgb(255 255 255/.9) 25%,rgb(156 140 255/.45) 50%,rgb(156 140 255/0) 100%)}
+#arch-head i{position:absolute;left:-26px;top:-26px;width:52px;height:52px;border-radius:50%;background:radial-gradient(circle,#fff 0,rgb(255 255 255/.9) 25%,rgb(126 136 152/.42) 50%,rgb(126 136 152/0) 100%)}
 #arch-pen i{position:absolute;left:-5px;top:-5px;width:10px;height:10px;border-radius:50%;background:${C.ink2}}
 .pulse{position:absolute;border-radius:50%;opacity:0}
 #arch-sig-1,#arch-sig-2{left:${H[0] - RR}px;top:${H[1] - RR}px;width:${2 * RR}px;height:${2 * RR}px;border:3px solid ${C.pod}}
@@ -918,7 +903,7 @@ const outline = [
   [0, "Daylight field. The Slips disc, drawn under the veil, sharpens as it lifts (1.9x): 'Slips'."],
   [T.wave[0], "The handwriting runs from the slip to Claude as an ink wave that calms as it arrives."],
   [T.claude, "'Claude' lands (scan icon); the tag 'Seed stand-in reading' while Claude is the subject."],
-  [T.ce[0], "The indigo trace leaves Claude, its light at the head; the camera pushes to the engine."],
+  [T.ce[0], "The ink trace leaves Claude, its light at the head; the camera pushes to the engine."],
   [T.engine, "'Engine' lands (sum icon)."],
   [T.fan0, "64 thin ink member lines fan out of the engine and converge on one ring."],
   [T.treasurer, "The camera pushes to the ring; two keys land above it."],
@@ -931,7 +916,7 @@ const outline = [
   [T.call1[0], "The call leaves for PayPal and is lost halfway: the light goes out, the trace fades."],
   [T.retry[0], "A retry loop draws over the invoice: 'Safe to retry'."],
   [T.call2[0], "The same call goes again and lands once: one jade pulse on the PayPal node."],
-  [CAM.at(-3).t, "The camera pulls back to the whole line; 'Claude', 'Engine', 'Signed', 'PayPal' return."],
+  [CAM.at(-3).t, "The camera pulls back to the whole line, icons only: no labels at the overview."],
   [settled.t, "The overview holds with a 1.2% push to the cut."],
 ];
 writeFileSync(
