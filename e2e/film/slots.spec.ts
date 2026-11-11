@@ -129,7 +129,7 @@ class Recorder {
   }
 
   /** One segment: `body` runs between the screencast's start and stop, after `pre` ms of pre-roll. */
-  async take(name: string, pre: number, body: () => Promise<void>, post: number, keep = false) {
+  async take(name: string, pre: number, body: () => Promise<void>, post: number, keep = true) {
     if (keep) await this.page.evaluate(() => Object.assign(window, { __fsFilmKeep: true }));
     await this.start(name);
     try {
@@ -173,10 +173,11 @@ export function installFilmTouch() {
   else document.addEventListener("DOMContentLoaded", mount, { once: true });
   if (window === window.top) {
     // The screencast only sends a frame when the top page is damaged; a phone frame's own change (MM-7 opening,
-    // Paminawa playing) could leave it stalled. During the phone segments a 1 px keeper in the corner, outside every
-    // crop, damages the top page every other animation frame so the take records each change at up to 30 fps (only
-    // there, after the run has settled: a keeper while the payouts confirm loads the shared stack enough that an item
-    // can settle by a status check instead of its verified event, and Proof then honestly reads a mismatch).
+    // Paminawa playing, Proof's checks) could leave it stalled. A 1 px keeper in the corner, outside every
+    // crop, damages the top page every other animation frame so the take records each change at up to 30 fps (not
+    // while PayPal's events are in flight (the funding, the keys and the fan-out, the move to cash): a keeper then loads
+    // the shared stack enough that an item can settle by a status check instead of its verified event, and Proof then
+    // honestly reads a mismatch).
     const keeper = document.createElement("div");
     keeper.dataset.fsFilmKeeper = "";
     keeper.style.cssText =
@@ -325,6 +326,7 @@ test("film slots take: every capture slot, recorded from one real judge run", as
         await rec.box("funded");
       },
       8000,
+      false,
     );
     if (!api || !s) throw new Error("no judge session");
     const run = s as JudgeSession;
@@ -567,6 +569,7 @@ test("film slots take: every capture slot, recorded from one real judge run", as
         await rec.box("parked");
       },
       2000,
+      false,
     );
 
     // ------------------------------------------------------------------- Rhea moves to cash at the bodega
@@ -587,6 +590,7 @@ test("film slots take: every capture slot, recorded from one real judge run", as
         await rec.box("settled");
       },
       3000,
+      false,
     );
 
     // ------------------------------------------------------------------- Paminawa: her premium sentence plays
