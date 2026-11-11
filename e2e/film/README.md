@@ -34,3 +34,15 @@ any product phase.
 
 Use the resulting headed window with F3's approved screen recording workflow. The test does not
 start a recorder, play narration, create a final film or call external media services.
+
+## The slots take (`FILM_TAKE=slots corepack pnpm e2e:film`)
+
+`film/slots.spec.ts` records the film's capture slots from one real judge run on the same private stack, segment by
+segment, with Chromium's screencast at 1920 × 1080 (`e2e/film-out/slots/`: JPEG frames, every action as a mark, every
+visible test id's box around it). `video/tools/cut-captures.mjs` cuts each slot's clip out of it, and
+`node video/tools/recapture.mjs` runs the take, the cut, the film's build, check, render and mix in one command.
+Film mode shows no desktop pointer: the ink arrow is hidden, a press on a phone frame draws a touch dot held while the
+finger holds, and the console's presses are marked by the film's own accents. Analyn types slip 0462's stained digit
+from the keyboard and commits it with Enter. A 1 px keeper in the page's corner (outside every crop) damages the page
+every other frame so the screencast records each change inside a phone frame. Nothing is accelerated or staged here;
+a sped wait is labelled by the film with its real multiplier.

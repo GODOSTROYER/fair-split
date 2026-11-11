@@ -129,7 +129,8 @@ class Recorder {
   }
 
   /** One segment: `body` runs between the screencast's start and stop, after `pre` ms of pre-roll. */
-  async take(name: string, pre: number, body: () => Promise<void>, post: number) {
+  async take(name: string, pre: number, body: () => Promise<void>, post: number, keep = false) {
+    if (keep) await this.page.evaluate(() => Object.assign(window, { __fsFilmKeep: true }));
     await this.start(name);
     try {
       await this.page.waitForTimeout(pre);
@@ -137,6 +138,8 @@ class Recorder {
       await this.page.waitForTimeout(post);
     } finally {
       await this.stop();
+      if (keep)
+        await this.page.evaluate(() => Object.assign(window, { __fsFilmKeep: false })).catch(() => undefined);
     }
   }
 }
@@ -154,6 +157,74 @@ async function hold(page: Page, face: Locator, ms: number, rec: Recorder, name: 
   await page.waitForTimeout(ms);
   await page.mouse.up();
   rec.mark(`${name}.up`);
+}
+
+/**
+ * Film mode shows no desktop pointer (review v6 F14): the take's ink arrow is hidden in the console, and a press on a
+ * phone frame draws a touch dot where the finger is, held while it holds and lifting as it lets go. Test injection
+ * only; nothing ships in the console or the app.
+ */
+export function installFilmTouch() {
+  const style = document.createElement("style");
+  style.textContent =
+    "[data-fs-film-cursor]{display:none!important}[data-fs-film-touch]{position:fixed;width:46px;height:46px;margin:-23px 0 0 -23px;border-radius:50%;background:rgb(11 18 32/.16);box-shadow:0 0 0 2px rgb(11 18 32/.22);pointer-events:none;z-index:2147483647;transition:opacity .28s ease-out,transform .28s ease-out}";
+  const mount = () => document.documentElement?.append(style);
+  if (document.documentElement) mount();
+  else document.addEventListener("DOMContentLoaded", mount, { once: true });
+  if (window === window.top) {
+    // The screencast only sends a frame when the top page is damaged; a phone frame's own change (MM-7 opening,
+    // Paminawa playing) could leave it stalled. During the phone segments a 1 px keeper in the corner, outside every
+    // crop, damages the top page every other animation frame so the take records each change at up to 30 fps (only
+    // there, after the run has settled: a keeper while the payouts confirm loads the shared stack enough that an item
+    // can settle by a status check instead of its verified event, and Proof then honestly reads a mismatch).
+    const keeper = document.createElement("div");
+    keeper.dataset.fsFilmKeeper = "";
+    keeper.style.cssText =
+      "position:fixed;right:0;bottom:0;width:1px;height:1px;background:rgb(11 18 32/.02);pointer-events:none;z-index:2147483647";
+    let n = 0;
+    const tick = () => {
+      n++;
+      const host = window as typeof window & { __fsFilmKeep?: boolean };
+      if (host.__fsFilmKeep && n % 2 === 0) keeper.style.transform = `translateX(${(n / 2) % 2}px)`;
+      requestAnimationFrame(tick);
+    };
+    const start = () => {
+      document.documentElement.append(keeper);
+      requestAnimationFrame(tick);
+    };
+    if (document.documentElement) start();
+    else document.addEventListener("DOMContentLoaded", start, { once: true });
+    return;
+  }
+  let dot: HTMLElement | null = null;
+  document.addEventListener(
+    "pointerdown",
+    (event) => {
+      dot?.remove();
+      dot = document.createElement("div");
+      dot.dataset.fsFilmTouch = "";
+      dot.style.left = `${event.clientX}px`;
+      dot.style.top = `${event.clientY}px`;
+      dot.style.transform = "scale(.6)";
+      document.documentElement.append(dot);
+      requestAnimationFrame(() => {
+        if (dot) dot.style.transform = "scale(1)";
+      });
+    },
+    { capture: true },
+  );
+  document.addEventListener(
+    "pointerup",
+    () => {
+      const gone = dot;
+      dot = null;
+      if (!gone) return;
+      gone.style.opacity = "0";
+      gone.style.transform = "scale(1.35)";
+      setTimeout(() => gone.remove(), 320);
+    },
+    { capture: true },
+  );
 }
 
 /** Moves the ink arrow out of the crop after a press, the way a hand leaves the control. */
@@ -182,6 +253,7 @@ test("film slots take: every capture slot, recorded from one real judge run", as
   const rec = new Recorder(page);
   const startedAt = Date.now();
   const capture = await installFilmCapture(page, startedAt);
+  await page.addInitScript(installFilmTouch);
   const click = (target: Locator) => glidePress(page, target);
   const tap = (target: Locator, mark?: string) =>
     glidePress(page, target, mark ? () => rec.mark(mark) : undefined);
@@ -281,18 +353,25 @@ test("film slots take: every capture slot, recorded from one real judge run", as
     await expect(page.getByTestId("W-TR-04.input")).toBeEnabled({ timeout: 20_000 });
     await park(page);
     await page.waitForTimeout(1500);
+    // Analyn types the stained digit from the keyboard ("Analyn types one stained digit by hand"), then Enter
+    const field = page.getByTestId("W-TR-04.input");
+    await field.focus();
     await rec.take(
       "byhand",
-      6000,
+      4000,
       async () => {
         await rec.box("empty");
-        await tap(page.getByTestId("W-TR-04.useLogbook"), "useLogbook");
-        await page.waitForTimeout(1300);
-        await tap(page.getByTestId("W-TR-04.commit.face"), "commit");
+        rec.mark("typed");
+        await page.keyboard.press("4");
+        await expect(field).toHaveValue("64.80");
+        await page.waitForTimeout(1200);
+        await rec.box("filled");
+        await page.waitForTimeout(1600);
+        rec.mark("commit");
+        await page.keyboard.press("Enter");
         await expect(page.getByTestId("W-TR-04.committed")).toBeVisible();
         rec.mark("committed");
-        await park(page);
-        await page.waitForTimeout(800);
+        await page.waitForTimeout(1500);
         await rec.box("committed");
       },
       3500,
@@ -448,6 +527,10 @@ test("film slots take: every capture slot, recorded from one real judge run", as
         await park(page);
         await page.waitForTimeout(1600);
         await rec.box("approved");
+        // the batch is posted ("Batch accepted", Watch the payouts) before the fan-out is opened on it
+        await expect(page.getByTestId("W-TR-07.fanout"))
+          .toBeVisible({ timeout: 45_000 })
+          .catch(() => notes.push("keys: no Watch the payouts within 45 s"));
         await page.waitForTimeout(2200);
         await expect(pill).toHaveAttribute("href", /\/fanout$/, { timeout: 20_000 });
         await tap(pill, "fanout");
@@ -455,8 +538,8 @@ test("film slots take: every capture slot, recorded from one real judge run", as
         // each change of the fan-out's confirmed count, as a mark (the cut times the clip by its first confirmation)
         const counts = (async () => {
           let last = "";
-          const until = Date.now() + 14_000;
-          while (Date.now() < until) {
+          const until = Date.now() + 40_000;
+          while (Date.now() < until && !last.startsWith("7/")) {
             const text =
               (await page
                 .getByTestId("W-TR-08.count")
@@ -537,6 +620,7 @@ test("film slots take: every capture slot, recorded from one real judge run", as
         await rec.box("playing");
       },
       7500,
+      true,
     );
     await member
       .getByTestId("M-MB-03.close")
@@ -560,6 +644,7 @@ test("film slots take: every capture slot, recorded from one real judge run", as
         await rec.box("traced");
       },
       3500,
+      true,
     );
     // ------------------------------------------------------------------- Proof: Verify in your browser
     const chip = page.getByTestId("W-JG-01.proofChip");
@@ -571,22 +656,41 @@ test("film slots take: every capture slot, recorded from one real judge run", as
     const verify = page.getByTestId("W-PF-01.verify").getByRole("button", { name: /Verify in your browser/ });
     await verify.scrollIntoViewIfNeeded();
     await page.waitForTimeout(800);
-    await rec.take(
-      "proof",
-      1500,
-      async () => {
-        await rec.box("before");
-        await tap(verify, "verify");
-        await park(page);
-        await expect(page.getByTestId("W-PF-01.verdict")).toHaveAttribute("data-state", "sample", {
-          timeout: 60_000,
-        });
-        rec.mark("verdict");
-        await page.waitForTimeout(1500);
-        await rec.box("verified");
-      },
-      7000,
-    );
+    // Proof re-checks every payout item against its verified event; on a busy laptop the last webhook can still be
+    // settling, and Verify then (honestly) reads a mismatch. That take is dropped and Proof is checked again a few
+    // seconds later, at most three times; the film only uses a take whose verdict reads Sample.
+    for (let attempt = 1; ; attempt++) {
+      let verdictState = "";
+      await rec.take(
+        "proof",
+        1500,
+        async () => {
+          await rec.box("before");
+          await tap(verify, "verify");
+          await park(page);
+          const verdict = page.getByTestId("W-PF-01.verdict");
+          await expect(verdict).toHaveAttribute("data-state", /sample|mismatch|replay|matches/, {
+            timeout: 60_000,
+          });
+          verdictState = (await verdict.getAttribute("data-state")) ?? "";
+          if (verdictState !== "sample") return;
+          rec.mark("verdict");
+          await page.waitForTimeout(1500);
+          await rec.box("verified");
+        },
+        7000,
+      );
+      if (verdictState === "sample") break;
+      rec.segments.pop();
+      notes.push(`proof: attempt ${attempt} read ${verdictState}; checked again`);
+      if (attempt >= 3) throw new Error(`Proof read ${verdictState} three times`);
+      await page.waitForTimeout(6000);
+      await page.reload();
+      await expect(page.getByTestId("W-PF-01")).toBeVisible({ timeout: 30_000 });
+      await page.waitForTimeout(2500);
+      await verify.scrollIntoViewIfNeeded();
+      await page.waitForTimeout(800);
+    }
 
     // ------------------------------------------------------------------- Try to break it: the overcharge, refused
     const stage = page.getByRole("link", { name: /Fair Split console|Back to the stage/ });
