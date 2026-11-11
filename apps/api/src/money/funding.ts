@@ -74,7 +74,7 @@ async function invoiceState(
   if (from === to) return;
   await tx
     .update(schema.invoices)
-    .set({ status: to, dueCents: BigInt(dueCents) })
+    .set({ status: to, dueCents: BigInt(dueCents), provenance })
     .where(eq(schema.invoices.id, row.id));
   await emit(
     tx,

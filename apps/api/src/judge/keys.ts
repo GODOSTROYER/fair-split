@@ -22,6 +22,7 @@ import { type ActingCredential, scopeOf } from "../credentials/verify/index.js";
 import type { AppDeps } from "../lib/context.js";
 import { deviceKeyRow, storedPublicKey } from "../lib/device-keys.js";
 import { problem } from "../lib/problem.js";
+import { assertJudgeLedgerRoom } from "./ledger-room.js";
 import { isJudgeWorkspace } from "./quota.js";
 
 /** Who signs a pay run: the treasurer always, the Chair above the card's thresholds (R5). */
@@ -141,6 +142,7 @@ export async function registerDemoKey(
           platform: "web",
         });
         if (!built.ok) throw problem.internal(`A demo key id did not fit its kind: ${built.reason}`);
+        await assertJudgeLedgerRoom(tx, cred.workspaceId);
         await tx.insert(dk).values(built.row);
         await appendLedger(tx, scope, {
           kind: "key.registered",

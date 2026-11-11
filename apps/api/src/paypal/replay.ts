@@ -114,7 +114,6 @@ function replayTk(d: ReplayDeps): Tk {
         reference: invoiceReference(row.rateCardSha256),
         currency_code: "USD",
         invoice_date: day,
-        ...(d.source.payerViewUrl ? { metadata: { recipient_view_url: d.source.payerViewUrl } } : {}),
       },
       invoicer: { email_address: d.businessEmail },
       primary_recipients: [{ billing_info: { email_address: d.payerEmail } }],
@@ -146,7 +145,8 @@ function replayTk(d: ReplayDeps): Tk {
       case "send_invoice":
         if (!a.invoice_id) throw replayError(method, 400, "INVALID_REQUEST", d.source);
         status.set(a.invoice_id, "UNPAID");
-        return d.source.payerViewUrl ? { rel: "payer-view", href: d.source.payerViewUrl, method: "GET" } : {};
+        // The source payer URL belongs to another run; replay creates no payable hosted invoice.
+        return {};
       case "get_invoice":
         if (!a.invoice_id) throw replayError(method, 400, "INVALID_REQUEST", d.source);
         return invoiceBody(a.invoice_id);

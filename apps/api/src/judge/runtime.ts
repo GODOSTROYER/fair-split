@@ -15,22 +15,23 @@ export const JUDGE_RATE_RULES = {
   resume: { name: "judgeResume", limit: 60, windowMs: 3_600_000 },
   pairingCreate: { name: "pairingCreate", limit: 20, windowMs: 600_000 },
   /** Every 6-digit claim attempt, all clients together: guessing a live code stays hopeless. */
-  pairingCode6Global: { name: "pairingCode6Global", limit: 60, windowMs: 60_000 },
+  pairingCode6Global: { name: "pairingCode6Global", limit: 60, windowMs: 60_000, global: true },
   /** The real guard against guessing: 5 a minute per hashed IP (a scrypt check each). */
-  opsLoginPerIp: { name: "opsLoginPerIp", limit: 5, windowMs: 60_000 },
+  opsLoginPerIp: { name: "opsLoginPerIp", limit: 5, windowMs: 60_000, critical: true },
   /**
    * Only a backstop on scrypt work (about 5 checks a second at most): far above what a crowd of guessers
    * at 5 a minute each can use up quickly, so they cannot lock the operator out of /ops.
    */
-  opsLoginGlobal: { name: "opsLoginGlobal", limit: 300, windowMs: 60_000 },
+  opsLoginGlobal: { name: "opsLoginGlobal", limit: 300, windowMs: 60_000, global: true },
   /**
-   * Judge-code guesses. The per-IP rule keys on the trusted hop's address (src/lib/client-ip.ts); the session
+   * Judge-code guesses. The per-IP rule keys on the trusted client network (IPv6 /64; src/lib/client-ip.ts); the session
    * rule holds however many networks one session uses; the global rule bounds every session and network together
    * (a judge types the code once or twice, so guessing stays hopeless while a lockout lasts a minute at most).
    */
-  judgeCodePerIp: { name: "judgeCodePerIp", limit: 5, windowMs: 60_000 },
-  judgeCodePerSession: { name: "judgeCodePerSession", limit: 5, windowMs: 600_000 },
-  judgeCodeGlobal: { name: "judgeCodeGlobal", limit: 30, windowMs: 60_000 },
+  judgeCodePerIp: { name: "judgeCodePerIp", limit: 5, windowMs: 60_000, critical: true },
+  judgeCodePerSession: { name: "judgeCodePerSession", limit: 5, windowMs: 600_000, critical: true },
+  /** Assumes runbook codes use randomBytes(12), or 96 bits of entropy; keep a global bound without a 30/min lockout. */
+  judgeCodeGlobal: { name: "judgeCodeGlobal", limit: 300, windowMs: 60_000, global: true },
   tamper: { name: "judgeTamper", limit: 10, windowMs: 600_000 },
   links: { name: "linkIssue", limit: 60, windowMs: 600_000 },
   /** Brand links are the operator's: a handful per brand conversation. */
@@ -38,6 +39,7 @@ export const JUDGE_RATE_RULES = {
   /** The operator pairing officers' phones outside Judge Mode. */
   opsPairing: { name: "opsPairing", limit: 20, windowMs: 600_000 },
   keys: { name: "judgeKeys", limit: 10, windowMs: 600_000 },
+  flags: { name: "judgeFlags", limit: 10, windowMs: 60_000 },
   /** The public "What's real" view: per hashed IP (the view itself is cached for 2 s). */
   publicLane: { name: "judgeLaneView", limit: 60, windowMs: 60_000 },
 } as const satisfies Record<string, RateRule>;
@@ -105,7 +107,7 @@ export function judgeRuntime(deps: AppDeps): JudgeRuntime {
   let clones = 0;
   const views = new Map<string, { at: number; value: Promise<unknown> }>();
   rt = {
-    lane: new LiveLane(deps.clock),
+    lane: new LiveLane(deps.clock, { maxPerNetwork: deps.env.judgeHourlyMax ?? 2 }),
     presence: new PresenceTracker(),
     cachedView<T>(key: string, nowMs: number, compute: () => Promise<T>): Promise<T> {
       const hit = views.get(key);

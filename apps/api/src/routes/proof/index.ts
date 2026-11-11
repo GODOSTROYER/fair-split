@@ -9,16 +9,12 @@
 //   GET /v1/proof/:runSlug/verification   (slice)       public   this server's verification of the FULL bundle
 //   GET /v1/proof/:runSlug/events         (slice, SSE)  public   aggregate progress ("3 of 8 confirmed")
 import { ChainVerification, Provenance, RunSlug } from "@fairsplit/contracts";
-import { verifyChain } from "@fairsplit/domain";
 import { z } from "zod";
-import { ledgerKeyOf } from "../../ledger/keys.js";
-import { type CommandContext, reply } from "../../lib/command.js";
-import { problem } from "../../lib/problem.js";
+import { clientIpKey } from "../../lib/client-ip.js";
+import { type CommandContext, serializedReply } from "../../lib/command.js";
 import { defineRouteFolder } from "../../lib/slice.js";
-import { findRunBySlug, loadProofFacts, notReady, proofReady, readSnapshot } from "../../proof/bundle.js";
-import { publishedKeys } from "../../proof/keys.js";
-import { takePublicRead } from "../../proof/limits.js";
-import { ProofMetrics, proofMetrics } from "../../proof/metrics.js";
+import { takeExportRead, takePublicRead } from "../../proof/limits.js";
+import { ProofMetrics } from "../../proof/metrics.js";
 import { serveProofExport, servePublicProof } from "../../proof/serve.js";
 import { mountProofStream } from "../../proof/stream.js";
 
@@ -26,12 +22,18 @@ const TIER_HEADER = "X-FS-Proof-Tier";
 
 async function publicProof(ctx: CommandContext<"proof"> | CommandContext<"proofJson">, download: boolean) {
   takePublicRead(ctx.c);
-  const served = await servePublicProof(ctx.deps, ctx.credential, ctx.params.runSlug, ctx.log);
+  const served = await servePublicProof(
+    ctx.deps,
+    ctx.credential,
+    ctx.params.runSlug,
+    ctx.log,
+    clientIpKey(ctx.c),
+  );
   const headers: Record<string, string> = { [TIER_HEADER]: served.tier };
   if (download) {
     headers["Content-Disposition"] = `attachment; filename="FS-${served.run.runSlug}.proof.json"`;
   }
-  return reply(200, served.body, headers);
+  return serializedReply(served.body, served.serializedBody, headers);
 }
 
 const ProofVerificationResponse = z.strictObject({
@@ -50,8 +52,15 @@ export default defineRouteFolder({
     proof: (ctx) => publicProof(ctx, false),
     proofJson: (ctx) => publicProof(ctx, true),
     proofExport: async (ctx) => {
-      const served = await serveProofExport(ctx.deps, ctx.credential, ctx.params.runSlug, ctx.log);
-      return reply(200, served.body, {
+      takeExportRead(ctx.c);
+      const served = await serveProofExport(
+        ctx.deps,
+        ctx.credential,
+        ctx.params.runSlug,
+        ctx.log,
+        clientIpKey(ctx.c),
+      );
+      return serializedReply(served.body, served.serializedBody, {
         [TIER_HEADER]: served.tier,
         "Content-Disposition": `attachment; filename="FS-${served.run.runSlug}.proof.full.json"`,
       });
@@ -71,10 +80,14 @@ export default defineRouteFolder({
       },
       async (ctx) => {
         takePublicRead(ctx.c);
-        const run = await findRunBySlug(ctx.deps.db, ctx.params.runSlug, ctx.now());
-        if (!run) throw problem.notFound("No such pay run.");
-        if (!proofReady(run)) notReady(run);
-        return readSnapshot(ctx.deps.db, async (tx) => proofMetrics(tx, await loadProofFacts(tx, run)));
+        const served = await servePublicProof(
+          ctx.deps,
+          null,
+          ctx.params.runSlug,
+          ctx.log,
+          clientIpKey(ctx.c),
+        );
+        return served.metrics;
       },
     );
 
@@ -91,17 +104,19 @@ export default defineRouteFolder({
       },
       async (ctx) => {
         takePublicRead(ctx.c);
-        const served = await servePublicProof(ctx.deps, null, ctx.params.runSlug, ctx.log);
-        const keys = await publishedKeys(ctx.deps.db, ledgerKeyOf(ctx.deps), {
-          workspaceId: served.run.workspaceId,
-          log: ctx.log,
-        });
+        const served = await servePublicProof(
+          ctx.deps,
+          null,
+          ctx.params.runSlug,
+          ctx.log,
+          clientIpKey(ctx.c),
+        );
         return {
           runSlug: served.run.runSlug,
           provenance: served.built.provenance,
           attestedBy: "fs-api" as const,
           demoMode: true as const,
-          verification: verifyChain(served.built.bundle, keys, { demoMode: true }),
+          verification: served.verification,
         };
       },
     );

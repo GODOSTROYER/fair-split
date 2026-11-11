@@ -365,10 +365,12 @@ describe("W1 stored delivery on Simulated PayPal sandbox", () => {
 
   it("inv.i5.duplicates: replayed and reordered successful deliveries add no item update or applied ledger entry", async () => {
     await waitForWebhookTasks();
+    // SQL does not promise row order; compare the full snapshots in primary-key order.
     const before = await t.deps.db
       .select()
       .from(schema.runEvents)
-      .where(and(eq(schema.runEvents.workspaceId, workspaceId), eq(schema.runEvents.type, "item.updated")));
+      .where(and(eq(schema.runEvents.workspaceId, workspaceId), eq(schema.runEvents.type, "item.updated")))
+      .orderBy(schema.runEvents.id);
     const ledgerBefore = await t.deps.db
       .select()
       .from(schema.ledgerEntries)
@@ -377,7 +379,8 @@ describe("W1 stored delivery on Simulated PayPal sandbox", () => {
           eq(schema.ledgerEntries.workspaceId, workspaceId),
           eq(schema.ledgerEntries.kind, "webhook.applied"),
         ),
-      );
+      )
+      .orderBy(schema.ledgerEntries.id);
     const [original] = await itemDeliveries("SUCCEEDED");
     if (!original) throw new Error("W1 original success missing");
     // A replay of the SAME transmission is rejected. The simulator's resend copies below have fresh,
@@ -389,7 +392,8 @@ describe("W1 stored delivery on Simulated PayPal sandbox", () => {
     const after = await t.deps.db
       .select()
       .from(schema.runEvents)
-      .where(and(eq(schema.runEvents.workspaceId, workspaceId), eq(schema.runEvents.type, "item.updated")));
+      .where(and(eq(schema.runEvents.workspaceId, workspaceId), eq(schema.runEvents.type, "item.updated")))
+      .orderBy(schema.runEvents.id);
     const ledgerAfter = await t.deps.db
       .select()
       .from(schema.ledgerEntries)
@@ -398,7 +402,8 @@ describe("W1 stored delivery on Simulated PayPal sandbox", () => {
           eq(schema.ledgerEntries.workspaceId, workspaceId),
           eq(schema.ledgerEntries.kind, "webhook.applied"),
         ),
-      );
+      )
+      .orderBy(schema.ledgerEntries.id);
     expect(after).toEqual(before);
     expect(ledgerAfter).toEqual(ledgerBefore);
     expect(before).toHaveLength(successCount);

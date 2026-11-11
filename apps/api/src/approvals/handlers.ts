@@ -18,7 +18,7 @@
 //                         the lines LOCKED and the `postPayoutBatch` task (I7).
 //   declineApproval  POST the Chair (or the treasurer withdrawing) sends the run back: live approvals voided,
 //                         the reason kept as a note hash, run → IN_REVIEW.
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import {
   type ApprovalPayload,
   ApprovalPayload as ApprovalPayloadSchema,
@@ -47,8 +47,9 @@ import {
   expectedSigner,
 } from "@fairsplit/domain";
 import { enqueue } from "@fairsplit/outbox";
-import { and, eq, isNotNull, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, isNotNull, isNull, sql } from "drizzle-orm";
 import type { ActingCredential } from "../credentials/verify/index.js";
+import { commitText } from "../ledger/commitments.js";
 import { type CommandHandler, reply } from "../lib/command.js";
 import type { AppDeps } from "../lib/context.js";
 import { ApiProblem, problem } from "../lib/problem.js";
@@ -56,7 +57,7 @@ import { receiverDirectory } from "../money/receivers.js";
 import { personaId } from "../runs/access.js";
 import { dbApprovalRoleOf } from "../runs/codes.js";
 import { approvalDto } from "../runs/dto.js";
-import { emit, factLedger, noteSha256, proofLedger } from "../runs/events.js";
+import { emit, factLedger, proofLedger } from "../runs/events.js";
 import { assertNotKilled, unlockLines, voidLiveApprovals } from "../runs/flags.js";
 import { casGuard, invalidTransition, lockRun, runBySlug } from "../runs/load.js";
 import { cause, moveLine, moveRun, type RunRow } from "../runs/machine.js";
@@ -109,6 +110,29 @@ function unhashedLines(state: PayRunState): ApiProblem {
   );
 }
 
+/** I4 binds signatures to the latest engine computation, including cash lines. */
+async function assertComputedRoot(
+  db: DbOrTx,
+  scope: WorkspaceScope,
+  run: RunRow,
+  digest: string,
+): Promise<void> {
+  const l = schema.ledgerEntries;
+  const [computed] = await db
+    .select({ payload: l.payload })
+    .from(l)
+    .where(and(eq(l.workspaceId, scope.workspaceId), eq(l.runId, run.id), eq(l.kind, "lines.computed")))
+    .orderBy(desc(l.seq))
+    .limit(1);
+  const root = (computed?.payload as { linesRootSha256?: unknown } | undefined)?.linesRootSha256;
+  if (root !== digest) {
+    throw invalidTransition(
+      run.state as PayRunState,
+      "The stored member lines differ from the latest computation: recompute the run before anyone signs.",
+    );
+  }
+}
+
 export function receiversOf(deps: Pick<AppDeps, "env">) {
   return receiverDirectory(deps.env.paypal);
 }
@@ -136,6 +160,7 @@ export const approvalPayloadHandler: CommandHandler<"approvalPayload"> = async (
     );
   }
   if (!batch.linesDigest) throw unhashedLines(run.state as PayRunState);
+  await assertComputedRoot(deps.db, scope, run, batch.linesDigest);
   const approverId =
     ctx.credential.role === "judge" ? await officerFor(deps.db, scope, role) : personaId(ctx.credential);
   if (!approverId) throw problem.forbidden(`No ${ROLE_NOUN[role]} is registered in this workspace.`);
@@ -273,6 +298,7 @@ export const submitApprovalHandler: CommandHandler<"submitApproval"> = async (ct
         if (batch.unpayable.length > 0) throw unpayableProblem(run.state as PayRunState, batch);
         if (!batch.digest) throw invalidTransition(run.state as PayRunState, "There is no batch to sign.");
         if (!batch.linesDigest) throw unhashedLines(run.state as PayRunState);
+        await assertComputedRoot(tx, scope, run, batch.linesDigest);
         const digest = batch.digest;
         const lines = batch.linesDigest;
 
@@ -501,7 +527,9 @@ export const declineApprovalHandler: CommandHandler<"declineApproval"> = async (
           );
         }
         await voidLiveApprovals(tx, scope, run.id, at, `declined:${role}`);
+        const approvalId = randomUUID();
         await tx.insert(schema.approvals).values({
+          id: approvalId,
           workspaceId: scope.workspaceId,
           runId: run.id,
           role: dbApprovalRoleOf(role),
@@ -515,7 +543,15 @@ export const declineApprovalHandler: CommandHandler<"declineApproval"> = async (
           tx,
           scope,
           "approval.declined",
-          { runId: run.id, role, reasonSha256: noteSha256(reason) },
+          {
+            runId: run.id,
+            role,
+            reasonSha256: commitText(
+              deps.credentials.keys,
+              { purpose: "approval.decline.reason", workspaceId: scope.workspaceId, subjectId: approvalId },
+              reason,
+            ).sha256,
+          },
           { runId: run.id, at },
         );
         await emit(

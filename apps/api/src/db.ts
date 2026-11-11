@@ -20,7 +20,7 @@ import {
   type Limiter,
 } from "@fairsplit/db";
 import { createOutbox, type Outbox, type TaskHandlers } from "@fairsplit/outbox";
-import { Render } from "@renderinc/sdk";
+import type { Render } from "@renderinc/sdk";
 import type { Logger } from "pino";
 import { type ApiEnv, BootRefusal } from "./env.js";
 import type { OutboxRuntime } from "./lib/context.js";
@@ -87,20 +87,24 @@ export function wireOutbox(o: {
   logger: Logger;
 }): OutboxWiring {
   const log = o.logger.child({ component: "outbox" });
-  const workflowClient =
-    o.env.executor.kind === "workflow"
-      ? new Render(o.env.executor.renderApiKey ? { token: o.env.executor.renderApiKey } : {}).workflows
-      : undefined;
+  let workflowClient: Promise<Render["workflows"]> | undefined;
+  const workflows = () => {
+    workflowClient ??= import("@renderinc/sdk").then(
+      ({ Render }) =>
+        new Render(o.env.executor.renderApiKey ? { token: o.env.executor.renderApiKey } : {}).workflows,
+    );
+    return workflowClient;
+  };
   const outbox = createOutbox({
     db: o.data.database.db,
     handlers: o.handlers,
     workerId: `fs-api:${hostname()}:${process.pid}`,
     executor: o.env.executor.kind,
-    ...(workflowClient
+    ...(o.env.executor.kind === "workflow"
       ? {
           workflowClient: {
-            startTask: (slug: string, args: unknown[]) =>
-              workflowClient.startTask(
+            startTask: async (slug: string, args: unknown[]) =>
+              (await workflows()).startTask(
                 slug.replace(/^fs-tasks\//, `${o.env.executor.tasksSlug}/`) as never,
                 args as never,
               ),

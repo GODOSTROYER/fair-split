@@ -3,6 +3,8 @@ import { schema } from "@fairsplit/db";
 import { fixtureWorkspace } from "@fairsplit/db/testing";
 import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, expect, it } from "vitest";
+import { hashedClientIp } from "../lib/client-ip.js";
+import { RATE_RULES } from "../lib/rate-limit.js";
 import { createTestApp, type TestApp, walkRun } from "../test/index.js";
 import { purgeExpiredJudgeWorkspaces } from "./pool.js";
 
@@ -11,6 +13,25 @@ beforeAll(async () => {
   t = await createTestApp({ db: "postgres", clock: new Date() });
 });
 afterAll(async () => t.close());
+
+it("HD6-2: 100 cookieless refusals from one network add at most two limiter keys", async () => {
+  t.deps.rateLimits.reset();
+  const ip = "203.0.113.210";
+  const key = hashedClientIp(t.deps.credentials.keys, ip, t.clock.now());
+  for (let i = 0; i < RATE_RULES.judgeSessionPerIp.limit; i++) {
+    t.deps.rateLimits.take(RATE_RULES.judgeSessionPerIp, key);
+  }
+  const before = t.deps.rateLimits.size;
+  for (let i = 0; i < 100; i++) {
+    const response = await t.json("/v1/judge/sessions", {
+      method: "POST",
+      body: {},
+      headers: { "cf-connecting-ip": ip },
+    });
+    expect(response.status).toBe(429);
+  }
+  expect(t.deps.rateLimits.size - before).toBeLessThanOrEqual(2);
+});
 
 async function session(ip: string) {
   const r = await t.json("/v1/judge/sessions", {

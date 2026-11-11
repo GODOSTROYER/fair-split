@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { createTestApp, type TestApp } from "../test/index.js";
 import type { MemoryBus } from "../test/memory-bus.js";
 import { parseLastEventId, toRunEventEnvelope } from "./envelope.js";
+import { publicCaps } from "./routes.js";
 
 let t: TestApp;
 afterEach(async () => t?.close());
@@ -63,6 +64,217 @@ describe("SSE envelope", () => {
 });
 
 describe("SSE hub and the workspace stream", () => {
+  it("HD6 F5: a slow reader cannot retain more than the stream byte budget", async () => {
+    const { ws, bus } = await setup();
+    t.app.app.get("/test-byte-pressure", (c) =>
+      t.deps.sse.open(c, {
+        scope: { workspaceId: ws },
+        caps: [],
+        label: "run",
+        project: (e) => ({ id: String(e.id), event: e.type, data: "x".repeat(64 * 1024) }),
+      }),
+    );
+    const response = await t.request("/test-byte-pressure");
+    if (!response.body) throw new Error("SSE response body required");
+    const reader = response.body.getReader();
+    try {
+      await reader.read(); // Read the preamble, then stop consuming the event body.
+      for (let i = 0; i < 20; i++) publish(bus, ws);
+      await new Promise((resolve) => setTimeout(resolve, 550));
+      expect(t.deps.sse.stats().open).toBe(0);
+      expect(bus.subscribers).toBe(0);
+    } finally {
+      await reader.cancel();
+    }
+  });
+  it("HD6 F5: a backlog above the byte cap advances Last-Event-ID across bounded reconnects", async () => {
+    const { ws, bus } = await setup();
+    t.app.app.get("/test-byte-replay", (c) =>
+      t.deps.sse.open(c, {
+        scope: { workspaceId: ws },
+        caps: [],
+        lastEventId: Number(c.req.header("last-event-id") ?? 0),
+        label: "run",
+        project: (e) => ({ id: String(e.id), event: e.type, data: "x".repeat(64 * 1024) }),
+      }),
+    );
+    for (let i = 0; i < 20; i++) publish(bus, ws);
+    const delivered: number[] = [];
+    while (delivered.length < 20) {
+      const cursor = delivered.at(-1) ?? 0;
+      const stream = await t.sse("/test-byte-replay", { headers: { "last-event-id": String(cursor) } });
+      try {
+        while (delivered.length < 20) {
+          try {
+            delivered.push(Number((await stream.reader.next(1_000)).id));
+          } catch (err) {
+            expect(String(err)).toMatch(/stream ended/);
+            break;
+          }
+        }
+      } finally {
+        await stream.reader.close();
+      }
+      expect(delivered.at(-1)).toBeGreaterThan(cursor);
+    }
+    expect(delivered).toEqual(Array.from({ length: 20 }, (_, i) => i + 1));
+  });
+  it("HD6-4 counts the three anonymous network slots separately from credentialed streams", async () => {
+    const { ws } = await setup();
+    t.app.app.get("/test-public-mixed", (c) =>
+      t.deps.sse.open(c, {
+        scope: { workspaceId: ws },
+        caps: publicCaps(c),
+        label: "proof",
+      }),
+    );
+    const as = t.credentials.judge(t.credentials.judgeCookie({ workspaceId: ws }));
+    const opened: Awaited<ReturnType<TestApp["sse"]>>[] = [];
+    try {
+      for (let i = 0; i < 5; i++) {
+        const stream = await t.sse(`/v1/workspaces/${ws}/events`, { as });
+        expect(stream.response.status).toBe(200);
+        opened.push(stream);
+      }
+      for (let i = 0; i < 3; i++) {
+        const stream = await t.sse("/test-public-mixed");
+        expect(stream.response.status).toBe(200);
+        opened.push(stream);
+      }
+      expect((await t.request("/test-public-mixed")).status).toBe(429);
+    } finally {
+      for (const stream of opened) await stream.reader.close();
+    }
+  });
+  it("HD6-4 public streams still open when eight judges fill their network's 40 credentialed slots", async () => {
+    const { ws } = await setup();
+    t.app.app.get("/test-public-at-cap", (c) =>
+      t.deps.sse.open(c, {
+        scope: { workspaceId: ws },
+        caps: publicCaps(c),
+        label: "proof",
+      }),
+    );
+    const opened: Awaited<ReturnType<TestApp["sse"]>>[] = [];
+    try {
+      for (let judge = 0; judge < 8; judge++) {
+        const as = t.credentials.judge(t.credentials.judgeCookie({ workspaceId: ws }));
+        for (let i = 0; i < 5; i++) {
+          const stream = await t.sse(`/v1/workspaces/${ws}/events`, { as });
+          expect(stream.response.status).toBe(200);
+          opened.push(stream);
+        }
+      }
+      for (let i = 0; i < 3; i++) {
+        const stream = await t.sse("/test-public-at-cap");
+        expect(stream.response.status).toBe(200);
+        opened.push(stream);
+      }
+      expect((await t.request("/test-public-at-cap")).status).toBe(429);
+    } finally {
+      for (const stream of opened) await stream.reader.close();
+    }
+  });
+
+  it("HD6-4 hub-refused retries refund the open budget so a freed slot is immediately usable", async () => {
+    const { ws, token } = await setup();
+    const as = t.credentials.bearer(token);
+    const a = await t.sse(`/v1/workspaces/${ws}/events`, { as });
+    const b = await t.sse(`/v1/workspaces/${ws}/events`, { as });
+    expect([a.response.status, b.response.status]).toEqual([200, 200]);
+    try {
+      for (let i = 0; i < 35; i++) {
+        expect((await t.request(`/v1/workspaces/${ws}/events`, { as })).status).toBe(429);
+      }
+      await a.reader.close();
+      const resumed = await t.sse(`/v1/workspaces/${ws}/events`, { as });
+      expect(resumed.response.status).toBe(200);
+      await resumed.reader.close();
+    } finally {
+      await a.reader.close();
+      await b.reader.close();
+    }
+  });
+
+  it("HD6-4 caps one network at 40 streams across six judge sessions", async () => {
+    const { ws } = await setup();
+    const opened: Awaited<ReturnType<TestApp["sse"]>>[] = [];
+    try {
+      for (let session = 0; session < 6; session++) {
+        const as = t.credentials.judge(t.credentials.judgeCookie({ workspaceId: ws }));
+        for (let stream = 0; stream < (session === 5 ? 1 : 8); stream++) {
+          const response = await t.sse(`/v1/workspaces/${ws}/events`, { as });
+          if (session === 5) expect(response.response.status).toBe(429);
+          else {
+            expect(response.response.status).toBe(200);
+            opened.push(response);
+          }
+        }
+      }
+    } finally {
+      for (const stream of opened) await stream.reader.close();
+    }
+  });
+
+  it("HD6-4 reserves instance slots after 100 anonymous public streams", async () => {
+    const { ws, token } = await setup();
+    t.app.app.get("/test-public-stream", (c) =>
+      t.deps.sse.open(c, {
+        scope: { workspaceId: ws },
+        caps: publicCaps(c),
+        label: "proof",
+      }),
+    );
+    const opened: Awaited<ReturnType<TestApp["sse"]>>[] = [];
+    try {
+      for (let i = 0; i < 100; i++) {
+        const stream = await t.sse("/test-public-stream", {
+          headers: { "cf-connecting-ip": `192.0.2.${i + 1}` },
+        });
+        expect(stream.response.status).toBe(200);
+        opened.push(stream);
+      }
+      expect(
+        (await t.request("/test-public-stream", { headers: { "cf-connecting-ip": "198.51.100.1" } })).status,
+      ).toBe(429);
+      const judge = await t.sse(`/v1/workspaces/${ws}/events`, { as: t.credentials.bearer(token) });
+      expect(judge.response.status).toBe(200);
+      opened.push(judge);
+    } finally {
+      for (const stream of opened) await stream.reader.close();
+    }
+  });
+
+  it("HD6-4 ends a stream after 30 minutes and resumes missed events", async () => {
+    t = await createTestApp({ sse: { pingMs: 20 } });
+    const ws = t.credentials.workspace();
+    const as = t.credentials.judge(t.credentials.judgeCookie({ workspaceId: ws }));
+    const first = publish(t.bus as MemoryBus, ws);
+    const stream = await t.sse(`/v1/workspaces/${ws}/events`, { as, headers: { "last-event-id": "0" } });
+    expect((await stream.reader.next()).id).toBe(String(first.id));
+    t.clock.advance(30 * 60_000);
+    await expect(stream.reader.next(500)).rejects.toThrow(/stream ended/);
+    const missed = publish(t.bus as MemoryBus, ws);
+    const resumed = await t.sse(`/v1/workspaces/${ws}/events`, {
+      as,
+      headers: { "last-event-id": String(first.id) },
+    });
+    expect((await resumed.reader.next()).id).toBe(String(missed.id));
+    await resumed.reader.close();
+  });
+
+  it("HD6-4 refuses the 31st stream open per credential in one minute", async () => {
+    const { ws } = await setup();
+    const as = t.credentials.judge(t.credentials.judgeCookie({ workspaceId: ws }));
+    for (let i = 0; i < 30; i++) {
+      const stream = await t.sse(`/v1/workspaces/${ws}/events`, { as });
+      expect(stream.response.status).toBe(200);
+      publish(t.bus as MemoryBus, ws);
+      await stream.reader.next();
+      await stream.reader.close();
+    }
+    expect((await t.request(`/v1/workspaces/${ws}/events`, { as })).status).toBe(429);
+  });
   it("streams committed events as IC-01 envelopes with `id:` and `event:`", async () => {
     const { ws, token, bus } = await setup();
     const { response, reader } = await t.sse(`/v1/workspaces/${ws}/events`, {

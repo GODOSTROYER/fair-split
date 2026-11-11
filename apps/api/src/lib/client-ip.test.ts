@@ -1,16 +1,45 @@
 // The client address behind every per-IP throttle (S3.9): only the hop fs-api is configured to sit behind
 // (FS_TRUSTED_EDGE) is believed. A header any client can send (True-Client-IP, CF-Connecting-IP off Cloudflare,
 // the leftmost X-Forwarded-For entries) never buys a fresh budget.
+
+import { createHmac } from "node:crypto";
 import { request as httpRequest } from "node:http";
 import { serve } from "@hono/node-server";
 import { afterEach, describe, expect, it } from "vitest";
 import { z } from "zod";
+import { createCredentialKeys } from "../credentials/verify/keys.js";
 import { TRUSTED_EDGES, type TrustedEdge } from "../env.js";
 import { createTestApp, type TestApp } from "../test/index.js";
-import { clientIp, resolveClientIp } from "./client-ip.js";
+import { clientIp, hashedClientIp, resolveClientIp } from "./client-ip.js";
 import { defineRouteFolder } from "./slice.js";
 
 const headers = (h: Record<string, string>) => new Headers(h);
+
+it("HD6-6: throttle IPv6 by /64, canonicalize mapped addresses, preserve IPv4 hashes", () => {
+  const keys = createCredentialKeys({});
+  const now = new Date("2026-11-04T00:00:00Z");
+  const hash = (ip: string) => hashedClientIp(keys, ip, now);
+  expect(hash("2001:db8::1")).toBe(hash("2001:db8::ffff:1"));
+  expect(hash("2001:db8::1")).toBe(hash("2001:0db8:0000:0000:0:0:0:2"));
+  expect(hash("2001:db8::1")).not.toBe(hash("2001:db8:0:1::1"));
+  expect(hash("::ffff:192.0.2.1")).toBe(hash("192.0.2.1"));
+  expect(hash("::ffff:c000:201")).toBe(hash("192.0.2.1"));
+  expect(hash("192.0.2.1")).toBe(
+    createHmac("sha256", keys.hmacKey("ip-hash")).update("192.0.2.1|2026-11-04").digest("hex").slice(0, 32),
+  );
+});
+
+it("HD6-6: zone-scoped IPv6 peers and trusted headers share their /64 without throwing", () => {
+  const keys = createCredentialKeys({});
+  const now = new Date("2026-11-04T00:00:00Z");
+  for (const ip of ["fe80::1%eth0", "[fe80::2%25en0]:443"]) {
+    const resolved = resolveClientIp("render", headers({ "cf-connecting-ip": ip }), null);
+    expect(resolved).not.toBeNull();
+    expect(hashedClientIp(keys, resolved, now)).toBe(hashedClientIp(keys, "fe80::3", now));
+  }
+  const peer = resolveClientIp("none", headers({}), "fe80::1%eth0");
+  expect(hashedClientIp(keys, peer, now)).toBe(hashedClientIp(keys, "fe80::3", now));
+});
 
 /** Everything a client can put on the wire, all at once. */
 const SPOOFED = {

@@ -3,6 +3,7 @@
 // batch from the database before the POST, refuses the mismatch and sends nothing; the run goes back to
 // IN_REVIEW with both approvals voided and its lines unlocked.
 import { schema } from "@fairsplit/db";
+import { batchDigest, parseDecimalMinor } from "@fairsplit/domain";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { type RunsHarness, resolveAll, runQueued, signBoth, startRuns } from "../runs/test/app.js";
@@ -23,11 +24,19 @@ describe("inv.i4.digest: a one-cent change after both keys", () => {
   it("is refused before the POST: nothing sent, approvals voided, the run back in review", async () => {
     const owner = h.t.pg?.owner.db;
     if (!owner) throw new Error("db");
-    // the tamper: one PayPal line gains a cent behind the approvals' back
+    // Tamper M-060's PayPal line: the later legal correction is her slip 0462 by hand.
+    const memberId = h.world.memberId.get("M-060");
+    if (!memberId) throw new Error("M-060");
     const [locked] = await owner
       .select({ id: schema.memberLines.id })
       .from(schema.memberLines)
-      .where(and(eq(schema.memberLines.runId, h.world.runId), eq(schema.memberLines.state, "LOCKED")))
+      .where(
+        and(
+          eq(schema.memberLines.runId, h.world.runId),
+          eq(schema.memberLines.memberId, memberId),
+          eq(schema.memberLines.state, "LOCKED"),
+        ),
+      )
       .limit(1);
     await owner
       .update(schema.memberLines)
@@ -75,7 +84,21 @@ describe("inv.i4.digest: a one-cent change after both keys", () => {
     expect(batches).toHaveLength(0);
   });
 
-  it("signing again binds the batch as it now is, and that batch is the one posted", async () => {
+  it("fresh hashes refuse another signature until the tampered lines are recomputed", async () => {
+    await expect(signBoth(h)).rejects.toMatchObject({
+      code: "INVALID_TRANSITION",
+      status: 409,
+      message:
+        "The stored member lines differ from the latest computation: recompute the run before anyone signs.",
+    });
+    expect(script.calls.filter((c) => c === "create_payout_batch")).toHaveLength(0);
+  });
+
+  it("a legal by-hand edit and signing again bind the changed batch, which is the one posted", async () => {
+    // Re-enter through the review command: code derives the corrected line amounts and their fresh hashes.
+    await h.t
+      .client(h.tokens.treasurer)
+      .enterField({ params: { fieldId: h.world.fields0462.gross }, body: { value: "64.90" } });
     const { batchSha256 } = await signBoth(h);
     expect(batchSha256).not.toBe(signedFirst);
     expect(await runQueued(h, "postPayoutBatch")).toBe(1);
@@ -85,5 +108,26 @@ describe("inv.i4.digest: a one-cent change after both keys", () => {
       .from(schema.payoutBatches)
       .where(eq(schema.payoutBatches.runId, h.world.runId));
     expect(batch?.batchSha256).toBe(batchSha256);
+    const posted = script.posted[0];
+    if (!posted) throw new Error("Expected the approved batch POST.");
+    const actual = batchDigest(
+      {
+        runId: h.world.runId,
+        senderBatchId: posted.sender_batch_header.sender_batch_id,
+        rateCardSha256: h.world.rateCardSha256,
+      },
+      posted.items.map((item) => {
+        const amountCents = parseDecimalMinor(item.amount.value);
+        if (amountCents === null) throw new Error("The POST contains an invalid money amount.");
+        expect(item.amount.currency).toBe("USD");
+        return {
+          senderItemId: item.sender_item_id,
+          receiver: item.receiver,
+          amountCents,
+          currency: "USD" as const,
+        };
+      }),
+    );
+    expect(actual.batchSha256).toBe(batchSha256);
   });
 });

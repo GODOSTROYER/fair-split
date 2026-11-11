@@ -7,7 +7,7 @@
 //
 // Ledger: the kinds Proof reads (`PROOF_LEDGER_KINDS`) are parsed with the contract's `LedgerPayloads`; every
 // other kind carries IDs, enums, hashes and cents only (S3.12). Free text never enters a payload: callers pass
-// `noteSha256(text)` instead.
+// salted `commitText` commitments for officer text; `noteSha256` is reserved for static gate reasons.
 import { createHash } from "node:crypto";
 import {
   type LedgerPayload,
@@ -96,7 +96,7 @@ export function factLedger(
   });
 }
 
-/** S3.12: free text lives in notes; the ledger keeps only its hash. */
+/** Static gate reasons only. Officer free text must use ledger/commitments.ts `commitText`. */
 export function noteSha256(text: string): string {
   return createHash("sha256").update(text, "utf8").digest("hex");
 }

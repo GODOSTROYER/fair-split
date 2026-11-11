@@ -12,6 +12,7 @@ import { and, asc, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { liveSpend } from "../judge/quota.js";
 import { openingLedger } from "../judge/world.js";
+import type { ProofMetrics } from "../proof/metrics.js";
 import { type RunsHarness, readSlips, resolveAll, runQueued, signBoth, startRuns } from "../runs/test/app.js";
 import { paypalScript } from "../runs/test/paypal.js";
 import { settleBatch } from "./settle.js";
@@ -79,7 +80,16 @@ async function replayed(workspaceId: string) {
 describe("a judge run whose PayPal steps replay (balance under the floor) calls PayPal not once", () => {
   it("Mark paid replays: the run is funded, labelled replay; nothing reaches PayPal", async () => {
     const r = await api().markPaid({ params: { runSlug: h.world.runSlug } });
-    expect(r).toMatchObject({ invoiceStatus: "MARKED_AS_PAID", runState: "EXTRACTING" });
+    expect(r).toMatchObject({
+      invoiceStatus: "MARKED_AS_PAID",
+      runState: "EXTRACTING",
+      provenance: "replay",
+    });
+    const [invoice] = await h.t.deps.db
+      .select()
+      .from(schema.invoices)
+      .where(eq(schema.invoices.runId, h.world.runId));
+    expect(invoice?.provenance).toBe("replay");
     expect(script.calls).toEqual([]);
     expect(await paypalCalls(h.world.workspaceId)).toEqual([]);
     const steps = await replayed(h.world.workspaceId);
@@ -142,8 +152,26 @@ describe("a judge run whose PayPal steps replay (balance under the floor) calls 
       { as: h.t.credentials.bearer(h.tokens.treasurer) },
     );
     expect(run.body.run.state).toBe("NEEDS_FOLLOW_UP");
-    expect(run.body.lines.PAID).toBe(figures.batchItemCount - 1);
-    expect(run.body.lines.UNCLAIMED).toBe(1);
+    expect(run.body.lines.PAID ?? 0).toBe(0);
+    expect(run.body.lines.PAID_REPLAY).toBe(figures.batchItemCount - 1);
+    expect(run.body.lines.UNCLAIMED_REPLAY).toBe(1);
+    const lines = await h.t.json<{ lines: { state: string; provenance: string }[] }>(
+      `/v1/runs/${h.world.runSlug}/lines`,
+      { as: h.t.credentials.bearer(h.tokens.treasurer) },
+    );
+    expect(lines.body.lines.filter((line) => line.state === "PAID")).toHaveLength(figures.batchItemCount - 1);
+    expect(
+      lines.body.lines.filter((line) => line.state === "PAID").every((line) => line.provenance === "replay"),
+    ).toBe(true);
+    const moves = await h.t.deps.db
+      .select()
+      .from(schema.runEvents)
+      .where(and(eq(schema.runEvents.runId, h.world.runId), eq(schema.runEvents.type, "line.state")));
+    expect(
+      moves
+        .filter((move) => (move.payload as { to: string }).to === "PAID")
+        .every((move) => move.provenance === "replay"),
+    ).toBe(true);
     expect(script.calls).toEqual([]);
   });
 
@@ -236,10 +264,20 @@ describe("a judge run whose PayPal steps replay (balance under the floor) calls 
         },
       },
     });
-    const metrics = await h.t.json<{ paid: { paypalVerified: { members: number } } }>(
-      `/v1/proof/${h.world.runSlug}/metrics`,
-    );
+    const metrics = await h.t.json<ProofMetrics>(`/v1/proof/${h.world.runSlug}/metrics`);
     expect(metrics.body.paid.paypalVerified.members).toBe(0);
+    expect(metrics.body.paid.paypalReplayed).toMatchObject({
+      members: figures.batchItemCount - 1,
+      display: expect.stringContaining("Replayed (labelled)"),
+    });
+    expect(metrics.body.paid.cashAttested.ofMembers).toBe(figures.members - figures.batchItemCount + 1);
+    expect(metrics.body.paid.due.members).toBe(figures.members - figures.batchItemCount + 1);
+    expect(metrics.body.rails.paypalMembers).toBe(figures.batchItemCount - 1);
+    expect(metrics.body.progress).toMatchObject({
+      provenance: "replay",
+      items: { replayed: figures.batchItemCount },
+      display: expect.stringContaining("Replayed (labelled)"),
+    });
   });
 });
 

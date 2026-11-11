@@ -47,6 +47,7 @@ import {
   DEVICE_TOKEN_TTL_MS,
   type JudgeSessionCredential,
 } from "../../credentials/verify/index.js";
+import { assertJudgeLedgerRoom } from "../../judge/ledger-room.js";
 import { JUDGE_RATE_RULES } from "../../judge/runtime.js";
 import {
   BrandLinkRequest,
@@ -84,6 +85,7 @@ function pairingInvalid(message = "This pairing was used or has expired. Make a 
 }
 
 function credentialKey(cred: Credential): string {
+  if ("sessionId" in cred && cred.sessionId) return `judge:${cred.sessionId}`;
   switch (cred.kind) {
     case "frame":
     case "device":
@@ -108,6 +110,7 @@ async function makePairing(
   o: { scope: WorkspaceScope; ws: WorkspaceRow; ref: PersonaRef; now: Date; capAt: Date | null },
 ): Promise<CreatedPairing> {
   return withWorkspaceTx(deps.db, o.scope, async (tx) => {
+    await assertJudgeLedgerRoom(tx, o.ws.id);
     const p = await createPairingRow(tx, {
       keys: deps.credentials.keys,
       publicOrigin: deps.env.publicOrigin,
@@ -178,18 +181,15 @@ export default defineRouteFolder({
       refuseReplayOfSecret(ctx.header);
       const { deps, input } = ctx;
       const now = ctx.now();
-      const perIp = deps.rateLimits.take(RATE_RULES.pairingClaim, clientIpKey(ctx.c));
-      if (!perIp.ok)
-        throw problem.rateLimited(perIp.retryAfterMs, "Too many pairing attempts. Wait a minute.");
-      if ("code6" in input) {
-        const global = deps.rateLimits.take(JUDGE_RATE_RULES.pairingCode6Global, "all");
-        if (!global.ok) {
-          throw problem.rateLimited(
-            global.retryAfterMs,
-            "Six-digit pairing is busy. Scan the QR code instead.",
-          );
-        }
-      }
+      const limit = deps.rateLimits.takeAll([
+        [RATE_RULES.pairingClaim, clientIpKey(ctx.c)],
+        ...("code6" in input ? [[JUDGE_RATE_RULES.pairingCode6Global, "all"] as const] : []),
+      ]);
+      if (!limit.ok)
+        throw problem.rateLimited(
+          limit.retryAfterMs,
+          "Too many pairing attempts. Wait a minute or scan the QR code.",
+        );
       const found = await findPairing(deps.db, deps.credentials.keys, input, now);
       if (!found.ok) throw pairingInvalid();
       const row = found.row;
@@ -276,6 +276,7 @@ export default defineRouteFolder({
           // otherwise a frame queued behind Reset would escape that Reset's token revocation.
           const current = await workspaceRow(tx, cred.workspaceId);
           if (!workspaceAlive(current, ctx.now())) throw problem.expired("This judge session has ended.");
+          await assertJudgeLedgerRoom(tx, cred.workspaceId);
           return mintBearerToken(tx, {
             workspaceId: cred.workspaceId,
             kind: "frame",
@@ -482,9 +483,10 @@ export default defineRouteFolder({
           now,
           workspaceExpiresAt: ws.expiresAt,
         });
-        await withWorkspaceTx(deps.db, ctx.scope, (tx) =>
-          recordLinkIssued(tx, ctx.scope, link, { lineId: line.id }, now),
-        );
+        await withWorkspaceTx(deps.db, ctx.scope, async (tx) => {
+          await assertJudgeLedgerRoom(tx, cred.workspaceId);
+          return recordLinkIssued(tx, ctx.scope, link, { lineId: line.id }, now);
+        });
         return reply(201, {
           kind: link.kind,
           url: link.url,

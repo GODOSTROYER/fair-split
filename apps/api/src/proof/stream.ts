@@ -15,6 +15,7 @@ import {
   type PayoutItemStatus,
   PayoutItemStatus as PayoutItemStatusSchema,
   PayRunState,
+  Provenance,
   RunSlug,
 } from "@fairsplit/contracts";
 import { type DbOrTx, type StoredRunEvent, schema } from "@fairsplit/db";
@@ -26,7 +27,7 @@ import type { AppContext, AppEnv } from "../lib/context.js";
 import { problem } from "../lib/problem.js";
 import { parseLastEventId } from "../sse/envelope.js";
 import { publicCaps } from "../sse/routes.js";
-import { findRunBySlug, notReady, proofReady } from "./bundle.js";
+import { findRunBySlug, notReady, proofReady, weakestProvenance } from "./bundle.js";
 import { takePublicRead } from "./limits.js";
 import { documentRawRoute, RUN_SLUG_PARAM } from "./openapi.js";
 
@@ -38,8 +39,11 @@ const Count = z.int().nonnegative();
 export const ProofProgress = z.strictObject({
   runSlug: RunSlug,
   runState: PayRunState,
+  provenance: Provenance,
   items: z.strictObject({
     total: Count,
+    /** Replayed items, included in status counts and always labelled in display. */
+    replayed: Count,
     /** SUBMITTED or PENDING: sent, not yet paid. */
     sent: Count,
     confirmed: Count,
@@ -55,8 +59,27 @@ export const ProofProgress = z.strictObject({
 });
 export type ProofProgress = z.infer<typeof ProofProgress>;
 
-export function progressOf(runSlug: string, runState: PayRunState, statuses: Iterable<PayoutItemStatus>) {
-  const items = { total: 0, sent: 0, confirmed: 0, held: 0, parked: 0, returned: 0, failed: 0, reversed: 0 };
+export function progressOf(
+  runSlug: string,
+  runState: PayRunState,
+  statuses: Iterable<PayoutItemStatus>,
+  provenances: Iterable<Provenance> = [],
+  fallback: Provenance = "live",
+) {
+  const labels = [...provenances];
+  const replayed = labels.filter((label) => label === "replay").length;
+  const provenance = replayed > 0 ? "replay" : weakestProvenance(labels.length ? labels : [fallback]);
+  const items = {
+    total: 0,
+    replayed,
+    sent: 0,
+    confirmed: 0,
+    held: 0,
+    parked: 0,
+    returned: 0,
+    failed: 0,
+    reversed: 0,
+  };
   for (const s of statuses) {
     items.total++;
     if (s === "SUBMITTED" || s === "PENDING") items.sent++;
@@ -70,8 +93,9 @@ export function progressOf(runSlug: string, runState: PayRunState, statuses: Ite
   const progress: ProofProgress = {
     runSlug,
     runState,
+    provenance,
     items,
-    display: `${items.confirmed} of ${items.total} confirmed`,
+    display: `${items.confirmed} of ${items.total} confirmed${replayed > 0 ? ` · Replayed (labelled): ${replayed} of ${items.total} items from an earlier run · Simulated PayPal sandbox` : ""}`,
   };
   return progress;
 }
@@ -81,7 +105,7 @@ export async function currentItemStatuses(
   db: DbOrTx,
   workspaceId: string,
   runId: string,
-): Promise<Map<string, PayoutItemStatus>> {
+): Promise<{ items: Map<string, PayoutItemStatus>; provenances: Map<string, Provenance> }> {
   const pb = schema.payoutBatches;
   const [batch] = await db
     .select({ id: pb.id })
@@ -90,13 +114,21 @@ export async function currentItemStatuses(
     .orderBy(desc(pb.submittedAt))
     .limit(1);
   const out = new Map<string, PayoutItemStatus>();
-  if (!batch) return out;
+  const provenances = new Map<string, Provenance>();
+  if (!batch) return { items: out, provenances };
   const rows = await db
-    .select({ senderItemId: schema.payoutItems.senderItemId, status: schema.payoutItems.status })
+    .select({
+      senderItemId: schema.payoutItems.senderItemId,
+      status: schema.payoutItems.status,
+      provenance: schema.payoutItems.provenance,
+    })
     .from(schema.payoutItems)
     .where(and(eq(schema.payoutItems.workspaceId, workspaceId), eq(schema.payoutItems.batchId, batch.id)));
-  for (const r of rows) out.set(r.senderItemId, r.status as PayoutItemStatus);
-  return out;
+  for (const r of rows) {
+    out.set(r.senderItemId, r.status as PayoutItemStatus);
+    provenances.set(r.senderItemId, Provenance.parse(r.provenance));
+  }
+  return { items: out, provenances };
 }
 
 /**
@@ -106,13 +138,19 @@ export async function currentItemStatuses(
  * batch), which the public counters never count, like `/metrics`.
  */
 export function foldProgress(
-  state: { runState: PayRunState; items: Map<string, PayoutItemStatus> },
-  e: Pick<StoredRunEvent, "type" | "payload">,
+  state: {
+    runState: PayRunState;
+    items: Map<string, PayoutItemStatus>;
+    provenances?: Map<string, Provenance>;
+    provenance?: Provenance;
+  },
+  e: Pick<StoredRunEvent, "type" | "payload"> & Partial<Pick<StoredRunEvent, "provenance">>,
 ): boolean {
   if (e.type === "run.state") {
     const to = PayRunState.safeParse(e.payload.to);
     if (!to.success || PAY_RUN_RANK[to.data] <= PAY_RUN_RANK[state.runState]) return false;
     state.runState = to.data;
+    if (e.provenance) state.provenance = Provenance.parse(e.provenance);
     return true;
   }
   if (e.type === "item.updated") {
@@ -122,6 +160,7 @@ export function foldProgress(
     const cur = state.items.get(id);
     if (cur === undefined || PAYOUT_ITEM_RANK[to.data] <= PAYOUT_ITEM_RANK[cur]) return false;
     state.items.set(id, to.data);
+    if (e.provenance) state.provenances?.set(id, Provenance.parse(e.provenance));
     return true;
   }
   return false;
@@ -154,7 +193,11 @@ export function mountProofStream(app: OpenAPIHono<AppEnv>): void {
     const run = await findRunBySlug(deps.db, runSlug, deps.clock.now());
     if (!run) throw problem.notFound("No such pay run.");
     if (!proofReady(run)) notReady(run);
-    const state = { runState: run.state, items: await currentItemStatuses(deps.db, run.workspaceId, run.id) };
+    const state = {
+      runState: run.state,
+      provenance: run.provenance,
+      ...(await currentItemStatuses(deps.db, run.workspaceId, run.id)),
+    };
     return deps.sse.open(ctx, {
       scope: { workspaceId: run.workspaceId, runId: run.id },
       caps: publicCaps(ctx),
@@ -165,7 +208,13 @@ export function mountProofStream(app: OpenAPIHono<AppEnv>): void {
         return {
           id: String(e.id),
           event: PROOF_PROGRESS_EVENT,
-          data: progressOf(run.runSlug, state.runState, state.items.values()),
+          data: progressOf(
+            run.runSlug,
+            state.runState,
+            state.items.values(),
+            state.provenances.values(),
+            state.provenance,
+          ),
         };
       },
       label: "proof",

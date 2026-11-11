@@ -21,12 +21,14 @@ import { asDbError, schema, type WorkspaceScope, withWorkspaceTx } from "@fairsp
 import { and, asc, eq } from "drizzle-orm";
 import { z } from "zod";
 import type { ActingCredential } from "../credentials/verify/index.js";
+import { assertJudgeLedgerRoom } from "../judge/ledger-room.js";
+import { commitText } from "../ledger/commitments.js";
 import type { CommandHandler } from "../lib/command.js";
 import type { AppDeps } from "../lib/context.js";
 import { ApiProblem, problem } from "../lib/problem.js";
 import { allow, CAN, personaId } from "./access.js";
 import { provenanceOf } from "./codes.js";
-import { factLedger, noteSha256, proofLedger } from "./events.js";
+import { factLedger, proofLedger } from "./events.js";
 import { type CardRow, canonicalOf, cardById, ratifiedCard, seasonById } from "./load.js";
 
 /** The card's ratification date as the season reads it (Asia/Manila is UTC+8, no DST). */
@@ -62,20 +64,29 @@ export const addDeductionHandler: CommandHandler<"addDeduction"> = async (ctx) =
   } catch (err) {
     const refused = asDbError(err);
     if (refused?.code === "RATE_CARD_RATIFIED") {
-      await withWorkspaceTx(deps.db, scope, (tx) =>
-        factLedger(
+      await withWorkspaceTx(deps.db, scope, async (tx) => {
+        await assertJudgeLedgerRoom(tx, scope.workspaceId);
+        return factLedger(
           tx,
           scope,
           "rate_card.edit_refused",
           {
             rateCardId: card.id,
             rateCardSha256: refused.subject,
-            labelSha256: noteSha256(input.label),
-            amountSha256: noteSha256(input.amountText),
+            labelSha256: commitText(
+              deps.credentials.keys,
+              { purpose: "rate_card.edit_refused", workspaceId: scope.workspaceId, subjectId: card.id },
+              input.label,
+            ).sha256,
+            amountSha256: commitText(
+              deps.credentials.keys,
+              { purpose: "rate_card.edit_refused", workspaceId: scope.workspaceId, subjectId: card.id },
+              input.amountText,
+            ).sha256,
           },
           { at },
-        ),
-      );
+        );
+      });
       throw problem.rateCardRatified(
         { hash: refused.subject, rateCard: card.code, ratifiedOn: ratifiedOn(card) },
         err,

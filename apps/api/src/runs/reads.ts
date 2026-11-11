@@ -63,7 +63,7 @@ export const RunView = z.strictObject({
     blocking: z.int().nonnegative(),
     total: z.int().nonnegative(),
   }),
-  /** Line count per state. */
+  /** Line count per state: replayed lines use STATE_REPLAY and never inflate the live count. */
   lines: z.record(z.string(), z.int().nonnegative()),
   approvals: z.array(ApprovalDTO),
   /** I8: the PayPal rail this server runs on. */
@@ -262,11 +262,14 @@ export async function runView(
   const card = await cardById(db, scope, run.rateCardId);
   const holds = await openHolds(db, scope, run.id);
   const lines = await db
-    .select({ state: schema.memberLines.state })
+    .select({ state: schema.memberLines.state, provenance: schema.memberLines.provenance })
     .from(schema.memberLines)
     .where(and(eq(schema.memberLines.workspaceId, scope.workspaceId), eq(schema.memberLines.runId, run.id)));
   const counts: Record<string, number> = {};
-  for (const l of lines) counts[l.state] = (counts[l.state] ?? 0) + 1;
+  for (const l of lines) {
+    const state = l.provenance === "replay" ? `${l.state}_REPLAY` : l.state;
+    counts[state] = (counts[state] ?? 0) + 1;
+  }
   const approvals = await db
     .select()
     .from(schema.approvals)

@@ -17,11 +17,12 @@ import type { Credential } from "../credentials/verify/index.js";
 import { clientIpKey } from "../lib/client-ip.js";
 import { commandSpec, type Mounter, toHonoPath } from "../lib/command.js";
 import type { AppContext } from "../lib/context.js";
-import { problem } from "../lib/problem.js";
+import { isApiProblem, problem } from "../lib/problem.js";
+import { RATE_RULES } from "../lib/rate-limit.js";
 import { requireActing, requireCredential, requireRole } from "../middleware/credential.js";
 import { documentRoute } from "../openapi.js";
 import { parseLastEventId } from "./envelope.js";
-import type { SseLimits } from "./hub.js";
+import type { SseLimits, SseStreamRequest } from "./hub.js";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -30,21 +31,27 @@ export const STREAM_READERS: readonly Role[] = ["treasurer", "board", "clerk", "
 const RUN_SLUG = /^\d{4}[A-Z]-r\d+$/;
 
 /** Stream caps for a credential: 2 per credential, and the judge session's 8 shared by all its tokens. */
-export function capsFor(cred: Credential, limits: Readonly<SseLimits>): { key: string; limit: number }[] {
+export function capsFor(
+  cred: Credential,
+  limits: Readonly<SseLimits>,
+  networkKey: string,
+): { key: string; limit: number }[] {
+  const network = { key: `net:${networkKey}`, limit: limits.perNetwork };
   switch (cred.kind) {
     case "frame":
     case "device":
       return [
+        network,
         { key: `tok:${cred.tokenId}`, limit: limits.perCredential },
         ...(cred.sessionId ? [{ key: `judge:${cred.sessionId}`, limit: limits.perJudgeSession }] : []),
       ];
     case "judge_session":
-      return [{ key: `judge:${cred.sessionId}`, limit: limits.perJudgeSession }];
+      return [network, { key: `judge:${cred.sessionId}`, limit: limits.perJudgeSession }];
     case "member_link":
     case "brand_link":
-      return [{ key: `link:${cred.jti}`, limit: limits.perCredential }];
+      return [network, { key: `link:${cred.jti}`, limit: limits.perCredential }];
     case "operator":
-      return [{ key: "operator", limit: limits.perJudgeSession }];
+      return [network, { key: "operator", limit: limits.perJudgeSession }];
   }
 }
 
@@ -52,7 +59,31 @@ export function capsFor(cred: Credential, limits: Readonly<SseLimits>): { key: s
 export function publicCaps(c: AppContext): { key: string; limit: number }[] {
   const deps = c.get("deps");
   const ip = clientIpKey(c);
-  return [{ key: `ip:${ip}`, limit: deps.sse.limits.publicPerIp }];
+  return [
+    { key: `public:net:${ip}`, limit: deps.sse.limits.publicPerIp },
+    { key: "public:all", limit: deps.sse.limits.publicPerInstance },
+  ];
+}
+
+/** Stream-open work (including replay) has a budget even when connections close immediately. */
+function takeStreamOpen(c: AppContext, cred: Credential): () => void {
+  const key =
+    (cred.kind === "frame" || cred.kind === "device") && cred.sessionId
+      ? `judge:${cred.sessionId}`
+      : credentialId(cred);
+  const deps = c.get("deps");
+  const decision = deps.rateLimits.takeAll([[RATE_RULES.sseOpen, key]]);
+  if (!decision.ok) throw problem.rateLimited(decision.retryAfterMs, "Too many stream opens. Retry shortly.");
+  return () => deps.rateLimits.refund(RATE_RULES.sseOpen, key, decision.takenAtMs);
+}
+
+function openCredentialStream(c: AppContext, refund: () => void, request: SseStreamRequest): Response {
+  try {
+    return c.get("deps").sse.open(c, request);
+  } catch (error) {
+    if (isApiProblem(error) && error.status === 429) refund();
+    throw error;
+  }
 }
 
 /** The identity a credential names: the same request headers must keep naming it for the stream to go on. */
@@ -129,11 +160,12 @@ export function mountSseRoutes(m: Mounter): void {
     const runSlug = c.req.param("runSlug") ?? "";
     if (!RUN_SLUG.test(runSlug)) throw problem.notFound("No such run.");
     const deps = ctx.get("deps");
+    const refundOpen = takeStreamOpen(ctx, cred);
     const runId = await findRunId(deps.db, cred.workspaceId, runSlug);
     if (!runId) throw problem.notFound("No such run in this workspace.");
-    return deps.sse.open(ctx, {
+    return openCredentialStream(ctx, refundOpen, {
       scope: { workspaceId: cred.workspaceId, runId },
-      caps: capsFor(cred, deps.sse.limits),
+      caps: capsFor(cred, deps.sse.limits, clientIpKey(ctx)),
       lastEventId: lastEventId(ctx),
       label: "run",
       revalidate: credentialStillValid(ctx, cred),
@@ -149,9 +181,10 @@ export function mountSseRoutes(m: Mounter): void {
     // The workspace comes from the credential; another workspace's id looks absent.
     if (!UUID.test(ws) || ws !== cred.workspaceId.toLowerCase()) throw problem.notFound("No such workspace.");
     const deps = ctx.get("deps");
-    return deps.sse.open(ctx, {
+    const refundOpen = takeStreamOpen(ctx, cred);
+    return openCredentialStream(ctx, refundOpen, {
       scope: { workspaceId: cred.workspaceId },
-      caps: capsFor(cred, deps.sse.limits),
+      caps: capsFor(cred, deps.sse.limits, clientIpKey(ctx)),
       lastEventId: lastEventId(ctx),
       label: "workspace",
       revalidate: credentialStillValid(ctx, cred),
@@ -166,6 +199,7 @@ export function mountSseRoutes(m: Mounter): void {
     const lineId = (c.req.param("lineId") ?? "").toLowerCase();
     if (!UUID.test(lineId)) throw problem.notFound("No such line.");
     const deps = ctx.get("deps");
+    const refundOpen = takeStreamOpen(ctx, cred);
     if (cred.kind === "member_link") {
       if (cred.lineId.toLowerCase() !== lineId) throw problem.notFound("No such line.");
     } else if (cred.role === "member") {
@@ -179,9 +213,9 @@ export function mountSseRoutes(m: Mounter): void {
         throw problem.notFound("No such line in this workspace.");
       }
     }
-    return deps.sse.open(ctx, {
+    return openCredentialStream(ctx, refundOpen, {
       scope: { workspaceId: cred.workspaceId, lineId },
-      caps: capsFor(cred, deps.sse.limits),
+      caps: capsFor(cred, deps.sse.limits, clientIpKey(ctx)),
       lastEventId: lastEventId(ctx),
       label: "line",
       revalidate: credentialStillValid(ctx, cred),

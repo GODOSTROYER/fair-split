@@ -21,7 +21,14 @@ import {
   type PayoutItemStatus,
   type SignedApproval,
 } from "@fairsplit/contracts";
-import { type Db, openSeedWindow, schema } from "@fairsplit/db";
+import {
+  appendLedger,
+  type Db,
+  openSeedWindow,
+  schema,
+  withWorkspaceTx,
+  workspaceScope,
+} from "@fairsplit/db";
 import {
   approvalBytes,
   buildLedger,
@@ -526,19 +533,38 @@ export async function attestCash(
   at = CASH_DAY_AT(getRun().cashDay),
 ): Promise<void> {
   const lines = getComputation("resolved").lines;
-  for (const no of memberNos) {
-    const l = lines.find((x) => x.memberNo === no);
-    if (!l) throw new Error(`no line for ${no}`);
-    await db.insert(schema.cashReceipts).values({
-      workspaceId: w.workspaceId,
-      lineId: w.lineIds.get(no) as string,
-      amountCents: BigInt(l.netCents),
-      currency: "USD",
-      paidAt: at,
-      attestedBy: "clerk:jessie",
-      provenance: "seeded",
-    });
-  }
+  await withWorkspaceTx(db, w.workspaceId, async (tx) => {
+    for (const no of memberNos) {
+      const l = lines.find((x) => x.memberNo === no);
+      if (!l) throw new Error(`no line for ${no}`);
+      const lineId = w.lineIds.get(no) as string;
+      await tx.insert(schema.cashReceipts).values({
+        workspaceId: w.workspaceId,
+        lineId,
+        amountCents: BigInt(l.netCents),
+        currency: "USD",
+        paidAt: at,
+        attestedBy: "clerk:jessie",
+        provenance: "seeded",
+      });
+      // Like a real cash write, the fixture changes its receipt and attribution head together. Proof caches
+      // invalidate on that head, rather than combining a cached line snapshot with new unlogged receipts.
+      await appendLedger(
+        tx,
+        workspaceScope({
+          workspaceId: w.workspaceId,
+          actor: { kind: "human", id: "clerk:jessie" },
+          via: "device",
+        }),
+        {
+          kind: "cash.attested",
+          payload: { runId: w.runId, lineId, amountCents: l.netCents, currency: "USD" },
+          runId: w.runId,
+          at,
+        },
+      );
+    }
+  });
 }
 
 /** The value, or an error naming what was missing (tests use it instead of non-null assertions). */

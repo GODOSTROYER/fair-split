@@ -43,7 +43,7 @@ import {
   mulDivHalfUp,
   seasonLabelOf,
 } from "@fairsplit/domain";
-import { and, asc, desc, eq, gt, inArray, isNull, or } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, ne, or } from "drizzle-orm";
 import type { Logger } from "pino";
 import { readWorkspaceLedger, signProofCheckpoint } from "../ledger/chain.js";
 import type { LedgerSigningKey } from "../ledger/keys.js";
@@ -132,7 +132,8 @@ function toProofRun(row: RunRow): ProofRun {
 
 /** Public lookup: run slugs are globally unique (one sequence), so the public Proof needs no workspace. */
 export async function findRunBySlug(db: DbOrTx, runSlug: string, now: Date): Promise<ProofRun | null> {
-  // An expired workspace (a judge session after Reset, before the hourly purge) is gone for everyone.
+  // Permanent seeded worlds have no expiring claim (judge/pool.ts workspaceInUse). A Reset ends an
+  // expiring judge claim immediately; its expiry remains unchanged until the hourly purge.
   const [row] = await db
     .select(runColumns)
     .from(schema.payRuns)
@@ -141,6 +142,11 @@ export async function findRunBySlug(db: DbOrTx, runSlug: string, now: Date): Pro
       and(
         eq(schema.payRuns.runSlug, runSlug),
         or(isNull(schema.workspaces.expiresAt), gt(schema.workspaces.expiresAt, now)),
+        or(
+          isNull(schema.workspaces.expiresAt),
+          ne(schema.workspaces.kind, "judge"),
+          isNotNull(schema.workspaces.claimedAt),
+        ),
       ),
     )
     .limit(1);
@@ -229,6 +235,7 @@ export interface LineFact {
 }
 
 export interface ItemFact {
+  provenance: Provenance;
   senderItemId: string;
   memberNo: string | null;
   amountCents: number;
@@ -328,7 +335,7 @@ export function buildProofBundle(db: DbOrTx, run: ProofRun, o: BuildOptions): Pr
 async function assemble(db: DbOrTx, lookedUp: ProofRun, o: BuildOptions): Promise<BuiltProof> {
   const run = await runInSnapshot(db, lookedUp);
   if (!proofReady(run)) notReady(run);
-  const ledger = await readWorkspaceLedger(db, run.workspaceId);
+  const ledger = await readWorkspaceLedger(db, run.workspaceId, o.log);
   const card = await readCard(db, run);
   const invoice = await readInvoice(db, run);
   const lines = await readLines(db, run);
@@ -890,6 +897,7 @@ async function readItems(
       ...(replayed ? { provenance: "replay" as const } : {}),
     });
     facts.push({
+      provenance: replayed ? "replay" : (r.provenance as Provenance),
       senderItemId: r.senderItemId,
       memberNo: /-(M-\d{3})$/.exec(r.senderItemId)?.[1] ?? null,
       amountCents: Number(r.amountCents),

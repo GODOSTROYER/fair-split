@@ -170,7 +170,7 @@ describe("a credentialed stream lasts only as long as its credential (no databas
     const link = t.credentials.bearer(t.credentials.memberLink({ workspaceId: WS, lineId, jti }));
     const { response, reader } = await t.sse(`/v1/lines/${lineId}/events`, { as: link });
     expect(response.status).toBe(200);
-    store().revokedLinks.add(jti);
+    store().revokedLinks.add(`${WS}:${jti}`);
     await expect(reader.next(2_000)).rejects.toThrow(/stream ended/);
     expect((await t.sse(`/v1/lines/${lineId}/events`, { as: link })).response.status).toBe(401);
   });

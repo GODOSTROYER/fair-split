@@ -8,7 +8,7 @@ import { eq, sql } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vitest";
 import type { AppDeps } from "../lib/context.js";
 import { createTestApp, setWorkspaceExpiry, type TestApp, type TestAppOptions } from "../test/index.js";
-import { LANE_DEFAULTS } from "./lane.js";
+import { LANE_DEFAULTS, LiveLane } from "./lane.js";
 import { beginLiveStep, ELSEWHERE_RETRY_MS, NO_JUDGE_QUOTA } from "./live-step.js";
 import {
   estimateBalance,
@@ -500,6 +500,8 @@ describe("the balance", () => {
 describe("the live lane (beginLiveStep)", () => {
   it("is single-flight across processes: the next burst queues here (with its place) and elsewhere (retry)", async () => {
     await open();
+    // Keep exercising a short visible queue; waits above five seconds now replay immediately.
+    Object.assign(judgeRuntime(t.deps), { lane: new LiveLane(t.clock, { burstMs: 1_000 }) });
     await reading(ONE_MILLION);
     const other = otherProcess(t.deps);
     const [wsA, wsB, wsC] = [await judgeWorkspace(), await judgeWorkspace(), await judgeWorkspace()];

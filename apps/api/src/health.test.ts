@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { API_VERSION, createApp } from "./app.js";
 import { createFakeClock } from "./lib/clock.js";
 import { createTestDeps } from "./test/deps.js";
@@ -16,6 +16,36 @@ function build(probes: Partial<Parameters<typeof createApp>[0]["health"]>) {
 }
 
 describe("health", () => {
+  it("HD6-O2 shares one readiness probe across concurrent readers and caches it for three seconds", async () => {
+    const db = vi.fn(async () => undefined);
+    const { app, clock } = build({
+      db,
+      listen: async () => 1,
+      dispatcher: () => ({ running: true, executor: "inline" }),
+    });
+    const responses = await Promise.all(Array.from({ length: 20 }, () => app.app.request("/readyz")));
+    expect(responses.every((response) => response.status === 200)).toBe(true);
+    expect(db).toHaveBeenCalledTimes(1);
+    await app.app.request("/readyz");
+    expect(db).toHaveBeenCalledTimes(1);
+    clock.advance(3001);
+    await app.app.request("/readyz");
+    expect(db).toHaveBeenCalledTimes(2);
+  });
+
+  it("HD6-O2 replaces database connection details with a fixed unreachable code", async () => {
+    const { app } = build({
+      db: async () => {
+        throw new Error("connect ECONNREFUSED 10.0.0.5:5432");
+      },
+    });
+    const response = await app.app.request("/readyz");
+    expect(response.status).toBe(503);
+    const body = await response.text();
+    expect(body).not.toContain("10.0.0.5");
+    expect(JSON.parse(body)).toMatchObject({ checks: { db: { ok: false, error: "unreachable" } } });
+  });
+
   it("/healthz is liveness only: the process and `select 1` within a second", async () => {
     const ok = build({});
     const r = await ok.app.app.request("/healthz");

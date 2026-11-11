@@ -11,6 +11,7 @@ import {
 import { type DbOrTx, schema } from "@fairsplit/db";
 import { signCheckpoint, verifyLedger } from "@fairsplit/domain";
 import { asc, eq } from "drizzle-orm";
+import type { Logger } from "pino";
 import { problem } from "../lib/problem.js";
 import type { LedgerSigningKey } from "./keys.js";
 
@@ -34,7 +35,20 @@ export function toContractEntry(row: Row): LedgerEntry {
 }
 
 /** Every entry of the workspace's chain, in seq order, in the contract's shape. */
-export async function readWorkspaceLedger(db: DbOrTx, workspaceId: string): Promise<LedgerEntry[]> {
+export async function readWorkspaceLedger(
+  db: DbOrTx,
+  workspaceId: string,
+  log?: Pick<Logger, "warn">,
+): Promise<LedgerEntry[]> {
+  const [head] = await db
+    .select({ seq: schema.ledgerHeads.seq })
+    .from(schema.ledgerHeads)
+    .where(eq(schema.ledgerHeads.workspaceId, workspaceId))
+    .limit(1);
+  if ((head?.seq ?? 0) > MAX_PROOF_LEDGER_ENTRIES) {
+    log?.warn({ workspaceId, seq: head?.seq }, "Proof ledger exceeds publication limit");
+    throw problem.rateLimited(60_000, "This workspace's ledger is too long to publish in one Proof bundle.");
+  }
   const rows = await db
     .select()
     .from(schema.ledgerEntries)
@@ -42,7 +56,8 @@ export async function readWorkspaceLedger(db: DbOrTx, workspaceId: string): Prom
     .orderBy(asc(schema.ledgerEntries.seq))
     .limit(MAX_PROOF_LEDGER_ENTRIES + 1);
   if (rows.length > MAX_PROOF_LEDGER_ENTRIES) {
-    throw problem.internal("This workspace's ledger is too long to publish in one Proof bundle.");
+    log?.warn({ workspaceId }, "Proof ledger exceeds publication limit");
+    throw problem.rateLimited(60_000, "This workspace's ledger is too long to publish in one Proof bundle.");
   }
   return rows.map(toContractEntry);
 }

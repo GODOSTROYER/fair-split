@@ -1,8 +1,9 @@
 import { ProofResponse } from "@fairsplit/contracts";
 import { schema } from "@fairsplit/db";
 import { and, eq, sql } from "drizzle-orm";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import type { BrandView } from "../proof/brand.js";
+import * as bundles from "../proof/bundle.js";
 import { loadShowcase, type ShowcaseWorld } from "../proof/testing/world.js";
 import { createTestApp, type TestApp } from "../test/index.js";
 import { loadStatementContext } from "./facts.js";
@@ -215,13 +216,20 @@ describe("a simulator run whose payout replays", () => {
   it.each(["simulated_rail", "seeded"] as const)(
     "inv.i8.proof-export: %s envelope with replay payouts exports as replay",
     async (provenance) => {
+      t.clock.advance(2_001);
       await t.deps.db.update(schema.payRuns).set({ provenance }).where(eq(schema.payRuns.id, w.runId));
       await t.deps.db.update(schema.invoices).set({ provenance }).where(eq(schema.invoices.runId, w.runId));
       const link = t.credentials.brandLink({ workspaceId: w.workspaceId });
       const as = t.credentials.bearer(link);
+      const build = vi.spyOn(bundles, "buildProofBundle");
       const proof = await t.json<unknown>(`/v1/proof/${w.runSlug}`, { as });
       expect(proof.status).toBe(200);
       expect(ProofResponse.parse(proof.body).provenance).toBe("replay");
+      try {
+        expect(build).toHaveBeenCalledOnce();
+      } finally {
+        build.mockRestore();
+      }
       const view = await t.json<BrandView>(`/v1/brand/${w.runSlug}`, { as });
       expect(view.status).toBe(200);
       expect(view.body.provenance).toBe("replay");

@@ -10,11 +10,13 @@ import {
   type ResolveResult,
 } from "../credentials/verify/index.js";
 import type { AppContext } from "../lib/context.js";
+import { takeLinkRead } from "../lib/link-read.js";
 import { problem } from "../lib/problem.js";
 
 export function credentialResult(c: AppContext): Promise<ResolveResult> {
   let pending = c.get("credentialResult");
   if (!pending) {
+    takeLinkRead(c);
     pending = c.get("deps").credentials.resolver.resolve({
       authorization: c.req.header("authorization") ?? null,
       cookies: getCookie(c),

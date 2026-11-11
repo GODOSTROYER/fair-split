@@ -17,9 +17,11 @@ import {
 } from "@fairsplit/db";
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import { killEnv } from "../env.js";
+import { assertJudgeLedgerRoom } from "../judge/ledger-room.js";
+import { JUDGE_RATE_RULES } from "../judge/runtime.js";
 import type { CommandHandler } from "../lib/command.js";
 import type { AppDeps } from "../lib/context.js";
-import { ApiProblem } from "../lib/problem.js";
+import { ApiProblem, problem } from "../lib/problem.js";
 import { resumeStalledPosts, wakeWaitingPosts } from "../money/resume.js";
 import { allow, CAN, personaId } from "./access.js";
 import { emit, factLedger, noteSha256 } from "./events.js";
@@ -167,12 +169,29 @@ export async function voidLiveApprovals(
 }
 
 /** LOCKED → READY for every line of a run whose approvals were voided before posting (fsm "UNLOCK"). */
+export async function assertNoCashLines(tx: DbOrTx, scope: WorkspaceScope, runId: string): Promise<void> {
+  const t = schema.memberLines;
+  const [cash] = await tx
+    .select({ id: t.id })
+    .from(t)
+    .where(
+      and(
+        eq(t.workspaceId, scope.workspaceId),
+        eq(t.runId, runId),
+        inArray(t.state, ["OFF_RAIL_DUE", "OFF_RAIL_PAID"]),
+      ),
+    )
+    .limit(1);
+  if (cash) throw new Error("Invariant I3: a run with cash already due or paid cannot return to review");
+}
+
 export async function unlockLines(
   tx: DbOrTx,
   scope: WorkspaceScope,
   runId: string,
   code: string,
 ): Promise<void> {
+  await assertNoCashLines(tx, scope, runId);
   const t = schema.memberLines;
   const locked = await tx
     .select({ id: t.id, version: t.version, memberNo: schema.members.memberNo })
@@ -199,6 +218,12 @@ export const setFlagHandler: CommandHandler<"setFlag"> = async (ctx) => {
   const at = ctx.now();
   const by = personaId(ctx.credential);
   const { deps, scope } = ctx;
+  const credential = ctx.credential;
+  const key = credential.sessionId
+    ? `judge:${credential.sessionId}`
+    : `tok:${credential.kind === "judge_session" ? credential.sessionId : credential.tokenId}`;
+  const limit = deps.rateLimits.take(JUDGE_RATE_RULES.flags, key);
+  if (!limit.ok) throw problem.rateLimited(limit.retryAfterMs);
   await withWorkspaceTx(deps.db, scope, async (tx) => {
     const t = schema.systemFlags;
     const [prev] = await tx
@@ -206,6 +231,7 @@ export const setFlagHandler: CommandHandler<"setFlag"> = async (ctx) => {
       .from(t)
       .where(and(eq(t.workspaceId, scope.workspaceId), eq(t.flag, flag)));
     if ((prev?.on ?? false) === on) return;
+    await assertJudgeLedgerRoom(tx, scope.workspaceId);
     await tx
       .insert(t)
       .values({ workspaceId: scope.workspaceId, flag, on, setBy: by, reason: null, setAt: at })

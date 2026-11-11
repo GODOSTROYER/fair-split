@@ -26,7 +26,7 @@ export const InvoicePressResponse = z.strictObject({
 });
 export type InvoicePressResponse = z.infer<typeof InvoicePressResponse>;
 
-const FUND_CHECK_RULE = { name: "fundCheck", limit: 1, windowMs: 10_000 } as const;
+export const FUND_CHECK_RULE = { name: "fundCheck", limit: 1, windowMs: 10_000 } as const;
 
 async function answer(
   deps: AppDeps,
