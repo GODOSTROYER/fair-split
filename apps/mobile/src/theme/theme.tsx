@@ -8,7 +8,7 @@
 import * as Device from "expo-device";
 import { createContext, type ReactNode, useContext, useEffect, useMemo, useState } from "react";
 import { AccessibilityInfo, Platform, type TextStyle } from "react-native";
-import { FIGURE_VARIANT, fontFamily, MONO_IOS, MONO_NATIVE, MONO_WEB } from "../_shims/fonts";
+import { FIGURE_VARIANT, fontFamily, MONO_IOS, MONO_NATIVE, MONO_WEB, TITLE_WEB } from "../_shims/fonts";
 import { type FsTokens, type ThemeName, themes, typeSteps } from "../_shims/tokens.native";
 import { bootQuery } from "../platform/query";
 
@@ -20,11 +20,25 @@ export const MONO_FAMILY = Platform.select({ web: MONO_WEB, ios: MONO_IOS, defau
 
 /**
  * The phone's five size steps in sp (docs/DESIGN.md §1, the generated tokens' `typeSteps`): hero 48, title 24, heading and
- * body 17, label 15, id 13. Weight carries the rest: 400 reading, 500 labels and numerals, 700 titles and headings.
+ * body 17, label 15, id 13. Weight carries the rest: 400 reading, 500 labels and numerals, 600 titles and headings.
  * One step over the console's 12/14/16 below the title, for members on budget phones in daylight; a member's
  * statement is body (17, never below 16) in statement ink (7:1).
  */
 export const TYPE_STEPS = typeSteps;
+
+/**
+ * Titles, headings and button labels (UI gate round 4): 600 at width 100, the console's own. The web frames set them
+ * in the console's variable FS Sans (`TITLE_WEB`); native keeps the 700 cut until WS-DS cuts the static 600.
+ */
+const STRONG: TextStyle = Platform.select({
+  web: { fontFamily: TITLE_WEB, fontWeight: "600" },
+  default: { fontFamily: fontFamily.strong },
+});
+/** A person's initials: the same face at 700 (docs/DESIGN.md §1 `stamp`). */
+const STAMP_FACE: TextStyle = Platform.select({
+  web: { fontFamily: TITLE_WEB, fontWeight: "700" },
+  default: { fontFamily: fontFamily.strong },
+});
 
 const HERO = {
   fontFamily: fontFamily.figure,
@@ -32,10 +46,11 @@ const HERO = {
   lineHeight: 52,
   fontVariant: TABULAR,
 };
-const TITLE = {
-  fontFamily: fontFamily.strong,
+const TITLE: TextStyle = {
+  ...STRONG,
   fontSize: TYPE_STEPS.title,
   lineHeight: 30,
+  letterSpacing: Platform.OS === "web" ? -0.36 : 0,
   fontVariant: TABULAR,
 };
 const TITLE_FIGURE = {
@@ -44,8 +59,8 @@ const TITLE_FIGURE = {
   lineHeight: 30,
   fontVariant: TABULAR,
 };
-const HEADING = {
-  fontFamily: fontFamily.strong,
+const HEADING: TextStyle = {
+  ...STRONG,
   fontSize: TYPE_STEPS.body,
   lineHeight: 24,
   fontVariant: TABULAR,
@@ -89,11 +104,11 @@ export const typeScale = {
   /** Hashes, IDs and timestamps: the mono, never words and never money. */
   hash: ID,
   /** A button's label (the slab, the flat buttons). */
-  slab: { fontFamily: fontFamily.strong, fontSize: TYPE_STEPS.body, lineHeight: 20, fontVariant: TABULAR },
+  slab: { ...STRONG, fontSize: TYPE_STEPS.body, lineHeight: 20, fontVariant: TABULAR },
   /** A person's initials inside an ink stamp. */
-  stamp: { fontFamily: fontFamily.strong, fontSize: TYPE_STEPS.id, lineHeight: TYPE_STEPS.id },
+  stamp: { ...STAMP_FACE, fontSize: TYPE_STEPS.id, lineHeight: TYPE_STEPS.id },
   /** Paminawa's read-along prose: the title step in the reading weight (a transcript is read, not scanned). */
-  statementLead: { ...TITLE, fontFamily: fontFamily.ui },
+  statementLead: { ...TITLE, fontFamily: fontFamily.ui, fontWeight: "400", letterSpacing: 0 },
   statementBody: BODY,
   statementStrong: HEADING,
   /** "Bayad na" and "Gisusi pa" inside their pills (ADR-0016). */

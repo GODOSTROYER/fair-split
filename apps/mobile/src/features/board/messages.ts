@@ -9,10 +9,11 @@ import { defineMessages, type MessageArgs, type MessageKey, same, translateIn } 
 
 export const messages = defineMessages({
   /* M-BD-01 co-sign request */
+  /** Round 4: the season is "2026-A" (docs/DESIGN.md §6), so the heading fits one line on the stage's phone. */
   "M-BD-01.heading": {
-    ceb: "Pirmahan sa Season {season}",
-    fil: "Pipirmahan sa Season {season}",
-    en: "Co-sign Season {season}",
+    ceb: "Pirmahan sa {season}",
+    fil: "Pipirmahan sa {season}",
+    en: "Co-sign {season}",
   },
   "M-BD-01.count": {
     ceb: "{n} ka bayad pinaagi sa PayPal",
@@ -201,10 +202,11 @@ export const messages = defineMessages({
   "M-BD-01.push.label": same("Simulated push"),
   "M-BD-01.push.app": same("Fair Split"),
   "M-BD-01.push.now": { ceb: "karon", fil: "ngayon", en: "now" },
+  /** Round 4: one line, the season and the amount (the screen under it says the count). */
   "M-BD-01.push.title": {
-    ceb: "Co-sign sa Season {season}: {n} ka bayad, {amount}",
-    fil: "Co-sign sa Season {season}: {n} bayad, {amount}",
-    en: "Co-sign Season {season}: {n} payouts, {amount}",
+    ceb: "Co-sign sa {season}: {amount}",
+    fil: "Co-sign sa {season}: {amount}",
+    en: "Co-sign {season}: {amount}",
   },
   "M-BD-01.push.unconfigured": {
     ceb: "Wala pa ma-set ang mga pahibalo niini nga telepono. Ablihi ang Fair Split aron makita ang mga pirmahan.",
@@ -267,10 +269,11 @@ export const messages = defineMessages({
     en: "Hold, then use your fingerprint or the phone's PIN.",
   },
   // Round 2: shortened by deleting its second sentence; the "Demo key (this browser)" tag under the slab says it.
+  /** Round 4: a caption under the slab, like the console's "Hold to sign" (no full stop). */
   "M-BD-02.caption.demo": {
-    ceb: "Kupti aron mopirma.",
-    fil: "Pindutin nang matagal para pumirma.",
-    en: "Hold to sign.",
+    ceb: "Kupti aron mopirma",
+    fil: "Pindutin nang matagal para pumirma",
+    en: "Hold to sign",
   },
   "M-BD-02.another": {
     ceb: "Dili makakupti? Pirmahi sa laing paagi",

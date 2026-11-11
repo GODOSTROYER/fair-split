@@ -109,11 +109,7 @@ export function SlipTiles({
             // rule); the zoom still shows the slip itself.
             const paper = (
               <Lift lit={lit?.[s.serial] ?? 0}>
-                <ReceiptChip
-                  serial={tr("M-MB-02.formNo", { serial: s.serial })}
-                  kilos={slipFigures(s, "en").written}
-                  width={tile}
-                />
+                <ReceiptChip serial={s.serial} kilos={slipFigures(s, "en").written} width={tile} />
               </Lift>
             );
             const label = tr("M-MB-02.slipLabel", {

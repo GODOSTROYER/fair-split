@@ -9,20 +9,41 @@
 
 import { useFocusEffect } from "expo-router";
 import type { BottomTabBarProps } from "expo-router/tabs";
-import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
+import {
+  createContext,
+  type ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   type NativeScrollEvent,
   type NativeSyntheticEvent,
   Pressable,
   ScrollView,
+  type ScrollViewInstance,
   type ScrollViewProps,
   StyleSheet,
   View,
+  type ViewInstance,
+  type ViewProps,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { ScreenStateOf, ScreenWithStates } from "../_shims/contracts";
 import { layout, space, target } from "../_shims/tokens.native";
-import { type RowBox, rowSnapCover, SNAP_REST_MS } from "../lib/row-snap";
+import {
+  type RowBox,
+  rowSnapCover,
+  SNAP_REST_MS,
+  SNAP_SETTLE_MS,
+  type SnapNode,
+  snapCoverFrom,
+  snapEdge,
+  viewportRows,
+} from "../lib/row-snap";
 import { stage } from "../services/frame-bridge";
 import { useFs } from "../theme/theme";
 import { NAV_FADE_PX, navFadeBands, topFadeBands } from "./nav-fade";
@@ -135,6 +156,59 @@ function TopFade({ color, inset }: { color: string; inset: number }) {
   );
 }
 
+/** What a screen's blocks ask of the screen that scrolls them (UI gate round 4). */
+interface ScreenScroll {
+  /** Registers a block the bar may never cut; returns its unregistration. */
+  add(node: SnapNode): () => void;
+  /** Scrolls so `node` starts `gap` px under the top inset (16 by default): an opened card, never mid-row. */
+  reveal(node: SnapNode, gap?: number): void;
+}
+
+const ScreenScrollContext = createContext<ScreenScroll | null>(null);
+
+/** The screen this block scrolls in (null outside a scrolling `Screen`). */
+export function useScreenScroll(): ScreenScroll | null {
+  return useContext(ScreenScrollContext);
+}
+
+/**
+ * A ref callback that makes its view one row the tab bar or a sticky footer never cuts (UI gate round 4): at rest,
+ * a row the bottom edge would cut is covered whole. Rows may nest; the lowest cut row is the one covered.
+ */
+export function useSnapRow(): (node: SnapNode | null) => void {
+  const scroll = useContext(ScreenScrollContext);
+  const off = useRef<(() => void) | null>(null);
+  useEffect(
+    () => () => {
+      off.current?.();
+      off.current = null;
+    },
+    [],
+  );
+  return useCallback(
+    (node: SnapNode | null) => {
+      off.current?.();
+      off.current = node && scroll ? scroll.add(node) : null;
+    },
+    [scroll],
+  );
+}
+
+/** A view that is one snap row (`useSnapRow`): use it in place of a `View` around a block of a list. */
+export function SnapRow({ children, ...rest }: ViewProps & { children?: ReactNode }) {
+  const ref = useSnapRow();
+  return (
+    <View {...rest} ref={ref} collapsable={false}>
+      {children}
+    </View>
+  );
+}
+
+/** A promise of a view's top and height in the window. */
+function measured(node: SnapNode): Promise<{ y: number; height: number }> {
+  return new Promise((resolve) => node.measureInWindow((_x, y, _w, height) => resolve({ y, height })));
+}
+
 /**
  * Rows never end under the tab bar (UI gate round 4): at rest, the row the viewport's bottom edge would cut is covered
  * from its top down in the screen's surface (whole row or none). Nothing is covered while the list moves.
@@ -193,6 +267,7 @@ export interface ScreenProps<S extends ScreenWithStates> {
   /**
    * The list's rows, in the scrolled content's coordinates (UI gate round 4): at rest, the row the bottom edge would
    * cut is covered, so a row never ends under the tab bar. Measure each row with `onLayout` against the content.
+   * Blocks inside the screen can instead register themselves (`SnapRow`, `useSnapRow`), measured at rest.
    */
   snapRows?: readonly RowBox[];
 }
@@ -215,50 +290,123 @@ export function Screen<S extends ScreenWithStates>({
   surface = "ground",
   snapRows,
 }: ScreenProps<S>) {
-  const { t } = useFs();
+  const { t, motion } = useFs();
   const insets = useSafeAreaInsets();
   useFocusEffect(
     useCallback(() => {
       stage.focus(testID);
     }, [testID]),
   );
-  const pad = { paddingTop: topInset ? insets.top + space.s16 : space.s16 };
+  const inset = topInset ? insets.top : 0;
+  const pad = { paddingTop: inset + space.s16 };
   // Round 4: the top fade shows once content is under it; the snap cover is placed when the list is at rest. Both
   // change state only when they change (a scroll does not re-render the screen on every frame).
   const [scrolled, setScrolled] = useState(false);
   const [viewport, setViewport] = useState(0);
   const [restY, setRestY] = useState<number | null>(0);
+  const [measuredCover, setMeasuredCover] = useState<number | null>(null);
   const restTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const root = useRef<ViewInstance>(null);
+  const scroller = useRef<ScrollViewInstance>(null);
+  const scrollY = useRef(0);
+  const nodes = useRef(new Set<SnapNode>());
+  const viewportRef = useRef(0);
+  const pass = useRef(0);
   useEffect(
     () => () => {
       if (restTimer.current) clearTimeout(restTimer.current);
     },
     [],
   );
+
+  // The registered rows, measured where they rest against the viewport: the cut one is covered from its top.
+  const measureRows = useCallback(() => {
+    const list = [...nodes.current];
+    const box = root.current;
+    const height = viewportRef.current;
+    if (!box || !list.length || !(height > 0)) {
+      setMeasuredCover(null);
+      return;
+    }
+    const at = ++pass.current;
+    void Promise.all([measured(box), ...list.map(measured)]).then(([top, ...rows]) => {
+      if (at !== pass.current || !top) return;
+      setMeasuredCover(snapCoverFrom(viewportRows(top.y, rows), height, NAV_FADE_PX));
+    });
+  }, []);
+  const settle = useCallback(
+    (ms: number) => {
+      if (restTimer.current) clearTimeout(restTimer.current);
+      restTimer.current = setTimeout(() => {
+        setRestY(scrollY.current);
+        measureRows();
+      }, ms);
+    },
+    [measureRows],
+  );
+  const api = useMemo<ScreenScroll>(
+    () => ({
+      add(node) {
+        nodes.current.add(node);
+        settle(SNAP_SETTLE_MS);
+        return () => {
+          nodes.current.delete(node);
+          settle(SNAP_SETTLE_MS);
+        };
+      },
+      reveal(node, gap = space.s16) {
+        const box = root.current;
+        if (!box) return;
+        void Promise.all([measured(box), measured(node)]).then(([top, row]) => {
+          const y = scrollY.current + (row.y - top.y) - inset - gap;
+          scroller.current?.scrollTo({ y: Math.max(0, y), animated: !motion.reduced });
+        });
+      },
+    }),
+    [settle, inset, motion.reduced],
+  );
+
   const onScroll = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const y = e.nativeEvent.contentOffset.y;
+    scrollY.current = y;
     setScrolled(y > 0);
-    if (!snapRows) return;
+    // Nothing is covered while the list moves; the cover is placed again once it rests.
     setRestY(null);
-    if (restTimer.current) clearTimeout(restTimer.current);
-    restTimer.current = setTimeout(() => setRestY(y), SNAP_REST_MS);
+    setMeasuredCover(null);
+    settle(SNAP_REST_MS);
   };
-  const cover = snapRows && restY !== null ? rowSnapCover(snapRows, restY, viewport) : null;
+  const edge = snapEdge(viewport, NAV_FADE_PX);
+  const given = snapRows && restY !== null ? rowSnapCover(snapRows, restY, edge) : null;
+  const cover = restY === null ? null : (given ?? measuredCover);
   const surfaceColor = t.color[surface];
   return (
-    <View testID={testID} dataSet={{ state }} style={[styles.screen, { backgroundColor: surfaceColor }]}>
+    <View
+      ref={root}
+      collapsable={false}
+      testID={testID}
+      dataSet={{ state }}
+      style={[styles.screen, { backgroundColor: surfaceColor }]}
+    >
       {scroll ? (
-        <ScrollView
-          refreshControl={refreshControl}
-          contentContainerStyle={[styles.content, pad, contentStyle]}
-          keyboardShouldPersistTaps="handled"
-          onScroll={onScroll}
-          scrollEventThrottle={32}
-          onLayout={(e) => setViewport(e.nativeEvent.layout.height)}
-        >
-          <SurfaceLabels screen={testID} />
-          {children}
-        </ScrollView>
+        <ScreenScrollContext.Provider value={api}>
+          <ScrollView
+            ref={scroller}
+            refreshControl={refreshControl}
+            contentContainerStyle={[styles.content, pad, contentStyle]}
+            keyboardShouldPersistTaps="handled"
+            onScroll={onScroll}
+            scrollEventThrottle={32}
+            onLayout={(e) => {
+              viewportRef.current = e.nativeEvent.layout.height;
+              setViewport(e.nativeEvent.layout.height);
+              settle(SNAP_SETTLE_MS);
+            }}
+            onContentSizeChange={() => settle(SNAP_SETTLE_MS)}
+          >
+            <SurfaceLabels screen={testID} />
+            {children}
+          </ScrollView>
+        </ScreenScrollContext.Provider>
       ) : (
         <View style={[styles.content, pad, { flex: 1 }, contentStyle as object]}>
           <SurfaceLabels screen={testID} />

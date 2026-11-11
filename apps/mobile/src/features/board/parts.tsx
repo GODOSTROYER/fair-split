@@ -4,7 +4,7 @@
  * the amount, the labelled "Simulated push" that stands in for FCM in judge frames, the honest push status on a
  * phone, and the amount that turns from pencil to ink when both keys are in.
  */
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Platform, Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
 import Animated, {
   FadeIn,
@@ -32,7 +32,7 @@ import { ms, reducedFade, spring, tween } from "../../ui/motion";
 import { Button, InkStamp, Rule } from "../../ui/primitives";
 import { SealView } from "../../ui/seal-view";
 import { Txt } from "../../ui/text";
-import { compactLayout, hashRows, holdNote, memberOf } from "./cosign-model";
+import { compactLayout, holdNote, memberOf, PUSH_SHOWN_MS } from "./cosign-model";
 import type { BoardKey } from "./messages";
 import { useT } from "./use-t";
 
@@ -75,33 +75,24 @@ export function Gloss({
 
 /* ------------------------------------------------------------------ the hash, to compare by eye */
 
-/** The batch hash in rows of four groups, in the mono (round 3: hashes and IDs are the one mono, never FS Sans). */
-export function HashRows({
-  hex,
-  testID,
-  kind = "hash",
-}: {
-  hex: string;
-  testID?: string;
-  kind?: "figure" | "hash";
-}) {
+/**
+ * The batch hash as the console prints it under its seal (UI gate round 4): its first and last two groups in the
+ * mono, on one line ("c0d7 8a94 … 8306 6807"). The whole hash is its accessible name and its `data-hash`.
+ */
+export function ShortHash({ hex, testID }: { hex: string; testID?: string }) {
   const tr = useT();
-  const rows = useMemo(() => hashRows(hex).map((text, i) => ({ id: `row${i}`, text })), [hex]);
   return (
-    <View
-      accessible
-      accessibilityRole="text"
-      accessibilityLabel={tr("seal.hash", { hash: format.hash(hex) })}
+    <Txt
+      kind="hash"
+      color="ink2"
+      align="center"
+      selectable
       testID={testID}
       dataSet={{ hash: hex }}
-      style={styles.hashRows}
+      accessibilityLabel={tr("seal.hash", { hash: format.hash(hex) })}
     >
-      {rows.map((r) => (
-        <Txt key={r.id} kind={kind} color="ink2" align="center" selectable>
-          {r.text}
-        </Txt>
-      ))}
-    </View>
+      {`${format.hash(hex, 2)} … ${format.hash(hex.slice(-8))}`}
+    </Txt>
   );
 }
 
@@ -306,13 +297,18 @@ export function SignedAmount({
 
 /**
  * The phone frames' stand-in for the co-sign push (S1.9 M-BD-01; plan P1): the notification the Chair would get,
- * labelled "Simulated push" (I8). It drops in once when the request opens; under reduced motion it fades.
+ * labelled "Simulated push" (I8). It drops in once when the request opens; under reduced motion it fades. UI gate
+ * round 4: like a heads-up notification it then folds away (`PUSH_SHOWN_MS`), its height and the gap after it closing
+ * together, so the request it announced (the heading, the amount, the seal card) rests whole above the sticky button.
  */
-export function SimulatedPush({ dto }: { dto: CosignRequestDTO }) {
+export function SimulatedPush({ dto, gap }: { dto: CosignRequestDTO; gap: number }) {
   const { t, motion } = useFs();
   const tr = useT();
   const y = useSharedValue(motion.reduced ? 0 : -space.s24);
   const fade = useSharedValue(0);
+  const fold = useSharedValue(0);
+  const [height, setHeight] = useState(0);
+  const [gone, setGone] = useState(false);
   useEffect(() => {
     if (motion.reduced) {
       fade.set(withTiming(1, reducedFade()));
@@ -321,10 +317,28 @@ export function SimulatedPush({ dto }: { dto: CosignRequestDTO }) {
     y.set(withSpring(0, spring("settle")));
     fade.set(withTiming(1, tween("drawerIn")));
   }, [motion.reduced, y, fade]);
-  const style = useAnimatedStyle(() => ({ opacity: fade.get(), transform: [{ translateY: y.get() }] }));
+  useEffect(() => {
+    let folded: ReturnType<typeof setTimeout> | undefined;
+    const away = setTimeout(() => {
+      fold.set(withTiming(1, motion.reduced ? reducedFade() : tween("drawerIn")));
+      folded = setTimeout(() => setGone(true), ms(motion.reduced ? "reduced" : "drawerIn"));
+    }, PUSH_SHOWN_MS);
+    return () => {
+      clearTimeout(away);
+      if (folded) clearTimeout(folded);
+    };
+  }, [fold, motion.reduced]);
+  const style = useAnimatedStyle(() => {
+    const k = fold.get();
+    return {
+      opacity: fade.get() * (1 - k),
+      transform: [{ translateY: y.get() }],
+      ...(height > 0 ? { height: height * (1 - k), marginBottom: -gap * k } : null),
+    };
+  });
+  if (gone) return null;
   const title = tr("M-BD-01.push.title", {
     season: seasonLabel(dto.seasonCode),
-    n: dto.itemCount,
     amount: format.usd(dto.totalCents),
   });
   return (
@@ -333,6 +347,9 @@ export function SimulatedPush({ dto }: { dto: CosignRequestDTO }) {
       accessible
       accessibilityRole="text"
       accessibilityLabel={`${tr("M-BD-01.push.label")}. ${title}`}
+      onLayout={(e) => {
+        if (!height) setHeight(e.nativeEvent.layout.height);
+      }}
       style={[styles.push, { backgroundColor: t.color.plate, borderColor: t.color.rule }, style]}
     >
       <View style={styles.pushHead}>
@@ -349,7 +366,9 @@ export function SimulatedPush({ dto }: { dto: CosignRequestDTO }) {
         {/* "Simulated push" (I8), round 3: the simulated legend glyph, its words its accessible name. */}
         <LegendGlyph kind={MARK_KIND.simulatedPush} label={tr("M-BD-01.push.label")} />
       </View>
-      <Txt kind="bodyStrong">{title}</Txt>
+      <Txt kind="bodyStrong" numberOfLines={1}>
+        {title}
+      </Txt>
     </Animated.View>
   );
 }
@@ -418,7 +437,6 @@ const styles = StyleSheet.create({
   flexShrink: { flexShrink: 1 },
   fit: { alignSelf: "stretch" },
   layers: { maxWidth: "100%" },
-  hashRows: { alignItems: "center", gap: space.s2 },
   hold: {
     flexDirection: "row",
     alignItems: "flex-start",
@@ -441,11 +459,13 @@ const styles = StyleSheet.create({
     columnGap: space.s12,
   },
   push: {
-    gap: space.s8,
-    padding: space.s16,
+    gap: space.s4,
+    paddingHorizontal: space.s16,
+    paddingVertical: space.s12,
     borderWidth: 1,
     // A system container keeps the system's own radius (design §2.4); the notification is the phone's, not ours.
     borderRadius: 20,
+    overflow: "hidden",
   },
   pushHead: { flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: space.s8 },
   note: {

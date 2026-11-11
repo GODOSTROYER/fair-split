@@ -293,6 +293,12 @@ export function hashRows(hex: string, perRow = 4): string[] {
 /** Presence is shown while it is fresh (≤1 Hz upstream; a minute of silence means the treasurer has left). */
 export const PRESENCE_FRESH_MS = 60_000;
 
+/**
+ * How long the frames' simulated push stays before it folds away, as a phone's heads-up notification does (UI gate
+ * round 4: the request it announced then rests whole above the sticky button), ms.
+ */
+export const PUSH_SHOWN_MS = 5000;
+
 export interface Presence {
   persona: string;
   view: string;

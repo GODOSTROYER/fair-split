@@ -22,6 +22,10 @@
  * Paminawa right below; the language row follows the reading it changes. The rail is one micro-tag ("Sandbox")
  * beside the PayPal status; her kilos and the expected pay date are one line each, a label and its figure on the
  * label step; the season reads "2026-A"; the time PayPal confirmed is a timestamp in the mono.
+ *
+ * UI gate round 4 (docs/DESIGN.md §9): the confirmed pill is the 32 px status chip with "05:20 · Simulated" on its
+ * row; every block of the statement is a snap row, so the tab bar never rests on half of "CBU R1"; an opened receipt
+ * line comes up to 16 px under the top inset (the traced peso's "Inyong bayad" card starts whole).
  */
 import { type Href, router, useIsFocused } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -39,7 +43,7 @@ import { useApp } from "../../state/app";
 import { useFs } from "../../theme/theme";
 import { focusFirst } from "../../ui/a11y";
 import { AmountDisplay } from "../../ui/amount";
-import { Screen } from "../../ui/chrome";
+import { Screen, SnapRow } from "../../ui/chrome";
 import { Glyph } from "../../ui/glyph";
 import { MicroTag } from "../../ui/honesty";
 import { MomentMarker, useMoment } from "../../ui/moment";
@@ -102,6 +106,22 @@ function Fact({ label, value, testID }: { label: string; value: string; testID?:
         {value}
       </Txt>
     </View>
+  );
+}
+
+/** One line of her history: who acted, what happened, when. A snap row (round 4): whole above the bar, or none. */
+function HistoryRow({ row, lang }: { row: ReturnType<typeof historyRows>[number]; lang: Lang }) {
+  const tr = useT();
+  return (
+    <SnapRow style={styles.historyRow} dataSet={{ kind: row.kind }}>
+      <HistoryMark mark={row.mark} by={row.by} />
+      <Txt kind="body" color="statementInk" style={styles.flex}>
+        {tr(row.copy.key, row.copy.args)}
+      </Txt>
+      <Txt kind="micro" color="statementInk2">
+        {`${format.dayMonth(row.at, lang)} · ${format.time(row.at)}`}
+      </Txt>
+    </SnapRow>
   );
 }
 
@@ -314,7 +334,7 @@ function Statement({
             <View style={styles.group}>
               {/* 1. A factual header (round 2): her name as the registry addresses her, then one data line. The
               greeting itself is spoken in Paminawa. */}
-              <View style={styles.head} testID="M-MB-01.greeting">
+              <SnapRow style={styles.head} testID="M-MB-01.greeting">
                 <Txt kind="statementName" color="statementInk" accessibilityRole="header">
                   {dto.member.nameByLang[lang]}
                 </Txt>
@@ -327,7 +347,7 @@ function Statement({
                 </Txt>
                 {/* A cash line shows no PayPal value: the rail's tag covers the statement, under its header. */}
                 {paypalLine ? null : railTag}
-              </View>
+              </SnapRow>
 
               {/* 2. Money first: one block for the screen reader, with the status and what happens next. */}
               <View
@@ -347,7 +367,7 @@ function Statement({
                   style={styles.amountBlock}
                 >
                   {view.showAmount && view.hero ? (
-                    <View style={styles.amount}>
+                    <SnapRow style={styles.amount}>
                       <AmountDisplay
                         testID="M-MB-01.amount"
                         text={view.hero.amount}
@@ -366,9 +386,9 @@ function Statement({
                       ) : null}
                       {/* Round 3: her kilos beside her pay, not at the foot of the receipt. */}
                       <Fact label={tr("M-MB-01.kilosLabel")} value={kilos} testID="M-MB-01.kilosFact" />
-                    </View>
+                    </SnapRow>
                   ) : (
-                    <View style={styles.amount} testID="M-MB-01.kilos">
+                    <SnapRow style={styles.amount} testID="M-MB-01.kilos">
                       <Txt kind="label" color="statementInk2">
                         {tr("M-MB-01.kilosLabel")}
                       </Txt>
@@ -383,10 +403,11 @@ function Statement({
                           testID="M-MB-01.expected"
                         />
                       ) : null}
-                    </View>
+                    </SnapRow>
                   )}
-                  {/* 3. The status pill (MM-1 plays here), then one mono line and the tag that covers it. */}
-                  <View style={styles.status}>
+                  {/* 3. The status pill (MM-1 plays here) and, on its row, the time and the tag that covers it (round
+                      4: "05:20 · Simulated" 8 px to the pill's right, never a line of its own). */}
+                  <SnapRow style={styles.status}>
                     <View {...mm1.rootProps}>
                       <StatusCapsule view={view} mm1={mm1} testID="M-MB-01.capsule" />
                     </View>
@@ -397,10 +418,15 @@ function Statement({
                             {when}
                           </Txt>
                         ) : null}
+                        {when && paypalLine ? (
+                          <Txt kind="hash" color="statementInk2" aria-hidden>
+                            ·
+                          </Txt>
+                        ) : null}
                         {paypalLine ? railTag : null}
                       </View>
                     ) : null}
-                  </View>
+                  </SnapRow>
                   {/* The one line of prose, only when a person acts next or something is not what it seems. */}
                   {detail && saysMore ? (
                     <Sentence
@@ -416,7 +442,7 @@ function Statement({
             </View>
 
             {/* Paminawa: the second focus, one large play button. */}
-            <View style={styles.listen}>
+            <SnapRow style={styles.listen}>
               {/* The reading's length and its voice, as one data line ("0:42 · synthetic voice"). */}
               <ListenButton
                 testID="M-MB-01.paminawa"
@@ -427,9 +453,11 @@ function Statement({
                 onPress={() => (readOnly ? setListening(true) : router.push(HREF.paminawa))}
                 ring={<InviteRing mm1={mm1} round />}
               />
-            </View>
+            </SnapRow>
             {/* The language row follows the reading it changes (round 3: the statement opens on her name). */}
-            <LangBar testID="M-MB-01" />
+            <SnapRow>
+              <LangBar testID="M-MB-01" />
+            </SnapRow>
           </View>
 
           {/* 4. The receipt; every amount traces to its source (MM-7). */}
@@ -456,34 +484,34 @@ function Statement({
 
           {/* 5. Her slips, then the history. */}
           {dto.slips.length ? (
-            <View style={styles.section}>
+            <SnapRow style={styles.section}>
               <SectionTitle>{tr("M-MB-01.slips")}</SectionTitle>
               <SlipTiles slips={dto.slips} owner={owner} onOpen={openSlip} testPrefix="M-MB-01.chip" />
-            </View>
+            </SnapRow>
           ) : null}
 
           {rows.length ? (
-            <View testID="M-MB-01.history" style={styles.section}>
-              <SectionTitle>{tr("M-MB-01.history")}</SectionTitle>
-              <View style={styles.history}>
-                {rows.map((h) => (
-                  <View key={`${h.kind}-${h.at}`} style={styles.historyRow} dataSet={{ kind: h.kind }}>
-                    <HistoryMark mark={h.mark} by={h.by} />
-                    <Txt kind="body" color="statementInk" style={styles.flex}>
-                      {tr(h.copy.key, h.copy.args)}
-                    </Txt>
-                    <Txt kind="micro" color="statementInk2">
-                      {`${format.dayMonth(h.at, lang)} · ${format.time(h.at)}`}
-                    </Txt>
-                  </View>
+            <View testID="M-MB-01.history" style={styles.history}>
+              {/* Round 4: the heading never rests alone above the bar: it is one snap row with the first row. */}
+              <SnapRow style={styles.section}>
+                <SectionTitle>{tr("M-MB-01.history")}</SectionTitle>
+                {rows.slice(0, 1).map((h) => (
+                  <HistoryRow key={`${h.kind}-${h.at}`} row={h} lang={lang} />
                 ))}
-              </View>
+              </SnapRow>
+              {rows.length > 1 ? (
+                <View style={styles.history}>
+                  {rows.slice(1).map((h) => (
+                    <HistoryRow key={`${h.kind}-${h.at}`} row={h} lang={lang} />
+                  ))}
+                </View>
+              ) : null}
             </View>
           ) : null}
 
           {/* 6. The seal and the rate card, and how AI was involved. */}
           <Rule />
-          <View style={styles.footer} testID="M-MB-01.footer">
+          <SnapRow style={styles.footer} testID="M-MB-01.footer">
             {dto.batchSha256 ? (
               <SealView batchSha256={dto.batchSha256} size={48} keys={signers ? 2 : 0} engrave={false} />
             ) : null}
@@ -500,28 +528,32 @@ function Statement({
                 })}
               </Txt>
             </View>
-          </View>
+          </SnapRow>
           {aiNote ? (
-            <View style={styles.aiNote}>
+            <SnapRow style={styles.aiNote}>
               <Glyph name="pencil" size={16} color={t.color.statementInk2} />
               <View style={styles.flex}>
                 <GlossedSentence pair={aiNote} lang={lang} gloss={st.gloss} kind="body" color="ink2" />
               </View>
-            </View>
+            </SnapRow>
           ) : null}
 
           {/* 7. Who to ask, always last. */}
           <Rule />
           <View style={styles.ask} testID="M-MB-01.ask">
-            {help ? <GlossedSentence pair={help} lang={lang} gloss={st.gloss} kind="body" /> : null}
-            <View style={styles.rights}>
+            {help ? (
+              <SnapRow>
+                <GlossedSentence pair={help} lang={lang} gloss={st.gloss} kind="body" />
+              </SnapRow>
+            ) : null}
+            <SnapRow style={styles.rights}>
               <Txt kind="body" color="statementInk">
                 {tr("M-MB-04.rights")}
               </Txt>
               <Txt kind="micro" color="statementInk2">
                 {tr("M-MB-04.rightsCite")}
               </Txt>
-            </View>
+            </SnapRow>
             {st.review ? (
               <ReviewStatus record={st.review} lang={lang} testID="M-MB-01.request" />
             ) : !readOnly ? (
@@ -538,14 +570,14 @@ function Statement({
         </View>
 
         {/* The fine print: the rail in one sentence (what the tag above stands for), and the synthetic data. */}
-        <View style={styles.fine}>
+        <SnapRow style={styles.fine}>
           <Txt kind="caption" color="statementInk2" testID="M-MB-01.railCopy">
             {railLabel.copy}
           </Txt>
           <Txt kind="caption" color="statementInk2">
             {tr("common.syntheticData")}
           </Txt>
-        </View>
+        </SnapRow>
         {demoOn && demo ? <DemoTray demo={demo} /> : null}
       </Screen>
 
@@ -610,8 +642,15 @@ const styles = StyleSheet.create({
   head: { gap: space.s4 },
   amountBlock: { gap: space.s16 },
   amount: { gap: space.s4 },
-  status: { gap: space.s8, alignItems: "flex-start" },
-  meta: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: space.s8 },
+  /** The pill and its time and tag on one row; a narrow column wraps the tag under the pill. */
+  status: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    columnGap: space.s8,
+    rowGap: space.s4,
+  },
+  meta: { flexDirection: "row", alignItems: "center", gap: space.s4 + 2 },
   listen: { gap: space.s12 },
   section: { gap: space.s12 },
   /** One fact on one line: the label shrinks first, the figure never splits. */

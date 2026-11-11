@@ -13,7 +13,7 @@ import { MARK_KIND } from "../../lib/honesty";
 import { audioPlan, MONEY_SLOTS } from "../../lib/statement";
 import { useApp } from "../../state/app";
 import { useFs } from "../../theme/theme";
-import { Screen } from "../../ui/chrome";
+import { Screen, SnapRow } from "../../ui/chrome";
 import { Glyph } from "../../ui/glyph";
 import { LegendGlyph } from "../../ui/honesty";
 import { MomentMarker, useMoment } from "../../ui/moment";
@@ -103,15 +103,17 @@ function Slips({ dto, lang }: { dto: StatementDTO; lang: Lang }) {
   return (
     <View style={styles.fill}>
       <Screen testID="M-MB-02" state={state} contentStyle={COLUMN}>
-        <View style={styles.titles}>
+        <SnapRow style={styles.titles}>
           <Txt kind="title1" accessibilityRole="header">
             {tr("M-MB-02.title")}
           </Txt>
           <Txt kind="body" color="ink2">
             {tr("M-MB-02.subtitle")}
           </Txt>
-        </View>
-        <LangBar testID="M-MB-02" glossable={false} />
+        </SnapRow>
+        <SnapRow>
+          <LangBar testID="M-MB-02" glossable={false} />
+        </SnapRow>
         <OfflineBar lastCopyAt={st.cachedAt} visible={offline} testID="M-MB-02.offline" />
 
         {dto.slips.length === 0 ? (
@@ -131,7 +133,8 @@ function Slips({ dto, lang }: { dto: StatementDTO; lang: Lang }) {
             {dto.slips.map((s, i) => {
               const f = slipFigures(s, lang);
               return (
-                <View key={s.serial}>
+                // Round 4: each slip is one snap row, whole above the tab bar or not at all.
+                <SnapRow key={s.serial}>
                   {i > 0 ? <Rule /> : null}
                   <Pressable
                     ref={(r) => {
@@ -169,15 +172,15 @@ function Slips({ dto, lang }: { dto: StatementDTO; lang: Lang }) {
                     </Txt>
                     <Glyph name="chevron" size={20} color={t.color.ink3} />
                   </Pressable>
-                </View>
+                </SnapRow>
               );
             })}
-            <View style={[styles.total, { borderTopColor: t.color.ink }]} testID="M-MB-02.total">
+            <SnapRow style={[styles.total, { borderTopColor: t.color.ink }]} testID="M-MB-02.total">
               <Txt kind="bodyStrong" style={styles.fill}>
                 {tr("M-MB-02.total")}
               </Txt>
               <Txt kind="amountM">{total.kg}</Txt>
-            </View>
+            </SnapRow>
           </View>
         )}
 

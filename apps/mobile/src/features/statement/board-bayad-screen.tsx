@@ -19,7 +19,7 @@ import { railLabel } from "../../lib/payout-status";
 import { apiOrigin } from "../../services/build";
 import { useApp } from "../../state/app";
 import { AmountDisplay } from "../../ui/amount";
-import { Screen } from "../../ui/chrome";
+import { Screen, SnapRow } from "../../ui/chrome";
 import { MicroTag } from "../../ui/honesty";
 import { Button, HashText, Rule, SectionTitle } from "../../ui/primitives";
 import { SealView } from "../../ui/seal-view";
@@ -96,7 +96,8 @@ export function BoardBayadScreen() {
         <SectionTitle>{tr("M-MB-01.runItems")}</SectionTitle>
         <View style={styles.items}>
           {run.items.map((i) => (
-            <View key={i.senderItemId} style={styles.item}>
+            // Round 4: each payout is one snap row, whole above the tab bar or not at all.
+            <SnapRow key={i.senderItemId} style={styles.item}>
               <Txt
                 kind="hash"
                 color="ink2"
@@ -114,19 +115,19 @@ export function BoardBayadScreen() {
                 state={amountState}
                 testID={`M-MB-01.runItem.${i.memberNo}`}
               />
-            </View>
+            </SnapRow>
           ))}
         </View>
         <Rule />
-        <View style={styles.sealRow}>
+        <SnapRow style={styles.sealRow}>
           <SealView batchSha256={run.batchSha256} size={72} keys={keys} engrave={false} />
           <View style={styles.flex}>
             <Txt kind="bodyStrong">{keys === 2 ? tr("M-MB-01.runSigned") : tr("M-MB-01.runWaiting")}</Txt>
             <HashText hex={run.batchSha256} groups={4} />
           </View>
-        </View>
+        </SnapRow>
       </View>
-      <View style={styles.proof}>
+      <SnapRow style={styles.proof}>
         <Button
           variant="tonal"
           icon="forward"
@@ -137,7 +138,7 @@ export function BoardBayadScreen() {
         <Txt kind="caption" color="ink2">
           {tr("M-MB-01.proofHint")}
         </Txt>
-      </View>
+      </SnapRow>
     </Screen>
   );
 }

@@ -2,6 +2,9 @@
  * A slip a line was weighed on, as data, not paper (UI gate round 4, the console's `ReceiptChip`): its serial in the
  * mono's id role at ink 3 and its verified kilos in ink with tabular figures, flat on a 1 px rule. No evidence red and
  * no ballpoint blue: those colours belong to the slip itself, which the zoom (MM-7) still shows as paper.
+ *
+ * Two shapes, one look: a tile (the serial over the kilos, a 48 dp target, her slips' row) and `inline` (the serial
+ * then the kilos on one 28 px line, the console's chip, inside a traced line).
  */
 import { StyleSheet, View } from "react-native";
 import { radius, space, target } from "../_shims/tokens.native";
@@ -13,20 +16,23 @@ export function ReceiptChip({
   kilos,
   width,
   framed = false,
+  inline = false,
 }: {
-  /** As printed: "No. 0403". */
+  /** The serial alone, "0403", as on the console's chip (the "No." stays on the paper the zoom shows). */
   serial: string;
   /** The verified kilos, formatted: "38.45". */
   kilos: string;
   width?: number;
   /** The slip open in the zoom, or the one Paminawa names: a 1 px ink ring instead of the rule. */
   framed?: boolean;
+  /** One line, serial then kilos (a chip inside a sentence's block, never a tap target of its own). */
+  inline?: boolean;
 }) {
   const { t } = useFs();
   return (
     <View
       style={[
-        styles.chip,
+        inline ? styles.inline : styles.chip,
         width ? { width } : null,
         { backgroundColor: t.color.plate, borderColor: framed ? t.color.ink : t.color.rule },
       ]}
@@ -48,6 +54,15 @@ const styles = StyleSheet.create({
     gap: space.s2,
     paddingHorizontal: space.s8 + 2,
     paddingVertical: space.s4,
+    borderWidth: 1,
+    borderRadius: radius.cell,
+  },
+  inline: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: space.s8,
+    minHeight: 28,
+    paddingHorizontal: space.s8,
     borderWidth: 1,
     borderRadius: radius.cell,
   },

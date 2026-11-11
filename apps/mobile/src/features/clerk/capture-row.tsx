@@ -14,6 +14,7 @@ import { format } from "../../_shims/domain";
 import { space, target } from "../../_shims/tokens.native";
 import type { CaptureRecord } from "../../lib/outbox";
 import { useFs } from "../../theme/theme";
+import { SnapRow } from "../../ui/chrome";
 import { Button, InkStamp } from "../../ui/primitives";
 import { Txt } from "../../ui/text";
 import {
@@ -83,7 +84,8 @@ export function CaptureRow({
   const take = onTakeOver && canTakeOver(r, me);
   const remove = onRemove && canRemove(r);
   return (
-    <View testID={testID} dataSet={{ captureState: r.state, kind: r.kind }} style={styles.row}>
+    // Round 4: a capture is one snap row, whole above the tab bar or not at all.
+    <SnapRow testID={testID} dataSet={{ captureState: r.state, kind: r.kind }} style={styles.row}>
       <Paper uri={r.thumbUri ?? r.fileUri} width={compact ? 40 : paper} height={compact ? 40 : paper} />
       <View style={styles.body}>
         <View
@@ -158,7 +160,7 @@ export function CaptureRow({
         ) : null}
       </View>
       <CaptureRing tone={ringOf(r, me)} progress={r.progress} size={compact ? 28 : 36} />
-    </View>
+    </SnapRow>
   );
 }
 

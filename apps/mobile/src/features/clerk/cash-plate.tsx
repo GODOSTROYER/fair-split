@@ -16,6 +16,7 @@ import { payoutStatus } from "../../lib/payout-status";
 import { useApp } from "../../state/app";
 import { typeScale, useFs } from "../../theme/theme";
 import { AmountDisplay } from "../../ui/amount";
+import { SnapRow } from "../../ui/chrome";
 import { Glyph } from "../../ui/glyph";
 import { Banner, Button, Hatch, InkStamp, Rule, StatusDot } from "../../ui/primitives";
 import { Txt } from "../../ui/text";
@@ -134,10 +135,11 @@ export function CashPlate({ cash, onOpen }: { cash: CashHandle; onOpen(entry: Ro
       ) : null}
 
       {shown.map((e, i) => (
-        <View key={e.line.lineId}>
+        // Round 4: a cash line is one snap row, whole above the scan button or not at all.
+        <SnapRow key={e.line.lineId}>
           {i > 0 ? <Rule /> : null}
           <CashRow entry={e} phpPerUsd={day?.phpPerUsd ?? "0"} onPress={() => onOpen(e)} />
-        </View>
+        </SnapRow>
       ))}
     </View>
   );
@@ -228,7 +230,8 @@ function CashRow({ entry, phpPerUsd, onPress }: { entry: RosterEntry; phpPerUsd:
               {stamp}
             </View>
             <View style={styles.rowBottom}>
-              <Txt kind="caption" style={{ flex: 1, color: subColour }}>
+              {/* Round 4: the words keep a readable column; the chip wraps under them rather than squeeze them. */}
+              <Txt kind="caption" style={[styles.sub, { color: subColour }]}>
                 {sub}
               </Txt>
               {chip}
@@ -323,4 +326,5 @@ const styles = StyleSheet.create({
   amountLine: { flexDirection: "row", alignItems: "center", gap: space.s8 },
   chipLine: { flexDirection: "row", maxWidth: "100%" },
   rowBottom: { flexDirection: "row", alignItems: "center", gap: space.s8, flexWrap: "wrap" },
+  sub: { flexGrow: 1, flexShrink: 1, flexBasis: 176 },
 });

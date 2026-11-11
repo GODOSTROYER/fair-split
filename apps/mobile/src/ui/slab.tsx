@@ -18,7 +18,7 @@
  * (`onCommit` returns or resolves to `false`, or throws) gets the slab back at rest, ready to be held again. The focus
  * ring shows for keyboard focus only.
  */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import {
   AppState,
   type GestureResponderEvent,
@@ -91,6 +91,11 @@ export interface SlabProps {
   confirm?: ConfirmSpec;
   /** Defaults come from the shell catalog: "Can't hold? Approve another way", "Release to sign"… */
   anotherWayLabel?: string;
+  /**
+   * What sits right under a hold slab's face (UI gate round 4, the console's Approve: the slab, then "Hold to sign"
+   * under it, then the one other way). The caller's caption; nothing when the slab is flush.
+   */
+  below?: ReactNode;
   armedLabel?: string;
   holdUntilLabel?: string;
   disarmedLabel?: string;
@@ -551,6 +556,7 @@ function HoldSlab(p: SlabProps & { hold: number }) {
           </Txt>
         </View>
       ) : null}
+      {p.below && !flush ? p.below : null}
       {hs === "released-early" && !flush ? (
         <Txt kind="caption" color="ink2" style={styles.below} accessibilityLiveRegion="polite">
           {p.holdUntilLabel ?? tr("slab.holdUntil")}

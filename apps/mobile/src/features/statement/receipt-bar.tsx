@@ -17,8 +17,8 @@
  * amounts beside them, never as her share of the co-op's kilos (that sentence leaves: her kilos sit beside her pay).
  * The fees row is solid: dashed and dotted lines mean simulated only.
  */
-import type { ReactNode } from "react";
-import { Pressable, StyleSheet, View } from "react-native";
+import { type ReactNode, useEffect, useRef } from "react";
+import { Pressable, StyleSheet, View, type ViewInstance } from "react-native";
 import Animated, { FadeIn, FadeOut, LinearTransition } from "react-native-reanimated";
 import type { StatementDTO } from "../../_shims/api-client";
 import type { AmountState, Lang } from "../../_shims/contracts";
@@ -35,9 +35,11 @@ import {
 } from "../../lib/figures";
 import { useFs } from "../../theme/theme";
 import { AmountDisplay } from "../../ui/amount";
+import { useScreenScroll, useSnapRow } from "../../ui/chrome";
 import { Glyph } from "../../ui/glyph";
 import { ms } from "../../ui/motion";
 import { Hatch, RuleChip } from "../../ui/primitives";
+import { ReceiptChip } from "../../ui/receipt-chip";
 import { figures, Sentence } from "../../ui/sentence";
 import { Txt } from "../../ui/text";
 import type { SlipOwner } from "./slip-paper";
@@ -50,6 +52,9 @@ const glide = LinearTransition.springify()
   .mass(SPRINGS.glide.mass);
 
 export type ExpandState = "framed" | "expanded";
+
+/** An opened row comes up once the row that closed above it has glided shut (`glide` settles in about 300 ms). */
+const REVEAL_AFTER_MS = 320;
 
 /** A row's segment of the pay-split bar. */
 type Segment = "premium" | "bonus" | "deducted" | "credited";
@@ -98,6 +103,22 @@ function Row({
   const { t, motion } = useFs();
   const tr = useT();
   const safeId = id.replace(":", "-");
+  // Round 4: each row is one snap row (never cut by the tab bar), and an opened row comes up to 16 px under the top
+  // inset once the rows around it have settled, so the traced card starts whole, never mid-row.
+  const scroll = useScreenScroll();
+  const snap = useSnapRow();
+  const node = useRef<ViewInstance | null>(null);
+  const expanded = open === "expanded";
+  useEffect(() => {
+    if (!expanded || !scroll) return;
+    const at = setTimeout(
+      () => {
+        if (node.current) scroll.reveal(node.current);
+      },
+      motion.reduced ? 0 : REVEAL_AFTER_MS,
+    );
+    return () => clearTimeout(at);
+  }, [expanded, scroll, motion.reduced]);
   return (
     <Animated.View
       layout={motion.reduced ? undefined : glide}
@@ -112,53 +133,61 @@ function Row({
         open ? { backgroundColor: t.color.plate } : null,
       ]}
     >
-      <Pressable
-        testID={`M-MB-01.receipt.${safeId}`}
-        dataSet={{ state: open ?? "closed" }}
-        accessibilityRole="button"
-        accessibilityLabel={srLabel}
-        accessibilityHint={tr("M-MB-01.tapHint")}
-        aria-expanded={!!open}
-        onPress={() => onPress(id)}
-        style={({ pressed }) => [styles.row, pressed && { backgroundColor: t.color.pencilWash }]}
+      <View
+        collapsable={false}
+        ref={(v) => {
+          node.current = v;
+          snap(v);
+        }}
       >
-        {segment ? (
-          <View style={styles.swatchSlot} importantForAccessibility="no-hide-descendants" aria-hidden>
-            <Swatch segment={segment} />
-          </View>
-        ) : null}
-        <View style={styles.rowText}>
-          {typeof label === "string" ? <Txt kind={strong ? "bodyStrong" : "body"}>{label}</Txt> : label}
-          {note ? (
-            <Txt kind="micro" color="statementInk2">
-              {note}
-            </Txt>
-          ) : null}
-        </View>
-        {amount ? (
-          <View style={styles.amount}>
-            <AmountDisplay
-              text={amount.text}
-              state={amount.state}
-              size={strong ? "m" : "figure"}
-              testID={`M-MB-01.receipt.${safeId}.amount`}
-            />
-          </View>
-        ) : null}
-        <View style={[styles.chevron, open === "expanded" && styles.chevronOpen]}>
-          <Glyph name="chevronDown" size={16} color={t.color.ink3} />
-        </View>
-      </Pressable>
-      {open === "expanded" ? (
-        <Animated.View
-          entering={FadeIn.duration(ms(motion.reduced ? "reduced" : "print"))}
-          exiting={motion.reduced ? undefined : FadeOut.duration(ms("microOut"))}
-          style={styles.trace}
-          testID={`M-MB-01.trace.${safeId}`}
+        <Pressable
+          testID={`M-MB-01.receipt.${safeId}`}
+          dataSet={{ state: open ?? "closed" }}
+          accessibilityRole="button"
+          accessibilityLabel={srLabel}
+          accessibilityHint={tr("M-MB-01.tapHint")}
+          aria-expanded={!!open}
+          onPress={() => onPress(id)}
+          style={({ pressed }) => [styles.row, pressed && { backgroundColor: t.color.pencilWash }]}
         >
-          {children}
-        </Animated.View>
-      ) : null}
+          {segment ? (
+            <View style={styles.swatchSlot} importantForAccessibility="no-hide-descendants" aria-hidden>
+              <Swatch segment={segment} />
+            </View>
+          ) : null}
+          <View style={styles.rowText}>
+            {typeof label === "string" ? <Txt kind={strong ? "bodyStrong" : "body"}>{label}</Txt> : label}
+            {note ? (
+              <Txt kind="micro" color="statementInk2">
+                {note}
+              </Txt>
+            ) : null}
+          </View>
+          {amount ? (
+            <View style={styles.amount}>
+              <AmountDisplay
+                text={amount.text}
+                state={amount.state}
+                size={strong ? "m" : "figure"}
+                testID={`M-MB-01.receipt.${safeId}.amount`}
+              />
+            </View>
+          ) : null}
+          <View style={[styles.chevron, open === "expanded" && styles.chevronOpen]}>
+            <Glyph name="chevronDown" size={16} color={t.color.ink3} />
+          </View>
+        </Pressable>
+        {open === "expanded" ? (
+          <Animated.View
+            entering={FadeIn.duration(ms(motion.reduced ? "reduced" : "print"))}
+            exiting={motion.reduced ? undefined : FadeOut.duration(ms("microOut"))}
+            style={styles.trace}
+            testID={`M-MB-01.trace.${safeId}`}
+          >
+            {children}
+          </Animated.View>
+        ) : null}
+      </View>
     </Animated.View>
   );
 }
@@ -239,28 +268,17 @@ function TraceBody({
               <Txt kind="amountM">{trace.total}</Txt>
             </View>
           </View>
-          {/* The slips the line was weighed on, as chips: serial and verified kilos (her statement's own slips). */}
+          {/* The slips the line was weighed on, as receipt chips (round 4: data, not paper; the serial in the mono at
+              ink 3, the verified kilos in ink, a 1 px rule): her statement's own slips. */}
           {dto.slips.length > 0 ? (
             <View style={styles.slipChips} testID="M-MB-01.trace.net.slips">
               {dto.slips.map((slip) => (
-                <View
+                <ReceiptChip
                   key={slip.serial}
-                  style={[
-                    styles.slipChip,
-                    { borderColor: t.color.ruleStrong, backgroundColor: t.color.plate },
-                  ]}
-                >
-                  <View
-                    style={[
-                      styles.slipChipPaper,
-                      { backgroundColor: t.color.copyWhite, borderColor: t.color.ruleStrong },
-                    ]}
-                  />
-                  <Txt kind="figureS">{slip.serial}</Txt>
-                  <Txt kind="caption" color="ink2">
-                    {format.kg(slip.netGrams, 2)}
-                  </Txt>
-                </View>
+                  inline
+                  serial={slip.serial}
+                  kilos={format.kg(slip.netGrams, 2)}
+                />
               ))}
             </View>
           ) : null}
@@ -537,16 +555,6 @@ const styles = StyleSheet.create({
   },
   term: { flexDirection: "row", alignItems: "baseline", gap: space.s8 },
   slipChips: { flexDirection: "row", flexWrap: "wrap", gap: space.s8 },
-  slipChip: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: space.s4,
-    minHeight: 28,
-    paddingHorizontal: space.s8,
-    borderWidth: 1,
-    borderRadius: radius.cell,
-  },
-  slipChipPaper: { width: 10, height: 13, borderWidth: 1 },
   check: { flexDirection: "row", alignItems: "flex-start", gap: space.s8 },
   bolted: { flexDirection: "row", alignItems: "flex-start", gap: space.s8 },
   flex: { flex: 1 },

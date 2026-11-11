@@ -35,7 +35,7 @@ import { Skeleton } from "../../ui/states";
 import { Txt } from "../../ui/text";
 import { memberOf, presenceView } from "./cosign-model";
 import type { BoardKey } from "./messages";
-import { Gloss, SignedAmount, useCompact, useGloss } from "./parts";
+import { Gloss, ShortHash, SignedAmount, useCompact, useGloss } from "./parts";
 import { amountStateFor, SIGN_SCREEN_STATE, type SignPhase, sealKeys, slabLive } from "./sign-flow";
 import { useSign } from "./use-sign";
 import { useT } from "./use-t";
@@ -213,18 +213,21 @@ export function SignScreen() {
               <Gloss text={gloss(note)} />
             </Banner>
           ) : null}
-          {!blocked ? (
-            <Txt
-              kind="body"
-              color="ink2"
-              align="center"
-              testID="M-BD-02.caption"
-              accessibilityLiveRegion={phase === "biometric" ? "polite" : "none"}
-            >
-              {caption}
-            </Txt>
-          ) : null}
           <Slab
+            // Round 4 (the console's Approve): the slab, then how to use it right under it, then the one other way.
+            below={
+              blocked ? undefined : (
+                <Txt
+                  kind="caption"
+                  color="ink2"
+                  align="center"
+                  testID="M-BD-02.caption"
+                  accessibilityLiveRegion={phase === "biometric" ? "polite" : "none"}
+                >
+                  {caption}
+                </Txt>
+              )
+            }
             // A slab that goes flush (the batch changed, the request closed) is a new slab: the shared Slab would
             // otherwise keep its dialog open and act on an armed release (I4; the shell is asked to stop that too).
             key={`${attempt}${blocked ? ".flush" : ""}`}
@@ -329,16 +332,7 @@ export function SignScreen() {
             testID="M-BD-02.seal"
           />
           <View style={styles.hash}>
-            <Txt
-              kind="hash"
-              color="ink2"
-              align="center"
-              testID="M-BD-02.hash"
-              dataSet={{ hash: ownHash }}
-              accessibilityLabel={tr("seal.hash", { hash: format.hash(ownHash) })}
-            >
-              {`${format.hash(ownHash, 2)} … ${format.hash(ownHash.slice(-8))}`}
-            </Txt>
+            <ShortHash hex={ownHash} testID="M-BD-02.hash" />
             <Txt kind="caption" color="ink2" align="center">
               {tr("M-BD-02.compare")}
             </Txt>
@@ -400,14 +394,14 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderRadius: target.min / 2,
   },
-  // The seal's card (radius 22, ADR-0016), with room at its foot so the slab in the thumb zone never clips it.
+  // The seal's card (round 4: the card radius and even padding; the thumb zone is its own footer, so the card needs no
+  // extra room at its foot).
   plate: {
     alignItems: "center",
     gap: space.s12,
-    paddingTop: space.s24,
-    paddingBottom: space.s24 + space.s16,
+    paddingVertical: space.s24,
     paddingHorizontal: space.s16,
-    borderRadius: radius.panel,
+    borderRadius: radius.card,
   },
   hash: { gap: space.s2, alignItems: "center" },
   amount: { gap: space.s4, alignItems: "center", alignSelf: "stretch" },

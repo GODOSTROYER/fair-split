@@ -9,6 +9,10 @@
  * UI gate round 2 (unslop spec §3.9): one language on the screen. Only the one line that says why him keeps its
  * English gloss (and the notes in the status banner); the header, the count, the key lines and the seal's captions
  * do not. The honesty tag sits under the amount it covers; the seal's captions are mono lines.
+ *
+ * UI gate round 4 (docs/DESIGN.md §9): the heading says "2026-A" on one line; the seal card holds the 140 px seal,
+ * the console's short hash and what to do with them, and ends at least 16 px above the sticky button (the simulated
+ * push folds away after a few seconds, as a heads-up notification does); every block is a snap row.
  */
 import { router, useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -23,7 +27,7 @@ import { signHref } from "../../services/session";
 import { useApp } from "../../state/app";
 import { typeScale, useFs } from "../../theme/theme";
 import { focusFirst } from "../../ui/a11y";
-import { EdgeFade, Screen } from "../../ui/chrome";
+import { EdgeFade, Screen, SnapRow } from "../../ui/chrome";
 import { MicroTag } from "../../ui/honesty";
 import { LanguagePicker } from "../../ui/language-picker";
 import { Sheet } from "../../ui/overlay";
@@ -36,11 +40,11 @@ import { useCosign } from "./cosign-context";
 import { changedCue, presenceView, type RequestStatus, whyKey } from "./cosign-model";
 import {
   Gloss,
-  HashRows,
   HoldRow,
   PayoutRows,
   PresenceLine,
   PushNote,
+  ShortHash,
   SignedAmount,
   SimulatedPush,
   useCompact,
@@ -197,21 +201,25 @@ export function CosignScreen() {
 
   return (
     <Screen testID="M-BD-01" state={c.status} footer={footer} contentStyle={styles.content}>
-      {showPush ? <SimulatedPush dto={dto} /> : null}
+      {showPush ? <SimulatedPush dto={dto} gap={space.s24} /> : null}
       <StatusBanner />
 
       <View ref={top} style={styles.lead} accessible={false}>
-        <Txt kind="title1" accessibilityRole="header">
-          {tr("M-BD-01.heading", { season: seasonLabel(dto.seasonCode) })}
-        </Txt>
-        <SignedAmount
-          text={amount}
-          srLabel={format.amountSpoken(dto.totalCents)}
-          ink={signed}
-          live={c.engrave}
-          testID="M-BD-01.amount"
-        />
-        <View style={styles.countRow}>
+        <SnapRow>
+          <Txt kind="title1" accessibilityRole="header">
+            {tr("M-BD-01.heading", { season: seasonLabel(dto.seasonCode) })}
+          </Txt>
+        </SnapRow>
+        <SnapRow>
+          <SignedAmount
+            text={amount}
+            srLabel={format.amountSpoken(dto.totalCents)}
+            ink={signed}
+            live={c.engrave}
+            testID="M-BD-01.amount"
+          />
+        </SnapRow>
+        <SnapRow style={styles.countRow}>
           <Txt kind="body" color="ink2">
             {tr("M-BD-01.count", { n: dto.itemCount })}
           </Txt>
@@ -219,26 +227,32 @@ export function CosignScreen() {
           {dto.rail === "simulated" ? (
             <MicroTag testID="M-BD-01.rail" label={railLabel(dto.rail, "simulated_rail", lang).chip} />
           ) : null}
-        </View>
-        <Sentence segments={figures(tr(whyKey(dto), { threshold }))} testID="M-BD-01.why" />
-        <Gloss text={gloss(whyKey(dto), { threshold })} testID="M-BD-01.why.gloss" />
+        </SnapRow>
+        <SnapRow>
+          <Sentence segments={figures(tr(whyKey(dto), { threshold }))} testID="M-BD-01.why" />
+          <Gloss text={gloss(whyKey(dto), { threshold })} testID="M-BD-01.why.gloss" />
+        </SnapRow>
       </View>
 
       {dto.holds.length > 0 ? (
         <View style={styles.section} testID="M-BD-01.holds">
-          <SectionTitle>{tr("M-BD-01.holds", { n: dto.holds.length })}</SectionTitle>
-          {dto.holds.map((h) => (
-            <HoldRow
-              key={h.id}
-              hold={h}
-              expanded={openHold === h.id}
-              onToggle={() => setOpenHold((o) => (o === h.id ? null : h.id))}
-            />
+          {dto.holds.map((h, i) => (
+            <SnapRow key={h.id} style={styles.section}>
+              {/* The heading rests with the first hold, never alone above the button (round 4). */}
+              {i === 0 ? <SectionTitle>{tr("M-BD-01.holds", { n: dto.holds.length })}</SectionTitle> : null}
+              <HoldRow
+                hold={h}
+                expanded={openHold === h.id}
+                onToggle={() => setOpenHold((o) => (o === h.id ? null : h.id))}
+              />
+            </SnapRow>
           ))}
         </View>
       ) : null}
 
-      <View style={[styles.plate, { backgroundColor: t.color.plate }]} testID="M-BD-01.seal-plate">
+      {/* Round 4: the seal card holds the seal, its hash and what to do with it (the console's short form), so it
+          ends at least 16 px above the sticky button; what the phone worked out follows it as two quiet lines. */}
+      <SnapRow style={[styles.plate, { backgroundColor: t.color.plate }]} testID="M-BD-01.seal-plate">
         {ownHash ? (
           <>
             <SealView
@@ -248,27 +262,33 @@ export function CosignScreen() {
               engrave={c.engrave}
               testID="M-BD-01.seal"
             />
-            <HashRows hex={ownHash} testID="M-BD-01.hash" />
-            <Txt kind="label" color="ink2" align="center">
-              {tr("M-BD-01.seal")}
-            </Txt>
-            <Txt kind="micro" color="ink2" align="center" testID="M-BD-01.computed">
-              {tr("M-BD-01.computed", { n: recomputed?.itemCount ?? dto.items.length })}
-            </Txt>
-            {linesArgs ? (
-              <Txt kind="micro" color="ink2" align="center" testID="M-BD-01.lines">
-                {tr("M-BD-01.lines", linesArgs)}
+            <View style={styles.hash}>
+              <ShortHash hex={ownHash} testID="M-BD-01.hash" />
+              <Txt kind="caption" color="ink2" align="center">
+                {tr("M-BD-01.seal")}
               </Txt>
-            ) : null}
+            </View>
           </>
         ) : (
           <Txt kind="body" color="ink2">
             {tr("M-BD-01.hashMismatch", { name: treasurer })}
           </Txt>
         )}
-      </View>
+      </SnapRow>
+      {ownHash ? (
+        <SnapRow style={styles.worked}>
+          <Txt kind="micro" color="ink2" testID="M-BD-01.computed">
+            {tr("M-BD-01.computed", { n: recomputed?.itemCount ?? dto.items.length })}
+          </Txt>
+          {linesArgs ? (
+            <Txt kind="micro" color="ink2" testID="M-BD-01.lines">
+              {tr("M-BD-01.lines", linesArgs)}
+            </Txt>
+          ) : null}
+        </SnapRow>
+      ) : null}
 
-      <View style={styles.section} testID="M-BD-01.keys">
+      <SnapRow style={styles.section} testID="M-BD-01.keys">
         <View style={styles.keyLine} testID="M-BD-01.key1">
           {c.key1 ? <InkStamp initials={people.treasurer.initials} label={people.treasurer.name} /> : null}
           <View style={styles.flexShrink}>
@@ -289,14 +309,14 @@ export function CosignScreen() {
         ) : c.presence && signable ? (
           <PresenceLine name={treasurer} />
         ) : null}
-      </View>
+      </SnapRow>
 
       {compact ? action : null}
 
-      <View style={styles.section}>
+      <SnapRow style={styles.section}>
         <SectionTitle>{tr("M-BD-01.items")}</SectionTitle>
         <PayoutRows items={dto.items} totalCents={dto.totalCents} state={signed ? "ink" : "pencil"} />
-      </View>
+      </SnapRow>
 
       {signable ? (
         <Button
@@ -323,10 +343,10 @@ export function CosignScreen() {
 
       <PushNote />
 
-      <View style={styles.section}>
+      <SnapRow style={styles.section}>
         <SectionTitle>{tr("M-BD-01.language")}</SectionTitle>
         <LanguagePicker testID="M-BD-01.lang" />
-      </View>
+      </SnapRow>
 
       <SendBackSheet visible={sendBackOpen} onClose={() => setSendBackOpen(false)} />
     </Screen>
@@ -496,13 +516,16 @@ const styles = StyleSheet.create({
   lead: { gap: space.s8 },
   countRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: space.s8 },
   section: { gap: space.s4 },
+  /** The seal card: radius card, 16 around the seal and its two lines (round 4: it ends above the button). */
   plate: {
     alignItems: "center",
     gap: space.s12,
-    paddingVertical: space.s24,
+    paddingVertical: space.s16,
     paddingHorizontal: space.s16,
-    borderRadius: radius.panel,
+    borderRadius: radius.card,
   },
+  hash: { gap: space.s2, alignItems: "center" },
+  worked: { gap: space.s4 },
   keyLine: { flexDirection: "row", alignItems: "center", gap: space.s8, minHeight: 28 },
   flat: { alignSelf: "flex-start" },
   flexShrink: { flexShrink: 1 },
