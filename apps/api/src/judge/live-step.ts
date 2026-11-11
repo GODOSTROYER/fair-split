@@ -257,7 +257,7 @@ export async function beginLiveStep(deps: AppDeps, o: LiveStepInput): Promise<Li
   // 2. the lane: this process's queue, then every process's lock
   const lane = judgeRuntime(deps).lane;
   const entry = { workspaceId: o.workspaceId, step: o.step, sessionId };
-  if (!o.resume && lane.waitedMs(entry) >= LIVE_LANE_WAIT_MS) {
+  if (!o.resume && lane.blockedMs(entry) >= LIVE_LANE_WAIT_MS) {
     lane.release(entry);
     return { kind: "replay", decision: replayDecision("lane_full", rail, peek.quota) };
   }
@@ -278,20 +278,21 @@ export async function beginLiveStep(deps: AppDeps, o: LiveStepInput): Promise<Li
       retryAfterMs: Math.min(
         grant.etaMs,
         lane.options.reserveMs / 2,
-        o.resume ? Number.POSITIVE_INFINITY : LIVE_LANE_WAIT_MS - lane.waitedMs(entry),
+        o.resume ? Number.POSITIVE_INFINITY : LIVE_LANE_WAIT_MS - lane.blockedMs(entry),
       ),
     };
   }
   const lock = await tryLaneLock(deps, lane.options.leaseMs);
   if (!lock) {
     // another process holds the burst: keep this process's turn and ask again shortly
+    lane.blockedElsewhere(entry);
     return {
       kind: "queued",
       position: null,
       etaMs: lane.options.burstMs,
       retryAfterMs: o.resume
         ? ELSEWHERE_RETRY_MS
-        : Math.min(ELSEWHERE_RETRY_MS, LIVE_LANE_WAIT_MS - lane.waitedMs(entry)),
+        : Math.min(ELSEWHERE_RETRY_MS, LIVE_LANE_WAIT_MS - lane.blockedMs(entry)),
     };
   }
   const free = async () => {
