@@ -1,4 +1,4 @@
-# Fair Split design system (UI gate round 7)
+# Fair Split design system (UI gate round 8)
 
 The single source for every surface: the console and judge stage, Proof, and the phone app. It refines the
 incumbent Hayag world (white and porcelain surfaces, blue-black ink, one job per colour, no brown); it does not
@@ -519,7 +519,60 @@ Where a rule here differs from §3, §4 or §9–§11, this section wins.
    leave empty (to 190 px, the card still ending clear of the button); a Try that cannot be pressed says "After key
    1, before the Chair".
 
-## 13. The owner's reference reels
+## 13. Round 8 decisions (one builder's reconciliation of both round-7 reviews)
+
+Where a rule here differs from §3, §4 or §9–§12, this section wins.
+1. **An action is named for what it does.** Moving a parked payout to the cash list pays nobody, so the Run's
+   primary reads **"Move Rhea to cash at the bodega"** (never "Pay …") and her row then reads "Rhea Jumawan · cash
+   due 12 Nov". The treasurer's press on Approve is the first of two signatures, so the button reads **"Sign 1 of 2 ·
+   8 payouts"** (a batch under the Chair's threshold: "Sign for 8 payouts"), the line under it "Then Ernesto signs ·
+   2 of 2", and each signer's row says his place until he signs ("Signs first", "Signs second", then "Signs next").
+   The pill says the same ("Next: sign 1 of 2 · 8 payouts", "Next: decide 2 holds", "Next: enter a slip by hand").
+2. **A decided hold is a receipt, not a sheet.** Once a hold is resolved it prints as one strip in the split review,
+   above the bench and the table (`W-TR-05.receipt`; it keeps `W-TR-06.drawer`, `.card`, `.result`, `.next` and
+   Close), in two lines at every width: what was decided, the decider's stamp and, at the line's end, the next
+   hold as the one primary and Close; then the slip's own member before and after (the engine's two figures, never
+   computed in the UI), what everyone else got back ("+US$17.94 back to 63 members") and the evidence one disclosure
+   away. Flat on a 1 px rule; it takes no width from the screen and lays no scrim: the table keeps its columns and
+   its evidence rows at 1,280, 1,470 and 1,920. An open hold is still the full-height sheet of §12.
+3. **Season.** The two cards are their content's height (no stretched middle; the action stands 24 px under the
+   amount it acts on). The pool's amount is ink before funding as after ("Not funded" is the hollow dot, its words
+   and the bar's pending tone). On the 1,920 stage (a window 1,060 px tall or more) the height the cards gave back is
+   the third row's: the five steps as one column on a vertical track (the first three columns) beside the slips as a
+   contact sheet of two rows of six (the other nine, prints up to 124 px wide); shorter windows keep the steps in a
+   row over the 12-up strip. No run id shows before the first press, because no run exists yet; from the press on it
+   leads the id line on every screen.
+4. **By hand.** The slip's witness is the clerk's own photograph, cropped to the slip around its stained rows
+   (`photoSlipCrop`; the drawn form only where the photo is not in the build). Both witnesses share one paper size;
+   on a tall window the ledger strip shows seven lines and the papers stand about 580 px, so the sum ends near the
+   panel's foot. Whose slip and why it needed a person are one 14 px line; the equation carries no caption.
+5. **Approve.** One recipient list at every width (the decision card over one dense column, 32 px rows, 40 px on a
+   tall window). The PayPal segment of the money bar is **solid**: steel while planned, the signers' indigo once both
+   keys signed, jade once confirmed (`Swatch planned` is a solid steel square); hatch is cash's alone. The seal is one
+   relative size, 14% of the window's width (180 px at 1,280, 206 at 1,470, 268 at 1,920), and says its state in a
+   short label under it ("Not signed yet", "Half signed · Analyn", "Signed · Analyn and Ernesto"). A signed row keeps
+   the waiting row's shape and takes the signers' indigo dot. The Chair's sign sheet draws no lone mark after
+   "Kupti aron mopirma" (the demo key's label keeps its hook and its words for assistive technology).
+6. **The top bar and the title row.** The pill always reads "Next: …"; a live event is a second, smaller line under
+   it for its 3 s (never instead of it). The id line has one quiet place on every screen: the far end of the title
+   row. The reading room names the waiting slip once, on its one button ("Enter slip 0462 by hand"): the count says
+   "47/48 slips read", the sentence only why ("A stain hides one digit."), the row a quiet link.
+7. **Run.** The strip under the fan says what it measures and whose it is: "Invoice paid to payout confirmed", "This
+   run · 7 simulated payouts · median 1 min 43 s", its two ends labelled. No "Kept for members" caption (Proof
+   explains it). A cancelled payment is one named row ("Rhea Jumawan: cancelled · back to the simulated PayPal balance"); the
+   bare notice keeps its row in "All N events". A tall window shows six latest events.
+8. **Rate card, refused.** One block says what was refused (the refusal, then the attempt as its second line, "Iba pa
+   (Other) · ₱150 · Not added"); the clause on the page says why, marked as a citation (a 2 px indigo rule in the
+   page's margin and the faintest indigo tint), never a grey block. The seal under the page is its one line.
+9. **The member's statement.** Once the header scrolls away her name and her payment's status stay pinned under the
+   status inset (with the status's "Simulated" tag); under the traced equation one short label, "Eksakto hangtod sa
+   sentimo".
+10. **Focus and small text.** One ring everywhere: 2 px indigo at a 2 px offset, on the console and the phone
+    (indigo on plate 7.9:1, on plate-2 7.4:1, on the indigo wash 6.9:1; the ring's gap keeps it clear of an indigo
+    face). The gate's screenshot set shows it on four controls, and one page of the ratios computed from the tokens. The honesty word ("Simulated"), a hash beside its
+    date and "planned" are ink-2 (9.8:1), never ink-3.
+
+## 14. The owner's reference reels
 
 Taken: one spacing scale; colour only where it means something (semantic dots, matching chart lines); thin line
 icons; a deliberate type ramp; tabular or mono numerals; factual headers instead of greetings; far fewer words;
