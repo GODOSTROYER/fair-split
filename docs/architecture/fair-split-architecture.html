@@ -1,0 +1,888 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Fair Split Architecture</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:wght@400;600&family=Atkinson+Hyperlegible+Next:wght@400;600;800&display=swap">
+<style>
+/* Layout: one reading column (≤1120px) of numbered-by-topic sections; every diagram sits in its own scroll box.
+   Colour roles come from the repo's own tokens (packages/tokens, palette "Hayag"/"Gabii"):
+   graphite pencil = the model, ink = code / a checked fact, ballpoint indigo = a person's hand,
+   jade = money / PayPal confirmed, marigold = a person must decide, hatch = cash, dashed steel = simulated. */
+:root{
+  --ground:#F3F5F8; --plate:#FFFFFF; --plate-2:#F7F8FA; --rule:#E3E7EE; --rule-strong:#C9D0DB;
+  --ink:#0B1220; --ink-2:#3A4456; --ink-3:#5A6476; --pencil:#4A5A73; --pencil-wash:rgba(74,90,115,.09);
+  --jade:#14CC90; --jade-text:#06724F; --jade-wash:rgba(20,204,144,.15);
+  --canary:#FFA41B; --canary-text:#8A5300; --canary-wash:rgba(255,164,27,.17);
+  --pod:#4A2FD6; --pod-wash:rgba(74,47,214,.09);
+  --red:#CF2A27; --hatch:#A4AEBC; --hatch-bg:#EEF1F5; --steel:#7E8898; --steel-face:#E6EAF0;
+  --flow:rgba(58,68,86,.13); --flow-strong:rgba(58,68,86,.22);
+  --font-body:"Atkinson Hyperlegible Next","Atkinson Hyperlegible",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --font-mono:"Atkinson Hyperlegible Mono",ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --ground:#090D18; --plate:#10172A; --plate-2:#172036; --rule:#25304A; --rule-strong:#3A4763;
+  --ink:#F4F6FA; --ink-2:#C3C9D6; --ink-3:#8E98AE; --pencil:#A7B4CB; --pencil-wash:rgba(167,180,203,.09);
+  --jade:#3DE6AE; --jade-text:#55EDBB; --jade-wash:rgba(61,230,174,.14);
+  --canary:#FFA41B; --canary-text:#FFB65C; --canary-wash:rgba(255,164,27,.15);
+  --pod:#9C8CFF; --pod-wash:rgba(156,140,255,.14);
+  --red:#FF7A72; --hatch:#46557A; --hatch-bg:#172036; --steel:#8996B4; --steel-face:#222C44;
+  --flow:rgba(195,201,214,.13); --flow-strong:rgba(195,201,214,.22);
+  color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --ground:#090D18; --plate:#10172A; --plate-2:#172036; --rule:#25304A; --rule-strong:#3A4763;
+  --ink:#F4F6FA; --ink-2:#C3C9D6; --ink-3:#8E98AE; --pencil:#A7B4CB; --pencil-wash:rgba(167,180,203,.09);
+  --jade:#3DE6AE; --jade-text:#55EDBB; --jade-wash:rgba(61,230,174,.14);
+  --canary:#FFA41B; --canary-text:#FFB65C; --canary-wash:rgba(255,164,27,.15);
+  --pod:#9C8CFF; --pod-wash:rgba(156,140,255,.14);
+  --red:#FF7A72; --hatch:#46557A; --hatch-bg:#172036; --steel:#8996B4; --steel-face:#222C44;
+  --flow:rgba(195,201,214,.13); --flow-strong:rgba(195,201,214,.22);
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--ground);color:var(--ink);font-family:var(--font-body);font-size:16px;line-height:1.55;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 64px}
+.wrap{max-width:1120px;margin:0 auto}
+a{color:var(--pod)}
+a:focus-visible,button:focus-visible{outline:2px solid var(--pod);outline-offset:2px;border-radius:4px}
+code,.mono{font-family:var(--font-mono);font-size:.9em}
+code{background:var(--plate-2);border:1px solid var(--rule);border-radius:4px;padding:0 4px;white-space:nowrap}
+h1,h2,h3{text-wrap:balance;margin:0;line-height:1.15}
+p{margin:0;max-width:68ch}
+
+/* nav */
+nav.toc{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--ground);border-bottom:1px solid var(--rule);
+  margin-inline:calc(-1 * max(16px,env(safe-area-inset-left,0px)));padding:10px max(16px,env(safe-area-inset-left,0px))}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--ground)}
+nav.toc .wrap{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none}
+nav.toc a{flex:none;font-size:13px;text-decoration:none;color:var(--ink-2);padding:4px 10px;border-radius:999px;border:1px solid transparent}
+nav.toc a:hover{border-color:var(--rule-strong);color:var(--ink)}
+
+/* hero */
+header.hero{padding-block:48px 28px;display:grid;gap:18px}
+.eyebrow{font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
+.hero h1{font-size:clamp(32px,5.4vw,56px);font-weight:800;letter-spacing:-.02em;max-width:18ch}
+.hero .lede{font-size:18px;color:var(--ink-2);max-width:70ch}
+.facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1px;background:var(--rule);border:1px solid var(--rule);border-radius:10px;overflow:hidden;margin-top:8px}
+.fact{background:var(--plate);padding:14px 16px;display:grid;gap:2px}
+.fact b{font-size:22px;font-weight:800;font-variant-numeric:tabular-nums}
+.fact span{font-size:13px;color:var(--ink-3)}
+
+/* roles band */
+.roles{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:6px}
+.role{background:var(--plate);border:1px solid var(--rule);border-radius:10px;padding:16px;display:grid;gap:8px;align-content:start;position:relative}
+.role .k{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase}
+.role h3{font-size:19px;font-weight:800}
+.role p{font-size:14px;color:var(--ink-2)}
+.sw{width:12px;height:12px;border-radius:3px;flex:none;display:inline-block}
+.sw.pencil{background:var(--pencil-wash);border:1.5px solid var(--pencil)}
+.sw.ink{background:var(--plate);border:2px solid var(--ink)}
+.sw.pod{background:var(--pod)}
+.sw.jade{background:var(--jade)}
+.sw.canary{background:var(--canary)}
+.sw.hatch{background:repeating-linear-gradient(45deg,var(--hatch) 0 2px,var(--hatch-bg) 2px 5px);border:1px solid var(--hatch)}
+.sw.steel{background:var(--steel-face);border:1.5px dashed var(--steel)}
+.role.pencil{border-top:3px solid var(--pencil)}
+.role.ink{border-top:3px solid var(--ink)}
+.role.pod{border-top:3px solid var(--pod)}
+.role.jade{border-top:3px solid var(--jade)}
+.motto{font-size:15px;color:var(--ink-2);display:flex;flex-wrap:wrap;gap:4px 14px;margin-top:4px}
+.motto span{white-space:nowrap}
+.motto em{font-style:normal;font-weight:600}
+.motto .pc{color:var(--pencil)} .motto .pd{color:var(--pod)} .motto .jd{color:var(--jade-text)}
+
+/* sections */
+section{padding-block:44px 8px;border-top:1px solid var(--rule);margin-top:36px;display:grid;gap:16px;scroll-margin-top:56px}
+section > .head{display:grid;gap:8px}
+section h2{font-size:clamp(24px,3.2vw,32px);font-weight:800;letter-spacing:-.01em}
+section .intro{color:var(--ink-2);font-size:16px}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:13px;color:var(--ink-2)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+
+.fig{background:var(--plate);border:1px solid var(--rule);border-radius:12px;overflow-x:auto;padding:14px}
+.fig svg{display:block;width:100%;height:auto}
+.fig.min760 svg{min-width:760px}
+.fig.min680 svg{min-width:680px}
+.fig.min620 svg{min-width:620px}
+.cap{font-size:13px;color:var(--ink-3);max-width:90ch}
+
+/* svg vocabulary */
+svg text{font-family:var(--font-body)}
+.tl{fill:var(--ink);font-size:14px;font-weight:700}
+.tl-s{fill:var(--ink);font-size:13px;font-weight:700}
+.ts{fill:var(--ink-3);font-size:11.5px}
+.tx{fill:var(--ink-2);font-size:12px}
+.tm{fill:var(--ink-2);font-family:var(--font-mono);font-size:11px}
+.tj{fill:var(--jade-text);font-size:12px;font-weight:600}
+.tc{fill:var(--canary-text);font-size:12px;font-weight:600}
+.tp{fill:var(--pod);font-size:12px;font-weight:600}
+.halo{paint-order:stroke;stroke:var(--plate);stroke-width:5px;stroke-linejoin:round}
+.b{fill:var(--plate);stroke:var(--rule-strong);stroke-width:1.2}
+.b2{fill:var(--plate-2);stroke:var(--rule-strong);stroke-width:1.2}
+.b-ink{fill:var(--plate);stroke:var(--ink);stroke-width:1.8}
+.b-pencil{fill:var(--pencil-wash);stroke:var(--pencil);stroke-width:1.4}
+.b-pod{fill:var(--pod-wash);stroke:var(--pod);stroke-width:1.4}
+.b-jade{fill:var(--jade-wash);stroke:var(--jade);stroke-width:1.6}
+.b-canary{fill:var(--canary-wash);stroke:var(--canary);stroke-width:1.6}
+.b-steel{fill:var(--steel-face);stroke:var(--steel);stroke-width:1.4;stroke-dasharray:6 4}
+.b-group{fill:none;stroke:var(--rule-strong);stroke-width:1.5}
+.b-group-ink{fill:var(--plate-2);stroke:var(--ink-3);stroke-width:1.5}
+.ln{stroke:var(--ink-3);stroke-width:1.5;fill:none}
+.ln-d{stroke:var(--ink-3);stroke-width:1.5;fill:none;stroke-dasharray:5 4}
+.ln-steel{stroke:var(--steel);stroke-width:1.5;fill:none;stroke-dasharray:6 4}
+.ln-jade{stroke:var(--jade);stroke-width:2;fill:none}
+.ln-pod{stroke:var(--pod);stroke-width:1.8;fill:none}
+.ln-canary{stroke:var(--canary);stroke-width:2;fill:none}
+.ln-life{stroke:var(--rule-strong);stroke-width:1.2;stroke-dasharray:3 4}
+.mk-mute{fill:var(--ink-3)} .mk-jade{fill:var(--jade)} .mk-pod{fill:var(--pod)} .mk-canary{fill:var(--canary)} .mk-steel{fill:var(--steel)}
+.hatch-line{stroke:var(--hatch)} .hatch-bg{fill:var(--hatch-bg)}
+.f-hatch{fill:url(#hatch);stroke:var(--hatch);stroke-width:1}
+.flow{fill:var(--flow)} .flow-jade{fill:var(--jade-wash)} .flow-hatch{fill:url(#hatchLight)} .flow-pencil{fill:var(--pencil-wash)}
+.node{fill:var(--ink)} .node-jade{fill:var(--jade)} .node-hatch{fill:url(#hatch)} .node-pencil{fill:var(--pencil)} .node-steel{fill:var(--steel)}
+.axis{stroke:var(--ink-3);stroke-width:1.5}
+.zone{fill:var(--pencil-wash)}
+.thr{stroke:var(--ink);stroke-width:2}
+.dot{fill:var(--plate);stroke:var(--ink);stroke-width:2}
+.dot-c{fill:var(--canary)}
+.dot-i{fill:var(--ink)}
+
+/* grids of cards */
+.cards{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
+.card{background:var(--plate);border:1px solid var(--rule);border-radius:10px;padding:14px 16px;display:grid;gap:6px;align-content:start;min-width:0}
+.card h3{font-size:16px;font-weight:800}
+.card p{font-size:14px;color:var(--ink-2)}
+.card .meta{font-size:12px;color:var(--ink-3)}
+.tag{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;padding:2px 8px;border-radius:999px;border:1px solid var(--rule-strong);color:var(--ink-2);width:max-content}
+.tag.canary{background:var(--canary-wash);border-color:var(--canary);color:var(--canary-text)}
+.tag.ink{border-color:var(--ink);color:var(--ink)}
+.tag.steel{border:1px dashed var(--steel);background:var(--steel-face);color:var(--ink-2)}
+.tag.pod{border-color:var(--pod);color:var(--pod);background:var(--pod-wash)}
+.tag.jade{border-color:var(--jade);color:var(--jade-text);background:var(--jade-wash)}
+.card.hold{border-left:4px solid var(--canary)}
+.card.note{border-left:4px dashed var(--steel)}
+
+/* lifecycle explorer */
+.fsm{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+.phase{background:var(--plate);border:1px solid var(--rule);border-radius:10px;padding:12px;display:grid;gap:8px;align-content:start;min-width:0}
+.phase h3{font-size:12px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
+.chips{display:grid;gap:6px}
+.chip{font:inherit;font-family:var(--font-mono);font-size:12.5px;text-align:left;display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:7px;
+  border:1px solid var(--rule-strong);background:var(--plate);color:var(--ink);cursor:pointer;min-width:0;overflow-wrap:anywhere}
+.chip:hover{border-color:var(--ink-3)}
+.chip[aria-pressed="true"]{border-color:var(--pod);box-shadow:0 0 0 2px var(--pod-wash);background:var(--pod-wash)}
+.chip .arrow{margin-left:auto;color:var(--ink-3);font-family:var(--font-body)}
+.exits{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:13px;color:var(--ink-3)}
+.exits .chip{display:inline-flex}
+.panel{background:var(--plate);border:1px solid var(--pod);border-radius:12px;padding:18px;display:grid;gap:12px;grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+.panel .ph{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+.panel .ph h3{font-family:var(--font-mono);font-size:20px;font-weight:600}
+.panel dl{margin:0;display:grid;gap:4px;min-width:0}
+.panel dt{font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3)}
+.panel dd{margin:0;font-size:14.5px;color:var(--ink-2);overflow-wrap:anywhere}
+.steps{list-style:none;margin:0;padding:0;display:grid;gap:8px;counter-reset:s}
+.steps li{display:grid;grid-template-columns:30px minmax(0,1fr);gap:10px;align-items:start;font-size:14.5px;color:var(--ink-2)}
+.steps li::before{counter-increment:s;content:counter(s);font-weight:800;font-variant-numeric:tabular-nums;color:var(--ink);background:var(--plate);border:1px solid var(--rule-strong);border-radius:50%;width:26px;height:26px;display:grid;place-items:center;font-size:13px}
+.steps b{color:var(--ink)}
+
+/* tables */
+.tbl{overflow-x:auto;background:var(--plate);border:1px solid var(--rule);border-radius:10px}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--rule);vertical-align:top}
+th{font-size:12px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);background:var(--plate-2)}
+tr:last-child td{border-bottom:0}
+td.num{font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+td .mono{white-space:nowrap}
+
+.eq{font-family:var(--font-mono);font-size:14px;background:var(--plate);border:1px solid var(--rule);border-radius:10px;padding:14px 16px;overflow-x:auto;color:var(--ink-2);font-variant-numeric:tabular-nums;line-height:1.9}
+.eq b{color:var(--ink)}
+.eq .ok{color:var(--jade-text);font-weight:600}
+
+.two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:16px}
+.plates{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.plate{background:var(--plate);border:1px solid var(--rule);border-radius:10px;padding:14px;display:grid;gap:6px;min-width:0}
+.plate .n{font-family:var(--font-mono);font-size:12px;color:var(--ink-3)}
+.plates .plate h3{font-size:16px;font-weight:800}
+.plate p{font-size:13.5px;color:var(--ink-2)}
+
+.inv{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}
+.inv .card .id{font-family:var(--font-mono);font-weight:600;font-size:13px;color:var(--pod)}
+.inv .card code{font-size:11.5px}
+
+.real{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+footer{margin-top:48px;padding-top:20px;border-top:1px solid var(--rule);font-size:13px;color:var(--ink-3);display:grid;gap:6px}
+
+@media (max-width:860px){
+  .roles,.fsm{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .plates,.real{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .two,.panel{grid-template-columns:minmax(0,1fr)}
+}
+@media (max-width:520px){
+  .roles,.fsm,.plates,.real{grid-template-columns:minmax(0,1fr)}
+  .hero .lede{font-size:16px}
+}
+@media (prefers-reduced-motion:no-preference){
+  .chip{transition:border-color .15s,background .15s}
+}
+</style>
+</head>
+<body>
+
+<!-- shared SVG defs: markers and the cash hatch -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <marker id="a-mute" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk-mute" d="M0,0 L10,5 L0,10 z"/></marker>
+    <marker id="a-jade" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk-jade" d="M0,0 L10,5 L0,10 z"/></marker>
+    <marker id="a-pod" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk-pod" d="M0,0 L10,5 L0,10 z"/></marker>
+    <marker id="a-canary" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk-canary" d="M0,0 L10,5 L0,10 z"/></marker>
+    <marker id="a-steel" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="mk-steel" d="M0,0 L10,5 L0,10 z"/></marker>
+    <pattern id="hatch" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <rect width="6" height="6" class="hatch-bg"/><line x1="1" y1="0" x2="1" y2="6" class="hatch-line" stroke-width="2.4"/>
+    </pattern>
+    <pattern id="hatchLight" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+      <line x1="1" y1="0" x2="1" y2="8" class="hatch-line" stroke-width="1.6" opacity=".55"/>
+    </pattern>
+  </defs>
+</svg>
+
+<nav class="toc" aria-label="Sections">
+  <div class="wrap">
+    <a href="#overview">Overview</a><a href="#system">System map</a><a href="#request">Request path</a>
+    <a href="#lifecycle">Pay-run lifecycle</a><a href="#reading">Reading slips</a><a href="#holds">Holds</a>
+    <a href="#money">Money flow</a><a href="#keys">Two keys</a><a href="#paypal">PayPal</a>
+    <a href="#proof">Ledger &amp; Proof</a><a href="#invariants">Invariants</a><a href="#packages">Packages</a><a href="#real">What's real</a>
+  </div>
+</nav>
+
+<main class="wrap">
+
+<header class="hero" id="overview">
+  <div class="eyebrow">Fair Split · co-op payroll — how it is built and how it works</div>
+  <h1>Every peso, traced to the pencil mark.</h1>
+  <p class="lede">Fair Split is payroll for a farmers' co-op whose pay starts on handwritten weigh-slips. A buyer pays one invoice for the season; the co-op splits it across its members, some paid through PayPal and most in cash, all on one statement. Every member can see why her number is her number, and the buyer can re-check every line in its own browser.</p>
+
+  <ul class="roles">
+    <li class="role pencil">
+      <div class="k"><span class="sw pencil"></span>The model</div>
+      <h3>Claude reads paper</h3>
+      <p>Reads each slip photo twice, re-reads doubtful cells, and screens slip text for injected instructions. It never writes a number into a line.</p>
+    </li>
+    <li class="role ink">
+      <div class="k"><span class="sw ink"></span>Code</div>
+      <h3>Code computes</h3>
+      <p>A pure engine computes every line in integer cents from a rate card ratified before the first slip, and holds anything it cannot justify.</p>
+    </li>
+    <li class="role pod">
+      <div class="k"><span class="sw pod"></span>People</div>
+      <h3>People approve</h3>
+      <p>The treasurer resolves holds and signs key 1. The Chair co-signs key 2 for any batch over US$300. Both sign the same batch hash.</p>
+    </li>
+    <li class="role jade">
+      <div class="k"><span class="sw jade"></span>PayPal</div>
+      <h3>PayPal executes</h3>
+      <p>Invoicing v2 bills the buyer, Payouts v1 pays members, signed webhooks confirm. In this build every call goes to a simulated PayPal sandbox.</p>
+    </li>
+  </ul>
+  <div class="motto"><span><em class="pc">Claude writes in pencil.</em></span><span><em class="pd">People sign in ink.</em></span><span><em class="jd">PayPal makes it carbon.</em></span></div>
+
+  <div class="facts">
+    <div class="fact"><b>US$4,333.50</b><span>one invoice to the buyer</span></div>
+    <div class="fact"><b>64</b><span>members, 7 paid by PayPal</span></div>
+    <div class="fact"><b>264</b><span>handwritten slips (synthetic)</span></div>
+    <div class="fact"><b>1 + 1</b><span>Node service, Postgres</span></div>
+    <div class="fact"><b>8</b><span>invariants with named tests</span></div>
+    <div class="fact"><b>6,362</b><span>unit tests (1 Nov count)</span></div>
+  </div>
+</header>
+
+<!-- ============================ SYSTEM MAP ============================ -->
+<section id="system">
+  <div class="head">
+    <div class="eyebrow">Runtime</div>
+    <h2>System map</h2>
+    <p class="intro">One Node service, <code>fs-api</code>, serves everything from one origin: the API, live event streams, PayPal webhooks, the web console and the mobile app's web build. Postgres holds all state. Slow or irreversible work runs as tasks from a transactional outbox, inside the same process. An hourly cron pings it to reset judge workspaces.</p>
+  </div>
+  <div class="fig min760">
+    <svg viewBox="0 0 1000 560" role="img" aria-labelledby="sysT">
+      <title id="sysT">Clients on the left talk to fs-api in the middle, which writes to Postgres below and reaches Claude and PayPal on the right.</title>
+      <!-- clients -->
+      <text x="20" y="34" class="ts" font-weight="700">PEOPLE AND SCREENS</text>
+      <rect x="20" y="50" width="200" height="64" rx="8" class="b-pod"/>
+      <text x="34" y="76" class="tl-s">Treasurer console</text><text x="34" y="96" class="ts">web · React + AG Grid</text>
+      <rect x="20" y="140" width="200" height="64" rx="8" class="b-pod"/>
+      <text x="34" y="166" class="tl-s">Fair Split app</text><text x="34" y="186" class="ts">Expo · member, Chair, clerk</text>
+      <rect x="20" y="230" width="200" height="64" rx="8" class="b-pod"/>
+      <text x="34" y="256" class="tl-s">Judge stage</text><text x="34" y="276" class="ts">/judge · no login, no key</text>
+      <rect x="20" y="320" width="200" height="64" rx="8" class="b-pod"/>
+      <text x="34" y="346" class="tl-s">Proof page</text><text x="34" y="366" class="ts">buyer re-checks in browser</text>
+      <g class="ln">
+        <line x1="222" y1="82" x2="298" y2="82" marker-start="url(#a-mute)" marker-end="url(#a-mute)"/>
+        <line x1="222" y1="172" x2="298" y2="172" marker-start="url(#a-mute)" marker-end="url(#a-mute)"/>
+        <line x1="222" y1="262" x2="298" y2="262" marker-start="url(#a-mute)" marker-end="url(#a-mute)"/>
+        <line x1="222" y1="352" x2="298" y2="352" marker-start="url(#a-mute)" marker-end="url(#a-mute)"/>
+      </g>
+      <text x="230" y="420" class="ts">HTTPS /v1 in,</text><text x="230" y="436" class="ts">SSE events out</text>
+
+      <!-- fs-api -->
+      <rect x="300" y="20" width="400" height="408" rx="12" class="b-group-ink"/>
+      <text x="316" y="46" class="tl">fs-api</text><text x="368" y="46" class="ts">one Node service · Hono · one origin</text>
+      <rect x="316" y="62" width="180" height="52" rx="7" class="b"/><text x="328" y="84" class="tl-s">/v1 commands</text><text x="328" y="102" class="ts">zod-checked · OpenAPI 3.1</text>
+      <rect x="504" y="62" width="180" height="52" rx="7" class="b"/><text x="516" y="84" class="tl-s">SSE hub</text><text x="516" y="102" class="ts">replays from Last-Event-ID</text>
+      <rect x="316" y="124" width="368" height="52" rx="7" class="b-ink"/><text x="328" y="146" class="tl-s">@fairsplit/domain</text><text x="328" y="164" class="ts">pure: engine, holds, state machines, digests · no IO</text>
+      <rect x="316" y="186" width="180" height="52" rx="7" class="b"/><text x="328" y="208" class="tl-s">Outbox dispatcher</text><text x="328" y="226" class="ts">claims rows, runs tasks</text>
+      <rect x="504" y="186" width="180" height="52" rx="7" class="b"/><text x="516" y="208" class="tl-s">/webhooks/paypal</text><text x="516" y="226" class="ts">verify · dedupe · store</text>
+      <rect x="316" y="248" width="180" height="52" rx="7" class="b"/><text x="328" y="270" class="tl-s">PayPal tools</text><text x="328" y="288" class="ts">Invoicing + Payouts</text>
+      <rect x="504" y="248" width="180" height="52" rx="7" class="b-pencil"/><text x="516" y="270" class="tl-s">ClaudeGateway</text><text x="516" y="288" class="ts">replay cache · spend caps</text>
+      <rect x="316" y="310" width="180" height="52" rx="7" class="b"/><text x="328" y="332" class="tl-s">Approvals + Proof</text><text x="328" y="350" class="ts">Ed25519 checks · bundles</text>
+      <rect x="504" y="310" width="180" height="52" rx="7" class="b"/><text x="516" y="332" class="tl-s">Judge lane</text><text x="516" y="350" class="ts">sessions · quota · reset</text>
+      <rect x="316" y="372" width="368" height="44" rx="7" class="b-steel"/><text x="328" y="391" class="tl-s">Simulated PayPal sandbox (in-process)</text><text x="328" y="408" class="ts">OAuth · Invoicing v2 · Payouts v1 · signed webhooks</text>
+
+      <!-- db -->
+      <line x1="500" y1="430" x2="500" y2="458" class="ln" marker-start="url(#a-mute)" marker-end="url(#a-mute)"/>
+      <text x="510" y="448" class="ts">one transaction per change · LISTEN/NOTIFY</text>
+      <rect x="300" y="460" width="400" height="92" rx="12" class="b-group-ink"/>
+      <text x="316" y="482" class="tl">fs-db</text><text x="364" y="482" class="ts">Postgres · all state, money in bigint cents</text>
+      <rect x="316" y="492" width="180" height="24" rx="5" class="b"/><text x="326" y="508" class="ts">pay_runs · member_lines</text>
+      <rect x="504" y="492" width="180" height="24" rx="5" class="b"/><text x="514" y="508" class="ts">run_events (append-only)</text>
+      <rect x="316" y="521" width="180" height="24" rx="5" class="b"/><text x="326" y="537" class="ts">ledger_entries (hash chain)</text>
+      <rect x="504" y="521" width="180" height="24" rx="5" class="b"/><text x="514" y="537" class="ts">task_outbox · paypal_calls</text>
+
+      <!-- right column -->
+      <text x="780" y="34" class="ts" font-weight="700">OUTSIDE fs-api</text>
+      <rect x="780" y="50" width="200" height="72" rx="8" class="b"/>
+      <text x="794" y="76" class="tl-s">fs-cron</text><text x="794" y="95" class="ts">hourly at minute 7</text><text x="794" y="111" class="ts">pings fs-api: judge reset</text>
+      <line x1="778" y1="86" x2="702" y2="86" class="ln" marker-end="url(#a-mute)"/>
+
+      <rect x="780" y="226" width="200" height="94" rx="8" class="b-pencil"/>
+      <text x="794" y="252" class="tl-s">Claude API</text><text x="794" y="271" class="ts">Opus reads · Haiku screens</text><text x="794" y="287" class="ts">Sonnet matches deductions</text><text x="794" y="307" class="tc">Judge Mode: labelled replay</text>
+      <line x1="686" y1="274" x2="778" y2="274" class="ln-d" marker-end="url(#a-mute)"/>
+      <text x="698" y="264" class="ts">only door</text>
+
+      <rect x="780" y="352" width="200" height="72" rx="8" class="b-steel"/>
+      <text x="794" y="378" class="tl-s">PayPal REST sandbox</text><text x="794" y="397" class="ts">PP_MODE=sandbox</text><text x="794" y="413" class="ts">built, not yet tested</text>
+      <line x1="702" y1="394" x2="778" y2="394" class="ln-steel" marker-end="url(#a-steel)"/>
+    </svg>
+  </div>
+  <div class="legend">
+    <span><span class="sw pod"></span>a person's screen</span>
+    <span><span class="sw ink"></span>pure code, no IO</span>
+    <span><span class="sw pencil"></span>the model</span>
+    <span><span class="sw steel"></span>simulated, or built but not connected</span>
+  </div>
+</section>
+
+<!-- ============================ REQUEST PATH ============================ -->
+<section id="request">
+  <div class="head">
+    <div class="eyebrow">Execution model</div>
+    <h2>Request path: state and effect commit together</h2>
+    <p class="intro">Every command writes its state change, an event row and an outbox row in one Postgres transaction. The effect (a PayPal call, a Claude read, a statement) runs afterwards and is idempotent, so a crash or a retry can never do it twice or lose it. The result comes back the same way, and Postgres <code>NOTIFY</code> pushes it to every open screen over server-sent events.</p>
+  </div>
+  <div class="fig min760">
+    <svg viewBox="0 0 1000 510" role="img" aria-labelledby="seqT">
+      <title id="seqT">Sequence: client command, one transaction, outbox dispatch, idempotent external call, second transaction, notify, SSE event.</title>
+      <g>
+        <rect x="15" y="14" width="160" height="46" rx="8" class="b-pod"/><text x="95" y="34" text-anchor="middle" class="tl-s">Client</text><text x="95" y="51" text-anchor="middle" class="ts">console · app · stage</text>
+        <rect x="215" y="14" width="160" height="46" rx="8" class="b"/><text x="295" y="34" text-anchor="middle" class="tl-s">fs-api</text><text x="295" y="51" text-anchor="middle" class="ts">routes + dispatcher</text>
+        <rect x="415" y="14" width="160" height="46" rx="8" class="b-ink"/><text x="495" y="34" text-anchor="middle" class="tl-s">Postgres</text><text x="495" y="51" text-anchor="middle" class="ts">fs-db</text>
+        <rect x="615" y="14" width="160" height="46" rx="8" class="b"/><text x="695" y="34" text-anchor="middle" class="tl-s">Task</text><text x="695" y="51" text-anchor="middle" class="ts">outbox handler</text>
+        <rect x="815" y="14" width="170" height="46" rx="8" class="b-steel"/><text x="900" y="34" text-anchor="middle" class="tl-s">PayPal sim / Claude</text><text x="900" y="51" text-anchor="middle" class="ts">the external effect</text>
+      </g>
+      <g class="ln-life"><line x1="95" y1="60" x2="95" y2="500"/><line x1="295" y1="60" x2="295" y2="500"/><line x1="495" y1="60" x2="495" y2="500"/><line x1="695" y1="60" x2="695" y2="500"/><line x1="900" y1="60" x2="900" y2="500"/></g>
+
+      <line x1="97" y1="98" x2="293" y2="98" class="ln-pod" marker-end="url(#a-pod)"/><text x="195" y="90" text-anchor="middle" class="tx">1 · command, e.g. approve</text>
+      <line x1="297" y1="132" x2="420" y2="132" class="ln" marker-end="url(#a-mute)"/><text x="358" y="124" text-anchor="middle" class="tx">2 · BEGIN</text>
+      <rect x="420" y="118" width="150" height="74" rx="6" class="b-ink"/>
+      <text x="432" y="138" class="tx" font-weight="700">one transaction</text><text x="432" y="155" class="ts">state change (rank check)</text><text x="432" y="170" class="ts">+ run_event</text><text x="432" y="185" class="ts">+ task_outbox row</text>
+      <line x1="293" y1="218" x2="97" y2="218" class="ln-d" marker-end="url(#a-mute)"/><text x="195" y="210" text-anchor="middle" class="tx">3 · accepted</text>
+      <line x1="497" y1="252" x2="693" y2="252" class="ln" marker-end="url(#a-mute)"/><text x="595" y="244" text-anchor="middle" class="tx">4 · claim row (SKIP LOCKED)</text>
+      <line x1="697" y1="288" x2="898" y2="288" class="ln-jade" marker-end="url(#a-jade)"/><text x="798" y="280" text-anchor="middle" class="tx">5 · call with idempotency key</text>
+      <line x1="898" y1="322" x2="697" y2="322" class="ln-d" marker-end="url(#a-mute)"/><text x="798" y="314" text-anchor="middle" class="tx">6 · result, signed webhook</text>
+      <line x1="693" y1="356" x2="572" y2="356" class="ln" marker-end="url(#a-mute)"/><text x="634" y="348" text-anchor="middle" class="tx">7 · BEGIN</text>
+      <rect x="420" y="342" width="150" height="74" rx="6" class="b-ink"/>
+      <text x="432" y="362" class="tx" font-weight="700">one transaction</text><text x="432" y="379" class="ts">state + run_events</text><text x="432" y="394" class="ts">+ ledger entry (hashed)</text><text x="432" y="409" class="ts">+ pg_notify (ids only)</text>
+      <line x1="493" y1="448" x2="297" y2="448" class="ln" marker-end="url(#a-mute)"/><text x="395" y="440" text-anchor="middle" class="tx">8 · NOTIFY → LISTEN</text>
+      <line x1="293" y1="484" x2="97" y2="484" class="ln-pod" marker-end="url(#a-pod)"/><text x="195" y="476" text-anchor="middle" class="tx">9 · SSE event</text>
+    </svg>
+  </div>
+  <div class="cards">
+    <div class="card"><h3>If the task crashes</h3><p>The outbox row is still there. A sweeper re-dispatches rows stuck for 5 minutes; tasks load state by id and move it with <code>UPDATE … WHERE state = $expected</code>, so a second run is a no-op.</p></div>
+    <div class="card"><h3>If the stream drops</h3><p>The client reconnects with <code>Last-Event-ID</code> and the hub replays the rows it missed. While it is down, the screen polls every 5 seconds.</p></div>
+    <div class="card"><h3>If PayPal throttles</h3><p>One limiter in Postgres allows 40 PayPal calls a minute across the service, under the sandbox's 50. A 429 opens a 6-minute circuit. The code never polls.</p></div>
+  </div>
+</section>
+
+<!-- ============================ LIFECYCLE ============================ -->
+<section id="lifecycle">
+  <div class="head">
+    <div class="eyebrow">State machine · packages/domain/src/fsm.ts</div>
+    <h2>Pay-run lifecycle</h2>
+    <p class="intro">A pay run only moves forward. Each state has a numeric rank, and a transition is a guarded <code>UPDATE … WHERE state = $expected</code>. The single backwards edge is the send-back: editing a line after approval returns the run to review and voids both signatures. Select a state to see what happens there.</p>
+  </div>
+  <div class="legend">
+    <span><span class="sw pencil"></span>the model acts</span><span><span class="sw ink"></span>code acts</span><span><span class="sw pod"></span>a person acts</span><span><span class="sw jade"></span>money moves (PayPal)</span>
+  </div>
+  <div class="fsm" id="fsm"></div>
+  <div class="exits" id="exits"><span>Exits:</span></div>
+  <div class="panel" id="panel" aria-live="polite"></div>
+
+  <div class="card" style="gap:12px">
+    <h3>The judge's demo run, through these states</h3>
+    <ol class="steps">
+      <li><span><b>Fund.</b> Press “Mark Lantern Bay's invoice paid”. The invoice is created, sent, given an AUTO_CANCEL rule and paid on the simulator; a fresh GET reads it PAID, so the run is <code>FUNDED</code>.</span></li>
+      <li><span><b>Read.</b> 12 photos (48 slips) are read: a replay of a labelled seed stand-in, with R1's real Claude output for the 10 hero slips beside it. Stained slip 0462 needs a person.</span></li>
+      <li><span><b>Resolve three holds.</b> H1 duplicate slip 0457, H2 Merlyn's yield of 2.14 kg a tree, H3 a ₱200 multa that matches no rule.</span></li>
+      <li><span><b>Key 1.</b> Hold to sign “Approve 8 payouts” as the treasurer (an Ed25519 demo key made in your browser).</span></li>
+      <li><span><b>Key 2.</b> Co-sign as Ernesto, the Chair, because the batch is over US$300.</span></li>
+      <li><span><b>Pay.</b> The simulated sandbox accepts the batch; items confirm one by one. Rhea's item parks UNCLAIMED, so she is paid in cash at the bodega.</span></li>
+      <li><span><b>Prove.</b> Open Proof and press “Verify in your browser”: the hash chain, its signed checkpoint and six plates are checked on your device.</span></li>
+      <li><span><b>Reset.</b> A fresh run in about 10 seconds.</span></li>
+    </ol>
+  </div>
+</section>
+
+<!-- ============================ READING ============================ -->
+<section id="reading">
+  <div class="head">
+    <div class="eyebrow">AI pipeline · packages/ai</div>
+    <h2>Reading a weigh-slip</h2>
+    <p class="intro">Claude turns each slip photo into fields, twice. Code compares the two reads and scores agreement; only a high score is accepted without a person. The model's output schema has no amount field, and slip text re-enters a prompt only as JSON data, so a note in a margin cannot become an instruction.</p>
+  </div>
+  <div class="fig min760">
+    <svg viewBox="0 0 1000 300" role="img" aria-labelledby="readT">
+      <title id="readT">Photo is prepared, read twice by Opus and screened by Haiku; code scores agreement; high scores auto-accept, disagreements get a zoom re-read, the rest go to a person; suspected injections are quarantined.</title>
+      <rect x="10" y="112" width="112" height="70" rx="8" class="b"/><text x="22" y="140" class="tl-s">Slip photo</text><text x="22" y="160" class="ts">4 slips each</text>
+      <line x1="124" y1="147" x2="146" y2="147" class="ln" marker-end="url(#a-mute)"/>
+      <rect x="148" y="112" width="140" height="70" rx="8" class="b-ink"/><text x="160" y="137" class="tl-s">Prepare</text><text x="160" y="155" class="ts">sha256 · pHash</text><text x="160" y="171" class="ts">rotate, strip EXIF</text>
+
+      <path d="M290,135 C305,135 305,52 318,52" class="ln" marker-end="url(#a-mute)"/>
+      <line x1="290" y1="147" x2="318" y2="147" class="ln" marker-end="url(#a-mute)"/>
+      <path d="M290,160 C305,160 305,242 318,242" class="ln" marker-end="url(#a-mute)"/>
+
+      <rect x="320" y="22" width="172" height="60" rx="8" class="b-pencil"/><text x="332" y="47" class="tl-s">Read A</text><text x="332" y="66" class="ts">Opus 5.5 · effort low</text>
+      <rect x="320" y="117" width="172" height="60" rx="8" class="b-pencil"/><text x="332" y="142" class="tl-s">Read B</text><text x="332" y="161" class="ts">grey + CLAHE variant</text>
+      <rect x="320" y="212" width="172" height="60" rx="8" class="b-pencil"/><text x="332" y="237" class="tl-s">Injection screen</text><text x="332" y="256" class="ts">Haiku 5.5 · refusal = suspect</text>
+
+      <path d="M494,52 C512,52 512,84 530,84" class="ln" marker-end="url(#a-mute)"/>
+      <path d="M494,147 C512,147 512,110 530,110" class="ln" marker-end="url(#a-mute)"/>
+      <rect x="532" y="62" width="150" height="70" rx="8" class="b-ink"/><text x="544" y="90" class="tl-s">Agreement score</text><text x="544" y="110" class="ts">computed in code</text>
+
+      <path d="M684,80 C708,80 708,38 730,38" class="ln" marker-end="url(#a-mute)"/>
+      <path d="M684,97 C708,97 708,114 730,114" class="ln" marker-end="url(#a-mute)"/>
+      <path d="M684,114 C700,114 700,190 730,190" class="ln-canary" marker-end="url(#a-canary)"/>
+      <rect x="732" y="10" width="254" height="56" rx="8" class="b-ink"/><text x="744" y="34" class="tl-s">Auto-accept</text><text x="744" y="53" class="ts">score ≥ 0.85 and nothing overwritten</text>
+      <rect x="732" y="86" width="254" height="56" rx="8" class="b-pencil"/><text x="744" y="110" class="tl-s">Zoom re-read</text><text x="744" y="129" class="ts">A ≠ B · Opus, medium, on the cell crop</text>
+      <line x1="859" y1="143" x2="859" y2="160" class="ln-canary" marker-end="url(#a-canary)"/>
+      <rect x="732" y="162" width="254" height="56" rx="8" class="b-canary"/><text x="744" y="186" class="tl-s">A person decides</text><text x="744" y="205" class="ts">overwritten, stained, still unsure</text>
+      <line x1="494" y1="242" x2="730" y2="262" class="ln-d" marker-end="url(#a-mute)"/>
+      <rect x="732" y="238" width="254" height="56" rx="8" class="b-steel"/><text x="744" y="262" class="tl-s">Quarantined notice</text><text x="744" y="281" class="ts">e.g. slip 0449's margin note</text>
+    </svg>
+  </div>
+  <div class="fig min620">
+    <svg viewBox="0 0 1000 128" role="img" aria-labelledby="scoreT">
+      <title id="scoreT">Agreement scores on a 0 to 1 scale with the auto-accept line at 0.85.</title>
+      <rect x="822" y="58" width="138" height="34" class="zone"/>
+      <line x1="40" y1="75" x2="960" y2="75" class="axis"/>
+      <line x1="822" y1="24" x2="822" y2="98" class="thr"/>
+      <text x="816" y="20" text-anchor="end" class="tx" font-weight="700">auto-accept at 0.85 and above</text>
+      <circle cx="40" cy="75" r="6" class="dot-c"/><text x="40" y="50" class="tc">0 · illegible</text>
+      <circle cx="408" cy="75" r="6" class="dot-c"/><text x="408" y="110" text-anchor="middle" class="tc">0.40 · reads disagree → zoom</text>
+      <circle cx="592" cy="75" r="6" class="dot-c"/><text x="592" y="50" text-anchor="middle" class="tc">0.60 · overwritten: always a person</text>
+      <circle cx="776" cy="75" r="6" class="dot-c"/><text x="770" y="110" text-anchor="end" class="tc">0.80 · zoom agrees with one read</text>
+      <circle cx="849.6" cy="75" r="6" class="dot-i"/><text x="856" y="110" class="tx" font-weight="600">0.88 · one smudged</text>
+      <circle cx="932.4" cy="75" r="6" class="dot-i"/><text x="960" y="50" text-anchor="end" class="tx" font-weight="600">0.97 · A = B, clear</text>
+    </svg>
+  </div>
+  <p class="cap">Scores are fixed constants in <code>packages/domain/src/agreement.ts</code>. Every call goes through <code>ClaudeGateway</code>: a replay cache keyed on sha256 of image, variant, prompt and schema versions, model and effort; per-lane and daily spend caps; a <code>kill_ai_live</code> switch read before every call; any stop other than <code>end_turn</code> goes to a person. Live run R1 (1 Nov 2026) read the 10 hero slips: 10 of 10 exact rows, 0 unsafe auto-accepts, on provisional labels.</p>
+</section>
+
+<!-- ============================ HOLDS ============================ -->
+<section id="holds">
+  <div class="head">
+    <div class="eyebrow">Engine · packages/domain/src/engine.ts</div>
+    <h2>Holds: what the engine refuses to guess</h2>
+    <p class="intro">The engine computes every line from the ratified rate card (Schedule A, rules R0–R4) in integer cents: premium shared by verified kilos, bonus by verified Grade-1 kilos, largest-remainder rounding with ties to the lower member number. Whatever the rules cannot justify becomes a hold that a person must resolve, by citing a rule or giving a reason. A held line's money is never quietly redistributed.</p>
+  </div>
+  <div class="legend"><span>Hold kinds, in order:</span><span class="mono">DUPLICATE_SLIP · IMPLAUSIBLE_YIELD · NO_RULE · RATE_MISMATCH · SUSPECTED_INJECTION · LOW_CONFIDENCE · MASS_BALANCE</span></div>
+  <div class="cards">
+    <div class="card hold"><span class="tag canary">H1 · blocks approval</span><h3>Duplicate slip 0457</h3><p>The same slip appears in two photos: the white original and the pink copy. “Count it once” returns US$17.94 to the 63 other members.</p><p class="meta">DUPLICATE_SLIP · found by sha256 and pHash</p></div>
+    <div class="card hold"><span class="tag canary">H2 · blocks approval</span><h3>Implausible yield, M-053</h3><p>Merlyn Ponce delivered 300.0 kg from 140 registered trees: 2.14 kg a tree, over the rate card's 1.6 limit. She registers a second plot (330 trees).</p><p class="meta">IMPLAUSIBLE_YIELD</p></div>
+    <div class="card hold"><span class="tag canary">H3 · reserves one line</span><h3>A ₱200 fine with no rule</h3><p>Slip 0458 shows a multa that matches no ratified rule. It comes back to M-018 as a US$3.20 credit the co-op pays.</p><p class="meta">NO_RULE · classifier said NO_MATCH</p></div>
+    <div class="card hold"><span class="tag canary">Field · blocks approval</span><h3>Stained digit on slip 0462</h3><p>Neither read is sure. A person types it, or presses “Use logbook line 7” (page 14 reads 64.50).</p><p class="meta">LOW_CONFIDENCE · entered by hand</p></div>
+    <div class="card hold"><span class="tag canary">Season check</span><h3>Mass-balance dial</h3><p>Verified kilos against the shipped lot: shrink 1.62%, inside ±2.0%. Counting slip 0457 twice would push it to 2.05%.</p><p class="meta">MASS_BALANCE · raised and cleared by the engine</p></div>
+    <div class="card note"><span class="tag steel">Notice, not a hold</span><h3>Instruction in a margin</h3><p>Slip 0449 has an instruction written beside the rows. The screen flags it, the text is quarantined and shown as a notice, and it is never followed.</p><p class="meta">SUSPECTED_INJECTION screen</p></div>
+  </div>
+</section>
+
+<!-- ============================ MONEY ============================ -->
+<section id="money">
+  <div class="head">
+    <div class="eyebrow">Invariant I3 · money is conserved</div>
+    <h2>Where the season's money goes</h2>
+    <p class="intro">Every cent of Lantern Bay's invoice lands somewhere named. Bands are drawn to scale; the US$3.20 credit is drawn at a minimum width so it stays visible.</p>
+  </div>
+  <div class="fig min760"><svg id="sankey" viewBox="0 0 1160 590" role="img" aria-labelledby="sanT"><title id="sanT">Invoice US$4,333.50 splits into the members' pool and disbursement costs; the pool becomes members' net plus deductions kept by the co-op; net is paid 341.74 by PayPal to 7 members and 3,876.43 in cash to 57.</title></svg></div>
+  <div class="eq">
+    <div><b>Invoice</b> 4,333.50 = pool 4,273.50 + disbursement 60.00 <span class="ok">✓</span></div>
+    <div><b>Pool</b> &nbsp;&nbsp;&nbsp;4,273.50 = PayPal 341.74 + cash 3,876.43 + kept by co-op 58.53 − credits paid 3.20 <span class="ok">✓</span></div>
+    <div><b>Batch</b> &nbsp;&nbsp;&nbsp;368.39 = 8 items; Rhea's 26.65 parks UNCLAIMED, returns, and is paid in cash → 341.74 by PayPal <span class="ok">✓</span></div>
+  </div>
+  <p class="cap">All arithmetic is integer US cents (<code>bigint</code> minor units in Postgres). Peso figures use the run's fixed ₱62.50 per US$, are labelled as estimates, and are never summed. The property test <code>inv.i3.conservation</code> (fast-check) checks the equation on random seasons.</p>
+</section>
+
+<!-- ============================ TWO KEYS ============================ -->
+<section id="keys">
+  <div class="head">
+    <div class="eyebrow">Invariants I4 and I6</div>
+    <h2>Two keys, one hash: the approved digest is the payout</h2>
+    <p class="intro">People never approve a screen; they sign a hash. Each line is canonicalised (JCS) and hashed, the batch digest covers every item, and both officers sign that digest with Ed25519. Just before the POST, the Payouts tool ignores everything in memory, re-reads the locked lines from the database and recomputes the digest. If one cent moved, nothing is sent.</p>
+  </div>
+  <div class="fig min760">
+    <svg viewBox="0 0 1000 350" role="img" aria-labelledby="keysT">
+      <title id="keysT">Lines are hashed into a batch digest, signed by the treasurer and the Chair; the Payouts tool re-hashes from the database; a match posts the batch, a mismatch sends nothing and voids both approvals.</title>
+      <rect x="20" y="30" width="180" height="76" rx="8" class="b-ink"/><text x="32" y="56" class="tl-s">64 member lines</text><text x="32" y="75" class="ts">each line hashed (JCS)</text><text x="32" y="92" class="tm">line_hash</text>
+      <line x1="202" y1="68" x2="223" y2="68" class="ln" marker-end="url(#a-mute)"/>
+      <rect x="225" y="30" width="180" height="76" rx="8" class="b-ink"/><text x="237" y="56" class="tl-s">Batch digest</text><text x="237" y="75" class="ts">8 items · US$368.39</text><text x="237" y="92" class="tm">sha256</text>
+      <line x1="407" y1="68" x2="428" y2="68" class="ln-pod" marker-end="url(#a-pod)"/>
+      <rect x="430" y="30" width="180" height="76" rx="8" class="b-pod"/><text x="442" y="56" class="tl-s">Key 1 · Treasurer</text><text x="442" y="75" class="ts">Ed25519 · hold to sign</text><text x="442" y="92" class="tm">signs the digest</text>
+      <line x1="612" y1="68" x2="633" y2="68" class="ln-pod" marker-end="url(#a-pod)"/>
+      <rect x="635" y="30" width="180" height="76" rx="8" class="b-pod"/><text x="647" y="56" class="tl-s">Key 2 · Chair</text><text x="647" y="75" class="ts">batch over US$300</text><text x="647" y="92" class="tm">signs the same digest</text>
+      <line x1="817" y1="68" x2="828" y2="68" class="ln" marker-end="url(#a-mute)"/>
+      <rect x="830" y="30" width="160" height="76" rx="8" class="b-ink"/><text x="842" y="56" class="tl-s">Payouts tool</text><text x="842" y="75" class="ts">re-reads the DB,</text><text x="842" y="92" class="ts">re-hashes the batch</text>
+
+      <line x1="910" y1="108" x2="910" y2="158" class="ln" marker-end="url(#a-mute)"/>
+      <rect x="830" y="160" width="160" height="76" rx="8" class="b-ink"/><text x="842" y="186" class="tl-s">Same digest?</text><text x="842" y="205" class="ts">both signatures valid,</text><text x="842" y="222" class="ts">kill switch off, token</text>
+
+      <line x1="828" y1="198" x2="792" y2="198" class="ln-jade" marker-end="url(#a-jade)"/><text x="810" y="190" text-anchor="middle" class="tj">yes</text>
+      <rect x="430" y="160" width="360" height="76" rx="8" class="b-jade"/>
+      <text x="442" y="186" class="tl-s">POST the batch to PayPal (simulated)</text>
+      <text x="442" y="205" class="tm">sender_batch_id = 2026A-{rc8}-r{runSeq}</text>
+      <text x="442" y="222" class="ts">PayPal-Request-Id = its sha256, so a retry cannot pay twice</text>
+
+      <path d="M910,238 L910,300 L792,300" class="ln-canary" marker-end="url(#a-canary)"/><text x="920" y="272" class="tc">no</text>
+      <rect x="430" y="268" width="360" height="64" rx="8" class="b-canary"/>
+      <text x="442" y="294" class="tl-s">Send nothing</text><text x="442" y="313" class="ts">void both approvals · the run goes back to IN_REVIEW</text>
+
+      <text x="20" y="160" class="tx" font-weight="700">Signed payload (JCS)</text>
+      <text x="20" y="182" class="tm">{v, runId, seasonId,</text>
+      <text x="20" y="198" class="tm"> rateCardSha256, batchSha256,</text>
+      <text x="20" y="214" class="tm"> itemCount, totalCents,</text>
+      <text x="20" y="230" class="tm"> currency, role, approverId,</text>
+      <text x="20" y="246" class="tm"> nonce, exp}</text>
+      <text x="20" y="280" class="ts">Approvals expire after 30 minutes;</text>
+      <text x="20" y="296" class="ts">nonces are single-use; keys are checked</text>
+      <text x="20" y="312" class="ts">against the registered officer keys.</text>
+    </svg>
+  </div>
+  <p class="cap">Try it in Judge Mode: “Arm a payout change before key 2” moves one payout by one cent after both keys. The Payouts tool re-hashes, sends nothing, and voids both approvals. On a retry that gets “already exists”, the batch is adopted only if every item re-hashes to the approved digest.</p>
+</section>
+
+<!-- ============================ PAYPAL ============================ -->
+<section id="paypal">
+  <div class="head">
+    <div class="eyebrow">PayPal integration · built against the simulator</div>
+    <h2>Invoicing, Payouts and webhooks</h2>
+    <p class="intro">Three PayPal APIs carry the money. Invoicing goes through PayPal's own Agent Toolkit 1.11.0; the toolkit has no Payouts tool, so the project owns a typed one in the toolkit's tool shape. Every call in this build hits an in-process simulator that validates requests and responses against PayPal's published specs.</p>
+  </div>
+  <div class="tbl">
+    <table>
+      <thead><tr><th>API</th><th>Calls</th><th>Guard</th><th>Code</th></tr></thead>
+      <tbody>
+        <tr><td><b>Invoicing v2</b><br><span class="cap">bills Lantern Bay</span></td><td><span class="mono">create_invoice</span>, <span class="mono">send_invoice</span>, AUTO_CANCEL rule, <span class="mono">record_payment</span>, <span class="mono">get_invoice</span></td><td>A policy lattice compares the whole body with code's quote and refuses unknown keys (tips, extra recipients). FUNDED needs a fresh GET: PAID, 0.00 due.</td><td><span class="mono">packages/paypal-toolkit</span><br><span class="mono">apps/api/src/money/</span></td></tr>
+        <tr><td><b>Payouts v1</b><br><span class="cap">pays members by e-mail</span></td><td><span class="mono">create_payout_batch</span>, <span class="mono">get_payout_batch</span>, <span class="mono">get_payout_item</span>, <span class="mono">cancel_unclaimed_payout_item</span></td><td>Digest re-hash and both signatures before POST; per-batch ceiling, receiver allowlist, daily cap, balance floor, kill switch read fresh.</td><td><span class="mono">packages/paypal-payouts</span><br><span class="mono">service.ts</span></td></tr>
+        <tr><td><b>Webhooks v1</b><br><span class="cap">confirms each item</span></td><td>Signed notices, e.g. <span class="mono">PAYMENT.PAYOUTS-ITEM.SUCCEEDED</span></td><td>Self-verified (CRC32 of raw body + RSA-SHA256), cert URL shape checked, older than 5 min refused, deduplicated, stored with evidence.</td><td><span class="mono">packages/paypal-core/src/webhook</span><br><span class="mono">apps/api/src/paypal/webhooks.ts</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="head" style="margin-top:8px"><h3 style="font-size:19px;font-weight:800">Payout item status: ranks only go up</h3>
+  <p class="intro">Webhooks can arrive late, twice or out of order. Each status has a rank, and an event applies only if it raises the rank. A verified, stored SUCCEEDED applies at once; every other status waits for a fresh GET.</p></div>
+  <div class="fig min680">
+    <svg viewBox="0 0 1000 240" role="img" aria-labelledby="rankT">
+      <title id="rankT">Payout item status ranks from PENDING 10 to REFUNDED or REVERSED 70.</title>
+      <line x1="30" y1="190" x2="970" y2="190" class="axis"/>
+      <rect x="40" y="168" width="100" height="22" rx="3" class="b2"/>
+      <rect x="170" y="146" width="100" height="44" rx="3" class="b2"/>
+      <rect x="300" y="124" width="100" height="66" rx="3" class="b-canary"/>
+      <rect x="430" y="102" width="100" height="88" rx="3" class="f-hatch"/>
+      <rect x="560" y="80" width="100" height="110" rx="3" class="b2"/>
+      <rect x="690" y="58" width="100" height="132" rx="3" class="b-jade"/>
+      <rect x="820" y="36" width="100" height="154" rx="3" class="b2"/>
+      <g text-anchor="middle">
+        <text x="90" y="210" class="tm">PENDING</text><text x="90" y="228" class="ts">10</text>
+        <text x="220" y="210" class="tm">ONHOLD</text><text x="220" y="228" class="ts">20</text>
+        <text x="350" y="210" class="tm">UNCLAIMED</text><text x="350" y="228" class="ts">30</text>
+        <text x="480" y="210" class="tm">RETURNED</text><text x="480" y="228" class="ts">40</text>
+        <text x="610" y="210" class="tm">FAILED/BLOCKED</text><text x="610" y="228" class="ts">50</text>
+        <text x="740" y="210" class="tm">SUCCESS</text><text x="740" y="228" class="ts">60</text>
+        <text x="870" y="210" class="tm">REFUNDED/REVERSED</text><text x="870" y="228" class="ts">70</text>
+      </g>
+      <path d="M350,118 C360,62 455,58 476,96" class="ln-canary" marker-end="url(#a-canary)"/>
+      <text x="330" y="48" class="tc">only our own cancel moves</text>
+      <text x="330" y="64" class="tc">UNCLAIMED → RETURNED</text>
+      <text x="740" y="50" text-anchor="middle" class="tj">paid</text>
+    </svg>
+  </div>
+  <div class="cards">
+    <div class="card"><h3>Retry-safe IDs</h3><p><code>sender_batch_id</code> is <span class="mono">{season}-{rc8}-r{runSeq}</span> and <code>PayPal-Request-Id</code> is its sha256. A re-route of one member gets its own member-scoped id (ADR-0007).</p></div>
+    <div class="card"><h3>One door to PayPal</h3><p>All traffic goes through <code>paypal-core</code>'s HTTP client with a single-flight OAuth token and the shared limiter. Every call is logged in <code>paypal_calls</code>, which doubles as the limiter's window.</p></div>
+    <div class="card"><h3>Switching rails</h3><p><code>PP_MODE=simulator</code> is the default. <code>PP_MODE=sandbox</code> with a REST app's credentials is designed to point it at PayPal's real sandbox; that path is untested.</p></div>
+  </div>
+</section>
+
+<!-- ============================ PROOF ============================ -->
+<section id="proof">
+  <div class="head">
+    <div class="eyebrow">Attribution ledger · packages/domain/src/chain.ts, verify-core.ts</div>
+    <h2>Hash-chained ledger and Proof</h2>
+    <p class="intro">Every act that matters appends a ledger entry: ratifying the card, accepting a row, raising or resolving a hold, each signature, each payout call, each webhook applied, each kill-switch flip. Each entry's hash covers the previous one. The app role cannot UPDATE or DELETE these rows, and the head is checkpointed with an Ed25519 signature.</p>
+  </div>
+  <div class="fig min760">
+    <svg viewBox="0 0 1000 262" role="img" aria-labelledby="chainT">
+      <title id="chainT">Four ledger entries linked by hashes, above a signed checkpoint.</title>
+      <g>
+        <rect x="10" y="20" width="210" height="140" rx="8" class="b-pod"/>
+        <text x="24" y="42" class="tm">seq n</text><text x="24" y="64" class="tl-s">approval.signed</text><text x="24" y="83" class="ts">person · Treasurer · key 1</text>
+        <text x="24" y="118" class="tm">prev  3b07…e5a1</text><text x="24" y="140" class="tm" font-weight="600">entry 7f3a…91c2</text>
+
+        <rect x="260" y="20" width="210" height="140" rx="8" class="b-pod"/>
+        <text x="274" y="42" class="tm">seq n+1</text><text x="274" y="64" class="tl-s">approval.signed</text><text x="274" y="83" class="ts">person · Chair · key 2</text>
+        <text x="274" y="118" class="tm">prev  7f3a…91c2</text><text x="274" y="140" class="tm" font-weight="600">entry c41e…08bd</text>
+
+        <rect x="510" y="20" width="210" height="140" rx="8" class="b-ink"/>
+        <text x="524" y="42" class="tm">seq n+2</text><text x="524" y="64" class="tl-s">payout.submitting</text><text x="524" y="83" class="ts">system · digest re-checked</text>
+        <text x="524" y="118" class="tm">prev  c41e…08bd</text><text x="524" y="140" class="tm" font-weight="600">entry 90d2…4f17</text>
+
+        <rect x="760" y="20" width="210" height="140" rx="8" class="b-jade"/>
+        <text x="774" y="42" class="tm">seq n+3</text><text x="774" y="64" class="tl-s">webhook.applied</text><text x="774" y="83" class="ts">paypal · item SUCCEEDED</text>
+        <text x="774" y="118" class="tm">prev  90d2…4f17</text><text x="774" y="140" class="tm" font-weight="600">entry e6b8…2c03</text>
+      </g>
+      <path d="M222,136 C240,136 240,114 258,114" class="ln" marker-end="url(#a-mute)"/>
+      <path d="M472,136 C490,136 490,114 508,114" class="ln" marker-end="url(#a-mute)"/>
+      <path d="M722,136 C740,136 740,114 758,114" class="ln" marker-end="url(#a-mute)"/>
+      <text x="10" y="190" class="tm">entry_hash = sha256( prev_hash ‖ JCS{ seq, kind, actor_kind, actor_id, impersonated_by, payload, at } )   ·   genesis prev = 64 zeros</text>
+      <rect x="10" y="206" width="960" height="44" rx="8" class="b-pod"/>
+      <text x="24" y="233" class="tx"><tspan font-weight="700" class="tp">Signed checkpoint</tspan>  the chain head, signed with the ledger's Ed25519 key, published at /.well-known/fairsplit-keys.json</text>
+    </svg>
+  </div>
+  <p class="cap">Hash values above are illustrative stand-ins; real ones are always computed.</p>
+
+  <div class="head"><h3 style="font-size:19px;font-weight:800">The six plates Proof checks on your device</h3>
+  <p class="intro">The Proof page fetches a bundle and the published keys, then runs the same pure verifier the server uses (<code>@fairsplit/domain/verify</code>) with the browser's WebCrypto. A bundle field counts only where a ledger entry attests it, so editing the bundle and re-hashing still fails. <code>pnpm verify-proof &lt;url&gt;</code> runs it from a clone.</p></div>
+  <div class="plates">
+    <div class="plate"><span class="n">plate 1</span><h3>Paid</h3><p>The invoice is PAID with 0.00 due, its reference carries the card hash, its total is pool plus disbursement, and an <span class="mono">invoice.funded</span> entry attests it.</p></div>
+    <div class="plate"><span class="n">plate 2</span><h3>Ratified</h3><p>The rate card re-hashes to the ratified value, and it was ratified before the first slip, by date and in chain order.</p></div>
+    <div class="plate"><span class="n">plate 3</span><h3>Read</h3><p>Every slip photo's hash is attested by a <span class="mono">rows.accepted</span> entry; no photo is listed twice.</p></div>
+    <div class="plate"><span class="n">plate 4</span><h3>Computed</h3><p>Each line re-hashes, cites this card and adds up; the lines sum to the pools; and they were computed before every signature counted.</p></div>
+    <div class="plate"><span class="n">plate 5</span><h3>Two keys</h3><p>Both signatures verify against the published officer keys. Demo keys read “Sample”, never “Verified”.</p></div>
+    <div class="plate"><span class="n">plate 6</span><h3>Payout items</h3><p>Each item is shown at the status its verified notices attest, folded in chain order (ADR-0021).</p></div>
+  </div>
+</section>
+
+<!-- ============================ INVARIANTS ============================ -->
+<section id="invariants">
+  <div class="head">
+    <div class="eyebrow">Architecture §0 · non-negotiable</div>
+    <h2>The eight invariants</h2>
+    <p class="intro">Each invariant has a mechanism in code and a property test named after it, so a change that breaks one fails CI by name.</p>
+  </div>
+  <div class="inv">
+    <div class="card"><span class="id">I1</span><h3>The model never writes a number</h3><p>Output schemas have no amount fields; the invoice must deep-equal code's quote; statements are templates with placeholders.</p><code>inv.i1.no-model-numbers</code></div>
+    <div class="card"><span class="id">I2</span><h3>Rules are frozen before facts</h3><p>Rate card and GA resolution are canonicalised and hashed; a trigger forbids UPDATE; no slip is accepted before ratification.</p><code>inv.i2.rules-before-facts</code></div>
+    <div class="card"><span class="id">I3</span><h3>Money is conserved</h3><p>Pool = on-rail net + off-rail net + deductions kept + held carried, in integer minor units.</p><code>inv.i3.conservation</code></div>
+    <div class="card"><span class="id">I4</span><h3>The approved digest is the payout</h3><p>Lines are re-hashed from the database immediately before the POST; a mismatch is refused.</p><code>inv.i4.digest-is-payout</code></div>
+    <div class="card"><span class="id">I5</span><h3>State only moves forward</h3><p>Rank-monotonic state machines; <span class="mono">UPDATE … WHERE state = $expected</span>.</p><code>inv.i5.forward-only</code></div>
+    <div class="card"><span class="id">I6</span><h3>A person approves the irreversible step</h3><p>The treasurer always; the Chair's Ed25519 co-signature above the threshold.</p><code>inv.i6.human-gate</code></div>
+    <div class="card"><span class="id">I7</span><h3>Effects go through the outbox</h3><p>Every effect is enqueued in the transaction that requires it, and is idempotent.</p><code>inv.i7.outbox</code></div>
+    <div class="card"><span class="id">I8</span><h3>Nothing simulated is unlabelled</h3><p>Every row carries provenance: live, replay, simulated rail or seeded, and the screen shows it.</p><code>inv.i8.labels</code></div>
+  </div>
+</section>
+
+<!-- ============================ PACKAGES ============================ -->
+<section id="packages">
+  <div class="head">
+    <div class="eyebrow">Monorepo · pnpm 11 + Turborepo · Node 24 · TypeScript</div>
+    <h2>Packages and the dependency rule</h2>
+    <p class="intro">Each arrow points from a package to the packages allowed to build on it. dependency-cruiser enforces the rule in CI, so the pure domain can never import IO and the UI can never reach the database or PayPal.</p>
+  </div>
+  <div class="fig min760">
+    <svg viewBox="0 0 1000 300" role="img" aria-labelledby="pkgT">
+      <title id="pkgT">contracts feeds domain; domain feeds seed and db; those feed outbox; outbox feeds the paypal packages and ai; those feed apps/api and apps/tasks.</title>
+      <rect x="10" y="125" width="140" height="50" rx="8" class="b"/><text x="22" y="147" class="tl-s">contracts</text><text x="22" y="164" class="ts">zod 4 DTOs · leaf</text>
+      <line x1="152" y1="150" x2="178" y2="150" class="ln" marker-end="url(#a-mute)"/>
+      <rect x="180" y="125" width="140" height="50" rx="8" class="b-ink"/><text x="192" y="147" class="tl-s">domain</text><text x="192" y="164" class="ts">pure · no IO</text>
+      <path d="M322,150 C336,150 336,95 348,95" class="ln" marker-end="url(#a-mute)"/>
+      <path d="M322,150 C336,150 336,205 348,205" class="ln" marker-end="url(#a-mute)"/>
+      <rect x="350" y="70" width="140" height="50" rx="8" class="b"/><text x="362" y="92" class="tl-s">seed</text><text x="362" y="109" class="ts">every demo figure</text>
+      <rect x="350" y="180" width="140" height="50" rx="8" class="b"/><text x="362" y="202" class="tl-s">db</text><text x="362" y="219" class="ts">Drizzle · ledger · limiter</text>
+      <path d="M492,95 C506,95 506,150 518,150" class="ln" marker-end="url(#a-mute)"/>
+      <path d="M492,205 C506,205 506,150 518,150" class="ln" marker-end="url(#a-mute)"/>
+      <rect x="520" y="125" width="130" height="50" rx="8" class="b"/><text x="532" y="147" class="tl-s">outbox</text><text x="532" y="164" class="ts">enqueue · dispatch</text>
+      <line x1="652" y1="150" x2="676" y2="150" class="ln" marker-end="url(#a-mute)"/>
+      <line x1="680" y1="20" x2="680" y2="284" class="ln"/>
+      <rect x="690" y="14" width="150" height="40" rx="7" class="b-steel"/><text x="702" y="39" class="tl-s">paypal-sim</text>
+      <rect x="690" y="64" width="150" height="40" rx="7" class="b"/><text x="702" y="89" class="tl-s">paypal-core</text>
+      <rect x="690" y="114" width="150" height="40" rx="7" class="b"/><text x="702" y="139" class="tl-s">paypal-toolkit</text>
+      <rect x="690" y="164" width="150" height="40" rx="7" class="b"/><text x="702" y="189" class="tl-s">paypal-payouts</text>
+      <text x="694" y="226" class="ts">paypal-* pin zod 3.25.76</text>
+      <rect x="690" y="238" width="150" height="46" rx="7" class="b-pencil"/><text x="702" y="259" class="tl-s">ai</text><text x="702" y="276" class="ts">ClaudeGateway</text>
+      <line x1="842" y1="150" x2="866" y2="150" class="ln" marker-end="url(#a-mute)"/>
+      <line x1="870" y1="80" x2="870" y2="220" class="ln"/>
+      <rect x="880" y="80" width="112" height="56" rx="8" class="b-group-ink"/><text x="892" y="104" class="tl-s">apps/api</text><text x="892" y="122" class="ts">fs-api</text>
+      <rect x="880" y="164" width="112" height="56" rx="8" class="b-group-ink"/><text x="892" y="188" class="tl-s">apps/tasks</text><text x="892" y="206" class="ts">task registry</text>
+    </svg>
+  </div>
+  <div class="two">
+    <div class="card"><h3>Screens</h3><p><b>apps/console</b>: Vite, React 19, TanStack Router and Query, AG Grid Community for the split review; also the Judge stage, Proof and <code>/ops</code>. <b>apps/mobile</b>: Expo SDK 58 for member, Chair and clerk; its web export runs at <code>/app</code> and inside the stage's phone frames.</p><p class="meta">UI may import only contracts, api-client, tokens, motion, seal, i18n and ui-*.</p></div>
+    <div class="card"><h3>Frozen contracts</h3><p>IC-01 to IC-12 (DTOs, domain, seed, persistence, PayPal core, money, AI, HTTP, design system, moments, media, frame bridge) change only by an ADR in <code>docs/adr/</code>. <code>packages/seed</code> is the single source of every demo figure, checked to the cent.</p><p class="meta">Each package has one owning workstream (docs/ownership.md).</p></div>
+  </div>
+</section>
+
+<!-- ============================ REAL ============================ -->
+<section id="real">
+  <div class="head">
+    <div class="eyebrow">Invariant I8 · labelled on every screen</div>
+    <h2>What's real, replayed, simulated and synthetic</h2>
+  </div>
+  <div class="real">
+    <div class="card"><span class="tag ink">Real</span><p>Your presses, holds you resolve and the Ed25519 signatures you make; every amount the engine computes; the rate card's hash; Proof's checks on your device; R1's committed Claude responses for 10 hero slips.</p></div>
+    <div class="card"><span class="tag pod">Replayed</span><p>Slip reading in Judge Mode: a labelled seed stand-in, not a Claude recording. Payout steps once the hour's live quota is spent, labelled as a replay.</p></div>
+    <div class="card note"><span class="tag steel">Simulated</span><p>Every PayPal call, ID, status, webhook and fee. Simulator IDs carry <code>SIM</code> (e.g. <span class="mono">INV2-SIMx-…</span>) and debug IDs start <span class="mono">sim-</span>. Also push banners and the biometric step.</p></div>
+    <div class="card"><span class="tag">Seeded</span><p>The invoice-send approval, and the manifest entries for 54 earlier photos with their read dates.</p></div>
+    <div class="card"><span class="tag">Synthetic</span><p>The co-op, its 64 members and officers, Lantern Bay, 264 slips, the rate card, the logbook and every voice.</p></div>
+    <div class="card"><span class="tag canary">Not built yet</span><p>Hosted demo, APK, push, offline clerk capture, real SMS, iOS, the audit agent, and production partner onboarding.</p></div>
+  </div>
+</section>
+
+<footer>
+  <div>Sources: <span class="mono">docs/spec/00-decision-register.md</span>, <span class="mono">02-architecture.md</span>, <span class="mono">README.md</span>, and code in <span class="mono">packages/domain</span>, <span class="mono">packages/tokens</span>, <span class="mono">render.yaml</span> at commit 45386bd.</div>
+  <div>Colours follow the repo's own token roles: graphite for the model, ink for code, indigo for a person's hand, jade for money, marigold for a decision, hatch for cash, dashed steel for simulated.</div>
+</footer>
+</main>
+
+<script>
+(()=> {
+  // ---------- pay-run lifecycle explorer ----------
+  var S = {
+    DRAFT:{who:"ink",what:"A pay run exists for season 2026A. Nothing has been billed and no slip has been read.",guard:"—",code:"packages/domain/src/fsm.ts",next:"QUOTE → QUOTED"},
+    QUOTED:{who:"ink",what:"Code computes the invoice quote from the envelope the General Assembly approved: pool US$4,273.50 + disbursement US$60.00 = US$4,333.50. This happens before any slip is read.",guard:"Rate card ratified and hashed (I2).",code:"packages/domain/src/quote.ts",next:"INVOICE_SENT → INVOICED"},
+    INVOICED:{who:"pod",what:"The invoice is created, given an AUTO_CANCEL rule and sent to Lantern Bay through Agent Toolkit 1.11.0. The treasurer's approval is bound to that exact invoice.",guard:"Policy lattice: the whole body must equal code's quote; unknown keys are named and refused.",code:"packages/paypal-toolkit · apps/api/src/money/",next:"FUND → FUNDED, or CANCEL → CANCELLED"},
+    FUNDED:{who:"jade",what:"The buyer has paid. In Judge Mode, “Mark paid” is the simulator's record-payment, labelled as simulated.",guard:"A fresh GET (never the webhook body) reads PAID or MARKED_AS_PAID with 0.00 due.",code:"apps/api/src/money/",next:"START_EXTRACTION → EXTRACTING"},
+    EXTRACTING:{who:"pencil",what:"Slip photos are read twice by Claude, screened for injected instructions, and agreement is scored in code. Judge Mode replays a labelled seed stand-in.",guard:"Only documents not yet read; every stop other than end_turn goes to a person.",code:"packages/ai (ClaudeGateway, extraction)",next:"ROWS_SETTLED → COMPUTED"},
+    COMPUTED:{who:"ink",what:"The engine computes 64 lines in integer cents, raises holds, and produces a conservation proof.",guard:"Rows accepted; rate card hash fixed.",code:"packages/domain/src/engine.ts",next:"OPEN_REVIEW → IN_REVIEW"},
+    IN_REVIEW:{who:"pod",what:"The treasurer resolves holds in the AG Grid split review, citing a rule or a reason. A held line can be excluded and carried to the next run, never paid silently.",guard:"Resolutions must be allowed for the hold kind.",code:"apps/console/src/features/split/SplitAgGrid.tsx",next:"TREASURER_SIGNED → TREASURER_APPROVED"},
+    TREASURER_APPROVED:{who:"pod",what:"Key 1: the treasurer's Ed25519 signature over the batch digest.",guard:"No open hold that blocks approval; the signed digest equals the recomputed one.",code:"packages/domain/src/approval.ts · apps/api/src/approvals/",next:"WITHIN_THRESHOLD → APPROVED, or NEEDS_CHAIR → AWAITING_BOARD"},
+    AWAITING_BOARD:{who:"pod",what:"The batch is US$368.39, over the US$300 threshold, so the Chair must co-sign: in the Chair frame, or on a phone with a single-use link and a six-digit code.",guard:"The Chair cannot approve alone.",code:"packages/domain/src/approval.ts (requiresChair)",next:"CHAIR_SIGNED → APPROVED"},
+    APPROVED:{who:"pod",what:"Both keys are on the same digest. Editing any line now sends the run back to IN_REVIEW and voids both approvals.",guard:"Both approvals valid, unexpired, nonces unused.",code:"packages/domain/src/approval.ts",next:"POST → POSTING"},
+    POSTING:{who:"jade",what:"PayoutsService.executeApproved re-reads the locked lines and approvals from the database, recomputes the digest, verifies both signatures, then posts.",guard:"kill_payouts off (read fresh), both digests match, a limiter token is held.",code:"packages/paypal-payouts/src/service.ts",next:"ACCEPTED → POSTED, or REJECTED → DENIED"},
+    POSTED:{who:"jade",what:"The simulated PayPal sandbox accepted the batch: sent, not yet paid. On “already exists”, the batch is adopted only if every item re-hashes.",guard:"201, or 400 already-exists with a matching re-hash.",code:"packages/paypal-payouts",next:"PROCESSING → SETTLING"},
+    SETTLING:{who:"jade",what:"Items move as verified webhooks and fresh GETs arrive; a status only moves up in rank. Rhea's item parks UNCLAIMED.",guard:"Rank must rise; only SUCCEEDED applies straight from a stored webhook.",code:"packages/paypal-core/src/webhook · apps/api/src/paypal/webhooks.ts",next:"ALL_TERMINAL → SETTLED, or FOLLOW_UP → NEEDS_FOLLOW_UP"},
+    NEEDS_FOLLOW_UP:{who:"pod",what:"An item needs a person: the treasurer cancels Rhea's UNCLAIMED item (RETURNED) and pays her in cash at the bodega, recorded on the same statement.",guard:"Cancel only from UNCLAIMED; the clerk attests the cash.",code:"packages/domain/src/fsm.ts (line machine)",next:"FOLLOW_UP_DONE → SETTLED"},
+    SETTLED:{who:"jade",what:"Every item is terminal. 7 members paid by PayPal (US$341.74), 57 in cash (US$3,876.43).",guard:"All items terminal.",code:"packages/domain/src/fsm.ts",next:"CLOSE → CLOSED"},
+    CLOSED:{who:"ink",what:"The run is closed. Its ledger, checkpoint and six plates are published for Proof.",guard:"—",code:"apps/api/src/proof/",next:"terminal"},
+    CANCELLED:{who:"ink",what:"The invoice was cancelled before it was paid. Nothing was read or paid.",guard:"Only from INVOICED.",code:"packages/domain/src/fsm.ts",next:"terminal"},
+    DENIED:{who:"jade",what:"PayPal (simulated) refused the batch. Red on screen is reserved for PayPal saying no.",guard:"From POSTING, POSTED or SETTLING.",code:"packages/domain/src/fsm.ts",next:"terminal"},
+    HALTED:{who:"ink",what:"The kill switch was on. Any run below POSTING stops; batches already posted keep settling. The flip is written to the ledger.",guard:"system_flags read fresh at four points.",code:"packages/domain/src/policy.ts (killSwitch)",next:"terminal"}
+  };
+  var phases = [
+    ["Fund", ["DRAFT","QUOTED","INVOICED","FUNDED"]],
+    ["Read and compute", ["EXTRACTING","COMPUTED"]],
+    ["Review and approve", ["IN_REVIEW","TREASURER_APPROVED","AWAITING_BOARD","APPROVED"]],
+    ["Pay and settle", ["POSTING","POSTED","SETTLING","NEEDS_FOLLOW_UP","SETTLED","CLOSED"]]
+  ];
+  var WHO = {pencil:"The model",ink:"Code",pod:"A person",jade:"Money moves"};
+  var TAG = {pencil:"",ink:"ink",pod:"pod",jade:"jade"};
+  var fsm = document.getElementById("fsm"), exits = document.getElementById("exits"), panel = document.getElementById("panel");
+  var buttons = [];
+  function chip(name){
+    var b = document.createElement("button");
+    b.type = "button"; b.className = "chip"; b.id = `st-${name}`;
+    b.setAttribute("aria-pressed","false");
+    var sw = document.createElement("span"); sw.className = `sw ${S[name].who}`;
+    var t = document.createElement("span"); t.textContent = name;
+    b.appendChild(sw); b.appendChild(t);
+    b.addEventListener("click", ()=> { select(name); });
+    buttons.push(b); return b;
+  }
+  phases.forEach((p)=> {
+    var d = document.createElement("div"); d.className = "phase";
+    var h = document.createElement("h3"); h.textContent = p[0]; d.appendChild(h);
+    var c = document.createElement("div"); c.className = "chips";
+    p[1].forEach((n)=> { c.appendChild(chip(n)); });
+    d.appendChild(c); fsm.appendChild(d);
+  });
+  ["CANCELLED","DENIED","HALTED"].forEach((n)=> { exits.appendChild(chip(n)); });
+  var note = document.createElement("span"); note.textContent = "· plus SEND_BACK to IN_REVIEW, which voids approvals"; exits.appendChild(note);
+
+  function esc(s){ return String(s).replace(/[&<>]/g,(c)=> ({"&":"&amp;","<":"&lt;",">":"&gt;"}[c])); }
+  function select(name){
+    var s = S[name];
+    buttons.forEach((b)=> { b.setAttribute("aria-pressed", b.id === `st-${name}` ? "true" : "false"); });
+    panel.innerHTML =
+      '<div class="ph"><h3>' + name + '</h3><span class="tag ' + TAG[s.who] + '"><span class="sw ' + s.who + '"></span>' + WHO[s.who] + '</span></div>' +
+      '<dl><dt>What happens</dt><dd>' + esc(s.what) + '</dd></dl>' +
+      '<dl><dt>Guard</dt><dd>' + esc(s.guard) + '</dd></dl>' +
+      '<dl><dt>Where in the code</dt><dd class="mono">' + esc(s.code) + '</dd></dl>' +
+      '<dl><dt>Next</dt><dd class="mono">' + esc(s.next) + '</dd></dl>';
+  }
+  select("POSTING");
+
+  // ---------- money sankey (to scale) ----------
+  var svg = document.getElementById("sankey"), NS = "http://www.w3.org/2000/svg";
+  var T = 56, k = 380 / 4333.50, W = 12, X0 = 0, X1 = 380, X2 = 760, X3 = 1140;
+  function h(v){ return v * k; }
+  function el(tag, attrs, parent){ var e = document.createElementNS(NS, tag); for (var a in attrs) e.setAttribute(a, attrs[a]); (parent || svg).appendChild(e); return e; }
+  function band(x0, y0a, y0b, x1, y1a, y1b, cls){
+    var m = (x0 + x1) / 2;
+    el("path", {d:`M${x0},${y0a} C${m},${y0a} ${m},${y1a} ${x1},${y1a} L${x1},${y1b} C${m},${y1b} ${m},${y0b} ${x0},${y0b} Z`, "class":cls});
+  }
+  function node(x, y, hh, cls){ el("rect", {x:x, y:y, width:W, height:Math.max(hh,2), "class":cls}); }
+  function label(x, y, lines, anchor){
+    lines.forEach((l, i)=> {
+      var t = el("text", {x:x, y:y + i*17, "text-anchor":anchor || "start", "class":`${i===0 ? "tl-s" : "tx"} halo`});
+      t.textContent = l;
+    });
+  }
+  var inv = {y:T, h:h(4333.50)};
+  var pool = {y:T, h:h(4273.50)};
+  var disb = {y:T + pool.h + 34, h:h(60.00)};
+  var credit = {y:disb.y + 70, h:2};
+  var net = {y:T, h:h(4218.17)};
+  var kept = {y:T + net.h + 34, h:h(58.53)};
+  var pp = {y:T, h:h(341.74)};
+  var cash = {y:T + pp.h + 26, h:h(3876.43)};
+  var poolToNet = h(4214.97);
+
+  band(X0+W, inv.y, inv.y+pool.h, X1, pool.y, pool.y+pool.h, "flow");
+  band(X0+W, inv.y+pool.h, inv.y+inv.h, X1, disb.y, disb.y+disb.h, "flow");
+  band(X1+W, pool.y, pool.y+poolToNet, X2, net.y, net.y+poolToNet, "flow");
+  band(X1+W, pool.y+poolToNet, pool.y+pool.h, X2, kept.y, kept.y+kept.h, "flow-pencil");
+  band(X1+W, credit.y, credit.y+2, X2, net.y+poolToNet, net.y+poolToNet+2, "flow");
+  band(X2+W, net.y, net.y+pp.h, X3, pp.y, pp.y+pp.h, "flow-jade");
+  band(X2+W, net.y+pp.h, net.y+net.h, X3, cash.y, cash.y+cash.h, "flow-hatch");
+
+  node(X0, inv.y, inv.h, "node");
+  node(X1, pool.y, pool.h, "node");
+  node(X1, disb.y, disb.h, "node-steel");
+  node(X1, credit.y, credit.h, "node-pencil");
+  node(X2, net.y, net.h, "node");
+  node(X2, kept.y, kept.h, "node-pencil");
+  node(X3, pp.y, pp.h, "node-jade");
+  node(X3, cash.y, cash.h, "node-hatch");
+
+  label(X0+22, T+26, ["Invoice to Lantern Bay", "US$4,333.50"]);
+  label(X1+22, T+26, ["Pool for 64 members", "US$4,273.50 · premium + bonus"]);
+  label(X1+22, disb.y+16, ["Disbursement costs", "US$60.00 · PayPal fees fit inside"]);
+  label(X1+22, credit.y+16, ["Credit the co-op pays", "+US$3.20 · multa returned (H3)"]);
+  label(X2+22, T+26, ["Members' net", "US$4,218.17"]);
+  label(X2+22, kept.y+16, ["Kept by the co-op", "US$58.53 · CBU, loan, advance"]);
+  label(X3-10, T-26, ["PayPal · 7 members", "US$341.74"], "end");
+  label(X3-10, cash.y+170, ["Cash at the bodega", "57 members · US$3,876.43"], "end");
+})();
+</script>
+</body>
+</html>
