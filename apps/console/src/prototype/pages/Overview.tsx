@@ -128,8 +128,8 @@ export function OverviewPage() {
           </dd>
           <dt>The peso sign</dt>
           <dd>
-            Neither Mona Sans nor Atkinson Hyperlegible Next has ₱. A 2 KB Noto Sans subset joins “FS Sans”
-            for that one glyph on the web, and is grafted into the four native cuts (spike S8’s fallback).
+            Mona Sans has no ₱. A 2 KB Noto Sans subset joins “FS Sans” for that one glyph on the web, and is
+            grafted into the four native cuts (spike S8’s fallback).
           </dd>
           <dt>Signing on release</dt>
           <dd>
