@@ -4,6 +4,7 @@ import { expect, test } from "../../lib/fixtures.js";
 import { collectRunEvents, runState } from "../../lib/judge-run.js";
 import { observeMoments } from "../../lib/moments.js";
 import { PRESS_LIVE_CALLS, roomFor } from "../../lib/paypal-window.js";
+import { resetFromMenu } from "../../lib/stage-menu.js";
 
 test("DR-0 / E-01 / E-15: logged-out judge, real moment phases, Proof, Reset and second press", async ({
   page,
@@ -21,7 +22,8 @@ test("DR-0 / E-01 / E-15: logged-out judge, real moment phases, Proof, Reset and
   };
   page.on("request", beforePress);
   await page.goto("/judge");
-  await expect(page.getByRole("heading", { name: /Season 2026-A is ready to pay/ })).toBeVisible();
+  // UI gate round 5: the title is "Season 2026-A"; the run's state is the chip on its row.
+  await expect(page.getByTestId("W-JG-01.title")).toHaveText("Awaiting payment");
   await page.waitForTimeout(3_000);
   expect(v1).toEqual([]);
   page.off("request", beforePress);
@@ -47,7 +49,7 @@ test("DR-0 / E-01 / E-15: logged-out judge, real moment phases, Proof, Reset and
       timeout: 120_000,
     });
     // The public tier checks plate 6 on the server because receivers are withheld.
-    await expect(page.getByTestId("W-PF-01.verdict")).toContainText(/Six of six match/i);
+    await expect(page.getByTestId("W-PF-01.verdict")).toContainText(/6 integrity checks passed/i);
     await expect(
       page.locator(
         '[data-testid^="W-PF-01.check."][data-state="matches"], [data-testid="W-PF-01.check.payoutItems"][data-state="server"]',
@@ -118,7 +120,7 @@ test("DR-0 / E-01 / E-15: logged-out judge, real moment phases, Proof, Reset and
     await moments.reached("MM-4", "done");
     moments.ordered("MM-4", ["refuse", "plate", "done"]);
     const resetAt = Date.now();
-    await page.getByRole("banner").getByRole("button", { name: "Reset" }).click();
+    await resetFromMenu(page);
     const first = page.getByRole("button", { name: /Mark Lantern Bay.s invoice paid/ });
     await expect(first).toBeEnabled({ timeout: 10_000 });
     const resetMs = Date.now() - resetAt;
@@ -131,10 +133,10 @@ test("DR-0 / E-01 / E-15: logged-out judge, real moment phases, Proof, Reset and
     const response = await started;
     expect(response.status()).toBe(201);
     expect((await response.json()).workspaceId).not.toBe(s.workspaceId);
-    await expect(page.getByRole("heading", { name: /Season 2026-A is funded/ })).toBeVisible({
+    await expect(page.getByTestId("W-JG-01.title")).toHaveAttribute("data-state", "funded", {
       timeout: 60_000,
     });
-    await page.getByRole("banner").getByRole("button", { name: "Reset" }).click();
+    await resetFromMenu(page);
     await expect(first).toBeEnabled({ timeout: 10_000 });
   } finally {
     await test.info().attach("moment-phases.json", {

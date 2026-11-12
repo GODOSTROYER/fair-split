@@ -17,6 +17,7 @@ import {
   workTheReview,
 } from "../../lib/judge-run.js";
 import { PRESS_LIVE_CALLS, roomFor } from "../../lib/paypal-window.js";
+import { resetFromMenu } from "../../lib/stage-menu.js";
 
 const isV1 = (r: Request) => new URL(r.url()).pathname.startsWith("/v1/");
 const firstPress = (page: Page) => page.getByRole("button", { name: /Mark Lantern Bay.s invoice paid/ });
@@ -53,7 +54,7 @@ async function keysWithChairWatching(page: Page, api: Api, s: JudgeSession, keys
   const chair = page.frameLocator('[data-testid="W-JG-01.frame.chair"]');
   await expect(chair.getByTestId("M-BD-01")).toHaveAttribute("data-state", "request");
   await expect(chair.getByTestId("demo-label")).toHaveCount(0);
-  await expect(chair.getByTestId("M-BD-01.rail")).toHaveText("Simulated PayPal sandbox");
+  await expect(chair.getByTestId("M-BD-01.rail")).toContainText("Simulated PayPal sandbox");
   await expect(chair.getByTestId("M-BD-01.item.M-014")).toBeVisible();
   await expect(chair.getByTestId("M-BD-01.amount")).toHaveAttribute("data-amount-state", "pencil");
   expect((await sign(api, s, keys.chair)).status).toBe(201);
@@ -88,7 +89,7 @@ async function phoneScreenSweep(page: Page, replayed: boolean): Promise<void> {
   await expect(chair.getByTestId("M-BD-01.amount")).toHaveAttribute("data-amount-state", "ink");
   await expect(chair.getByTestId("M-BD-01.total")).toHaveAttribute("data-amount-state", "ink");
   await expect(chair.getByTestId("M-BD-01.total")).toContainText("US$0.00");
-  await expect(chair.getByTestId("M-BD-01.rail")).toHaveText("Simulated PayPal sandbox");
+  await expect(chair.getByTestId("M-BD-01.rail")).toContainText("Simulated PayPal sandbox");
   await expect(chair.getByTestId("M-BD-01")).not.toContainText(/replay|\bPaid\b|Bayad na/i);
   await expect(
     chair
@@ -156,7 +157,7 @@ test("the first press starts a judge session on the simulated rail and funds the
   const started = page.waitForResponse(sessionStarted);
   await firstPress(page).click();
   expect((await started).status()).toBe(201);
-  await expect(page.getByRole("heading", { name: /Season 2026-A is funded/ })).toBeVisible({
+  await expect(page.getByTestId("W-JG-01.title")).toHaveAttribute("data-state", "funded", {
     timeout: 60_000,
   });
   const session = await sessionOf(page);
@@ -171,15 +172,17 @@ test("Reset brings the first view back within 10 s and a second press works", as
   await roomFor(2 * PRESS_LIVE_CALLS);
   await page.goto("/judge");
   await firstPress(page).click();
-  await expect(page.getByRole("heading", { name: /Season 2026-A is funded/ })).toBeVisible({
+  await expect(page.getByTestId("W-JG-01.title")).toHaveAttribute("data-state", "funded", {
     timeout: 60_000,
   });
   const first = await sessionOf(page);
 
   const pressedAt = Date.now();
-  await page.getByRole("banner").getByRole("button", { name: "Reset" }).click();
+  // UI gate round 4: Reset is in the run pill's chevron menu (the top bar keeps six items).
+  await resetFromMenu(page);
   await expect(firstPress(page)).toBeEnabled({ timeout: 10_000 });
-  await expect(page.getByRole("heading", { name: /Season 2026-A is ready to pay/ })).toBeVisible();
+  // UI gate round 5: the title is "Season 2026-A"; the run's state is the chip on its row.
+  await expect(page.getByTestId("W-JG-01.title")).toHaveText("Awaiting payment");
   const resetMs = Date.now() - pressedAt;
   test.info().annotations.push({ type: "reset", description: `first view back ${resetMs} ms after Reset` });
   expect(resetMs).toBeLessThanOrEqual(10_000);
@@ -187,7 +190,7 @@ test("Reset brings the first view back within 10 s and a second press works", as
   const again = page.waitForResponse(sessionStarted);
   await firstPress(page).click();
   expect((await again).status()).toBe(201);
-  await expect(page.getByRole("heading", { name: /Season 2026-A is funded/ })).toBeVisible({
+  await expect(page.getByTestId("W-JG-01.title")).toHaveAttribute("data-state", "funded", {
     timeout: 60_000,
   });
   const second = await sessionOf(page);
@@ -238,25 +241,27 @@ test("the console signs with a fresh registered key after Reset changes the work
       const signed = await answer;
       expect(signed.status()).toBe(201);
       ids.push((signed.request().postDataJSON() as { keyId: string }).keyId);
-      // The labelled Proof chip must fit at the default 1280 px viewport without pushing Reset behind the phone.
+      // The labelled Proof chip must fit at the default 1280 px viewport without pushing the chevron (whose menu
+      // holds Reset since UI gate round 4) behind the phone; the bar keeps six controls at most.
       await expect
         .poll(() =>
           page.getByRole("banner").evaluate((banner) => {
             const controls = Array.from(banner.querySelectorAll("a, button"));
             const right = Math.max(...controls.map((control) => control.getBoundingClientRect().right));
-            const reset = banner.querySelector('[data-testid="W-JG-01.reset"]');
-            if (!reset) return { fits: false, resetReceivesPointer: false };
-            const rect = reset.getBoundingClientRect();
+            const menu = banner.querySelector('[data-testid="W-JG-01.runPill.menu"]');
+            if (!menu) return { fits: false, menuReceivesPointer: false, sixAtMost: false };
+            const rect = menu.getBoundingClientRect();
             const hit = document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2);
             return {
               fits: right <= window.innerWidth,
-              resetReceivesPointer: hit !== null && reset.contains(hit),
+              menuReceivesPointer: hit !== null && menu.contains(hit),
+              sixAtMost: controls.length <= 6,
             };
           }),
         )
-        .toEqual({ fits: true, resetReceivesPointer: true });
+        .toEqual({ fits: true, menuReceivesPointer: true, sixAtMost: true });
       await page.screenshot({ path: test.info().outputPath("reset-key1-layout.png") });
-      await page.getByRole("banner").getByRole("button", { name: "Reset" }).click();
+      await resetFromMenu(page);
       await expect(firstPress(page)).toBeEnabled();
       reset = true;
     } finally {
@@ -332,12 +337,14 @@ test("Try to break it: all four controls refuse attacks and the changed payout v
       );
       await page.getByTestId(`W-JG-01.tamper.${kind}`).click();
       expect((await answer).status()).toBe(200);
-      await expect(page.getByTestId("W-JG-01.tamper.result")).toContainText("DENY");
+      const refused = page.getByTestId("W-JG-01.tamper.result");
+      await expect(refused).toHaveAttribute("data-verdict", "DENY");
+      await expect(refused).toContainText("Refused");
     }
     await page.getByTestId("W-JG-01.tamper.change_payout").click();
     const result = page.getByTestId("W-JG-01.tamper.result");
-    await expect(result).toContainText("Armed before key 2");
-    await expect(result).not.toContainText("Both approvals voided");
+    await expect(result).toContainText("Change set · the signatures will refuse it");
+    await expect(result).not.toContainText("both signatures voided");
     const keys = await officers(api, s);
     expect((await bothKeys(api, s, keys)).map((a) => a.status)).toEqual([201, 201]);
     const refused = await waitForRun(api, s, (run) => run.run.state === "IN_REVIEW", 30_000);
@@ -349,7 +356,7 @@ test("Try to break it: all four controls refuse attacks and the changed payout v
         (a) => a.voidedAt !== null,
       ),
     ).toEqual([true, true]);
-    await expect(result).toContainText("Both approvals voided");
+    await expect(result).toContainText("Refused · both signatures voided");
   } finally {
     await stopBrowserJudge(page, api, s);
   }
@@ -506,9 +513,10 @@ test("a quota-replayed run labels the stage, payout summary, chips and log befor
             ? "Replayed (labelled): parked"
             : "Replayed (labelled): successful in the earlier run",
         );
-      const parkedChip = page.getByTestId(/^W-TR-08\.chip\./);
-      await expect(parkedChip).toHaveCount(1);
-      await expect(parkedChip).toHaveText("Replayed (labelled, simulated)");
+      // Round 3 drops the floating parked chip: Rhea's path ends at her marker, and her row says it replayed.
+      const parked = page.getByTestId("W-TR-08.label.M-031");
+      await expect(parked).toContainText("Rhea Jumawan · Replayed (labelled, simulated)");
+      await expect(parked).not.toContainText(/\bParked\b/);
       const payoutLog = page.getByTestId("W-TR-08.lane.PAYPAL");
       // The log says the replay note once, above its lanes; each replayed row names what it replayed.
       await expect(page.getByTestId("W-TR-08.log.replayNote")).toContainText(
@@ -579,10 +587,11 @@ test("a quota-replayed run labels the stage, payout summary, chips and log befor
       await expect(page.getByTestId("W-TR-09.history").getByText(/^Returned\b/i)).toHaveCount(0);
       await page.keyboard.press("Escape");
       await page.getByTestId("W-JG-01.rail.run").click();
-      // The film's tab layout must fit its phone figure without a horizontal scrollbar.
+      // The film's 1,470 layout must fit its phone figure without a horizontal scrollbar. The phone rests folded to
+      // its rail there (UI gate round 3); the Member avatar opens the Member's frame.
       await page.setViewportSize({ width: 1470, height: 956 });
-      await page.getByTestId("W-JG-01.phoneTab").click();
       await page.getByTestId("W-JG-01.tab.member").click();
+      await expect(page.getByTestId("W-JG-01.phoneTab")).toHaveAttribute("aria-expanded", "true");
       await expect(page.locator("#fsc-phone-panel")).toBeVisible();
       const dimensions = await page.locator("#fsc-phone-panel").evaluate((panel) => {
         const figure = panel.querySelector("figure");
@@ -671,9 +680,9 @@ test("inv.i8.the last hourly slot stays live on the stage, Run and Proof after i
       await expect(member.getByTestId("M-MB-01.railCopy")).not.toContainText(/replay/i);
       await expect(member.getByTestId("M-MB-01.capsule")).toContainText(/^(Bayad na|Paid|Bayad)\b/);
       await page.getByTestId("W-JG-01.rail.run").click();
+      // The top bar's Proof counter counts Proof's six checks (UI gate round 3), not payouts.
       const chip = page.getByTestId("W-JG-01.proofChip");
-      await expect(chip).toContainText(/confirmed/i);
-      await expect(chip).toContainText("in the simulated sandbox");
+      await expect(chip).toContainText(/of 6 checks match/);
       await expect(chip).not.toContainText(/replayed/i);
       await expect(page.getByTestId("W-TR-08.status")).not.toContainText(/replayed/i);
       await expect(page.getByTestId("W-TR-08.share")).toContainText(/confirmed/i);
@@ -689,7 +698,9 @@ test("inv.i8.the last hourly slot stays live on the stage, Run and Proof after i
       expect((await waitForRun(api, s, (run) => run.run.state === "SETTLED", 60_000))?.run.state).toBe(
         "SETTLED",
       );
-      await expect(chip).toContainText(/confirmed/i);
+      // The counter counts Proof's six checks (round 3); the live confirmation is read on Proof's hero below.
+      await expect(chip).toContainText(/of 6 checks match/);
+      await expect(chip).not.toContainText(/replayed/i);
       await chip.click();
       const hero = page.getByTestId("W-PF-01.progress");
       await expect(hero).toContainText("confirmed in the simulated sandbox");
@@ -701,7 +712,7 @@ test("inv.i8.the last hourly slot stays live on the stage, Run and Proof after i
         .getByTestId("W-PF-01.verify")
         .getByRole("button", { name: /Verify in your browser/ })
         .click();
-      await expect(page.getByTestId("W-PF-01.verdict")).toContainText("Six of six match", {
+      await expect(page.getByTestId("W-PF-01.verdict")).toContainText("6 integrity checks passed", {
         timeout: 30_000,
       });
       await expect(page.getByTestId("W-PF-01.check.payoutItems")).toHaveAttribute("data-state", "matches");

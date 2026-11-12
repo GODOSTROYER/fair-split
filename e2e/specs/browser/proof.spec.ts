@@ -42,7 +42,7 @@ test("Verify in your browser: six of six match, read as Sample", async ({ page }
     .click();
   const verdict = page.getByTestId("W-PF-01.verdict");
   await expect(verdict).toHaveAttribute("data-state", "sample", { timeout: 30_000 });
-  await expect(verdict).toContainText("Six of six match");
+  await expect(verdict).toContainText("6 integrity checks passed");
   await expect(verdict).toContainText("never Verified");
   for (const plate of PLATES) {
     // the public Proof withholds receivers, so the server checks the payout items plate (it says so)
