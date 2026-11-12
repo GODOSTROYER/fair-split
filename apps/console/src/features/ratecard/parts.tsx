@@ -52,6 +52,8 @@ export function HashPlate({
   readonly bright?: boolean;
 }) {
   const card = snapshot.rateCard;
+  const sealed = sealedText(card);
+  const sealedAt = Math.max(0, sealed.indexOf(","));
   const initials = (name: string) =>
     snapshot.officers.find((o) => o.name === name)?.initials ?? name.slice(0, 2).toUpperCase();
   return (
@@ -64,8 +66,10 @@ export function HashPlate({
         <Glyph name="bolt" size={18} />
         <span className="fs-t-label">{card.canonical.resolutionNo}, Schedule A</span>
       </p>
-      <p className="fsc-bolted-plate__sealed fs-t-hash" data-testid={`${testId}.sealed`}>
-        {sealedText(card)}
+      {/* The seal line: its hash in the id role (the one mono), its words in the caption role. */}
+      <p className="fsc-bolted-plate__sealed fs-t-caption" data-testid={`${testId}.sealed`}>
+        <span className="fs-t-id">{sealed.slice(0, sealedAt)}</span>
+        {sealed.slice(sealedAt)}
       </p>
       {!compact && (
         <p className="fsc-bolted-plate__hash fs-t-hash" data-testid={`${testId}.hash`}>
@@ -101,15 +105,19 @@ export function ResolutionPages({
   card,
   highlight,
   testId,
+  only,
 }: {
   readonly card: Card;
   readonly highlight: readonly ClauseRef[];
   readonly testId: string;
+  /** Round 7: show these pages alone (the page a refusal cites), each still with its own folio ("2 / 2"). */
+  readonly only?: ReadonlySet<number>;
 }) {
   const total = card.textLayer.pages.length;
+  const shown = only ? card.textLayer.pages.filter((p) => only.has(p.page)) : card.textLayer.pages;
   return (
-    <div className="fsc-rc-pages" data-testid={testId}>
-      {card.textLayer.pages.map((page) => (
+    <div className="fsc-rc-pages" data-testid={testId} data-cited={only ? "" : undefined}>
+      {shown.map((page) => (
         <Paper
           key={page.page}
           alt={`${card.canonical.resolutionNo}, ${RATECARD_COPY.page(page.page, total).toLowerCase()}`}

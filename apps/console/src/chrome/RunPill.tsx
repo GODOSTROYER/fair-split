@@ -1,33 +1,67 @@
-// The run pill (S1.6): top centre of the console, the run's state word beside the next step, which links to
-// the screen whose control is pre-focused. A small mark says who moves the run next: canary when a person
-// must decide, pencil while the machine reads, an open ring while PayPal confirms. Its menu lists the six
-// console screens and Shortcuts. "Play it for me" (the season slice) sits in its accessory slot.
+// The run pill (S1.6; UI gate rounds 4 and 5): the top bar's one centre group. "● Next: …" links to the screen whose
+// control is pre-focused; a small mark says who moves the run next (canary when a person must decide, pencil while the
+// machine reads, an open ring while PayPal confirms); "Play it for me" (the season slice's) sits in its accessory slot;
+// the chevron opens the stage's one menu: the six console screens, the run log, sound, Reset (while there is a session
+// to end) and Shortcuts. The run's state word is no longer a grey segment that repeats the page title: it is spoken
+// with the pill (it still never overclaims: "PayPal complete · cash due" while cash is due).
+// Round 5: the toast folds into the pill. For 3 s a live event's plain words crossfade (150 ms) over "Next: …", then
+// the pill says "Next: …" again; the bar never grows a seventh item. Its words always start "Next:" and are never
+// underlined (hover is the plate-2 fill, like every bar control).
 
 import { Menu } from "@base-ui/react/menu";
 import { Glyph, useT } from "@fairsplit/ui-web";
 import type { RunView } from "../data/run-view.js";
 import { useShortcuts } from "../lib/shortcuts.js";
+import { useSound } from "../sound/sound.js";
 import { AppLink } from "./AppLink.js";
-import { STAGE } from "./copy.js";
-import type { NextStep } from "./next-step.js";
+import { LOG, STAGE } from "./copy.js";
+import { type PillToast, PillToastWords } from "./EventLog.js";
+import { type NextStep, pillWords } from "./next-step.js";
 import type { RailItem } from "./rail-items.js";
 import { ChromeSlot } from "./slots.js";
+
+/** The stage's own utilities, which live in the chevron's menu (round 4: the top bar keeps six items). */
+export interface StageUtilities {
+  /** Opens the run's whole timeline (the Log sheet). */
+  readonly onLog: () => void;
+  /** Reset is offered while there is a session to end (or a start that failed). */
+  readonly canReset: boolean;
+  readonly resetting: boolean;
+  readonly onReset: () => void;
+}
 
 export interface RunPillProps {
   readonly view: RunView | undefined;
   readonly next: NextStep;
   readonly items: readonly RailItem[];
   readonly onStep?: (step: NextStep) => void;
+  readonly utilities?: StageUtilities;
+  /** The newest live event, shown in the pill's words for 3 s (round 5: the toast lives in the pill). */
+  readonly toast?: PillToast | null;
 }
 
-export function RunPill({ view, next, items, onStep }: RunPillProps) {
+export function RunPill({ view, next, items, onStep, utilities, toast = null }: RunPillProps) {
   const t = useT();
   const shortcuts = useShortcuts();
-  const state = view ? t(`run.${view.state}`, { treasurer: "Analyn", chair: "Ernesto" }) : "";
+  const sound = useSound();
+  // The step's own state word where the register's would overclaim (cash still due is never "Settled").
+  const state = view
+    ? (next.stateWord ?? t(`run.${view.state}`, { treasurer: "Analyn", chair: "Ernesto" }))
+    : "";
   return (
-    <div className="fsc-pill" data-testid="W-JG-01.runPill" data-step={next.id} data-actor={next.actor}>
+    <div
+      className="fsc-pill"
+      data-testid="W-JG-01.runPill"
+      data-step={next.id}
+      data-actor={next.actor}
+      data-toast={toast?.shown ? (toast.landed ? "landed" : "event") : undefined}
+    >
       {state && (
-        <span className="fsc-pill__state fs-t-caption" data-testid="W-JG-01.runPill.state">
+        <span
+          className="fsc-pill__state fs-sr"
+          data-keep={next.stateWord ? "" : undefined}
+          data-testid="W-JG-01.runPill.state"
+        >
           {state}
         </span>
       )}
@@ -35,10 +69,18 @@ export function RunPill({ view, next, items, onStep }: RunPillProps) {
         href={next.to}
         className="fsc-pill__next fs-t-label"
         data-testid="W-JG-01.runPill.next"
+        data-swap={toast?.shown ? "event" : undefined}
         onClick={() => onStep?.(next)}
       >
         <span className="fsc-pill__mark" aria-hidden />
-        <span>{next.text}</span>
+        {/* The pill's words and, for 3 s, an event's over them (one cell, crossfading). The reading's seed stand-in
+            is said once, in the reading room's id line (round 5: no glyph in the bar). */}
+        <span className="fsc-pill__words">
+          <span className="fsc-pill__say" data-testid="W-JG-01.runPill.words">
+            {pillWords(next.text)}
+          </span>
+          {toast && <PillToastWords toast={toast} />}
+        </span>
       </AppLink>
       <ChromeSlot name="pill.accessory" as="span" className="fsc-pill__slot" />
       <Menu.Root>
@@ -59,6 +101,44 @@ export function RunPill({ view, next, items, onStep }: RunPillProps) {
                   <span>{t(item.label)}</span>
                 </Menu.LinkItem>
               ))}
+              {utilities && (
+                <>
+                  <Menu.Separator className="fsc-menu__rule" />
+                  <Menu.Item
+                    className="fsc-menu__item"
+                    onClick={utilities.onLog}
+                    data-testid="W-JG-01.logOpen"
+                  >
+                    <Glyph name="ms:schedule" size={18} />
+                    <span>{LOG.title}</span>
+                  </Menu.Item>
+                  {/* Sound: off by default, remembered per viewer; this click is the gesture that lets audio start. */}
+                  <Menu.CheckboxItem
+                    className="fsc-menu__item"
+                    checked={sound.on}
+                    onCheckedChange={() => sound.toggle()}
+                    data-testid="W-JG-01.sound"
+                  >
+                    <Glyph name={sound.on ? "ms:volume-up" : "ms:volume-off"} size={18} />
+                    <span>{STAGE.sound}</span>
+                    <span className="fsc-menu__state">{sound.on ? STAGE.on : STAGE.off}</span>
+                  </Menu.CheckboxItem>
+                  {utilities.canReset && (
+                    <Menu.Item
+                      className="fsc-menu__item"
+                      onClick={() => {
+                        if (!utilities.resetting) utilities.onReset();
+                      }}
+                      aria-disabled={utilities.resetting || undefined}
+                      aria-busy={utilities.resetting || undefined}
+                      data-testid="W-JG-01.reset"
+                    >
+                      <Glyph name="ms:restart-alt" size={18} />
+                      <span>{STAGE.reset}</span>
+                    </Menu.Item>
+                  )}
+                </>
+              )}
               <Menu.Separator className="fsc-menu__rule" />
               <Menu.Item
                 className="fsc-menu__item"

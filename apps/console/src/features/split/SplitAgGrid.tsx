@@ -39,11 +39,20 @@ export interface SplitAgGridProps {
 }
 
 /**
- * The hold note under H1 spans the grid; every other row is cells. It keeps the grid's 40 px row height, so adding
- * or removing it never changes another row's height (AG Grid would redraw the rows, and a live wave would lose its
- * slide).
+ * Every line stacks the member's name over their number, so the split's rows are docs/DESIGN.md §4's 48 px (a table's
+ * 40 px row, plus room for the second line; UI gate round 4), the header the grid's 36.
  */
-const isFullWidthRow = (p: IsFullWidthRowParams<GridRow>) => p.rowNode.data?.kind === "note";
+const STACKED_ROW_PX = GRID_ROW_PX + 8;
+
+/**
+ * The hold notes under H1 and H2 and a narrow grid's opened line parts span the grid; every other row is cells. All
+ * keep the split's one row height, so adding or removing one never changes another row's height (AG Grid would
+ * redraw the rows, and a live wave would lose its slide).
+ */
+const isFullWidthRow = (p: IsFullWidthRowParams<GridRow>) => {
+  const kind = p.rowNode.data?.kind;
+  return kind === "note" || kind === "detail";
+};
 
 export function SplitAgGrid({ noRows, onApi, noteRenderer, ...props }: SplitAgGridProps) {
   const onGridReady = useCallback((e: GridReadyEvent<GridRow>) => onApi(e.api), [onApi]);
@@ -53,10 +62,13 @@ export function SplitAgGrid({ noRows, onApi, noteRenderer, ...props }: SplitAgGr
       {...props}
       theme={gridTheme}
       onGridReady={onGridReady}
-      rowHeight={GRID_ROW_PX}
+      rowHeight={STACKED_ROW_PX}
       isFullWidthRow={isFullWidthRow}
       fullWidthCellRenderer={noteRenderer}
       headerHeight={GRID_HEADER_PX}
+      // The grid's scrollbars overlay its lines (round 5: a stable gutter): the columns fill the whole width, so the
+      // lines, the total and the header end on the same right edge.
+      scrollbarWidth={0}
       suppressColumnVirtualisation
       ensureDomOrder
       enableBrowserTooltips

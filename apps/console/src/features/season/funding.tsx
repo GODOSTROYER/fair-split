@@ -4,9 +4,21 @@
 // evidence: only a live `invoice.state` event plays it (its ID is the evidence); a run that was funded before
 // this page subscribed simply shows funded, drawn, still. The invoice plate carries Claude's recorded draft in
 // pencil: Claude chose the labels, every amount is the code's quote (I1).
+//
+// UI gate round 3 on the first view (the compact desk): the PayPal money values wear the one micro-tag (the invoice
+// always, the pool once the simulated PayPal funds it), the seeded lines a bare legend glyph; the pool is one line,
+// "Invoice US$4,333.50 − costs US$60.00 = US$4,273.50", pending grey until it is funded; the invoice's id is the
+// showcase run's until the judge's own run has one. Round 4: the desk is two top-aligned stacks on the screen's
+// twelve columns (the money, the paper), each card hugging its content; the pool's state ("Not funded" beside a
+// hollow dot, then "Funded") sits in its card's head, never inside the sum.
+// Round 5 on the first view: the pool leads with its own amount, so the one jade arc joins the two amounts (the
+// invoice hero's right edge to the pool's figure), the sum under it in words; the rate card is the pool card's foot
+// (the rules that share it), a row over a rule, not a card of its own; no invoice id until a session starts; no legend
+// glyph on the invoice's lines (the title row's id line says the provenance once); no "status check · time" (its
+// sentence is the Funded chip's title); and "Funded" is the screen's state, in its title row (`fundedMark={false}`).
 
 import { INVOICE_STATUS_LABELS, pickLabel, type SeasonSnapshot } from "@fairsplit/contracts";
-import { CurrencyFigure, Glyph, useT } from "@fairsplit/ui-web";
+import { CurrencyFigure, Glyph, MicroTag, StateDot, useT } from "@fairsplit/ui-web";
 import { type MotionValue, motion, useMotionValue, useTransform } from "motion/react";
 import {
   type ReactNode,
@@ -17,27 +29,49 @@ import {
   useRef,
   useState,
 } from "react";
+import { railTag } from "../../chrome/copy.js";
 import { DataTable, Mirrored } from "../../chrome/DataTable.js";
 import { Stamp } from "../../chrome/Stamp.js";
 import { useJudgeSession, useRunEvents } from "../../data/hooks.js";
 import type { RunView } from "../../data/run-view.js";
+import { stageInvoice } from "../../lib/display.js";
 import type { PaypalRail } from "../../lib/env.js";
 import { format } from "../../lib/format.js";
 import { type MomentController, useMoment } from "../../lib/moment.js";
 import { provenanceFooter } from "../../lib/provenance.js";
-import { fundedSource, SEASON_COPY } from "./copy.js";
+import { FIRST_VIEW_COPY, fundedSource, SEASON_COPY } from "./copy.js";
 import { invoiceLines, isFunded, isPaid, poolOf } from "./model.js";
 import "./season.css";
 
 export type FundingMoment = MomentController<"MM-S">;
 
+/**
+ * The invoice's title in words: the session's own number once it has one ("Draft invoice" before), and before
+ * the first press the showcase run's number, labelled as the showcase's (round 3: one id, said for what it is).
+ */
 export function invoiceTitle(
   snapshot: SeasonSnapshot,
   view: RunView | undefined,
   inSession: boolean,
 ): string {
   if (inSession) return view?.invoice.number ? SEASON_COPY.invoice(view.invoice.number) : "Draft invoice";
-  return `${SEASON_COPY.invoice(snapshot.run.invoice.invoiceNumber)} (seeded sample)`;
+  const id = stageInvoice(snapshot, view, false);
+  return id?.note ? `${SEASON_COPY.invoice(id.number)} (${id.note})` : SEASON_COPY.invoice(id?.number ?? "");
+}
+
+/** Where "Funded" came from (I8): the status check that read the invoice paid, on this rail, in one sentence. */
+export function fundedSourceTitle(rail: PaypalRail, view: RunView | undefined): string {
+  return `${fundedSource(rail)} ${provenanceFooter({
+    kind: "paypal",
+    source: "status_check",
+    rail,
+    provenance: view?.invoice.provenance,
+  })}`;
+}
+
+/** The micro-tag beside a PayPal money value: the simulated sandbox's, or the untested sandbox rail's words. */
+function RailMicroTag({ rail, testId }: { readonly rail: PaypalRail; readonly testId?: string }) {
+  return <MicroTag label={railTag(rail)} {...(testId ? { testId } : {})} />;
 }
 
 /**
@@ -64,14 +98,14 @@ export function useFundingMoment(runSlug: string | null, view: RunView | undefin
 type Live = MotionValue<number> | number;
 
 /** The values a funding block draws with: live motion values while MM-S plays, still values otherwise. */
-interface FundingValues {
+export interface FundingValues {
   readonly arc: Live;
   readonly poolSolid: Live;
   readonly inset: Live;
   readonly flood: Live;
 }
 
-function fundingValues(moment: FundingMoment, funded: boolean): FundingValues {
+export function fundingValues(moment: FundingMoment, funded: boolean): FundingValues {
   if (moment.playing) {
     return {
       arc: moment.value("arc"),
@@ -117,8 +151,8 @@ export function HollowFigure({
 }) {
   const display = format.money(cents);
   const mirror = useMirror(solid);
-  // Landed and filled, the amount reads as money: a third layer in FS Sans's proportional figures (a plain zero)
-  // cross-fades in over the hollow cut, whose figures are tabular with the slashed zero (ADR-0016, decision §7).
+  // Landed and filled, a third ink layer cross-fades in over the hollow cut; every layer is FS Sans in tabular
+  // figures (round 3: one money style), so nothing a viewer reads moves.
   const hasLanded = useMirror(landed ? 1 : 0);
   const ink = useTransform([mirror, hasLanded], ([v, l]) =>
     (l as number) >= 1 && (v as number) >= 1 ? 1 : 0,
@@ -144,7 +178,7 @@ export function HollowFigure({
   );
 }
 
-/** An inline amount: hollow is ink-2 with a dashed underline; landed is ink (S2.2.1, under 28 px). */
+/** An inline amount: hollow is the pending grey (never dashed: dashed means simulated); landed is ink (S2.2.1). */
 function InlineAmount({
   cents,
   landed,
@@ -165,15 +199,23 @@ function InlineAmount({
   );
 }
 
-/** "Funded" takes PayPal's press: its 3 px inset closes to flush and jade floods it from the corner. */
-function FundedMark({
+/**
+ * "Funded" takes PayPal's press: its 3 px inset closes to flush and jade floods it from the corner. `landed` marks
+ * it flooded wherever it stands (the first view's title row is outside the moment's root); `title` says where the
+ * word came from (the status check that read the invoice paid).
+ */
+export function FundedMark({
   inset,
   flood,
   testId,
+  landed,
+  title,
 }: {
   readonly inset: Live;
   readonly flood: Live;
   readonly testId: string;
+  readonly landed?: boolean;
+  readonly title?: string;
 }) {
   const t = useMirror(inset);
   const f = useMirror(flood);
@@ -183,7 +225,13 @@ function FundedMark({
   const floodScale = useTransform(f, (v) => `scale(${v})`);
   const floodOpacity = useTransform(f, (v) => (v > 0 ? 1 : 0));
   return (
-    <span className="fsc-funded" data-testid={testId} role="status">
+    <span
+      className="fsc-funded"
+      data-testid={testId}
+      data-landed={landed ? "" : undefined}
+      title={title}
+      role="status"
+    >
       <motion.span
         className="fsc-funded__edge fsc-funded__edge--r"
         aria-hidden
@@ -272,8 +320,13 @@ export interface FundingBlockProps {
   readonly totalRole?: "amount-l" | "amount-hero";
   /** The first view's denser plate: the memo in one caption, the slab right under Claude's draft. */
   readonly compact?: boolean;
-  /** The desk layout's paper, beside the invoice and under the pool. */
-  readonly desk?: ReactNode;
+  /** The pool card's foot, over a rule (the first view's rate card: the rules that share the pool). */
+  readonly poolFoot?: ReactNode;
+  /**
+   * Whether the pool card's head carries "Funded" (W-TR-01). The first view says it once, as the screen's state in
+   * its title row (round 5), and draws `FundedMark` there itself.
+   */
+  readonly fundedMark?: boolean;
 }
 
 /** The invoice Claude drafted and code checked, the arc, and the pool it funds. */
@@ -287,7 +340,8 @@ export function FundingBlock({
   action,
   totalRole = "amount-l",
   compact = false,
-  desk,
+  poolFoot,
+  fundedMark = true,
 }: FundingBlockProps) {
   const t = useT();
   const session = useJudgeSession();
@@ -339,6 +393,397 @@ export function FundingBlock({
     hash: format.hashGroups(snapshot.rateCard.sha256),
     lot: snapshot.lot.lotCode,
   });
+  // The first view's invoice id (round 5): none until a session starts (the showcase run's id is not the judge's),
+  // then the session's own number, or "draft" until it has one.
+  const inSession = session.session !== null;
+  // The pool as one line only when the line is true: invoice minus the payout costs is the pool, to the cent.
+  const balanced = invoice.amountCents - pool.disbursementCents === pool.poolCents;
+  const desked = layout === "desk";
+  const invoicePlate = (
+    <article
+      className="fsc-fund__plate fsc-fund__invoice"
+      data-testid={`${screen}.invoice`}
+      data-state={funded ? "funded" : "waiting"}
+      aria-labelledby={`${screen}-invoice-title`}
+    >
+      <header className="fsc-fund__head">
+        <h2 id={`${screen}-invoice-title`} className="fsc-fund__title fs-t-label">
+          <Glyph name="triplicate-slip" size={18} />
+          {compact ? (
+            <>
+              {FIRST_VIEW_COPY.invoice}
+              {/* The session's own id in the mono (round 5: none before a session starts). */}
+              {inSession && (
+                <span className="fsc-fund__number" data-testid={`${screen}.invoice.id`}>
+                  {view?.invoice.number ? (
+                    <span className="fs-t-id">{view.invoice.number}</span>
+                  ) : (
+                    <span className="fs-t-caption">draft</span>
+                  )}
+                </span>
+              )}
+            </>
+          ) : (
+            invoiceTitle(snapshot, view, inSession)
+          )}
+        </h2>
+        {/* On the first view the heading says where the invoice is ("Invoice sent."): the status stays for
+              assistive technology and the arc's table, not as a second line of words. */}
+        <span
+          className={compact ? "fs-sr" : "fsc-fund__status fs-t-caption"}
+          data-state={funded ? "funded" : "waiting"}
+          data-testid={`${screen}.invoice.status`}
+        >
+          {statusWord}
+        </span>
+      </header>
+      <div className="fsc-fund__total">
+        <span className="fsc-fund__muted fs-t-label">{SEASON_COPY.invoiceTotal}</span>
+        {/* Round 5: the arc starts at the hero's own right edge; its one micro-tag sits on the line under it. */}
+        <span className="fsc-fund__figure-row">
+          <HollowFigure
+            cents={invoice.amountCents}
+            solid={funded ? 1 : 0}
+            landed={funded}
+            typeRole={totalRole}
+            anchor={from}
+            testId={`${screen}.invoice.amount`}
+          />
+        </span>
+        {compact ? (
+          <span className="fsc-fund__under">
+            <RailMicroTag rail={rail} testId={`${screen}.invoice.tag`} />
+            <span className="fsc-fund__estimate fs-t-caption" title={invoice.pesoEstimate}>
+              {invoice.pesoEstimate.replace(/^about /, "≈ ").replace(/ \(estimate\)$/, "")}
+            </span>
+          </span>
+        ) : (
+          <span className="fsc-fund__estimate fs-t-caption">{invoice.pesoEstimate}</span>
+        )}
+      </div>
+      {action && compact && (
+        <div className="fsc-fund__action" data-place="lead">
+          {action}
+        </div>
+      )}
+      {compact ? (
+        // The first view folds the invoice's lines under their name. Round 5: no legend glyph; that they are a
+        // seeded sample is the summary's title and its hidden words, and the note inside says it.
+        <details className="fsc-fund__draft" data-provenance="seeded" data-testid={`${screen}.invoice.draft`}>
+          <summary className="fsc-fund__draft-head fs-t-label" title={SEASON_COPY.invoiceLines}>
+            <Glyph name="pencil" size={16} />
+            {SEASON_COPY.invoiceLines.replace(/ \(seeded sample\)$/, "")}
+            <span className="fs-sr"> (seeded sample)</span>
+            <Glyph name="ms:expand-more" size={18} />
+          </summary>
+          {draftBody}
+          <p className="fsc-fund__memo fs-t-caption">
+            {`${memo} · ${t("W-TR-01.invoice.autoCancel", { date: format.date(invoice.autoCancelOn) })}`}
+          </p>
+        </details>
+      ) : (
+        <div className="fsc-fund__draft" data-provenance="seeded" data-testid={`${screen}.invoice.draft`}>
+          <p className="fsc-fund__draft-head fs-t-label">
+            <Glyph name="pencil" size={16} />
+            {SEASON_COPY.invoiceLines}
+          </p>
+          {draftBody}
+        </div>
+      )}
+      {compact ? null : (
+        <dl className="fsc-fund__meta fs-t-caption">
+          <div>
+            <dt className="fs-sr">Memo</dt>
+            <dd>{memo}</dd>
+          </div>
+          <div>
+            <dt className="fs-sr">Auto-cancel</dt>
+            <dd>{t("W-TR-01.invoice.autoCancel", { date: format.date(invoice.autoCancelOn) })}</dd>
+          </div>
+          {treasurer && (
+            <div className="fsc-fund__sent">
+              <dt className="fs-sr">Sent by</dt>
+              <dd>
+                <Stamp
+                  stamp={{
+                    initials: treasurer.initials,
+                    name: treasurer.name,
+                    at: format.date(invoice.invoiceDate),
+                  }}
+                />
+                <span>{t("W-TR-01.invoice.drafted")}</span>
+              </dd>
+            </div>
+          )}
+        </dl>
+      )}
+      {action && !compact && <div className="fsc-fund__action">{action}</div>}
+    </article>
+  );
+
+  const arcLayer = (
+    <Mirrored
+      testId={`${screen}.arc`}
+      className="fsc-fund__arc"
+      visual={
+        d ? (
+          <svg className="fsc-fund__arc-svg" aria-hidden focusable="false">
+            {arc ? (
+              <motion.path d={d} className="fsc-fund__arc-path" style={{ pathLength: arc }} />
+            ) : values.arc === 1 ? (
+              <path d={d} className="fsc-fund__arc-path" />
+            ) : null}
+          </svg>
+        ) : null
+      }
+      table={
+        <DataTable
+          caption={SEASON_COPY.arcCaption}
+          testId={`${screen}.arc.table`}
+          columns={[
+            { key: "item", label: "Item" },
+            { key: "amount", label: "Amount", numeric: true },
+            { key: "status", label: "Status" },
+          ]}
+          rows={[
+            {
+              key: "invoice",
+              cells: {
+                // The first view shows no invoice id until a session starts (round 5), in Data mode too.
+                item:
+                  compact && !inSession ? FIRST_VIEW_COPY.invoice : invoiceTitle(snapshot, view, inSession),
+                amount: format.money(invoice.amountCents),
+                status: statusWord,
+              },
+            },
+            {
+              key: "pool",
+              cells: {
+                item: SEASON_COPY.poolShare(snapshot.figures.members),
+                amount: format.money(pool.poolCents),
+                status: funded ? SEASON_COPY.funded : SEASON_COPY.waiting,
+              },
+            },
+          ]}
+        />
+      }
+    />
+  );
+
+  const poolPlate = (
+    <article
+      className="fsc-fund__plate fsc-fund__pool"
+      data-variant={desked ? "strip" : "plate"}
+      data-testid={`${screen}.pool`}
+      data-state={landed ? "landed" : "hollow"}
+      aria-labelledby={`${screen}-pool-title`}
+    >
+      <header className="fsc-fund__head">
+        <h2 id={`${screen}-pool-title`} className="fsc-fund__title fs-t-label">
+          <Glyph name="sack" size={18} />
+          {desked ? FIRST_VIEW_COPY.pool : SEASON_COPY.pool}
+          {desked && (
+            // Round 4: "Pool · 64 members", one name; the pool's state sits at the head's end.
+            <span className="fsc-fund__share" title={SEASON_COPY.poolShare(snapshot.figures.members)}>
+              <span className="fsc-fund__sep" aria-hidden>
+                ·
+              </span>
+              <span className="fs-sr">, </span>
+              {FIRST_VIEW_COPY.members(snapshot.figures.members)}
+            </span>
+          )}
+        </h2>
+        {desked && !funded && !moment.playing && (
+          // Before the simulated PayPal funds it: the hollow dot and its word, at the head's end (round 4: never
+          // a dot inside the sum, where it read as the letter o).
+          <span className="fsc-fund__pending fs-t-label" data-testid={`${screen}.pool.state`}>
+            <StateDot kind="pending" />
+            {FIRST_VIEW_COPY.notFunded}
+          </span>
+        )}
+        {fundedMark && (funded || moment.playing) && (
+          <span className="fsc-fund__head-end">
+            <FundedMark inset={values.inset} flood={values.flood} testId={`${screen}.funded`} />
+          </span>
+        )}
+      </header>
+      {desked && balanced ? (
+        // The desk's pool (rounds 5 and 6): its own amount first, a hero on the invoice's step, where the arc from the
+        // invoice lands; under it its one micro-tag (once the simulated PayPal funds it) and the sum in words,
+        // "Invoice US$4,333.50 − costs US$60.00". Until it is funded the pool is pending grey; then ink. Then what
+        // the members share it as, drawn once: a two-part bar (the premium, never deducted, and the quality bonus)
+        // with each part's amount under it.
+        <>
+          <p
+            className="fsc-fund__eq"
+            data-state={landed ? "landed" : "pending"}
+            data-testid={`${screen}.pool.eq`}
+          >
+            <span className="fs-sr">
+              {FIRST_VIEW_COPY.eqSpoken(
+                format.money(invoice.amountCents),
+                format.money(pool.disbursementCents),
+              )}
+            </span>
+            <span className="fsc-fund__eq-result">
+              <HollowFigure
+                cents={pool.poolCents}
+                solid={values.poolSolid}
+                landed={landed}
+                typeRole={totalRole}
+                anchor={to}
+                testId={`${screen}.pool.amount`}
+              />
+            </span>
+            <span className="fsc-fund__under">
+              {landed && compact && <RailMicroTag rail={rail} testId={`${screen}.pool.tag`} />}
+              <span className="fsc-fund__eq-terms" aria-hidden>
+                <span className="fsc-fund__eq-term">
+                  <span className="fsc-fund__eq-word">{FIRST_VIEW_COPY.eqInvoice}</span>
+                  <InlineAmount cents={invoice.amountCents} landed={landed} />
+                </span>
+                <span className="fsc-fund__eq-op">−</span>
+                <span className="fsc-fund__eq-term">
+                  <span className="fsc-fund__eq-word">{FIRST_VIEW_COPY.eqCosts}</span>
+                  <InlineAmount
+                    cents={pool.disbursementCents}
+                    landed={landed}
+                    testId={`${screen}.pool.disbursement`}
+                  />
+                </span>
+              </span>
+            </span>
+          </p>
+          <div className="fsc-fund__share-of" data-state={landed ? "landed" : "pending"}>
+            <div className="fsc-fund__bar" aria-hidden>
+              <span data-part="premium" style={{ flexGrow: pool.premiumCents }} />
+              <span data-part="bonus" style={{ flexGrow: pool.bonusCents }} />
+            </div>
+            <dl className="fsc-fund__split">
+              <div className="fsc-fund__seg" data-part="premium" style={{ flexGrow: pool.premiumCents }}>
+                <dt>
+                  {SEASON_COPY.premium}
+                  <Glyph name="ms:lock" size={12} label={SEASON_COPY.premiumNever} />
+                </dt>
+                <dd>
+                  <InlineAmount cents={pool.premiumCents} landed={landed} testId={`${screen}.pool.premium`} />
+                </dd>
+              </div>
+              <div className="fsc-fund__seg" data-part="bonus" style={{ flexGrow: pool.bonusCents }}>
+                <dt>{SEASON_COPY.bonus}</dt>
+                <dd>
+                  <InlineAmount cents={pool.bonusCents} landed={landed} testId={`${screen}.pool.bonus`} />
+                </dd>
+              </div>
+            </dl>
+          </div>
+        </>
+      ) : desked ? (
+        // The desk's strip: the pool's total and its three parts on one line, so the paper sits high.
+        <div className="fsc-fund__strip">
+          <HollowFigure
+            cents={pool.poolCents}
+            solid={values.poolSolid}
+            landed={landed}
+            typeRole="amount-l"
+            anchor={to}
+            testId={`${screen}.pool.amount`}
+          />
+          <dl className="fsc-fund__parts">
+            <div className="fsc-fund__part">
+              <dt>
+                {SEASON_COPY.premium}
+                <Glyph name="ms:lock" size={12} label={SEASON_COPY.premiumNote} />
+              </dt>
+              <dd>
+                <InlineAmount cents={pool.premiumCents} landed={landed} testId={`${screen}.pool.premium`} />
+              </dd>
+            </div>
+            <div className="fsc-fund__part">
+              <dt>{SEASON_COPY.bonus}</dt>
+              <dd>
+                <InlineAmount cents={pool.bonusCents} landed={landed} testId={`${screen}.pool.bonus`} />
+              </dd>
+            </div>
+            <div className="fsc-fund__part" data-aside="">
+              <dt>{SEASON_COPY.disbursement}</dt>
+              <dd>
+                <InlineAmount
+                  cents={pool.disbursementCents}
+                  landed={landed}
+                  testId={`${screen}.pool.disbursement`}
+                />
+              </dd>
+            </div>
+          </dl>
+        </div>
+      ) : (
+        <>
+          <div className="fsc-fund__total">
+            <span className="fsc-fund__muted fs-t-label">
+              {SEASON_COPY.poolShare(snapshot.figures.members)}
+            </span>
+            <HollowFigure
+              cents={pool.poolCents}
+              solid={values.poolSolid}
+              landed={landed}
+              typeRole="amount-l"
+              anchor={to}
+              testId={`${screen}.pool.amount`}
+            />
+          </div>
+          <dl className="fsc-fund__lines fsc-fund__lines--pool">
+            <div className="fsc-fund__line">
+              <dt>
+                <span className="fsc-fund__pool-label">
+                  {SEASON_COPY.premium}
+                  <Glyph name="ms:lock" size={14} label="Protected" />
+                </span>
+                <span className="fs-t-caption fsc-fund__muted">{SEASON_COPY.premiumNote}</span>
+              </dt>
+              <dd>
+                <InlineAmount cents={pool.premiumCents} landed={landed} testId={`${screen}.pool.premium`} />
+              </dd>
+            </div>
+            <div className="fsc-fund__line">
+              <dt>{SEASON_COPY.bonus}</dt>
+              <dd>
+                <InlineAmount cents={pool.bonusCents} landed={landed} testId={`${screen}.pool.bonus`} />
+              </dd>
+            </div>
+            <div className="fsc-fund__line fsc-fund__line--aside">
+              <dt>
+                <span>{SEASON_COPY.disbursement}</span>
+                <span className="fs-t-caption fsc-fund__muted">{SEASON_COPY.disbursementNote}</span>
+              </dt>
+              <dd>
+                <InlineAmount
+                  cents={pool.disbursementCents}
+                  landed={landed}
+                  testId={`${screen}.pool.disbursement`}
+                />
+              </dd>
+            </div>
+          </dl>
+        </>
+      )}
+      {funded && !compact && (
+        <p className="fsc-fund__source fs-t-caption" data-testid={`${screen}.funded.source`}>
+          {fundedSource(rail)}{" "}
+          <span className="fsc-fund__muted">
+            {provenanceFooter({
+              kind: "paypal",
+              source: "status_check",
+              rail,
+              provenance: view?.invoice.provenance,
+            })}
+          </span>
+        </p>
+      )}
+      {poolFoot && <div className="fsc-fund__foot">{poolFoot}</div>}
+    </article>
+  );
+
   return (
     <section
       className="fsc-fund"
@@ -349,271 +794,26 @@ export function FundingBlock({
       {...moment.rootProps}
       ref={containerRef}
     >
-      <article
-        className="fsc-fund__plate fsc-fund__invoice"
-        data-testid={`${screen}.invoice`}
-        data-state={funded ? "funded" : "waiting"}
-        aria-labelledby={`${screen}-invoice-title`}
-      >
-        <header className="fsc-fund__head">
-          <h2 id={`${screen}-invoice-title`} className="fsc-fund__title fs-t-label">
-            <Glyph name="triplicate-slip" size={18} />
-            {invoiceTitle(snapshot, view, session.session !== null)}
-          </h2>
-          <span
-            className="fsc-fund__status fs-t-caption"
-            data-state={funded ? "funded" : "waiting"}
-            data-testid={`${screen}.invoice.status`}
-          >
-            {statusWord}
-          </span>
-        </header>
-        <div className="fsc-fund__total">
-          <span className="fsc-fund__muted fs-t-label">{SEASON_COPY.invoiceTotal}</span>
-          <HollowFigure
-            cents={invoice.amountCents}
-            solid={funded ? 1 : 0}
-            landed={funded}
-            typeRole={totalRole}
-            anchor={from}
-            testId={`${screen}.invoice.amount`}
-          />
-          <span className="fsc-fund__estimate fs-t-caption">{invoice.pesoEstimate}</span>
-        </div>
-        {action && compact && (
-          <div className="fsc-fund__action" data-place="lead">
-            {action}
+      {desked ? (
+        // The first view's desk (rounds 4 and 5): two cards on the screen's twelve columns, top-aligned and ending
+        // level: the money (the invoice and its one press) and the pool it funds (its amount, the sum, and the rate
+        // card that shares it). The arc joins the two amounts.
+        <>
+          <div className="fsc-fund__col" data-col="money">
+            {invoicePlate}
           </div>
-        )}
-        {compact ? (
-          // The first view folds the invoice's lines (the pool strip beside it shows the same three figures) under
-          // their provenance, which stays in view: "Invoice lines (seeded sample)".
-          <details
-            className="fsc-fund__draft"
-            data-provenance="seeded"
-            data-testid={`${screen}.invoice.draft`}
-          >
-            <summary className="fsc-fund__draft-head fs-t-label">
-              <Glyph name="pencil" size={16} />
-              {SEASON_COPY.invoiceLines}
-              <Glyph name="ms:expand-more" size={18} />
-            </summary>
-            {draftBody}
-          </details>
-        ) : (
-          <div className="fsc-fund__draft" data-provenance="seeded" data-testid={`${screen}.invoice.draft`}>
-            <p className="fsc-fund__draft-head fs-t-label">
-              <Glyph name="pencil" size={16} />
-              {SEASON_COPY.invoiceLines}
-            </p>
-            {draftBody}
+          {arcLayer}
+          <div className="fsc-fund__col" data-col="paper">
+            {poolPlate}
           </div>
-        )}
-        {compact ? (
-          <p className="fsc-fund__memo fs-t-caption">
-            {`${memo}. ${t("W-TR-01.invoice.autoCancel", { date: format.date(invoice.autoCancelOn) })}`}
-          </p>
-        ) : (
-          <dl className="fsc-fund__meta fs-t-caption">
-            <div>
-              <dt className="fs-sr">Memo</dt>
-              <dd>{memo}</dd>
-            </div>
-            <div>
-              <dt className="fs-sr">Auto-cancel</dt>
-              <dd>{t("W-TR-01.invoice.autoCancel", { date: format.date(invoice.autoCancelOn) })}</dd>
-            </div>
-            {treasurer && (
-              <div className="fsc-fund__sent">
-                <dt className="fs-sr">Sent by</dt>
-                <dd>
-                  <Stamp
-                    stamp={{
-                      initials: treasurer.initials,
-                      name: treasurer.name,
-                      at: format.date(invoice.invoiceDate),
-                    }}
-                  />
-                  <span>{t("W-TR-01.invoice.drafted")}</span>
-                </dd>
-              </div>
-            )}
-          </dl>
-        )}
-        {action && !compact && <div className="fsc-fund__action">{action}</div>}
-      </article>
-
-      <Mirrored
-        testId={`${screen}.arc`}
-        className="fsc-fund__arc"
-        visual={
-          d ? (
-            <svg className="fsc-fund__arc-svg" aria-hidden focusable="false">
-              {arc ? (
-                <motion.path d={d} className="fsc-fund__arc-path" style={{ pathLength: arc }} />
-              ) : values.arc === 1 ? (
-                <path d={d} className="fsc-fund__arc-path" />
-              ) : null}
-            </svg>
-          ) : null
-        }
-        table={
-          <DataTable
-            caption={SEASON_COPY.arcCaption}
-            testId={`${screen}.arc.table`}
-            columns={[
-              { key: "item", label: "Item" },
-              { key: "amount", label: "Amount", numeric: true },
-              { key: "status", label: "Status" },
-            ]}
-            rows={[
-              {
-                key: "invoice",
-                cells: {
-                  item: invoiceTitle(snapshot, view, session.session !== null),
-                  amount: format.money(invoice.amountCents),
-                  status: statusWord,
-                },
-              },
-              {
-                key: "pool",
-                cells: {
-                  item: SEASON_COPY.poolShare(snapshot.figures.members),
-                  amount: format.money(pool.poolCents),
-                  status: funded ? SEASON_COPY.funded : SEASON_COPY.waiting,
-                },
-              },
-            ]}
-          />
-        }
-      />
-
-      <article
-        className="fsc-fund__plate fsc-fund__pool"
-        data-variant={layout === "desk" ? "strip" : "plate"}
-        data-testid={`${screen}.pool`}
-        data-state={landed ? "landed" : "hollow"}
-        aria-labelledby={`${screen}-pool-title`}
-      >
-        <header className="fsc-fund__head">
-          <h2 id={`${screen}-pool-title`} className="fsc-fund__title fs-t-label">
-            <Glyph name="sack" size={18} />
-            {SEASON_COPY.pool}
-            {layout === "desk" && (
-              <span className="fsc-fund__share fs-t-caption">
-                {SEASON_COPY.poolShare(snapshot.figures.members)}
-              </span>
-            )}
-          </h2>
-          {(funded || moment.playing) && (
-            <FundedMark inset={values.inset} flood={values.flood} testId={`${screen}.funded`} />
-          )}
-        </header>
-        {layout === "desk" ? (
-          // The desk's strip: the pool's total and its three parts on one line, so the paper sits high.
-          <div className="fsc-fund__strip">
-            <HollowFigure
-              cents={pool.poolCents}
-              solid={values.poolSolid}
-              landed={landed}
-              typeRole="amount-l"
-              anchor={to}
-              testId={`${screen}.pool.amount`}
-            />
-            <dl className="fsc-fund__parts">
-              <div className="fsc-fund__part">
-                <dt>
-                  {SEASON_COPY.premium}
-                  <Glyph name="ms:lock" size={12} label={SEASON_COPY.premiumNote} />
-                </dt>
-                <dd>
-                  <InlineAmount cents={pool.premiumCents} landed={landed} testId={`${screen}.pool.premium`} />
-                </dd>
-              </div>
-              <div className="fsc-fund__part">
-                <dt>{SEASON_COPY.bonus}</dt>
-                <dd>
-                  <InlineAmount cents={pool.bonusCents} landed={landed} testId={`${screen}.pool.bonus`} />
-                </dd>
-              </div>
-              <div className="fsc-fund__part" data-aside="">
-                <dt>{SEASON_COPY.disbursement}</dt>
-                <dd>
-                  <InlineAmount
-                    cents={pool.disbursementCents}
-                    landed={landed}
-                    testId={`${screen}.pool.disbursement`}
-                  />
-                </dd>
-              </div>
-            </dl>
-          </div>
-        ) : (
-          <>
-            <div className="fsc-fund__total">
-              <span className="fsc-fund__muted fs-t-label">
-                {SEASON_COPY.poolShare(snapshot.figures.members)}
-              </span>
-              <HollowFigure
-                cents={pool.poolCents}
-                solid={values.poolSolid}
-                landed={landed}
-                typeRole="amount-l"
-                anchor={to}
-                testId={`${screen}.pool.amount`}
-              />
-            </div>
-            <dl className="fsc-fund__lines fsc-fund__lines--pool">
-              <div className="fsc-fund__line">
-                <dt>
-                  <span className="fsc-fund__pool-label">
-                    {SEASON_COPY.premium}
-                    <Glyph name="ms:lock" size={14} label="Protected" />
-                  </span>
-                  <span className="fs-t-caption fsc-fund__muted">{SEASON_COPY.premiumNote}</span>
-                </dt>
-                <dd>
-                  <InlineAmount cents={pool.premiumCents} landed={landed} testId={`${screen}.pool.premium`} />
-                </dd>
-              </div>
-              <div className="fsc-fund__line">
-                <dt>{SEASON_COPY.bonus}</dt>
-                <dd>
-                  <InlineAmount cents={pool.bonusCents} landed={landed} testId={`${screen}.pool.bonus`} />
-                </dd>
-              </div>
-              <div className="fsc-fund__line fsc-fund__line--aside">
-                <dt>
-                  <span>{SEASON_COPY.disbursement}</span>
-                  <span className="fs-t-caption fsc-fund__muted">{SEASON_COPY.disbursementNote}</span>
-                </dt>
-                <dd>
-                  <InlineAmount
-                    cents={pool.disbursementCents}
-                    landed={landed}
-                    testId={`${screen}.pool.disbursement`}
-                  />
-                </dd>
-              </div>
-            </dl>
-          </>
-        )}
-        {funded && (
-          <p className="fsc-fund__source fs-t-caption" data-testid={`${screen}.funded.source`}>
-            {fundedSource(rail)}{" "}
-            <span className="fsc-fund__muted">
-              {provenanceFooter({
-                kind: "paypal",
-                source: "status_check",
-                rail,
-                provenance: view?.invoice.provenance,
-              })}
-            </span>
-          </p>
-        )}
-      </article>
-
-      {layout === "desk" && desk && <div className="fsc-fund__desk">{desk}</div>}
+        </>
+      ) : (
+        <>
+          {invoicePlate}
+          {arcLayer}
+          {poolPlate}
+        </>
+      )}
     </section>
   );
 }

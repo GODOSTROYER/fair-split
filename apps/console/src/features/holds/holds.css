@@ -1,8 +1,9 @@
 /* W-TR-06 Hold drawer: one hold card flat on the drawer's plate-2, its evidence as paper, MM-3's twin compare.
    Machine text prints in pencil (S2.2.1: the engine's line and Claude's differ only by the pencil glyph and the
    word Claude). Canary marks only what a person must decide on: in H1, one underline beneath the two serials
-   (design §7 M3); the other fields the engine matched print in ink once lit. Jade never appears here. The
-   decision (the card's actions) stays pinned to the drawer's foot, so the slab is always in view. */
+   (design §7 M3); the other fields the engine matched print in ink once lit. Jade never appears here. Round 5: the
+   drawer hugs its content; H2's and H3's decision sticks to the drawer's foot if their evidence runs long; once
+   decided, the next hold is the one primary on the drawer's own sticky footer (StageDrawer `footer`). */
 
 .fsr-hold-screen {
   display: grid;
@@ -16,10 +17,11 @@
   gap: var(--fs-space-16);
 }
 
-/* The card is the drawer's content, not a card inside a card. */
+/* The card is the drawer's content, not a card inside a card: no padding, no face, no shadow. */
 .fsr-hold.fs-hold {
   padding: 0;
   background: transparent;
+  box-shadow: none;
 }
 
 .fsr-hold.fs-hold:is([data-state="resolved"], [data-state="excluded"]) {
@@ -49,7 +51,11 @@
   background: var(--fs-plate-2);
 }
 
-.fsr-hold__result {
+/* Once decided the drawer is a compact success card (round 5): the outcome leads ("+US$17.94 back to 63 members"),
+   then the card renamed for the decision with the decider's stamp, its evidence one disclosure away; the next hold is
+   the one primary on the drawer's sticky footer (StageDrawer `footer`), with no blocking scrim. */
+.fsr-hold-screen > .fsr-hold__result {
+  order: -2;
   margin: 0;
 }
 
@@ -57,12 +63,152 @@
   color: var(--fs-ink);
 }
 
+/* The next hold: the Slab's face on a real link, hugging its words, an arrow forward. */
+.fsr-hold__next .fs-slab__face {
+  text-decoration: none;
+}
+
+.fsr-hold__next .fs-slab__label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--fs-space-8);
+}
+
+/* The set has a back arrow only; the next step points forward. */
+.fsr-hold__arrow {
+  transform: scaleX(-1);
+}
+
+/* The decided card's evidence, behind one disclosure: the glyph set's chevron, never the browser's triangle. */
+.fsr-hold__more {
+  display: grid;
+  gap: var(--fs-space-16);
+}
+
+.fsr-hold__more > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--fs-space-4);
+  justify-self: start;
+  color: var(--fs-ink-2);
+  list-style: none;
+  cursor: pointer;
+}
+
+.fsr-hold__more > summary::-webkit-details-marker {
+  display: none;
+}
+
+.fsr-hold__more-mark {
+  transition: transform var(--fs-dur-tooltip) var(--fs-ease-out);
+}
+
+.fsr-hold__more[open] .fsr-hold__more-mark {
+  transform: rotate(180deg);
+}
+
+/* The gate as the spec's status pill: a white face, a hairline ring, colour only in the marigold dot. */
+.fsr-hold .fs-hold__gate {
+  min-height: 24px;
+  padding: 0 10px 0 9px;
+  border-color: var(--fs-rule-strong);
+  background: var(--fs-plate);
+}
+
+.fsr-hold .fs-hold__gate > .fs-glyph {
+  display: none;
+}
+
+.fsr-hold .fs-hold__gate::before {
+  content: "";
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--fs-canary);
+}
+
+/* A decided hold no longer gates anything: its gate pill steps aside for the stamp. */
+.fsr-hold.fs-hold:is([data-state="resolved"], [data-state="excluded"]) .fs-hold__gate {
+  display: none;
+}
+
+/* The seed's sentence names its provenance as a quiet caption above it, never a pill (round 3: dashed lines mean
+   simulated only, and a stand-in is synthetic). */
+.fsr-hold .fs-hold__voice[data-voice="seeded"] dt {
+  flex: none;
+  justify-self: start;
+  color: var(--fs-ink-3);
+  white-space: nowrap;
+}
+
+.fsr-hold .fs-hold__voice[data-voice="seeded"] dd {
+  color: var(--fs-ink-2);
+}
+
+/* H1 leads with its decision (UI gate round 4): no engine row and no dial of its own, one effect line on the heading
+   step in tabular figures, "If counted once: +US$17.94 to 63 members · 2.05% → 1.62%", directly above "Count it
+   once"; the paired receipts and their four fields come right under the decision (drawn after it; in the markup
+   they stay inside the card, and hold no control, so the keyboard meets the decision first either way). */
+.fsr-hold .fs-hold__effect--line {
+  display: block;
+  margin: 0;
+  color: var(--fs-ink);
+  font-variant-numeric: tabular-nums lining-nums;
+  text-wrap: balance;
+}
+
+.fsr-mm3 .fsr-hold .fs-hold__evidence {
+  order: 1;
+  padding-top: var(--fs-space-24);
+  border-top: 1px solid var(--fs-rule);
+}
+
+/* The decided card stands under the outcome without the open card's rule above its evidence. */
+.fsr-mm3 .fsr-hold.fs-hold:is([data-state="resolved"], [data-state="excluded"]) .fs-hold__evidence {
+  padding-top: 0;
+  border-top: 0;
+}
+
+/* The decision sits right under its effect, not pinned to the drawer's foot: nothing scrolls between them. */
+.fsc-drawer .fsr-mm3 .fsr-hold .fs-hold__actions {
+  position: static;
+  margin-inline: 0;
+  padding: 0;
+  border-top: 0;
+  background: transparent;
+}
+
+/* The pair: the slab and its secondary at one 48 px height, bottoms aligned (round 5); the secondary's caption sits
+   under the pair. */
+.fsr-hold .fs-hold__buttons {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--fs-space-12);
+}
+
+.fsr-hold .fs-hold__flat .fs-flat[data-size="l"] {
+  min-height: 48px;
+}
+
+.fsr-hold .fs-hold__note {
+  margin: var(--fs-space-8) 0 0;
+  color: var(--fs-ink-3);
+}
+
+/* Once H1 is decided its number line is history: the result above the card says what changed. */
+.fsr-mm3 .fsr-hold.fs-hold:is([data-state="resolved"], [data-state="excluded"]) .fs-hold__voices {
+  display: none;
+}
+
+/* The mass-balance card's dial with its reading beside it: a section under a hairline, not a card in the drawer. */
 .fsr-hold__dial {
   display: flex;
   align-items: center;
   gap: var(--fs-space-16);
-  padding: var(--fs-space-12) var(--fs-space-16);
-  box-shadow: inset 0 0 0 1px var(--fs-rule);
+  padding-top: var(--fs-space-16);
+  border-top: 1px solid var(--fs-rule);
 }
 
 .fsr-hold__dial p {
@@ -95,7 +241,7 @@
 }
 
 .fsr-twin__caption {
-  color: var(--fs-ink-2);
+  color: var(--fs-ink-3);
 }
 
 /* The centre line the two copies converge on: the engine's alignment, so pencil. */
@@ -237,9 +383,10 @@
   column-gap: var(--fs-space-16);
 }
 
+/* The label column fits the longest label ("Member", 14 px) with its padding, so a value never touches it. */
 .fsr-twin__fields tr {
   display: grid;
-  grid-template-columns: 56px minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: 72px minmax(0, 1fr) minmax(0, 1fr);
   align-items: baseline;
   border-bottom: 1px solid var(--fs-rule);
 }
@@ -306,6 +453,10 @@
   align-items: center;
   gap: var(--fs-space-8);
   margin: 0;
+  color: var(--fs-ink);
+}
+
+.fsr-twin .fsr-twin__verdict > .fs-glyph {
   color: var(--fs-ink-2);
 }
 
@@ -374,6 +525,34 @@
 
 .fsr-plots p {
   margin: 0;
+}
+
+.fsr-plots__title {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--fs-space-4);
+}
+
+/* Not in the registry yet: the status pill with the marigold dot (a person registers it). */
+.fsr-plots__pending {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 24px;
+  padding: 0 10px 0 9px;
+  border-radius: var(--fs-radius-pill);
+  background: var(--fs-plate);
+  box-shadow: inset 0 0 0 1px var(--fs-rule-strong);
+  color: var(--fs-ink);
+}
+
+.fsr-plots__pending::before {
+  content: "";
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--fs-canary);
 }
 
 .fsr-plots ul {
@@ -449,6 +628,29 @@
   color: var(--fs-canary-text);
 }
 
+/* Schedule A's closed list as four rule chips; the rule the slip uses is in ink, the rest in ink-3. */
+.fsr-norule__rules {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--fs-space-4) var(--fs-space-8);
+}
+
+.fsr-norule__rule {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  padding: 0 6px;
+  border-radius: var(--fs-radius-cell);
+  background: var(--fs-plate-2);
+  box-shadow: inset 0 0 0 1px var(--fs-rule);
+  color: var(--fs-ink-3);
+}
+
+.fsr-norule__rule[data-used] {
+  color: var(--fs-ink);
+}
+
 /* ------------------------------------------------------------------ "These are two deliveries": a reason first */
 
 .fsr-reason {
@@ -468,4 +670,149 @@
   flex-wrap: wrap;
   align-items: center;
   gap: var(--fs-space-16);
+}
+
+/* The stand-in caption's pencil, in ink-3 like its words (last: it outranks the other glyph rules). */
+.fsr-hold .fs-hold__voice[data-voice="seeded"] dt .fs-glyph {
+  color: var(--fs-ink-3);
+}
+
+/* ------------------------------------------------------------------ a decided hold's receipt (round 8) */
+
+/* Once a hold is decided it is one strip in the split review, above its bench and table (W-TR-05's slot), not a
+   560 px sheet. Two lines at every width: what was decided and who decided it; then what it changed for the slip's
+   own member (before, then after), what it gave everyone else, and the evidence one disclosure away. The next hold
+   and Close stand at its end. Flat on a 1 px rule (no shadow: it is part of the screen). The table keeps its width,
+   its columns and its evidence rows. */
+.fsr-split__receipt:empty {
+  display: none;
+}
+
+.fsr-receipt {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--fs-space-8) var(--fs-space-24);
+  min-width: 0;
+  padding: var(--fs-space-12) var(--fs-space-12) var(--fs-space-12) var(--fs-space-20);
+  border: 1px solid var(--fs-rule-strong);
+  border-radius: var(--fs-radius-card);
+  background: var(--fs-plate-2);
+}
+
+/* The receipt takes focus only to hand it on (its next step); no ring frames the strip. */
+.fsr-receipt:focus {
+  outline: none;
+}
+
+/* The break between the two lines: after the decision, who decided it and the actions; before the figures. */
+.fsr-receipt::after {
+  content: "";
+  flex-basis: 100%;
+  order: 4;
+  height: 0;
+  margin-top: calc(-1 * var(--fs-space-8));
+}
+
+/* The receipt's facts lie flat on its two lines (the card's own parts, in the card's markup). */
+.fsr-receipt__body,
+.fsr-receipt .fsr-hold-screen,
+.fsr-receipt .fsr-mm3,
+.fsr-receipt .fsr-hold.fs-hold {
+  display: contents;
+}
+
+.fsr-receipt .fsr-hold.fs-hold .fs-hold__head {
+  order: 1;
+  margin: 0;
+}
+
+.fsr-receipt .fsr-hold.fs-hold .fs-hold__title {
+  white-space: nowrap;
+}
+
+.fsr-receipt .fsr-hold.fs-hold .fs-hold__actions {
+  order: 2;
+  margin: 0;
+  padding: 0;
+}
+
+.fsr-receipt .fsr-hold.fs-hold .fs-hold__resolution {
+  margin: 0;
+  white-space: nowrap;
+}
+
+/* The next hold and Close end the first line. */
+.fsr-receipt__actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  align-self: center;
+  gap: var(--fs-space-8);
+  order: 3;
+  margin-left: auto;
+}
+
+.fsr-receipt__close {
+  min-height: 40px;
+  border-color: transparent;
+  background: transparent;
+}
+
+.fsr-receipt .fsr-hold__holder {
+  order: 5;
+}
+
+.fsr-receipt .fsr-hold-screen > .fsr-hold__result {
+  order: 6;
+  white-space: nowrap;
+}
+
+.fsr-receipt .fsr-hold.fs-hold .fs-hold__evidence {
+  order: 7;
+  /* Closed, the disclosure is its one word: no grid gap under it (its hidden content is still a grid item). */
+  gap: 0;
+  padding-top: 0;
+  border-top: 0;
+}
+
+/* Opened, the evidence takes the strip's whole width under the facts; an error does the same. */
+.fsr-receipt .fsr-hold.fs-hold .fs-hold__evidence[open],
+.fsr-receipt .fsc-command-notice {
+  flex: 1 0 100%;
+  order: 8;
+}
+
+.fsr-receipt .fsr-hold.fs-hold .fs-hold__evidence[open] {
+  gap: var(--fs-space-16);
+}
+
+.fsr-receipt .fsr-hold.fs-hold .fs-hold__gate,
+.fsr-receipt .fsr-hold.fs-hold .fs-hold__voices {
+  display: none;
+}
+/* The slip's own member, before and after: his name, then the two figures with an arrow between them. */
+.fsr-hold__holder {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--fs-space-4) var(--fs-space-8);
+  margin: 0;
+}
+
+.fsr-hold__holder-name {
+  color: var(--fs-ink-2);
+}
+
+.fsr-hold__holder-figures {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--fs-space-8);
+  color: var(--fs-ink);
+  font-variant-numeric: tabular-nums lining-nums;
+  white-space: nowrap;
+}
+
+.fsr-hold__holder-was {
+  color: var(--fs-ink-2);
 }

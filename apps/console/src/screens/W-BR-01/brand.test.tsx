@@ -5,6 +5,7 @@
 
 import { getSnapshot } from "@fairsplit/api-client/seed";
 import { INVOICE_STATUS_LABELS, pickLabel } from "@fairsplit/contracts";
+import { tagBudget } from "@fairsplit/ui-web";
 import { act, configure, fireEvent, screen, waitFor } from "@testing-library/react";
 import { HttpResponse, http } from "msw";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -41,13 +42,17 @@ describe("W-BR-01 the brand's view of the season's run", () => {
     const header = screen.getByTestId("W-BR-01.header");
     expect(header.textContent).toContain("Proof for Lantern Bay Chocolate Co.");
     expect(screen.getByTestId("W-BR-01.invoice").textContent).toContain("FS-2026A-r37");
+    // The seeded showcase run's id says whose it is, so a judge's own run (r1) never reads as the same run.
+    expect(screen.getByTestId("W-BR-01.invoice.showcase").textContent).toBe("showcase run");
     expect(screen.getByTestId("W-BR-01.invoice").textContent).toContain(
       pickLabel(INVOICE_STATUS_LABELS.MARKED_AS_PAID, "en"),
     );
+    // The tag budget holds on the brand's view too (UI gate round 3).
+    expect(tagBudget(document.body).ok).toBe(true);
     const payouts = screen.getByTestId("W-BR-01.payouts");
     expect(payouts.hasAttribute("data-settled")).toBe(true);
-    expect(payouts.textContent).toContain(
-      "7 of 8 confirmed by the simulated PayPal sandbox. 1 returned to the co-op, cash due at the bodega.",
+    expect(payouts.textContent).toBe(
+      "Payouts7 of 8 confirmed by the simulated PayPal sandbox · 1 returned, cash due",
     );
 
     fireEvent.click(screen.getByTestId("W-PF-01.plate.computed.toggle"));
@@ -215,6 +220,15 @@ describe("W-BR-01 the brand's view of the season's run", () => {
     expect(screen.getByTestId("W-BR-01.invoice").textContent).toContain(
       "Sent to Lantern Bay. Waiting for payment.",
     );
+    // A judge's own run: no showcase label, and the strip's quiet indicator is the page's one tag.
+    expect(screen.queryByTestId("W-BR-01.invoice.showcase")).toBeNull();
+    expect(screen.getByTestId("W-BR-01.invoice").querySelector("[data-quiet]")?.textContent).toBe(
+      "Simulated PayPal sandbox",
+    );
+    // The person reading must act (pay), so ui-web's amber state dot sits beside the words (never a fill).
+    expect(
+      screen.getByTestId("W-BR-01.invoice").querySelector('.fs-state-dot[data-kind="held"]'),
+    ).not.toBeNull();
     expect((screen.getByTestId("W-BR-01.export.csv") as HTMLButtonElement).disabled).toBe(true);
     expect(screen.getByTestId("W-PF-01.none")).toBeTruthy();
     await expectNoAxeViolations(view.container);

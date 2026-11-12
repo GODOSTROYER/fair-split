@@ -2,19 +2,36 @@
    grid fills what the bench leaves, down to the ribbon: its pinned totals sit on the ribbon's edge and only the
    grid's own lines scroll, never the screen around it. */
 
-.fsr-split {
+/* The screen sits on the one 12-column grid (round 4, grid.css): the title row, the bench 32 px under it on the
+   same columns (a subgrid), then the lines, which fill the rest of the panel's height. The bench's filters belong to
+   the grid beneath them, so that step is the tighter 16. */
+.fsr-split.fsc-screen {
   grid-template-rows: auto auto minmax(0, 1fr);
+  row-gap: var(--fs-space-16);
   height: 100%;
-  container-type: inline-size;
 }
 
-.fsr-split:has(> .fsr-banner) {
+.fsr-split.fsc-screen:has(> .fsr-banner) {
   grid-template-rows: auto auto auto minmax(0, 1fr);
 }
 
+/* Round 8: a decided hold's receipt is a row of its own between the title and the bench; the lines keep the rest. */
+.fsr-split.fsc-screen:has(> .fsr-split__receipt:not(:empty)) {
+  grid-template-rows: auto auto auto minmax(0, 1fr);
+}
+
+.fsr-split.fsc-screen:has(> .fsr-banner):has(> .fsr-split__receipt:not(:empty)) {
+  grid-template-rows: auto auto auto auto minmax(0, 1fr);
+}
+
+.fsr-split.fsc-screen > :nth-child(2) {
+  margin-top: var(--fs-space-16);
+}
+
+/* The lines end at least 32 px above the panel's foot (round 5, LAYOUT.console.end), on a whole row. */
 .fsc-console__screen:has(> .fsr-split[data-state="ready"]),
 .fsc-console__screen:has(> .fsr-split[data-state="declined"]) {
-  padding-bottom: var(--fs-space-16);
+  padding-bottom: var(--fs-console-end);
 }
 
 .fsr-split__beds {
@@ -29,34 +46,118 @@
   margin-bottom: var(--fs-space-16);
 }
 
+/* The title row is the chrome's ScreenHead (round 5): "Split review 2026-A", the review's state in one chip, and the
+   id line (the run id, then "Synthetic co-op · seeded slips"). */
+
 /* ------------------------------------------------------------------ the bench */
 
+/* One short band on the screen's columns (round 4: a subgrid, so the instrument, the pool and the open decisions
+   each start on a column line and the band fills the stage); the filters run beneath it. The lines get the rest. */
 .fsr-bench {
+  grid-column: 1 / -1;
   display: grid;
-  grid-template-columns: auto minmax(180px, auto) minmax(0, 1fr);
-  align-items: start;
-  gap: var(--fs-space-32) 40px;
-  padding-bottom: var(--fs-space-24);
-  border-bottom: 1px solid var(--fs-rule);
+  grid-template-columns: subgrid;
+  align-items: center;
+  row-gap: var(--fs-space-24);
 }
 
 .fsr-bench__dial {
-  display: grid;
-  justify-items: center;
-  gap: var(--fs-space-4);
+  grid-row: 1;
+  grid-column: 1 / span 4;
+  display: flex;
+  align-items: center;
+  gap: var(--fs-space-16);
+  min-width: 0;
 }
 
-.fsr-bench__dial-note {
+/* The bench's dial is the tick ring alone: its reading is the hero numeral beside it, and the Mirrored table carries
+   every word for screen readers. */
+.fsr-bench .fs-dial__caption {
+  display: none;
+}
+
+.fsr-bench .fs-dial {
+  margin: 0;
+}
+
+.fsr-bench__reading {
+  display: grid;
+  justify-items: start;
+  gap: var(--fs-space-8);
+}
+
+.fsr-bench__label,
+.fsr-pools__label {
+  margin: 0;
   color: var(--fs-ink-2);
 }
 
-.fsr-bench__dial-note[data-status="OUTSIDE"] {
-  color: var(--fs-canary-text);
+/* The reading: the hero numeral (FS Sans tabular figures), the unit and the limit beside it on their baseline. */
+.fsr-reading {
+  display: grid;
+  justify-items: start;
+  gap: var(--fs-space-4);
+}
+
+.fsr-reading__value {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--fs-space-4);
+}
+
+.fsr-reading__unit {
+  color: var(--fs-ink-3);
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+.fsr-reading__micro {
+  color: var(--fs-ink-2);
+}
+
+/* The dial's state: over the limit is a person's decision (a marigold dot in a white pill); inside is a checked
+   fact (a check and the word in ink, no pill); waiting names its slip. */
+.fsr-dialstate {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 24px;
+  margin: 0;
+  color: var(--fs-ink);
+  white-space: nowrap;
+}
+
+/* Round 7: over the limit is an exception with its own treatment, never a dot like a selection or a held row: a
+   line warning mark and the words in ink, inside a 1 px ink outline (the machine's reading stays ink; the person's
+   indigo is the holds' alone). */
+.fsr-dialstate[data-status="OUTSIDE"] {
+  min-height: 28px;
+  padding: 0 12px 0 9px;
+  border-radius: var(--fs-radius-pill);
+  background: var(--fs-plate);
+  box-shadow: inset 0 0 0 1px var(--fs-ink);
+  font-weight: 600;
+}
+
+.fsr-dialstate[data-status="PENDING"] {
+  color: var(--fs-ink-2);
 }
 
 /* Waiting for slip 0462: the drawing is dimmed, its caption text keeps the token contrast (ink-3 ≥ 4.5:1). */
 .fsr-dial__visual[data-status="PENDING"] svg {
   opacity: 0.72;
+}
+
+/* The limit reads from the dial itself (UI gate round 3): ui-web draws the 2 px limit tick in ink and the needle
+   amber over the limit, ink inside it; here the other ticks step back to hairlines so the limit tick stands out,
+   and 2.05% against 2.0% reads even where the two sit 3° apart. The reading beside it stays ink (FS Sans). */
+.fsr-dial .fs-dial__tick:not(.fs-dial__tick--limit) {
+  stroke: var(--fs-rule-strong);
+  stroke-width: 1;
+}
+
+.fsr-dial .fs-dial__tick--limit {
+  stroke-linecap: butt;
 }
 
 /* MM-3 reduced: the needle cuts to its new value under a 200 ms crossfade, its reading with it. */
@@ -73,88 +174,51 @@
   }
 }
 
-/* The pool: the screen's money at amount-l, in pencil (the engine's figure; nobody has signed), its two parts on
-   one line, then the balance check and the provenance of every figure on the screen. */
+/* The money summary's cell: columns 5–12 of the bench, on the dial's centre line. */
 .fsr-pools {
+  grid-row: 1;
+  grid-column: 5 / -1;
   display: grid;
-  align-content: start;
-  gap: var(--fs-space-4);
-  min-width: 0;
-  max-width: 400px;
-  margin: 0;
-  padding-top: var(--fs-space-4);
-}
-
-.fsr-pools__label {
-  color: var(--fs-ink-3);
-}
-
-.fsr-pools__total {
-  margin: 0;
-  color: var(--fs-pencil);
-  white-space: nowrap;
-}
-
-.fsr-pools__total[data-amount-state="ink"] {
-  color: var(--fs-ink);
-}
-
-.fsr-pools__parts {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--fs-space-4) var(--fs-space-24);
-  margin: var(--fs-space-4) 0 0;
-}
-
-.fsr-pools__item {
-  display: grid;
-  gap: 2px;
-}
-
-.fsr-pools dt {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--fs-space-4);
-  color: var(--fs-ink-3);
-}
-
-.fsr-pools dd {
-  margin: 0;
-}
-
-.fsr-pools dd[data-amount-state="pencil"] {
-  color: var(--fs-pencil);
-}
-
-.fsr-pools__note {
-  color: var(--fs-ink-3);
-}
-
-.fsr-bench__summary {
-  display: grid;
+  align-content: center;
   justify-items: start;
-  align-content: start;
-  gap: var(--fs-space-12);
-  padding-top: var(--fs-space-8);
+  min-width: 0;
+  margin: 0;
 }
-
-.fsr-chips {
+.fsr-bench__tools {
+  grid-row: 2;
+  grid-column: 1 / -1;
   display: flex;
   flex-wrap: wrap;
-  gap: var(--fs-space-8);
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--fs-space-8) var(--fs-space-16);
+}
+
+/* The filters: one segmented control, counts in micro, colour only in a dot (Held) or the hatch (Cash). */
+.fsr-chips {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 2px;
   min-inline-size: 0;
-  margin: var(--fs-space-4) 0 0;
-  padding: 0;
+  margin: 0;
+  padding: 2px;
   border: 0;
+  border-radius: var(--fs-radius-pill);
+  background: var(--fs-plate-2);
+  box-shadow: inset 0 0 0 1px var(--fs-rule);
 }
 
 .fsr-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   min-height: 32px;
   padding: 0 var(--fs-space-12);
-  border: 1px solid var(--fs-rule-strong);
+  border: 0;
   border-radius: var(--fs-radius-pill);
   background: transparent;
   color: var(--fs-ink-2);
+  white-space: nowrap;
   cursor: pointer;
 }
 
@@ -162,22 +226,99 @@
   color: var(--fs-ink);
 }
 
-/* The chosen filter is an ink-filled pill (a segmented control); the Held chip carries the marigold dot. */
-.fsr-chip[aria-pressed="true"] {
-  border-color: var(--fs-ink);
-  background: var(--fs-ink);
-  color: var(--fs-plate);
+.fsr-chip__count {
+  color: var(--fs-ink-2);
 }
 
-.fsr-chip[data-testid="W-TR-05.filter.held"]::before {
+/* The chosen segment is a white face on the porcelain track. */
+.fsr-chip[aria-pressed="true"] {
+  background: var(--fs-plate);
+  box-shadow: var(--fs-shadow-e1);
+  color: var(--fs-ink);
+}
+
+.fsr-chip[aria-pressed="true"] .fsr-chip__count {
+  color: var(--fs-ink-2);
+}
+
+/* Held: the 8 px held dot (round 5: one marker vocabulary). */
+.fsr-chip[data-filter="held"]::before {
   content: "";
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  margin-right: 6px;
+  flex: none;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   background: var(--fs-canary);
-  vertical-align: 2px;
+}
+
+.fsr-chip[data-filter="cash"]::before {
+  content: "";
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  background:
+    repeating-linear-gradient(-45deg, var(--fs-hatch) 0 1.5px, transparent 1.5px 4px), var(--fs-plate);
+  box-shadow: inset 0 0 0 1px var(--fs-rule-strong);
+}
+
+/* The screen's one money summary (round 6), beside the dial: "Pool − deductions = member net", each term its word
+   over its figure on the title step, the operators on the figures' line, then the balance check. Labels in caption
+   grey, figures in the money face (the pool in pencil until both keys sign). It wraps as whole terms. */
+.fsr-recon {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--fs-space-8) var(--fs-space-24);
+}
+
+.fsr-recon__eq {
+  margin: 0;
+}
+
+.fsr-recon__line {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--fs-space-8) var(--fs-space-16);
+}
+
+.fsr-recon__term {
+  display: inline-grid;
+  justify-items: start;
+  gap: var(--fs-space-4);
+  white-space: nowrap;
+}
+
+.fsr-recon__word {
+  color: var(--fs-ink-2);
+}
+
+.fsr-recon__figure {
+  color: var(--fs-ink);
+}
+
+.fsr-recon__figure[data-amount-state="pencil"] {
+  color: var(--fs-pencil);
+}
+
+.fsr-recon__op {
+  color: var(--fs-ink-3);
+  font-size: 1.25rem;
+  line-height: 1.875rem;
+}
+
+/* "Columns": the secondary figures behind one quiet control. */
+.fsr-columns.fs-flat {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--fs-space-4);
+  min-height: 32px;
+  padding: 0 var(--fs-space-12) 0 var(--fs-space-8);
+}
+
+.fsr-columns[aria-pressed="true"] {
+  box-shadow: inset 0 0 0 1px var(--fs-ink);
 }
 
 /* ------------------------------------------------------------------ the grid */
@@ -189,20 +330,44 @@
   min-height: 0;
 }
 
-/* Fills the screen down to the ribbon; below a laptop's height it keeps room for the pinned rows and a few lines
-   and lets the screen scroll instead. */
+/* The lines are the one cell that fills its row: the grid runs to the panel's foot (its totals pinned there). */
+.fsr-split.fsc-screen > .fsr-grid {
+  align-self: stretch;
+}
+
+/* Fills its cell down to the panel's foot until whole-rows.ts sizes it to the head, whole lines and the total (round
+   5: no line ever half-hidden under the total); below a laptop's height that is still one whole line, and the
+   screen scrolls instead. */
 .fsr-grid__frame {
   height: 100%;
   min-width: 0;
-  min-height: 360px;
 }
 
-.fsr-chip--columns {
-  justify-self: start;
+/* The fades sit on the lines' own white, inside the head and above the total (theme/snap.css). */
+.fsr-grid__frame.fsc-snap {
+  --fsc-snap-on: var(--fs-plate);
+}
+
+.fsr-grid__frame > .fsc-snap__fade {
+  right: 1px;
+  left: 1px;
 }
 
 .fsr-grid .ag-root-wrapper {
-  border-color: var(--fs-rule);
+  border-color: var(--fs-rule-strong);
+  /* Round 7: the lines' separators are the row rule (base.css), a step stronger than a panel's hairline. */
+  --ag-row-border: 1px solid var(--fsc-rule-row);
+}
+
+/* The scrollbar overlays the lines on a clear track (round 5: a stable gutter), so the lines, the total and the
+   header all end on the frame's right edge. */
+.fsr-grid .ag-body-vertical-scroll-viewport {
+  background: transparent;
+}
+
+/* No lone vertical rule beside Member (round 5): the pinned column reads by its alignment, as every other column. */
+.fsr-grid .ag-root-wrapper {
+  --ag-pinned-column-border: 0 none transparent;
 }
 
 .fsr-grid .ag-row {
@@ -213,19 +378,25 @@
   cursor: default;
 }
 
+/* The lines snap whole under the sticky head as they scroll, and stop whole above the total (AG Grid 36 scrolls one
+   viewport, its header and pinned rows sticky inside it). */
+.fsr-grid .ag-grid-viewport {
+  scroll-snap-type: y mandatory;
+  scroll-padding-top: var(--fsr-snap-head, 0px);
+  scroll-padding-bottom: var(--fsr-snap-foot, 0px);
+}
+
+.fsr-grid .ag-grid-scrolling-container > .ag-row {
+  scroll-snap-align: start;
+}
+
 .fsr-grid .ag-cell {
   display: flex;
   align-items: center;
 }
 
-/* Held and reserved rows: the marigold wash and a 3 px marigold bar on the left (a person decides). */
-.fsr-grid .ag-row.fsr-row--held {
-  background: var(--fs-canary-wash);
-}
-
-.fsr-grid .fsr-row--held .ag-cell[col-id="member"] {
-  box-shadow: inset 3px 0 0 var(--fs-canary);
-}
+/* Held and reserved rows read from their status cell (UI gate round 3): the amber dot and the H-tag. The row stays
+   white, with no side bar and no wash. */
 
 /* The line a person has open: their selection, the pod wash. */
 .fsr-grid .ag-row.fsr-row--open,
@@ -236,13 +407,12 @@
 .fsr-grid .fsr-row--totals .ag-cell {
   border-top: 1px solid var(--fs-rule-strong);
   background: var(--fs-plate-2);
-  font-weight: 650;
+  font-weight: 560;
 }
 
-/* The inline hold note under H1: the held row's wash continues, one line, a quiet way into the drawer. */
+/* The inline hold note under H1: one line on plate-2 tucked under its held row, a quiet way into the drawer. */
 .fsr-grid .ag-row.fsr-row--note {
-  background: var(--fs-canary-wash);
-  box-shadow: inset 3px 0 0 var(--fs-canary);
+  background: var(--fs-plate-2);
   cursor: default;
 }
 
@@ -276,7 +446,7 @@
   border-radius: 2px;
   box-shadow: var(--fs-shadow-paper);
   color: var(--fs-paper-ink);
-  font-weight: 650;
+  font-weight: 520;
   font-size: 0.75rem;
   line-height: 1;
 }
@@ -292,7 +462,12 @@
 
 .fsr-note__words b {
   color: var(--fs-ink);
-  font-weight: 680;
+  font-weight: 560;
+}
+
+.fsr-note__micro {
+  margin-left: var(--fs-space-8);
+  color: var(--fs-ink-2);
 }
 
 .fsr-note__open.fs-flat {
@@ -301,24 +476,45 @@
   padding: 0 14px;
 }
 
-/* The carbon-copy chip: the pink duplicate's serial, twice, in the pink copy's own colour (evidence, not chrome). */
+/* H2's note: the plot glyph where H1's note has its two copies. */
+.fsr-note__mark {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 48px;
+  color: var(--fs-ink-2);
+}
+
+/* The duplicate badge (round 4, docs/DESIGN.md §4 tables): while H1 is open, "0457 ×2" in a 1 px rule-strong
+   outline with ink words (pink lives only on the D copy's own swatch); once decided, "0457 counted once" in neutral
+   ink. */
 .fsr-dupchip {
   display: inline-flex;
   align-items: center;
-  margin-left: 6px;
-  padding: 1px 6px;
+  min-height: 24px;
+  padding: 0 8px;
   border-radius: var(--fs-radius-cell);
-  background: var(--fs-copy-pink);
-  color: var(--fs-paper-ink);
-  font-weight: 650;
+  box-shadow: inset 0 0 0 1px var(--fs-rule-strong);
+  color: var(--fs-ink);
+  font-weight: 520;
   font-variant-numeric: tabular-nums lining-nums;
   white-space: nowrap;
+}
+
+.fsr-dupchip:is([data-state="once"], [data-state="twice"]) {
+  padding: 0;
+  box-shadow: none;
+  color: var(--fs-ink-2);
+  font-weight: inherit;
 }
 
 /* The decisions still open, pinned above the other lines: the run pill's order, set off by a stronger rule. */
 .fsr-grid .ag-floating-top {
   border-bottom: 1px solid var(--fs-rule-strong);
 }
+
+/* The pinned total is the grid's footer, outside the scrolling lines (AG Grid's floating bottom), so no line hides
+   under it: its strong top rule sets it off (one edge, no shadow). */
 
 /* A renderer fills its cell so a wash covers it edge to edge. */
 .fsr-cell {
@@ -365,104 +561,137 @@
   }
 }
 
-/* Member: name, number and the statement language. */
+/* Member: the name at body size over the number in the id role, two lines in the 48 px row (round 4: the number
+   never touches the row's rule). */
 .fsr-member {
   display: grid;
+  gap: 2px;
   min-width: 0;
-  line-height: 1.15;
 }
 
 .fsr-member__name {
   overflow: hidden;
   color: var(--fs-ink);
+  line-height: 1.25rem;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+/* Round 7: a member id is evidence (it ties the line to its slips): 13 px in ink-2 (9.8:1), never a faint 12. */
 .fsr-member__meta {
-  display: inline-flex;
-  gap: var(--fs-space-8);
-  color: var(--fs-ink-3);
-}
-
-.fsr-member__lang {
   color: var(--fs-ink-2);
+  font-size: 0.8125rem;
+  line-height: 1rem;
 }
 
-/* Slips: the line's own sheets as 24 × 18 crops of their top corner (the red serial, Jessie's first entries),
-   fanned 5 px apart on the copies' own paper, then the count. Evidence, so paper: the only shadow in the grid. */
+/* Slips: the count alone (round 3: no thumbnails), the pink carbon-copy chip beside it only where relevant. */
 .fsr-slips {
   display: inline-flex;
   align-items: center;
   gap: var(--fs-space-8);
 }
 
-.fsr-slips__stack {
-  position: relative;
-  display: inline-block;
-  width: calc(24px + (var(--n, 1) - 1) * 5px);
-  height: 18px;
+.fsr-slips__count {
+  min-width: 1.5ch;
+  color: var(--fs-ink-2);
 }
 
-.fsr-slips__crop {
+/* ------------------------------------------------------------------ a narrow grid opens a line's parts */
+
+.fsr-expand {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--fs-radius-cell);
+  background: transparent;
+  color: var(--fs-ink-2);
+  cursor: pointer;
+}
+
+.fsr-expand:hover {
+  background: var(--fs-plate-2);
+  color: var(--fs-ink);
+}
+
+.fsr-expand[aria-expanded="true"] {
+  color: var(--fs-ink);
+}
+
+/* The opener's header names the column for screen readers only. */
+.fsr-grid .fsr-ag-expand-head .ag-header-cell-text {
   position: absolute;
-  top: 0;
-  left: calc(var(--i) * 5px);
-  display: block;
-  box-shadow: var(--fs-shadow-e1);
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
-/* Kilos and the kilos-per-tree bar against the ratified limit (the tick sits at the limit). */
-.fsr-kg {
-  display: grid;
-  grid-template-columns: auto 52px;
+.fsr-grid .ag-cell.fsr-ag-expand {
+  padding-inline: var(--fs-space-8);
+}
+
+/* The opened parts: one line of label and figure pairs under the line, aligned past the opener. */
+.fsr-grid .ag-row.fsr-row--detail {
+  background: var(--fs-plate-2);
+  cursor: default;
+}
+
+.fsr-detail__cell {
+  height: 100%;
+}
+
+.fsr-detail {
+  display: flex;
+  flex-wrap: nowrap;
   align-items: center;
-  column-gap: var(--fs-space-12);
-  line-height: 1.1;
+  gap: var(--fs-space-24);
+  height: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 0 var(--fs-space-16) 0 56px;
+  overflow: hidden;
+  color: var(--fs-ink-3);
 }
 
+.fsr-detail__part {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--fs-space-8);
+  white-space: nowrap;
+}
+
+.fsr-detail dd {
+  margin: 0;
+  color: var(--fs-ink);
+}
+
+.fsr-detail dd[data-amount-state="pencil"] {
+  color: var(--fs-pencil);
+}
+
+.fsr-detail__rule {
+  color: var(--fs-ink-3);
+}
+
+.fsr-detail__part--net {
+  margin-left: auto;
+}
+
+.fsr-detail__part--net dt {
+  color: var(--fs-ink-2);
+}
+
+/* Verified kilos: a right-aligned number column (round 4), pencil until the two keys turn it to ink. */
 .fsr-kg__value[data-amount-state="pencil"] {
   color: var(--fs-pencil);
 }
 
 .fsr-kg__value[data-amount-state="ink"] {
   color: var(--fs-ink);
-}
-
-.fsr-kg__bar {
-  position: relative;
-  height: 4px;
-  background: var(--fs-plate-2);
-  box-shadow: inset 0 0 0 1px var(--fs-rule);
-}
-
-.fsr-kg__fill {
-  position: absolute;
-  inset: 0 auto 0 0;
-  background: var(--fs-pencil-faint);
-}
-
-.fsr-kg__over {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 50%;
-  max-width: 50%;
-  background: var(--fs-canary);
-}
-
-.fsr-kg__limit {
-  position: absolute;
-  top: -3px;
-  bottom: -3px;
-  left: 50%;
-  width: 1px;
-  background: var(--fs-ink-2);
-}
-
-.fsr-kg__note {
-  grid-column: 1 / -1;
-  color: var(--fs-canary-text);
 }
 
 /* Confidence. */
@@ -492,20 +721,33 @@
   color: var(--fs-ink);
 }
 
+/* In flight with PayPal: the figure in ink-2 behind a hollow pending dot (round 3: dashed lines mean simulated only,
+   and a pending amount is a state, not a tag). */
 .fsr-amount[data-amount-state="hollow"] {
   color: var(--fs-ink-2);
-  text-decoration: underline dashed 1.5px;
-  text-underline-offset: 4px;
 }
 
-/* Net is the line's answer: ink at 700 (pencil until the keys, as every engine figure). */
+.fsr-amount[data-amount-state="hollow"]::before {
+  content: "";
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 8px;
+  border: 1px solid var(--fs-ink-3);
+  border-radius: 50%;
+  vertical-align: 0;
+  box-sizing: border-box;
+}
+
+/* Net is the line's answer, the one scanned column: figure-net, 600 at the text's width (pencil until the keys, as every engine
+   figure). Money is never bold beyond it. */
 .fsr-amount--net {
-  font-weight: 700;
+  font-weight: 600;
 }
 
 .fsr-amount--total {
   color: var(--fs-ink);
-  font-weight: 600;
+  font-weight: 560;
 }
 
 .fsr-kaltas {
@@ -560,7 +802,7 @@
 }
 
 /* Status: a glyph and a word, coloured only by what is true now. The words never clip mid-word: a long status
-   (a held line and its hold, or "Reserved, never redistributed.") wraps to a second line inside the 40 px row. */
+   (a replayed PayPal status) wraps to a second line inside the 40 px row. */
 .fsr-status {
   display: inline-flex;
   align-items: center;
@@ -598,8 +840,20 @@
   color: var(--fs-ink-2);
 }
 
+/* Held and reserved: colour lives in the 8 px held dot (round 5: one marker vocabulary), never in the icon or the
+   word (unslop spec §1.8). */
 .fsr-status[data-tone="canary"] > .fs-glyph {
-  color: var(--fs-canary-text);
+  display: none;
+}
+
+.fsr-status[data-tone="canary"]::before {
+  content: "";
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin-inline: 4px;
+  border-radius: 50%;
+  background: var(--fs-canary);
 }
 
 .fsr-status[data-tone="pencil"] {
@@ -615,10 +869,13 @@
   color: var(--fs-red);
 }
 
-/* PayPal confirmed it: jade flush, the only jade in the grid. */
+/* PayPal confirmed it: the one filled pill, jade face, ink word and check, its 1 px ring (spec §1.8). */
 .fsr-status[data-tone="jade"] {
-  padding: 2px 8px 2px 6px;
+  gap: 6px;
+  min-height: 24px;
+  padding: 0 10px 0 8px;
   border: 1px solid var(--fs-jade-flush-border);
+  border-radius: var(--fs-radius-pill);
   background: var(--fs-jade);
   color: var(--fs-on-jade);
 }
@@ -627,87 +884,111 @@
   color: var(--fs-on-jade);
 }
 
+/* Cash: a white pill with a 10 px hatch swatch where the dot would be; the word stays clear of the hatch. */
 .fsr-status[data-tone="hatch"] {
-  padding: 2px 8px 2px 6px;
-  background:
-    repeating-linear-gradient(-45deg, var(--fs-hatch) 0 1.5px, transparent 1.5px 6px), var(--fs-plate);
-  box-shadow: inset 0 0 0 1px var(--fs-rule);
+  gap: 6px;
+  min-height: 24px;
+  padding: 0 10px 0 9px;
+  border-radius: var(--fs-radius-pill);
+  background: var(--fs-plate);
+  box-shadow: inset 0 0 0 1px var(--fs-rule-strong);
 }
 
+.fsr-status[data-tone="hatch"] > .fs-glyph {
+  display: none;
+}
+
+.fsr-status[data-tone="hatch"]::before {
+  content: "";
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  background:
+    repeating-linear-gradient(-45deg, var(--fs-hatch) 0 1.5px, transparent 1.5px 4px), var(--fs-plate);
+  box-shadow: inset 0 0 0 1px var(--fs-rule-strong);
+}
+
+/* The H-tag (round 6): the hold's label in ink inside a 1 px amber outline, after the amber dot. Never filled, and
+   no "Held" word beside it: a held line says it once. */
 .fsr-status__hold {
-  padding: 0 5px;
+  padding: 0 6px;
   border: 1px solid var(--fs-canary-border);
   border-radius: var(--fs-radius-cell);
-  background: var(--fs-canary);
-  color: var(--fs-on-canary);
-  font-weight: 700;
-}
-
-/* ------------------------------------------------------------------ footer */
-
-.fsr-split__foot {
-  display: grid;
-  gap: var(--fs-space-4);
-}
-
-/* Under the pool: the balance check and the provenance of every figure on the screen. */
-.fsr-pools > .fsr-split__foot {
-  margin-top: var(--fs-space-8);
-}
-
-.fsr-split__totals {
-  margin: 0;
-  color: var(--fs-ink-2);
-}
-
-.fsr-split__check {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--fs-space-4);
-  padding: 0 6px;
-  border: 1px solid var(--fs-ink-3);
-  border-radius: var(--fs-radius-pill);
+  background: transparent;
   color: var(--fs-ink);
 }
 
-.fsr-split__check:not([data-balanced]) {
-  border-color: var(--fs-red);
+/* ------------------------------------------------------------------ the balance check */
+
+/* A checked fact: a check and the word in ink, no pill (its equations in its title). */
+/* The balance check, at the end of the reconciliation line above the grid (round 3). */
+.fsr-split__totals {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--fs-space-4);
+  margin: 0;
+  color: var(--fs-ink);
+}
+
+.fsr-split__totals:not([data-balanced]) {
   color: var(--fs-red);
 }
 
-.fsr-split__provenance {
-  margin: 0;
-  color: var(--fs-ink-3);
+/* The balance check stands on the sum's figures' line (round 6). */
+.fsr-recon > .fsr-split__totals {
+  min-height: 30px;
 }
 
-/* Beside an open drawer, or in a narrow window, the screen is narrow: the decisions and filters run as one
-   wrapping row beneath the dial and the pool, and the dial draws smaller, so the grid keeps its height. */
-@container (max-width: 960px) {
+/* The 1,280 px laptop (a panel under 1,040 px): the instrument takes five columns and the money summary the other
+   seven, still one row, and the sum stays whole (round 6: the reconciliation is on screen at every width). */
+@container fsc-screen (max-width: 1039px) {
+  .fsr-bench__dial {
+    grid-column: 1 / span 5;
+  }
+
+  .fsr-pools {
+    grid-column: 6 / -1;
+  }
+
+  .fsr-recon__line {
+    column-gap: var(--fs-space-12);
+  }
+}
+
+/* Beside an open drawer (a panel under 720 px): the dial, then the sum, then the filters, each on its own row. */
+@container fsc-screen (max-width: 719px) {
   .fsr-bench {
-    grid-template-columns: auto minmax(0, 1fr);
-    gap: var(--fs-space-16) var(--fs-space-24);
-    padding-bottom: var(--fs-space-16);
+    row-gap: var(--fs-space-12);
   }
 
-  .fsr-bench__dial .fs-dial svg {
-    width: 120px;
-    height: auto;
-  }
-
-  .fsr-bench__summary {
-    display: flex;
-    flex-wrap: wrap;
+  .fsr-bench__dial {
     grid-column: 1 / -1;
-    align-items: center;
-    gap: var(--fs-space-8) var(--fs-space-16);
-    padding-top: 0;
   }
 
-  .fsr-bench__summary .fsr-chips {
-    margin: 0;
+  .fsr-pools {
+    grid-row: 2;
+    grid-column: 1 / -1;
+  }
+
+  .fsr-bench__tools {
+    grid-row: 3;
+  }
+
+  .fsr-recon__figure {
+    font-size: 1rem;
+    line-height: 1.5rem;
+  }
+
+  .fsr-recon__op {
+    font-size: 1rem;
+    line-height: 1.5rem;
+  }
+
+  .fsr-recon > .fsr-split__totals {
+    min-height: 24px;
   }
 }
-
 /* ------------------------------------------------------------------ the static table (before the grid is measured) */
 
 .fsr-grid__frame--static {
@@ -726,7 +1007,7 @@
 
 .fsr-static th,
 .fsr-static td {
-  height: 40px;
+  height: 48px;
   padding: 0 12px;
   border-bottom: 1px solid var(--fs-rule);
   font-weight: inherit;
@@ -748,13 +1029,9 @@
   cursor: pointer;
 }
 
+/* The one ring, drawn inside the row so the table's scroller never clips it. */
 .fsr-static tbody tr:focus-visible {
-  outline: var(--fs-focus-width) solid var(--fs-pod);
   outline-offset: calc(-1 * var(--fs-focus-width));
-}
-
-.fsr-static .fsr-row--held > th:first-child {
-  box-shadow: inset 3px 0 0 var(--fs-canary);
 }
 
 .fsr-static tfoot th,
@@ -764,7 +1041,7 @@
 }
 
 .fsr-static .fsr-cell {
-  height: 40px;
+  height: 48px;
 }
 
 .fsr-static [data-numeric] .fsr-cell {
@@ -778,18 +1055,42 @@
   padding: var(--fs-space-12);
 }
 
-/* The static table's held rows and the hold note: the marigold wash (after the base rules it overrides). */
-.fsr-static .fsr-row--held > * {
-  background: var(--fs-canary-wash);
-}
-
+/* The static table's hold note: plate-2 under its held row, as in the grid (after the base rules it overrides). */
 .fsr-static .fsr-row--note > td {
-  height: 40px;
+  height: 48px;
   padding: 0;
-  background: var(--fs-canary-wash);
-  box-shadow: inset 3px 0 0 var(--fs-canary);
+  background: var(--fs-plate-2);
 }
 
 .fsr-static .fsr-row--open > * {
   background: var(--fs-pod-wash);
+}
+
+/* An opened line's parts in the static table: one full-width cell at row height (round 3). */
+.fsr-static .fsr-row--detail > td {
+  height: 48px;
+  padding: 0;
+  background: var(--fs-plate-2);
+}
+
+/* Round 7: the lines rest on whole rows, so the fade above the total only hints that more lie below: 10 px, inside
+   the last row's own padding, so it never washes a member id (the row's second line). */
+.fsr-grid__frame > .fsc-snap__fade[data-edge="end"] {
+  height: 10px;
+}
+
+/* Beside a drawer (a panel under 720 px) the filters keep one row: "planned" steps aside (the chip's title says it). */
+@container fsc-screen (max-width: 719px) {
+  .fsr-chip__planned {
+    display: none;
+  }
+
+  .fsr-chip {
+    padding: 0 var(--fs-space-8);
+  }
+}
+
+/* The receipt's slot is the screen's second child (drawn or not): the bench after it keeps its own step. */
+.fsr-split.fsc-screen > .fsr-split__receipt + * {
+  margin-top: var(--fs-space-16);
 }

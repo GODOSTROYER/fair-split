@@ -1,5 +1,5 @@
 // The print beds (S1.7 W-TR-03): one row per slip of the photo on the bench, at 42% of the room. A row prints in
-// pencil when its `extract.row` lands (MM-2 "print", then "ring"); until then its bed waits, dashed, at its
+// pencil when its `extract.row` lands (MM-2 "print", then "ring"); until then its bed waits, a hairline, at its
 // final size. A field below 0.85 prints as a "You" cell that routes to W-TR-04, unless the zoom's read agrees
 // with one of the two readings: then it waits in the room for one tap (`confirm-one`). A value a person entered
 // or confirmed prints in ink with their stamp. A slip nothing could be read from lies hatched, with its words.
@@ -7,7 +7,7 @@
 // doubtful field to a person.
 
 import { type SnapshotOfficer, webRoutes } from "@fairsplit/contracts";
-import { Glyph, Print } from "@fairsplit/ui-web";
+import { Glyph, Print, StateDot } from "@fairsplit/ui-web";
 import { type CSSProperties, type KeyboardEvent, type RefObject, useRef } from "react";
 import { AppLink } from "../../chrome/AppLink.js";
 import { Stamp } from "../../chrome/Stamp.js";
@@ -173,6 +173,15 @@ export function Beds({
             const serial = slip.serial;
             const landing = landings[serial];
             const state = row === null ? "waiting" : landing ? "landing" : "printed";
+            // A doubtful field a person must type (slip 0462): the amber hold dot and its one step inline at the
+            // row's end (UI gate round 3: never a coloured side bar).
+            const byHand =
+              row !== null &&
+              !row.illegible &&
+              !row.entered &&
+              !row.confirmed &&
+              !row.zoomAgreed &&
+              row.pending.length > 0;
             return (
               <tr
                 key={serial}
@@ -184,6 +193,7 @@ export function Beds({
                 data-state={state}
                 data-serial={serial}
                 data-active={active === serial ? "" : undefined}
+                data-needs={byHand || row?.zoomAgreed ? "person" : undefined}
                 data-copy={row?.copy}
                 data-testid={`${testId}.row.${serial}`}
                 aria-describedby="fsc-reading-provenance"
@@ -215,7 +225,7 @@ export function Beds({
                   <>
                     <td className="fsc-beds__member">
                       <span className="fsc-beds__print">{row.memberName}</span>
-                      {row.memberNo && <span className="fsc-beds__no fs-t-caption">{row.memberNo}</span>}
+                      {row.memberNo && <span className="fsc-beds__no fs-t-id">{row.memberNo}</span>}
                     </td>
                     <td className="fsc-beds__net" data-numeric="" data-flight-target={serial}>
                       {row.entered || row.confirmed ? (
@@ -248,13 +258,7 @@ export function Beds({
                           )}
                         </span>
                       ) : row.pending.length > 0 ? (
-                        <AppLink
-                          href={webRoutes.byHand(season, serial)}
-                          className="fsc-beds__you"
-                          data-testid={`${testId}.you.${serial}`}
-                          aria-label={READING_COPY.byHand(serial)}
-                          data-amount-state="you"
-                        >
+                        <span className="fsc-beds__you" data-amount-state="you">
                           {row.standIn ? (
                             <span className="fs-t-figure">{row.netKg}</span>
                           ) : (
@@ -265,7 +269,7 @@ export function Beds({
                               confidence={row.score ?? 0}
                             />
                           )}
-                        </AppLink>
+                        </span>
                       ) : (
                         <span className="fsc-beds__print fs-t-figure" data-amount-state="pencil">
                           {row.netKg}
@@ -277,7 +281,22 @@ export function Beds({
                     </td>
                     <td className="fsc-beds__print fs-t-figure">{row.grade}</td>
                     <td className="fsc-beds__ring">
-                      {!row.standIn && row.score !== null ? (
+                      {byHand ? (
+                        <span className="fsc-beds__step">
+                          <StateDot kind="held" />
+                          <span className="fs-sr">{READING_COPY.needsPerson}</span>
+                          {/* Round 8: one action a screen. The room's primary enters this slip; the row keeps a
+                              quiet link for a keyboard on the row (its name says which slip), drawn as the word only. */}
+                          <AppLink
+                            href={webRoutes.byHand(season, serial)}
+                            className="fs-link fs-t-caption fsc-beds__act"
+                            data-testid={`${testId}.you.${serial}`}
+                            aria-label={READING_COPY.byHandName(serial)}
+                          >
+                            {READING_COPY.byHandShort}
+                          </AppLink>
+                        </span>
+                      ) : !row.standIn && row.score !== null ? (
                         <>
                           <RingMark score={row.score} landing={landing !== undefined} />
                           <span className="fs-sr">{`${Math.round(row.score * 100)}%`}</span>
@@ -307,7 +326,8 @@ export function Beds({
             ))}
         </ul>
       )}
-      <p id={`${testId}-keys`} className="fs-t-caption fsc-beds__keys">
+      {/* The keys live in the shortcuts sheet and here for screen readers only (spec §3.4): no visible hint. */}
+      <p id={`${testId}-keys`} className="fs-sr">
         {started ? READING_COPY.bedsKeys : READING_COPY.waiting}
       </p>
     </section>

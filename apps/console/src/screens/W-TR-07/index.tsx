@@ -1,7 +1,15 @@
-// W-TR-07 Approve (S1.7, design §6 C7): one centred 640 px column with no cards. The seal grown from the batch
-// hash, the batch in pencil, why it is safe, and the one d3 jade slab on the console: hold Space (or the
-// pointer) for 1.6 s until it clicks and reads "Release to sign", then let go inside, and this browser signs the
-// canonical batch with its own key (MM-5, key 1; S2.7: arm on hold, act on release). The Chair's key arrives as
+// W-TR-07 Approve (S1.7, design §6 C7; UI gate rounds 4 and 5): the one 12-column grid, top-aligned 32 px under the
+// title row ("Approve 2026-A", the keys signed as its one chip, the run id and the screen's one provenance phrase).
+// Columns 1–7 hold one tight composition: the seal grown from the batch hash (180 px, 220 from a 1,600 px
+// window), and beside it "PayPal batch · 8 payouts" with its one micro-tag, the amount, and the two named signers
+// ("Two officers sign this batch", each with one line in words, never a key id); then the money bar, at 1,920 the
+// eight PayPal recipients under it (round 5: no dead band), and the fees and every id behind "IDs". Columns 8–12 hold
+// the decision in one card that hugs its content: four checks, then one way to sign while no key has signed (the slab,
+// hugging its label, with its caption and its one link to the other way under it), and only after key 1 the Chair's
+// co-sign block. Ernesto's row says his state once ("Waiting", or "Reviewing" while he is on the batch). Hold Space
+// (or the pointer) for 1.6 s until it clicks and reads "Release to sign",
+// then let go inside, and this browser signs the canonical batch with its own key (MM-5, key 1; S2.7: arm on hold,
+// act on release). The Chair's key arrives as
 // an `approval.signed` event; the outer rings engrave, the seal lands and the batch turns to ink. The signature
 // happens only after the payload the API built is re-checked here: its JCS bytes, its batch hash and its lines
 // root must be exactly what the screen shows and recomputed, or nothing is signed (I4). The amounts and the lines
@@ -11,18 +19,31 @@
 
 import { webRoutes } from "@fairsplit/contracts";
 import { TIMING } from "@fairsplit/motion";
-import { AmountDisplay, Glyph, type HoldChange, Print, RailBar, Slab } from "@fairsplit/ui-web";
+import {
+  AmountDisplay,
+  Chip,
+  type ChipTone,
+  Glyph,
+  type GlyphName,
+  type HoldChange,
+  MicroTag,
+  Slab,
+  StateDot,
+} from "@fairsplit/ui-web";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "@tanstack/react-router";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { AppLink } from "../../chrome/AppLink.js";
 import { CommandNotice } from "../../chrome/CommandNotice.js";
+import { PROVENANCE, railTag } from "../../chrome/copy.js";
 import { RunRouteGate } from "../../chrome/Fallbacks.js";
 import { PrintBed } from "../../chrome/PrintBed.js";
+import { Cell, ScreenHead } from "../../chrome/ScreenGrid.js";
 import { ScreenRoot } from "../../chrome/ScreenRoot.js";
 import { Stamp } from "../../chrome/Stamp.js";
 import { isApiClientError } from "../../data/errors.js";
-import { useAdapter, useCommand, useJudgeSession } from "../../data/hooks.js";
+import { useAdapter, useCommand, useJudgeSession, usePaypalRail } from "../../data/hooks.js";
+import { payoutReplayed } from "../../data/payout-replay.js";
 import { queryKeys } from "../../data/query.js";
 import { blockingHolds, livePresence, type RunView } from "../../data/run-view.js";
 import { readBatchToSign } from "../../features/approve/batch-read.js";
@@ -32,6 +53,7 @@ import {
   type SigningKey,
   sessionKey,
 } from "../../features/approve/keys.js";
+import { MoneyBar } from "../../features/approve/MoneyBar.js";
 import {
   approveState,
   batchAmountState,
@@ -63,15 +85,30 @@ import {
   signedLinesDigest,
   voidedByChange,
 } from "../../features/approve/model.js";
-import { BatchLedger, ConfirmBody, CosignCard, KeySlot, SealBlock } from "../../features/approve/parts.js";
+import {
+  BatchLedger,
+  CheckList,
+  type CheckRow,
+  ConfirmBody,
+  CosignCard,
+  KeySlot,
+  type LedgerKey,
+  type PayeeRow,
+  Payees,
+  SealBlock,
+  Signers,
+  useSealSize,
+} from "../../features/approve/parts.js";
 import { APPROVE, en } from "../../features/split/shared/copy.js";
 import { officer, stampFor } from "../../features/split/shared/people.js";
 import { cashDayForRun, useLiveEvents, useRunData } from "../../features/split/shared/run-data.js";
 import { useMomentScript, usePhaseSync } from "../../features/split/shared/script.js";
-import { registerScreenControl } from "../../lib/focus.js";
+import { runLabel } from "../../lib/display.js";
+import { focusIsLost, registerScreenControl } from "../../lib/focus.js";
 import { format } from "../../lib/format.js";
 import { utf8 } from "../../lib/jcs.js";
 import { useMoment } from "../../lib/moment.js";
+import { chairCaption, ruleTitle } from "../../lib/plain.js";
 import { provenanceFooter } from "../../lib/provenance.js";
 import type { ScreenState } from "../../lib/screens.js";
 import { useNextStep, useOptionalStage, usePrefocus } from "../../stage/context.js";
@@ -89,6 +126,7 @@ export function Screen({ runSlug }: RunScreenProps) {
   const adapter = useAdapter();
   const client = useQueryClient();
   const { session } = useJudgeSession();
+  const rail = usePaypalRail() ?? "simulator";
   const [local, setLocal] = useState<LocalApproval>(NO_LOCAL);
   const [signing, setSigning] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -180,9 +218,14 @@ export function Screen({ runSlug }: RunScreenProps) {
     if (signedKeys < keysBefore.current) setSlabKey((k) => k + 1);
     keysBefore.current = signedKeys;
   }, [signedKeys]);
-  // Focus leaves the spent slab for the step's next control without scrolling: the seal stays the thing in view.
+  // The slab goes once a key signs (round 3: no status box, "Waiting" lives in Ernesto's row). Focus that went with
+  // it moves on to the step's next control in the same commit, without scrolling: the seal stays the thing in view.
+  // Only when a key just landed and focus was lost; a control the person chose keeps it.
+  const focusKeys = useRef(signedKeys);
   useLayoutEffect(() => {
-    if (signedKeys === 0 || !slabRef.current?.contains(document.activeElement)) return;
+    const before = focusKeys.current;
+    focusKeys.current = signedKeys;
+    if (signedKeys <= before || !focusIsLost()) return;
     const next =
       document.querySelector<HTMLElement>(
         signedKeys === 1 ? '[data-testid="W-JG-01.runPill.next"]' : '[data-testid="W-TR-07.fanout"]',
@@ -364,44 +407,50 @@ export function Screen({ runSlug }: RunScreenProps) {
   );
 
   const pairing = useCommand("createPairing");
+  const sealSize = useSealSize();
 
-  const title = (
-    <header className="fsr-screen__head">
-      <h1 id="W-TR-07-title" className="fs-t-title-1">
-        {en("W-TR-07.title")}
-      </h1>
-      <p className="fsr-screen__slug fs-t-hash">{runSlug}</p>
-    </header>
+  // The title row (round 5): "Approve 2026-A", the state as one chip, the run id and the one provenance phrase.
+  const runId = runLabel(runSlug);
+  const head = (status?: ReactNode) => (
+    <ScreenHead
+      title={en("W-TR-07.title")}
+      suffix={runId.season || undefined}
+      status={status}
+      titleId="W-TR-07-title"
+      // One run id everywhere (round 5): "2026-A · r37", as Season, Reading room and Split review read it.
+      meta={runId.run}
+      provenance={PROVENANCE.seededSlips}
+      testId="W-TR-07.head"
+    />
   );
+  const title = head();
 
   if (data.access !== "allowed") return <RunRouteGate data={data} />;
   if (data.error && !view) {
     return (
-      <ScreenRoot
-        id="W-TR-07"
-        state="error"
-        className="fsr-screen fsr-approve-screen"
-        labelledBy="W-TR-07-title"
-      >
+      <ScreenRoot id="W-TR-07" state="error" grid className="fsr-approve-screen" labelledBy="W-TR-07-title">
         {title}
         <CommandNotice error={data.error} testId="W-TR-07.error" onRetry={data.retry} />
       </ScreenRoot>
     );
   }
   if (!snapshot || !view || !state || !batch) {
+    // The print beds stand where the batch and the decision will, at their final sizes.
     return (
-      <ScreenRoot
-        id="W-TR-07"
-        state="loading"
-        className="fsr-screen fsr-approve-screen"
-        labelledBy="W-TR-07-title"
-      >
+      <ScreenRoot id="W-TR-07" state="loading" grid className="fsr-approve-screen" labelledBy="W-TR-07-title">
         {title}
-        <div className="fsr-approve fsr-approve--beds" aria-hidden data-testid="W-TR-07.loading">
-          <PrintBed shape="seal" width={200} height={200} />
-          <PrintBed shape="block" width={320} height={72} />
-          <PrintBed shape="line" count={3} />
-          <PrintBed shape="slab" width={560} height={64} />
+        <div className="fsc-screen fsr-approve" aria-hidden data-testid="W-TR-07.loading">
+          <Cell span={7} spanMd={7} className="fsr-approve__beds">
+            <PrintBed shape="seal" width={sealSize} height={sealSize} />
+            <div className="fsc-stack" data-gap="tight">
+              <PrintBed shape="block" width={320} height={72} />
+              <PrintBed shape="line" count={3} />
+            </div>
+          </Cell>
+          <Cell span={5} spanMd={5} className="fsr-approve__decide">
+            <PrintBed shape="line" count={4} />
+            <PrintBed shape="slab" width={240} height={48} />
+          </Cell>
         </div>
         <p className="fs-sr" role="status">
           {APPROVE.loading}
@@ -419,11 +468,13 @@ export function Screen({ runSlug }: RunScreenProps) {
   const amountState = batchAmountState(view);
   const total = batch.totalCents;
   const amount = { display: format.money(total), spoken: format.amountSpoken(total, "en") };
-  const label = en("W-TR-07.approve", { count: batch.itemCount });
+  const chair = chairRule(snapshot, total);
+  // Round 8: the button says which signature the press is ("Sign 1 of 2 · 8 payouts"): never "Approve", which read as
+  // the final authorisation. A batch under the Chair's threshold has one signer and says so.
+  const label = en(chair.required ? "W-TR-07.approve" : "W-TR-07.approve.sole", { count: batch.itemCount });
   const cashDay = format.dateShort(cashDayForRun(snapshot, view));
   const fees = feeFacts(snapshot);
   const safe = safeFacts(snapshot, view);
-  const chair = chairRule(snapshot, total);
   const reasons = blockingReasons(snapshot, view);
   const firstReason = reasons[0];
   const signedNow = keys > 0;
@@ -446,24 +497,32 @@ export function Screen({ runSlug }: RunScreenProps) {
     if (payloadError) onReason = reloadPayload;
   }
 
-  // The key's kind comes from its ID's shape (C-13): a judge's demo key never reads as an officer's own key.
-  const keyLabelOf = (id: string, holder: "treasurer" | "chair") => {
+  // The key's kind comes from its ID's shape (C-13): a judge's demo key never reads as an officer's own key. Round 5:
+  // no ids for people. Each signer's line says in words where the key lives ("Key on this browser", "Sample key");
+  // the ids wait behind "IDs" with the hashes.
+  const captionOf = (id: string, demo: string): string => {
     switch (keyKind(id)) {
       case "seeded":
-        return APPROVE.keySeeded;
+        return APPROVE.keyCaption.sample;
       case "demo":
-        return holder === "treasurer" ? en("W-TR-07.key.demo") : APPROVE.keyDemoChair;
+        return demo;
       case "web":
-        return APPROVE.keyBrowser;
+        return APPROVE.keyCaption.web;
       default:
-        return APPROVE.keyDevice;
+        return APPROVE.keyCaption.device;
     }
   };
   const treasurerKeyId = treasurerApproval?.keyId ?? key?.keyId ?? null;
-  // Until fs-api has registered this browser's key the slot names the kind of key that will sign, not an ID.
-  const treasurerKeyLine = treasurerKeyId
-    ? APPROVE.keyLine(treasurerKeyId, keyLabelOf(treasurerKeyId, "treasurer"))
-    : en("W-TR-07.key.demo");
+  // Until fs-api has registered this browser's key the row names the key that will sign: this browser's.
+  const treasurerCaption = treasurerKeyId
+    ? captionOf(treasurerKeyId, APPROVE.keyCaption.demo)
+    : APPROVE.keyCaption.demo;
+  // The Chair's line says what his key is for until he signs ("Co-signs batches over US$300", its rule in the title),
+  // then where his key lived.
+  const chairLine = chairApproval
+    ? { caption: captionOf(chairApproval.keyId, APPROVE.keyCaption.chairDemo) }
+    : { caption: chairCaption(chair.overCents), captionTitle: ruleTitle(chair.ruleId) };
+  // How this browser's key was made, on hover beside its caption and its id.
   const treasurerNote =
     !treasurerApproval || keyKind(treasurerApproval.keyId) === "demo"
       ? key?.kind === "webcrypto"
@@ -472,6 +531,29 @@ export function Screen({ runSlug }: RunScreenProps) {
           ? APPROVE.keyNoble
           : undefined
       : undefined;
+  // The signers' key ids, behind "IDs" with the hashes (round 5).
+  const ledgerKeys: LedgerKey[] = [
+    ...(treasurerKeyId
+      ? [
+          {
+            label: APPROVE.keyIdLabel.treasurer,
+            id: treasurerKeyId,
+            ...(treasurerNote ? { title: treasurerNote } : {}),
+            testId: "W-TR-07.keyId.treasurer",
+          },
+        ]
+      : []),
+    ...(chairApproval
+      ? [
+          {
+            label: APPROVE.keyIdLabel.chair,
+            id: chairApproval.keyId,
+            ...(keyKind(chairApproval.keyId) === "demo" ? { title: APPROVE.keyDemoChair } : {}),
+            testId: "W-TR-07.keyId.chair",
+          },
+        ]
+      : []),
+  ];
   const voidedAt = voidedByChange(view);
   const voidedTime = voidedAt ? format.time(voidedAt).slice(0, 5) : null;
   const treasurerStamp = treasurerApproval
@@ -484,31 +566,96 @@ export function Screen({ runSlug }: RunScreenProps) {
     : voidedAt
       ? stampFor(snapshot, "board:ernesto", voidedAt)
       : null;
-  const recordText =
-    keys === 2
-      ? `Approved by Analyn and Ernesto, ${chairStamp?.at ?? treasurerStamp?.at ?? ""}`
-      : `Signed by Analyn, ${treasurerStamp?.at ?? ""}. Waiting for Ernesto.`;
+  // Ernesto's presence, only while key 1 waits on him: his row says it in place of "Waiting" (round 4: his state
+  // is said once, in his row), with the whole sentence as its title.
+  const presenceHold = presence?.holdId
+    ? holdNumber(view.holds[presence.holdId]?.label ?? presence.holdId)
+    : null;
+  const presenceStatus =
+    state === "key1" && presence && !chairApproval
+      ? {
+          word: presenceHold ? APPROVE.reviewingHold(presenceHold) : APPROVE.reviewing,
+          title: presenceHold ? APPROVE.presence(presenceHold) : APPROVE.presenceApproval,
+        }
+      : null;
 
-  const presenceText = presence
-    ? presence.holdId
-      ? APPROVE.presence(holdNumber(view.holds[presence.holdId]?.label ?? presence.holdId))
-      : APPROVE.presenceApproval
-    : APPROVE.waitingChair;
+  // Four checks above the slab (spec §3.9): a ✓ in ink for a checked fact, a marigold dot for one still open.
+  const checks: CheckRow[] = [
+    {
+      key: "holds",
+      label: APPROVE.checkHolds,
+      value: [`${safe.holds}/${safe.holdsTotal}`, safe.byHand > 0 ? APPROVE.byHand(safe.byHand) : null]
+        .filter(Boolean)
+        .join(" · "),
+      done: safe.holds === safe.holdsTotal,
+    },
+    {
+      key: "shrink",
+      label: APPROVE.checkShrink,
+      value: `${safe.shrink} ${safe.inside ? "≤" : ">"} ${safe.limit}`,
+      done: safe.inside,
+    },
+    {
+      key: "lines",
+      label: APPROVE.checkLines,
+      value: `${safe.explained}/${safe.lines}`,
+      done: safe.explained === safe.lines,
+    },
+    { key: "card", label: APPROVE.checkRateCard, value: APPROVE.since(safe.date), done: true },
+  ];
+
+  // Who the batch pays (round 5), the largest first as on the Run's fan: each hollow until the simulated PayPal
+  // confirms it (a replay never reads as paid).
+  const replayed = payoutReplayed(view);
+  const payees: PayeeRow[] = [...batch.recipients]
+    .sort((a, b) => b.cents - a.cents)
+    .map((r) => {
+      const line = replayed ? undefined : view.lines[r.memberNo]?.state;
+      const dot =
+        line === "PAID" ? "paid" : line === "UNCLAIMED" || line === "PAYPAL_HELD" ? "held" : "pending";
+      return {
+        memberNo: r.memberNo,
+        name: r.name,
+        amount: format.money(r.cents),
+        state: dot,
+        ...(dot === "pending" ? {} : { stateWord: APPROVE.payeeWord[dot] }),
+      };
+    });
+  // The PayPal segment stays planned (a steel dashed outline) until the simulated PayPal confirmed every payout.
+  // Round 8: a solid steel segment while planned, the signers' indigo once both keys signed it, jade once confirmed.
+  const paypalTone =
+    payees.length > 0 && payees.every((p) => p.state === "paid")
+      ? "confirmed"
+      : keys === 2
+        ? "signed"
+        : "planned";
+  const chip = stateChip(state, keys, reasons.length);
 
   const screenState: ScreenState<"W-TR-07"> = state;
   const inJudgeMode = data.live && stage !== null;
+  const done = state === "approved" || state === "posting" || state === "retrying";
 
   return (
     <ScreenRoot
       id="W-TR-07"
       state={screenState}
-      className="fsr-screen fsr-approve-screen"
+      grid
+      className="fsr-approve-screen"
       labelledBy="W-TR-07-title"
     >
-      {title}
+      {head(
+        <Chip
+          tone={chip.tone}
+          glyph={chip.glyph}
+          testId={chip.count ? "W-TR-07.keysCount" : "W-TR-07.stateChip"}
+        >
+          {chip.text}
+        </Chip>,
+      )}
+      {/* The moment's root spans the row and lays its own two cells on the same twelve columns. */}
       <section
         {...moment.rootProps}
-        className="fsr-approve"
+        className="fsc-screen fsr-approve"
         data-motion={moment.mode}
         data-keys={keys}
         aria-label={label}
@@ -534,241 +681,303 @@ export function Screen({ runSlug }: RunScreenProps) {
             {APPROVE.resending(local.resending, SEND_ATTEMPTS)}
           </p>
         )}
-
-        <div ref={sealRef}>
-          <SealBlock batchSha256={batchSha256} keys={keys} engrave={engrave} />
-        </div>
-
-        <div
-          className="fsr-approve__amount"
-          data-amount-state={amountState}
-          data-animate={script.busy ? "" : undefined}
-        >
-          <AmountDisplay
-            amount={amount}
-            pencil={amountState === "pencil"}
-            hollow={amountState === "hollow"}
-            testId="W-TR-07.amount"
-          />
-          <p className="fsr-approve__amount-note fs-t-caption">
-            {provenanceFooter({ kind: "engine", rateCardSha256: snapshot.rateCard.sha256 })}
-          </p>
-        </div>
-
-        <figure className="fsr-approve__rails">
-          <RailBar
-            paypalShare={batch.netCents > 0 ? total / batch.netCents : 0}
-            paypalText={en("W-TR-07.payouts", { count: batch.itemCount })}
-            cashText={en("W-TR-07.cash", {
-              count: batch.cashCount,
-              amount: format.money(batch.cashCents),
-              date: cashDay,
-            })}
-            cashWord={en("cash.word")}
-            testId="W-TR-07.rail"
-          />
-          <figcaption className="fsr-approve__fees fs-t-caption" data-testid="W-TR-07.fees">
-            {en("W-TR-07.fees", { ...fees })} <span className="fsr-muted">{APPROVE.feesLabel}.</span>
-          </figcaption>
-        </figure>
-
-        {batch.final ? (
-          <Print
-            value={en("W-TR-07.safe", {
-              holds: safe.holds,
-              byHand: safe.byHand,
-              shrink: safe.shrink,
-              limit: safe.limit,
-              explained: safe.explained,
-              lines: safe.lines,
-              date: safe.date,
-            })}
-            provenance="engine"
-            state={amountState === "pencil" ? "pencil" : "ink"}
-            typeRole="body"
-            as="p"
-            className="fsr-approve__safe"
-            testId="W-TR-07.safe"
-          />
-        ) : (
-          <BlockedList reasons={reasons} />
-        )}
-
-        <section className="fsr-approve__ledger" aria-labelledby="W-TR-07-ledger">
-          <h2 id="W-TR-07-ledger" className="fs-t-label">
-            {APPROVE.signTitle}
-          </h2>
-          <p className="fs-t-caption fsr-muted">{APPROVE.ledgerNote}</p>
-          <BatchLedger
-            senderBatchId={batchId}
-            batchSha256={batchSha256}
-            signedLinesDigest={linesDisagree ? null : payloadLines}
-            lines={batch.lines}
-            cashLines={batch.cashCount}
-            rateCardSha256={snapshot.rateCard.sha256}
-          />
-        </section>
-
         {voidedTime && (
           <p className="fsr-banner fsr-banner--ink" role="status" data-testid="W-TR-07.voided">
             {APPROVE.voided(voidedTime)}
           </p>
         )}
 
-        <div ref={slabRef} className="fsr-approve__slab">
-          <Slab
-            key={slabKey}
-            label={label}
-            record={
-              <span className="fsr-approve__record">
-                {treasurerStamp && <Stamp stamp={treasurerStamp} />}
-                {chairStamp && <Stamp stamp={chairStamp} />}
-                <span>{recordText}</span>
-              </span>
-            }
-            srLabel={signedNow ? recordText : APPROVE.srApprove(label, amount.spoken)}
-            depth="d3"
-            tone="jade"
-            hold={TIMING.holdConsole}
-            size="l"
-            width={560}
-            glyph="seal"
-            confirm={{
-              title: APPROVE.confirmTitle(batch.itemCount),
-              body: (
-                <ConfirmBody
-                  amount={amount.display}
-                  count={batch.itemCount}
-                  recipients={rows}
-                  batchSha256={batchSha256}
+        {/* The batch (columns 1–7): one composition of the seal grown from its hash, the amount PayPal is asked
+            to move and the two people who sign it; then the bar of where the rest goes, and the details a person
+            opens to compare by eye. */}
+        <Cell span={7} spanMd={7} className="fsr-approve__batch">
+          <div className="fsr-approve__hero">
+            <div ref={sealRef} className="fsr-approve__seal-wrap">
+              <SealBlock batchSha256={batchSha256} keys={keys} engrave={engrave} size={sealSize} />
+            </div>
+
+            <div className="fsr-approve__side">
+              <div
+                className="fsr-approve__amount"
+                data-amount-state={amountState}
+                data-animate={script.busy ? "" : undefined}
+              >
+                <p className="fsr-approve__hero-label">
+                  <span className="fs-t-label">{APPROVE.heroLabel(batch.itemCount)}</span>
+                  <MicroTag label={railTag(rail)} testId="W-TR-07.tag" />
+                </p>
+                <AmountDisplay
+                  amount={amount}
+                  pencil={amountState === "pencil"}
+                  hollow={amountState === "hollow"}
+                  testId="W-TR-07.amount"
                 />
-              ),
-            }}
-            {...(unavailable !== undefined ? { unavailableReason: unavailable } : {})}
-            {...(onReason ? { onReasonClick: onReason } : {})}
-            bolted={state === "killed"}
-            {...(signedNow ? { frame: { state: "committed" as const, travel: 8, fill: 1 } } : {})}
-            hint={!signedNow}
-            testId="W-TR-07.approve"
-            onHoldChange={onHoldChange}
-            onCommit={approve}
+              </div>
+
+              <Signers
+                officers={chair.required ? 2 : 1}
+                rows={
+                  <>
+                    <KeySlot
+                      name={APPROVE.keyName.treasurer}
+                      caption={treasurerCaption}
+                      {...(treasurerNote ? { captionTitle: treasurerNote } : {})}
+                      status={
+                        treasurerApproval && treasurerStamp
+                          ? en("W-TR-07.key.signed", { time: treasurerStamp.at })
+                          : voidedTime
+                            ? APPROVE.voidedKey(voidedTime)
+                            : signing
+                              ? APPROVE.signing
+                              : chair.required
+                                ? APPROVE.signsFirst
+                                : APPROVE.waitingKey
+                      }
+                      voided={voidedAt !== null}
+                      signed={treasurerApproval !== null}
+                      stamp={treasurerStamp}
+                      testId="W-TR-07.key.treasurer"
+                    />
+                    {chair.required && (
+                      <KeySlot
+                        name={APPROVE.keyName.chair}
+                        {...chairLine}
+                        status={
+                          chairApproval && chairStamp
+                            ? en("W-TR-07.key.signed", { time: chairStamp.at })
+                            : voidedTime
+                              ? APPROVE.voidedKey(voidedTime)
+                              : (presenceStatus?.word ??
+                                (treasurerApproval ? APPROVE.signsNext : APPROVE.signsSecond))
+                        }
+                        {...(presenceStatus ? { statusTitle: presenceStatus.title } : {})}
+                        voided={voidedAt !== null}
+                        signed={chairApproval !== null}
+                        stamp={chairStamp}
+                        testId="W-TR-07.key.chair"
+                      />
+                    )}
+                  </>
+                }
+              />
+            </div>
+          </div>
+        </Cell>
+
+        {/* Where the money goes (round 5, no dead bands): the bar, and at 1,920 the eight PayPal recipients under it,
+            as a second grid row across all twelve columns once the batch and the decision card stand side by side (the
+            screen packs the card back beside the batch, .fsr-approve's dense flow); on the laptops it stays under the
+            batch (seven columns). The reading order stays the batch, its money, then the decision. */}
+        <Cell span={7} spanMd={7} className="fsr-approve__money">
+          <MoneyBar
+            testId="W-TR-07.rail"
+            label={APPROVE.railLabel}
+            segments={[
+              {
+                key: "paypal",
+                tone: paypalTone,
+                cents: total,
+                label: APPROVE.legendPaypal,
+                count: batch.itemCount,
+                amount: amount.display,
+              },
+              {
+                key: "cash",
+                tone: "cash",
+                cents: batch.cashCents,
+                label: APPROVE.legendCash,
+                count: batch.cashCount,
+                note: cashDay,
+                amount: format.money(batch.cashCents),
+              },
+            ]}
           />
-          {state === "killed" && (
-            <p className="fsr-approve__killed fs-t-label" data-testid="W-TR-07.killed">
-              <Glyph name="bolt" size={16} />
-              {APPROVE.killed}
-            </p>
-          )}
-        </div>
+        </Cell>
 
-        {keys === 2 && (
-          <AppLink href={webRoutes.fanout(view.runSlug)} className="fs-flat" data-testid="W-TR-07.fanout">
-            {APPROVE.watchPayouts}
-          </AppLink>
-        )}
+        {/* The decision (columns 8–12), one card that hugs its content: the checks, one way to sign while no key
+            has signed, and only after key 1 the Chair's co-sign block. Round 6: who the batch pays is on screen
+            before anyone signs, at every width: under the card on the laptops (one column), and on the 1,920 stage a
+            row of its own under the money bar (the aside steps out of the layout there: approve.css). */}
+        <div className="fsr-approve__aside">
+          <div className="fsr-approve__decide">
+            {batch.final ? (
+              <CheckList rows={checks} testId="W-TR-07.safe" />
+            ) : (
+              <BlockedList reasons={reasons} />
+            )}
 
-        {payloadError && (
-          <CommandNotice
-            error={payloadError}
-            testId="W-TR-07.payload.error"
-            onRetry={reloadPayload}
-            retryLabel={APPROVE.payloadRetry}
-          />
-        )}
-        {submit.queuedMs !== null && (
-          <p role="status" data-testid="W-TR-07.queued">
-            You're next, about {Math.ceil(submit.queuedMs / 1000)} s
-          </p>
-        )}
-        {failure !== null && <CommandNotice error={failure} testId="W-TR-07.error" onRetry={reload} />}
+            {(!signedNow || state === "killed") && (
+              <div ref={slabRef} className="fsr-approve__slab">
+                <Slab
+                  key={slabKey}
+                  label={label}
+                  srLabel={APPROVE.srApprove(label, amount.spoken)}
+                  depth="d3"
+                  tone="jade"
+                  hold={TIMING.holdConsole}
+                  size="l"
+                  glyph="seal"
+                  confirm={{
+                    title: APPROVE.confirmTitle(batch.itemCount),
+                    body: (
+                      <ConfirmBody
+                        amount={amount.display}
+                        count={batch.itemCount}
+                        recipients={rows}
+                        batchSha256={batchSha256}
+                      />
+                    ),
+                  }}
+                  {...(unavailable !== undefined ? { unavailableReason: unavailable } : {})}
+                  {...(onReason ? { onReasonClick: onReason } : {})}
+                  bolted={state === "killed"}
+                  hint={!signedNow}
+                  testId="W-TR-07.approve"
+                  onHoldChange={onHoldChange}
+                  onCommit={approve}
+                />
+                {/* Round 6: the press is the treasurer's key, the first of two; the Chair's comes next. */}
+                {chair.required && keys === 0 && state !== "killed" && batch.final && (
+                  <p className="fsr-approve__first fs-t-caption" data-testid="W-TR-07.firstKey">
+                    {APPROVE.firstKey}
+                  </p>
+                )}
+              </div>
+            )}
+            {state === "killed" && (
+              <p className="fsr-approve__killed fs-t-label" data-testid="W-TR-07.killed">
+                <Glyph name="ms:pause" size={16} />
+                {APPROVE.killed}
+              </p>
+            )}
 
-        <ul className="fsr-keys" aria-label="Keys" data-testid="W-TR-07.keys">
-          <KeySlot
-            name={en("W-TR-07.key.treasurer")}
-            keyLine={treasurerKeyLine}
-            {...(treasurerNote ? { keyNote: treasurerNote } : {})}
-            status={
-              treasurerApproval && treasurerStamp
-                ? en("W-TR-07.key.signed", { time: treasurerStamp.at })
-                : voidedTime
-                  ? APPROVE.voidedKey(voidedTime)
-                  : signing
-                    ? APPROVE.signing
-                    : APPROVE.waitingKey
-            }
-            voided={voidedAt !== null}
-            signed={treasurerApproval !== null}
-            stamp={treasurerStamp}
-            testId="W-TR-07.key.treasurer"
-          />
-          {chair.required && (
-            <KeySlot
-              name={en("W-TR-07.key.chair")}
-              why={APPROVE.chairWhy(chair.threshold)}
-              {...(chairApproval
-                ? {
-                    keyLine: APPROVE.keyLine(chairApproval.keyId, keyLabelOf(chairApproval.keyId, "chair")),
-                  }
-                : {})}
-              status={
-                chairApproval && chairStamp
-                  ? en("W-TR-07.key.signed", { time: chairStamp.at })
-                  : voidedTime
-                    ? APPROVE.voidedKey(voidedTime)
-                    : treasurerApproval
-                      ? APPROVE.waitingChair
-                      : APPROVE.waitingKey
-              }
-              voided={voidedAt !== null}
-              signed={chairApproval !== null}
-              stamp={chairStamp}
-              testId="W-TR-07.key.chair"
-            />
-          )}
-        </ul>
+            {done && (
+              <div className="fsr-approve__done" data-testid="W-TR-07.approved">
+                <span className="fs-sr">{APPROVE.approved}</span>
+                {state === "posting" && (
+                  <p className="fsr-approve__posting fs-t-caption" data-testid="W-TR-07.posting">
+                    {APPROVE.posting(batchId)}
+                  </p>
+                )}
+                {/* Round 5: no glyph; the amount's micro-tag and the bar's indicator already say the rail. */}
+                {isPosted(view) && (
+                  <p className="fsr-approve__posted fs-t-label" title={railTag(rail)}>
+                    {APPROVE.posted}
+                  </p>
+                )}
+              </div>
+            )}
 
-        {state === "key1" && (
-          <p
-            className="fsr-presence fs-t-label"
-            data-in={moment.phase === "waiting-2" ? "" : undefined}
-            data-testid="W-TR-07.presence"
-          >
-            <Glyph name="ms:visibility" size={18} />
-            {presenceText}
-          </p>
-        )}
+            {keys === 2 && (
+              <AppLink
+                href={webRoutes.fanout(view.runSlug)}
+                className="fs-flat"
+                data-size="l"
+                data-testid="W-TR-07.fanout"
+              >
+                {APPROVE.watchPayouts}
+              </AppLink>
+            )}
 
-        {(state === "approved" || state === "posting" || state === "retrying") && (
-          <div className="fsr-approve__done" data-testid="W-TR-07.approved">
-            <p className="fs-t-title-2">{APPROVE.approved}</p>
-            {state === "posting" && (
-              <Print
-                value={APPROVE.posting(batchId)}
-                provenance="engine"
-                state="pencil"
-                typeRole="body"
-                as="p"
-                testId="W-TR-07.posting"
+            {payloadError && (
+              <CommandNotice
+                error={payloadError}
+                testId="W-TR-07.payload.error"
+                onRetry={reloadPayload}
+                retryLabel={APPROVE.payloadRetry}
               />
             )}
-            {isPosted(view) && <p className="fs-t-body fsr-approve__posted">{APPROVE.posted}</p>}
-          </div>
-        )}
+            {submit.queuedMs !== null && (
+              <p role="status" className="fs-t-caption" data-testid="W-TR-07.queued">
+                You're next, about {Math.ceil(submit.queuedMs / 1000)} s
+              </p>
+            )}
+            {failure !== null && <CommandNotice error={failure} testId="W-TR-07.error" onRetry={reload} />}
 
-        {inJudgeMode && (state === "key1" || state === "ready" || state === "declined") && chair.required && (
-          <CosignCard
-            code={pairing.data ?? null}
-            busy={pairing.isPending}
-            onMake={() => pairing.mutate({ body: { persona: "ernesto", role: "board" } })}
-            {...(stage ? { onChairFrame: () => stage.raisePhone("chair") } : {})}
-            error={
-              pairing.error ? <CommandNotice error={pairing.error} testId="W-TR-07.cosign.error" /> : null
-            }
-          />
-        )}
+            {/* The Chair's ways to co-sign, only once key 1 is in: before it, the slab is the one way to sign. */}
+            {inJudgeMode && state === "key1" && chair.required && (
+              <CosignCard
+                code={pairing.data ?? null}
+                busy={pairing.isPending}
+                onMake={() => pairing.mutate({ body: { persona: "ernesto", role: "board" } })}
+                {...(stage ? { onChairFrame: () => stage.raisePhone("chair") } : {})}
+                error={
+                  pairing.error ? <CommandNotice error={pairing.error} testId="W-TR-07.cosign.error" /> : null
+                }
+              />
+            )}
+          </div>
+          {batch.final && payees.length > 0 && (
+            <Payees rows={payees} label={APPROVE.payeesLabel(payees.length)} testId="W-TR-07.payees" />
+          )}
+        </div>
+        {/* The fees and the ids a person opens to compare by eye: the last row under the money. */}
+        <Cell span={7} spanMd={7} className="fsr-approve__more">
+          <details className="fsr-approve__details">
+            <summary className="fsr-approve__summary fs-t-label">
+              <Glyph name="ms:expand-more" size={16} />
+              {APPROVE.detailsSummary(fees.sandboxTotal)}
+            </summary>
+            <div className="fsr-approve__details-body">
+              <p className="fsr-approve__fees fs-t-caption" data-testid="W-TR-07.fees">
+                {en("W-TR-07.fees", { ...fees })} <span className="fsr-muted">{APPROVE.feesLabel}.</span>
+              </p>
+              <section className="fsr-approve__ledger" aria-labelledby="W-TR-07-ledger">
+                <h2 id="W-TR-07-ledger" className="fs-t-label">
+                  {APPROVE.signTitle}
+                </h2>
+                <BatchLedger
+                  senderBatchId={batchId}
+                  batchSha256={batchSha256}
+                  signedLinesDigest={linesDisagree ? null : payloadLines}
+                  lines={batch.lines}
+                  cashLines={batch.cashCount}
+                  rateCardSha256={snapshot.rateCard.sha256}
+                  keys={ledgerKeys}
+                />
+              </section>
+              <p className="fsr-approve__provenance fs-t-caption">
+                {provenanceFooter({ kind: "engine", rateCardSha256: snapshot.rateCard.sha256 })}
+              </p>
+            </div>
+          </details>
+        </Cell>
       </section>
     </ScreenRoot>
   );
+}
+
+interface StateChipView {
+  readonly tone: ChipTone;
+  readonly glyph: GlyphName;
+  readonly text: string;
+  /** The chip is the keys count ("1/2 signed"): its test hook is the count's. */
+  readonly count: boolean;
+}
+
+/**
+ * Approve's state on its title row (round 5), said once: how many keys signed, or what stops the signing (holds open,
+ * the slips still being read, PayPal's no, a pause, the Chair sending it back).
+ */
+function stateChip(
+  state: ReturnType<typeof approveState>,
+  keys: 0 | 1 | 2,
+  holdsOpen: number,
+): StateChipView {
+  switch (state) {
+    case "blocked":
+      return holdsOpen > 0
+        ? { tone: "canary", glyph: "ms:pause", text: APPROVE.chip.holds(holdsOpen), count: false }
+        : { tone: "flight", glyph: "logbook", text: APPROVE.chip.reading, count: false };
+    case "denied":
+      return { tone: "red", glyph: "rail", text: APPROVE.chip.denied, count: false };
+    case "killed":
+      return { tone: "neutral", glyph: "ms:pause", text: APPROVE.chip.paused, count: false };
+    case "declined":
+      return { tone: "neutral", glyph: "ms:arrow-back", text: APPROVE.chip.sentBack, count: false };
+    default:
+      return { tone: "neutral", glyph: "seal", text: APPROVE.signedCount(keys), count: true };
+  }
 }
 
 function BlockedList({
@@ -796,7 +1005,7 @@ function BlockedList({
           const sameWord = kind.toLowerCase() === r.hold.label.toLowerCase();
           return (
             <li key={r.hold.holdId}>
-              <span className="fsr-approve__blocked-mark" aria-hidden />
+              <StateDot kind="held" className="fsr-approve__blocked-mark" />
               <AppLink href={r.href} className="fs-link fs-t-label">
                 {r.hold.label}
               </AppLink>

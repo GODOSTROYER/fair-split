@@ -64,16 +64,26 @@ describe("finding the hold the drawer shows", () => {
 });
 
 describe("two voices, every digit from the engine", () => {
-  it("H1, H2 and H3 print the seed's engine lines once slip 0462 is entered", () => {
+  it("H1, H2 and H3 print one engine line whose every figure is the seed's engine line's, once 0462 is in", () => {
     const world = inReview();
     world.enterByHand();
     const view = viewOf(world);
+    const figures = (s: string) => straight(s).match(/\d[\d.,]*\d|\d/g) ?? [];
     for (const label of ["H1", "H2", "H3"]) {
       const hold = findHold(view, label);
       if (!hold) throw new Error(`no ${label}`);
       const v = voices(snapshot, view, hold);
-      expect(straight(v.engineLine), label).toBe(straight(seededLine(label)));
-      expect(v.claudeLine, label).toBe(snapshot.holds.find((h) => h.label === label)?.claudeLine);
+      // The unslopped line is one sentence (spec §3.7), shorter than the seed's paragraph...
+      expect(v.engineLine.length, label).toBeLessThan(seededLine(label).length);
+      expect(v.engineLine.split(". ").length, label).toBe(label === "H2" ? 2 : 1);
+      // ...and every figure in it is a figure the engine's own sentence states (I1: no digit of its own).
+      const seeded = new Set(figures(seededLine(label)));
+      expect(figures(v.engineLine).length, label).toBeGreaterThan(0);
+      for (const figure of figures(v.engineLine)) expect(seeded.has(figure), `${label} ${figure}`).toBe(true);
+      // H1's seed sentence goes (round 3): its captions say "pink duplicate" and its glyph says "stand-in".
+      expect(v.claudeLine, label).toBe(
+        label === "H1" ? null : snapshot.holds.find((h) => h.label === label)?.claudeLine,
+      );
       expect(v.claudeLine ?? "", label).not.toMatch(/\d/);
     }
   });
@@ -85,7 +95,7 @@ describe("two voices, every digit from the engine", () => {
     const v = voices(snapshot, view, h1);
     expect(v.engineLine).toMatch(/US\$18\.06/);
     expect(v.engineLine).toMatch(/1\.38%, inside the 2\.0% limit/);
-    expect(v.effect).toMatch(/Enter slip 0462 first/);
+    expect(v.effect).toBe("If counted once: +US$18.06 to 63 members · shrink after slip 0462");
   });
 
   it("H1's titles and money effect", () => {
@@ -96,7 +106,13 @@ describe("two voices, every digit from the engine", () => {
     if (!h1) throw new Error("no H1");
     const v = voices(snapshot, view, h1);
     expect(v.title).toBe("Slip 0457 counted twice");
-    expect(v.effect).toBe("Counting it once returns US$17.94 to 63 members and brings shrink to 1.62%.");
+    // Counting both, as a number line; counting once, the money back and the dial's move (round 3).
+    expect(v.engineLine).toBe("63 members −US$17.94 → Nong Dioning +US$17.94");
+    // One effect line (round 4): what counting it once does, the money and the dial's move.
+    expect(v.effect).toBe("If counted once: +US$17.94 to 63 members · 2.05% → 1.62%");
+    expect(voices(snapshot, view, { ...h1, state: "RESOLVED", resolution: "COUNT_ONCE" }).title).toBe(
+      "Slip 0457, counted once",
+    );
   });
 
   it("H2 reads Merlyn's registry: 140 trees registered, P-053-B (0.60 ha, 330 trees) not yet", () => {
@@ -138,7 +154,7 @@ describe("what a decision prints, and what comes next", () => {
     let view = viewOf(world);
     const h1 = findHold(view, "H1");
     if (!h1) throw new Error("no H1");
-    expect(resultLine(snapshot, view, h1, h1.resolution)).toBe("Returned to 63 members: US$17.94.");
+    expect(resultLine(snapshot, view, h1, h1.resolution)).toBe("+US$17.94 back to 63 members");
     expect(nextAfter(snapshot, view, h1)).toMatchObject({
       kind: "hold",
       href: `/runs/${world.runSlug}/split?hold=H2`,
@@ -155,9 +171,7 @@ describe("what a decision prints, and what comes next", () => {
     expect(resultLine(snapshot, view, h2, h2.resolution)).toBe(
       "300.0 kg from 470 trees is 0.64 kg a tree. Inside the limit.",
     );
-    expect(resultLine(snapshot, view, h3, h3.resolution)).toBe(
-      "Returned as a US$3.20 credit paid by the co-op.",
-    );
+    expect(resultLine(snapshot, view, h3, h3.resolution)).toBe("+US$3.20 credit, paid by the co-op");
     expect(nextAfter(snapshot, view, h3)).toMatchObject({
       kind: "approve",
       href: `/runs/${world.runSlug}/approve`,
@@ -187,7 +201,7 @@ describe("API hold facts without display strings", () => {
     expect(actual.written).toBe("₱200");
     expect(actual.credit).toBe("US$3.20");
     expect(actual.creditCents).toBe(320);
-    expect(voices(snapshot, view, liveHold).engineLine).toContain("US$3.20 correction credit");
+    expect(voices(snapshot, view, liveHold).effect).toContain("US$3.20 correction credit");
   });
 
   it("falls back to the slip mark and engine credit cents for the H3 amounts", () => {

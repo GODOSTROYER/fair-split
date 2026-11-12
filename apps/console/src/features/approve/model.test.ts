@@ -274,6 +274,8 @@ describe("the batch both keys sign", () => {
     expect(chairRule(snapshot, snapshot.figures.batchTotalCents)).toEqual({
       required: true,
       threshold: "US$300",
+      overCents: 30_000,
+      ruleId: "R5",
     });
     expect(wholeDollars(12_345)).toBe("US$123.45");
   });
@@ -289,9 +291,11 @@ describe("the batch both keys sign", () => {
     world.resolveAll();
     expect(safeFacts(snapshot, viewOf(world))).toEqual({
       holds: 3,
+      holdsTotal: 3,
       byHand: 1,
       shrink: "1.62%",
       limit: "2.0%",
+      inside: true,
       explained: 64,
       lines: 64,
       date: "14 Mar",

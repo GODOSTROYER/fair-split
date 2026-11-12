@@ -44,9 +44,39 @@ describe("W-TR-02 rate card", { timeout: 60_000 }, () => {
     expect(root.dataset.state).toBe("ratified");
     const rules = within(screen.getByTestId("W-TR-02.rules")).getAllByRole("button");
     expect(rules).toHaveLength(8);
-    expect(screen.getByTestId("W-TR-02.rule.R1").textContent).toMatch(
+    // Each rule is four words or fewer (round 4), every figure the card's own term; its whole clause opens under
+    // it. Round 7: no rule ids on screen (R0–R6 are the document's own); the id is the row's title.
+    expect(rules.map((r) => r.textContent)).toEqual([
+      "Premium never deducted",
+      "CBU 5% of bonus",
+      "Hauling ₱1.50 a kg",
+      "Loan ≤ 50% of bonus",
+      "Advance ≤ 30% of bonus",
+      "Chair co-signs over US$300.00",
+      "Holds need a person",
+      "No other deductions",
+    ]);
+    expect(screen.getByTestId("W-TR-02.rule.R1").querySelector("[title]")?.getAttribute("title")).toBe("R1");
+    // Four words or fewer beside the id (a sign such as "≤" is not a word).
+    for (const rule of rules) {
+      const words = (rule.textContent ?? "").replace(/^R\d/, "").trim().split(/\s+/);
+      expect(words.filter((w) => /[\p{L}\p{N}]/u.test(w)).length).toBeLessThanOrEqual(4);
+    }
+    const r1 = screen.getByTestId("W-TR-02.rule.R1");
+    expect(r1.getAttribute("aria-expanded")).toBe("false");
+    expect(screen.getByTestId("W-TR-02.clause.R1").hidden).toBe(true);
+    await act(async () => {
+      fireEvent.click(r1);
+    });
+    expect(r1.getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getByTestId("W-TR-02.clause.R1").hidden).toBe(false);
+    expect(screen.getByTestId("W-TR-02.clause.R1").textContent).toMatch(
       /CBU: 5% of the bonus until ₱5,000 is paid up\./,
     );
+    await act(async () => {
+      fireEvent.click(r1);
+    });
+    expect(screen.getByTestId("W-TR-02.clause.R1").hidden).toBe(true);
     expect(screen.getByTestId("W-TR-02.bolted.sealed").textContent).toMatch(
       /^sha256 [0-9a-f]{4} [0-9a-f]{4}, sealed 14 Mar 2026 by BR 2026-04$/,
     );
@@ -57,9 +87,33 @@ describe("W-TR-02 rate card", { timeout: 60_000 }, () => {
     const banded = screen.getByTestId("W-TR-02.pages").querySelectorAll("[data-band]");
     expect(banded).toHaveLength(1);
     expect(banded[0]?.textContent).toMatch(/^R3 Loan repayment/);
-    expect(screen.getByTestId("W-TR-02.footer").textContent).toBe(
+    // Round 5, provenance once: no glyph under the rules (nor anywhere on the screen); the stand-in is the title
+    // row's one id-line phrase. The page the pointed rule was quoted from stays as micro, the stand-in's words its
+    // title and its hidden text.
+    const footer = screen.getByTestId("W-TR-02.footer");
+    expect(screen.getByTestId("W-TR-02").querySelectorAll("[data-fs-glyph]")).toHaveLength(0);
+    expect(footer.getAttribute("title")).toBe(
       "Seed stand-in, not a Claude recording. Seeded quote on page 2.",
     );
+    expect(footer.textContent).toBe("Seed stand-in, not a Claude recording. Seeded quote on page 2.p. 2");
+    expect(
+      screen.getByTestId("W-TR-02").querySelector(".fsc-screen__provenance")?.getAttribute("title"),
+    ).toMatch(/Seed stand-in, not a Claude recording/);
+    // The title row: a noun with the season in grey, the card's state in one chip, the resolution as its id.
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Rate card 2026-A");
+    expect(screen.getByTestId("W-TR-02.state").textContent).toBe("Ratified 14 Mar");
+    expect(screen.getByTestId("W-TR-02").textContent).not.toMatch(/[Bb]olted/);
+    // The board's resolution scrolls on its own and folds away from the title row.
+    expect(screen.getByTestId("W-TR-02.pages").closest("[data-scroll-region]")).not.toBeNull();
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("W-TR-02.docToggle"));
+    });
+    expect(screen.queryByTestId("W-TR-02.pages")).toBeNull();
+    expect(screen.getByTestId("W-TR-02.docToggle").getAttribute("aria-expanded")).toBe("false");
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("W-TR-02.docToggle"));
+    });
+    expect(screen.getByTestId("W-TR-02.pages")).toBeTruthy();
     await expectNoAxeViolations(view.container);
   });
 
@@ -69,19 +123,48 @@ describe("W-TR-02 rate card", { timeout: 60_000 }, () => {
     expect(tracedPhases("MM-4")).toEqual(["refuse", "plate", "done"]);
     expect(feedback.log.filter((l) => l.event === "bolted.refuse").length).toBe(clacks + 1);
     expect(screen.getByTestId("W-TR-02").dataset.state).toBe("refused");
-    expect(screen.getByTestId("W-TR-02.addCommit").dataset.state).toBe("bolted");
+    // The moment's phase lands on its root first; the slab's frame follows in React's next render.
+    await waitFor(() => expect(screen.getByTestId("W-TR-02.addCommit").dataset.state).toBe("bolted"));
     const plate = screen.getByTestId("W-TR-02.refusal");
+    // Round 5: the refusal leads the side column, and the clause that refuses it takes the band on the board's page.
+    const banded = screen.getByTestId("W-TR-02.pages").querySelectorAll("[data-band]");
+    expect(banded.length).toBeGreaterThan(0);
+    expect(banded[0]?.textContent).toMatch(/^No deduction other than those in this Schedule/);
+    expect(screen.getByTestId("W-TR-02.rule.closed").hasAttribute("data-active")).toBe(true);
+    expect(plate.closest("[data-refused]")).not.toBeNull();
     const heading = within(plate).getByRole("heading");
     expect(document.activeElement).toBe(heading);
+    // The refusal is its title (round 3); its reason waits behind "Why" and never repeats the rule list.
+    expect(heading.textContent).toBe("Refused · Schedule A is closed until 2026-B");
     expect(scrolling).toHaveBeenCalledWith(expect.objectContaining({ block: "nearest" }));
     expect(screen.getByTestId("announcer").textContent).toBe(heading.textContent);
     expect(
       screen.getByTestId("W-TR-02.addCommit").compareDocumentPosition(plate) &
         Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
+    // Round 7: the refused attempt stays readable (in ink, never struck through) and says what became of it; the
+    // paper turns to the page that refuses it, alone, with the card's seal under it.
+    const refusedRow = screen.getByTestId("W-TR-02.refusedRow");
+    expect(refusedRow.querySelector("s")).toBeNull();
+    expect(refusedRow.querySelector(".fsc-rc__refused-what")?.textContent).toMatch(/ · /);
+    expect(refusedRow.textContent).toContain("Not added");
+    // Round 8: the attempt is the refusal's own second line, so one block says what was refused.
+    expect(plate.contains(refusedRow)).toBe(true);
+    const pages = screen.getByTestId("W-TR-02.pages");
+    expect(pages.hasAttribute("data-cited")).toBe(true);
+    expect(pages.querySelectorAll(".fsc-rc-page")).toHaveLength(1);
+    expect(pages.querySelector(".fsc-rc-page__folio")?.textContent).toBe("2 / 2");
+    expect(screen.getByTestId("W-TR-02.bolted").closest(".fsc-rc__sealed")).not.toBeNull();
+    expect(screen.getByTestId("W-TR-02.add").hasAttribute("data-plate")).toBe(true);
+    const why = screen.getByTestId("W-TR-02.why");
+    expect(why.tagName).toBe("DETAILS");
+    expect(why.hasAttribute("open")).toBe(false);
+    expect(within(why).getByText("Why").tagName).toBe("SUMMARY");
     expect(plate.textContent).toMatch(
-      /Closed list\. BR 2026-04, Schedule A, allows only CBU, hauling, loans with an Authority to Deduct and advances with a voucher\. A new deduction needs a new Board resolution for Season 2026-B\. Rate card [0-9a-f]{4} [0-9a-f]{4}\./,
+      /BR 2026-04 locked Schedule A for 2026-A\. A new deduction needs a 2026-B resolution\. Rate card [0-9a-f]{4} [0-9a-f]{4}\./,
     );
+    expect(plate.textContent).not.toMatch(/allows only|CBU|hauling|[Bb]olted/);
+    expect(screen.getByTestId("W-TR-02.add").textContent).toMatch(/Locked by BR 2026-04/);
     // The hash it cites prints once, in its own caption.
     expect(plate.textContent?.match(/Rate card [0-9a-f]{4} [0-9a-f]{4}\./g)).toHaveLength(1);
     expect(plate.querySelector(".fsc-rc__refusal-text .fs-t-caption")?.textContent).toMatch(
@@ -107,10 +190,14 @@ describe("W-TR-02 rate card", { timeout: 60_000 }, () => {
     expect(screen.getByTestId("W-TR-02.refusal").querySelector('[data-reveal="fade"]')).toBeTruthy();
   });
 
-  it("the refusal's one live slab drafts a proposal for 2026-B, unhashed and not in force", async () => {
+  it("the refusal's secondary drafts a proposal for 2026-B, unhashed and not in force", async () => {
     const { view } = await refuse("full");
+    // Round 5: next season's proposal is a secondary, never the screen's primary: the refusal is the state.
+    const face = screen.getByTestId("W-TR-02.propose.face");
+    expect(face.classList.contains("fs-flat")).toBe(true);
+    expect(screen.getByTestId("W-TR-02.refusal").querySelector(".fs-slab")).toBeNull();
     await act(async () => {
-      fireEvent.keyDown(screen.getByTestId("W-TR-02.propose.face"), { key: "Enter" });
+      fireEvent.click(face);
     });
     expect(screen.getByTestId("W-TR-02").dataset.state).toBe("proposal");
     const proposal = screen.getByTestId("W-TR-02.proposal");

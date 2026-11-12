@@ -12,9 +12,30 @@
     <title>Fair Split: co-op payroll</title>
     <!-- Before the stylesheet Vite adds below: Proof's surfaces read in their own face from the first layout. -->
     <script src="/face.js"></script>
+    <!-- The boot shell (UI gate round 6): the page is never blank while its script loads. Its own few rules, in
+         literal Hayag values, because the stylesheet and the font may not be in yet; React replaces it on mount and
+         the router draws the same shell (chrome/BootShell.tsx) while a first loader waits. -->
+    <style>
+      body { margin: 0; background: #f3f5f8; }
+      .fsc-boot { display: flex; flex-direction: column; gap: 10px; box-sizing: border-box; height: 100dvh; min-height: 320px; padding: 10px; color: #0b1220; font: 430 14px/20px "FS Sans", system-ui, sans-serif; }
+      .fsc-boot__bar { display: flex; flex: none; align-items: center; min-height: 56px; padding: 0 20px; border-radius: 24px; background: #fff; box-shadow: 0 1px 2px rgb(11 18 32 / 0.05), 0 0 0 1px rgb(11 18 32 / 0.04); font-weight: 600; font-size: 16px; font-stretch: 112.5%; }
+      .fsc-boot__panel { display: flex; flex: 1 1 auto; align-items: flex-start; gap: 8px; padding: 32px; border-radius: 24px; background: #fff; box-shadow: 0 1px 2px rgb(11 18 32 / 0.05), 0 12px 32px -12px rgb(11 18 32 / 0.16); color: #3a4456; font-weight: 520; }
+      .fsc-boot__dot { flex: none; width: 8px; height: 8px; margin-top: 6px; border: 1px solid #5a6476; border-radius: 50%; box-sizing: border-box; }
+      .fsc-boot__proof, html[data-face="proof"] .fsc-boot__season, html[data-face="proof"] .fsc-boot__bar { display: none; }
+      html[data-face="proof"] .fsc-boot__proof { display: inline; }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div class="fsc-boot" data-testid="boot" data-state="loading">
+        <div class="fsc-boot__bar">Fair Split</div>
+        <p class="fsc-boot__panel" role="status" style="margin: 0">
+          <span class="fsc-boot__dot" aria-hidden="true"></span>
+          <span class="fsc-boot__season">Loading season 2026-A</span>
+          <span class="fsc-boot__proof">Loading the proof</span>
+        </p>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

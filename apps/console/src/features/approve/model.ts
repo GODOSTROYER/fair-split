@@ -301,25 +301,33 @@ export function linesVersion(view: RunView): string {
 }
 
 export interface SafeFacts {
+  /** Holds decided. */
   readonly holds: number;
+  /** Every hold the run raised, decided or not. */
+  readonly holdsTotal: number;
   readonly byHand: number;
   readonly shrink: string;
   readonly limit: string;
+  /** The season check reads inside its limit (the engine's own status). */
+  readonly inside: boolean;
   readonly explained: number;
   readonly lines: number;
   /** "14 Mar": the rate card has not changed since its ratification. */
   readonly date: string;
 }
 
-/** "3 holds resolved. 1 field entered by hand. Shrink 1.62%, inside 2.0%. 64 of 64 lines explained…" */
+/** The four checks above the slab: holds 3/3 (1 by hand), shrink 1.62% ≤ 2.0%, lines 64/64, card since 14 Mar. */
 export function safeFacts(snapshot: SeasonSnapshot, view: RunView): SafeFacts {
   const rows = splitRows(snapshot, view);
   const dial = massBalanceView(snapshot, view);
+  const holds = holdCards(view);
   return {
-    holds: holdCards(view).filter((h) => !isOpenHold(h)).length,
+    holds: holds.filter((h) => !isOpenHold(h)).length,
+    holdsTotal: holds.length,
     byHand: byHandHolds(view).filter((h) => !isOpenHold(h)).length,
     shrink: dial.display,
     limit: dial.limitDisplay,
+    inside: dial.status === "INSIDE",
     explained: rows.filter((r) => r.openHold === null).length,
     lines: rows.length,
     date: format.dateShort(snapshot.rateCard.canonical.ratifiedOn),
@@ -364,13 +372,19 @@ export interface ChairRule {
   readonly required: boolean;
   /** "US$300" */
   readonly threshold: string;
+  /** The same threshold in cents, for the Chair's caption ("Co-signs batches over US$300"). */
+  readonly overCents: number;
+  /** The Schedule A rule that asks for the Chair ("R5"): in a title, never on screen (round 5). */
+  readonly ruleId: string;
 }
 
 export function chairRule(snapshot: SeasonSnapshot, totalCents: number): ChairRule {
-  const over = snapshot.rateCard.canonical.rules.cosign.batchOverCents;
+  const { batchOverCents: over, ruleId } = snapshot.rateCard.canonical.rules.cosign;
   return {
     required: snapshot.run.chairNeeded.required || totalCents > over,
     threshold: wholeDollars(over),
+    overCents: over,
+    ruleId,
   };
 }
 

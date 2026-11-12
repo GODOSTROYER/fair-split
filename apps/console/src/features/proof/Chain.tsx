@@ -10,9 +10,10 @@ import type {
   Provenance,
   SnapshotSlip,
 } from "@fairsplit/contracts";
-import { Chip, type ChipTone, Glyph, type GlyphName } from "@fairsplit/ui-web";
-import { type CSSProperties, type ReactNode, useEffect, useId, useState } from "react";
+import { Chip, type ChipTone, Glyph, type GlyphName, StepNumber } from "@fairsplit/ui-web";
+import { type CSSProperties, Fragment, type ReactNode, useEffect, useId, useState } from "react";
 import { ScrollRegion } from "../../chrome/ScrollRegion.js";
+import { SHOWCASE_LABEL } from "../../lib/display.js";
 import type { PaypalRail } from "../../lib/env.js";
 import { format } from "../../lib/format.js";
 import { signingKeyKind } from "../../lib/keys.js";
@@ -22,13 +23,14 @@ import {
   PLATE_TITLE,
   provenanceWords,
   railName,
+  railShort,
   STATE_COPY,
   t,
   VERIFY_COPY,
 } from "./copy.js";
 import { davaoDateTime } from "./davao.js";
-import { SLOT_GLYPH, slotOf, slotWords } from "./Hero.js";
-import { Lines, type MemberLabel } from "./Lines.js";
+import { CheckWords, KEY_ROOM, KEY_SHOWN, ProofId, slotOf, slotWords } from "./Hero.js";
+import { Lines, type MemberLabel, RailWord } from "./Lines.js";
 import {
   isSettled,
   type LedgerFacts,
@@ -55,6 +57,8 @@ export interface ChainProps {
   readonly markNames: ReadonlyMap<string, string>;
   /** The brand's view only: names and masked receivers under the data-sharing agreement (C-23). */
   readonly names: ReadonlyMap<string, MemberLabel> | null;
+  /** This is the seeded showcase run's Proof, not a judge's own run: its invoice id says so (UI gate round 3). */
+  readonly showcase?: boolean;
 }
 
 const ITEM_TONE: Readonly<Record<PayoutItemStatus, { tone: ChipTone; glyph: GlyphName }>> = {
@@ -95,38 +99,122 @@ function photoGroups(bundle: ProofBundle) {
   };
 }
 
-/** One sentence per plate, every figure computed from the bundle. */
-export function plateFact(
-  plate: PlateName,
-  p: Pick<ChainProps, "bundle" | "facts" | "progress" | "items" | "lineStates" | "replayed">,
-): string {
-  const { bundle, facts, progress } = p;
+/**
+ * The slips the chain accepted, with their scope said (UI gate round 3, one truth for counts): this run read the
+ * slips on its imaged photos A-L (48), and the season's record holds every slip in its 66 photos (264), the 54
+ * earlier manifest-only photos included. Both are counted from the bundle's own ledger.
+ */
+export function slipScope(bundle: Pick<ProofBundle, "ledger">): {
+  readonly run: number;
+  readonly season: number;
+} {
+  let run = 0;
+  let season = 0;
+  for (const entry of bundle.ledger) {
+    if (entry.kind !== "rows.accepted") continue;
+    const payload = entry.payload as { photoId?: string | null; serials?: readonly string[] };
+    const n = payload.serials?.length ?? 0;
+    season += n;
+    if (payload.photoId && /^[A-L]$/.test(payload.photoId)) run += n;
+  }
+  return { run, season };
+}
+
+/** One piece of a plate's fact line: words, an id (the mono id role) or money (the money role). */
+export interface FactPart {
+  readonly text: string;
+  readonly role?: "id" | "money";
+  /** Words before or after the piece, in the line's own face ("card", "net"). */
+  readonly before?: string;
+  readonly after?: string;
+}
+
+type FactProps = Pick<ChainProps, "bundle" | "facts" | "progress" | "items" | "lineStates" | "replayed"> & {
+  readonly showcase?: boolean;
+};
+
+/** A plate's fact as pieces, so ids and money each keep their numeral role on screen. */
+export function plateParts(plate: PlateName, p: FactProps): readonly FactPart[] {
+  const { bundle, progress } = p;
   switch (plate) {
     case "paid": {
       const words = invoiceWords(bundle.invoice.status);
-      return `${bundle.invoice.invoiceNumber}, ${words.charAt(0).toLowerCase()}${words.slice(1)}, ${format.money(bundle.invoice.amountCents)}`;
+      return [
+        { text: bundle.invoice.invoiceNumber, role: "id" },
+        ...(p.showcase ? [{ text: SHOWCASE_LABEL }] : []),
+        { text: `${words.charAt(0).toLowerCase()}${words.slice(1)}` },
+        { text: format.money(bundle.invoice.amountCents), role: "money" },
+      ];
     }
     case "ratified":
-      return `Card ${format.hashGroups(bundle.rateCard.sha256)}, ratified ${format.date(bundle.rateCard.ratifiedAt)}, first slip ${format.date(bundle.firstSlipDate)}`;
-    case "read":
-      return `${facts.slipsAccepted} slips: ${photoGroups(bundle).images.length} photos composed in code from AI-generated, synthetic hero flats and code-drawn slips, plus ${photoGroups(bundle).manifest.length} earlier photo-manifest entries (not imaged)`;
+      return [
+        { text: format.hashGroups(bundle.rateCard.sha256), role: "id", before: "card " },
+        { text: `ratified ${format.date(bundle.rateCard.ratifiedAt)}` },
+        { text: `first slip ${format.date(bundle.firstSlipDate)}` },
+      ];
+    case "read": {
+      const slips = slipScope(bundle);
+      // A record with no imaged photos has no "this run" to say: the season's count stands alone.
+      return slips.run > 0
+        ? [{ text: `${slips.run} this run` }, { text: `${slips.season} season` }]
+        : [{ text: `${slips.season} slips` }];
+    }
     case "computed":
-      return `${bundle.lines.length} line hashes, ${format.money(sumCents(bundle.lines.map((l) => l.netCents)))} net`;
+      return [
+        { text: `${bundle.lines.length} line hashes` },
+        { text: format.money(sumCents(bundle.lines.map((l) => l.netCents))), role: "money", after: " net" },
+      ];
     case "twoKeys":
-      return `${bundle.approvals.map((a) => a.keyId).join(" and ")}, batch ${format.hashGroups(bundle.batch.batchSha256)}`;
+      return [
+        ...bundle.approvals.map((a): FactPart => ({ text: a.keyId, role: "id" })),
+        { text: format.hashGroups(bundle.batch.batchSha256), role: "id", before: "batch " },
+      ];
     case "payoutItems": {
       if (p.replayed || payoutReplayed(undefined, bundle))
-        return payoutReplaySummary(progress.confirmed, progress.total);
-      if (!isSettled(progress)) return STATE_COPY.progress(progress.confirmed, progress.total);
-      const parts = [STATE_COPY.settled(progress.confirmed, progress.total).replace(/\.$/, "")];
+        return [{ text: payoutReplaySummary(progress.confirmed, progress.total) }];
+      if (!isSettled(progress)) return [{ text: STATE_COPY.progress(progress.confirmed, progress.total) }];
+      const parts: FactPart[] = [{ text: STATE_COPY.settled(progress.confirmed, progress.total) }];
       if (progress.returned > 0)
-        parts.push(STATE_COPY.returned(progress.returned, returnedCashPaid(p.items, p.lineStates)));
-      if (progress.failed > 0) parts.push(`${progress.failed} not completed by PayPal`);
-      if (progress.reversed > 0) parts.push(`${progress.reversed} reversed`);
-      return `${parts.join(", ")}.`;
+        parts.push({ text: STATE_COPY.returned(progress.returned, returnedCashPaid(p.items, p.lineStates)) });
+      if (progress.failed > 0) parts.push({ text: `${progress.failed} not completed by PayPal` });
+      if (progress.reversed > 0) parts.push({ text: `${progress.reversed} reversed` });
+      return parts;
     }
   }
 }
+
+/** One line of data per plate, joined by " · ", every figure computed from the bundle. */
+export function plateFact(plate: PlateName, p: FactProps): string {
+  return plateParts(plate, p)
+    .map((part) => `${part.before ?? ""}${part.text}${part.after ?? ""}`)
+    .join(" · ");
+}
+
+function FactLine({ parts }: { readonly parts: readonly FactPart[] }) {
+  return (
+    <>
+      {parts.map((part, i) => (
+        <Fragment key={`${i}-${part.text}`}>
+          {i > 0 && " · "}
+          {part.before}
+          {part.role === "id" ? (
+            <ProofId value={part.text} {...KEY_SHOWN} />
+          ) : part.role === "money" ? (
+            <span className="pf-fact__money">{part.text}</span>
+          ) : (
+            part.text
+          )}
+          {part.after}
+        </Fragment>
+      ))}
+    </>
+  );
+}
+
+/** The plates whose fact is PayPal's (plate 1's status already names the simulated sandbox in words): each names
+ * the rail in its title to a screen reader. Round 5, provenance once: no legend glyph beside it on screen, where the
+ * page's quiet indicator says it. */
+const PAYPAL_PLATES: ReadonlySet<PlateName> = new Set(["payoutItems"]);
 
 export function Chain(props: ChainProps) {
   const [open, setOpen] = useState<ReadonlySet<PlateName>>(new Set());
@@ -151,7 +239,7 @@ export function Chain(props: ChainProps) {
   const settled = isSettled(props.progress);
   return (
     <section className="pf-chain" aria-labelledby={`${baseId}-chain`} data-testid="W-PF-01.chain">
-      <h2 id={`${baseId}-chain`} className="pf-section__title">
+      <h2 id={`${baseId}-chain`} className="pf-section__title fs-t-title">
         {t("W-PF-01.chain")}
       </h2>
       <ol className="pf-chain__list">
@@ -160,7 +248,6 @@ export function Chain(props: ChainProps) {
           const isOpen = open.has(plate);
           const bodyId = `${baseId}-${plate}`;
           const waiting = plate === "payoutItems" && !settled;
-          const glyph = SLOT_GLYPH[slot.state];
           return (
             <li
               key={plate}
@@ -172,9 +259,9 @@ export function Chain(props: ChainProps) {
               data-testid={`W-PF-01.plate.${plate}`}
               style={{ "--pf-i": index } as CSSProperties}
             >
-              <span className="pf-plate__node" aria-hidden>
-                {index + 1}
-              </span>
+              {/* A chain step (round 5): the 24 px outlined numeral, never filled; the ✓ line under the title says
+                  whether the plate's check held. */}
+              <StepNumber n={index + 1} className="pf-plate__node" />
               <h3 className="pf-plate__head">
                 <button
                   type="button"
@@ -184,9 +271,16 @@ export function Chain(props: ChainProps) {
                   onClick={() => toggle(plate)}
                   data-testid={`W-PF-01.plate.${plate}.toggle`}
                 >
-                  <span className="pf-plate__title">{t(PLATE_TITLE[plate])}</span>
+                  <span className="pf-plate__title fs-t-heading">
+                    {t(PLATE_TITLE[plate])}
+                    {PAYPAL_PLATES.has(plate) && (
+                      <span className="fs-sr" data-testid={`W-PF-01.plate.${plate}.rail`}>
+                        {` (${railShort(props.rail)})`}
+                      </span>
+                    )}
+                  </span>
                   <span className="pf-plate__fact" data-testid={`W-PF-01.plate.${plate}.fact`}>
-                    {plateFact(plate, props)}
+                    <FactLine parts={plateParts(plate, props)} />
                   </span>
                   <Glyph
                     name={isOpen ? "ms:expand-less" : "ms:expand-more"}
@@ -196,8 +290,10 @@ export function Chain(props: ChainProps) {
                 </button>
               </h3>
               <p className="pf-plate__check" data-state={slot.state} data-testid={`W-PF-01.check.${plate}`}>
-                {glyph && <Glyph name={glyph} size={16} />}
-                <span>{slot.state === "replay" && slot.reason ? slot.reason : slotWords(slot.state)}</span>
+                <CheckWords
+                  state={slot.state}
+                  words={slot.state === "replay" && slot.reason ? slot.reason : slotWords(slot.state)}
+                />
               </p>
               <div className="pf-plate__body" id={bodyId} hidden={!isOpen}>
                 {isOpen && (
@@ -243,9 +339,7 @@ function Facts({ rows }: { readonly rows: readonly (readonly [string, ReactNode]
 }
 
 function Hash({ hex, all = true }: { readonly hex: string; readonly all?: boolean }) {
-  return (
-    <span className="fs-t-hash pf-hash">{all ? format.hashAllGroups(hex) : format.hashGroups(hex)}</span>
-  );
+  return <span className="fs-t-id pf-hash">{all ? format.hashAllGroups(hex) : format.hashGroups(hex)}</span>;
 }
 
 function Figure({ cents, state = "ink" }: { readonly cents: number; readonly state?: string }) {
@@ -273,7 +367,7 @@ function PlateBody({ plate, ...p }: ChainProps & { readonly plate: PlateName }) 
           rows={[
             [
               "Invoice",
-              <span key="n" className="fs-t-hash">
+              <span key="n" className="fs-t-id">
                 {bundle.invoice.invoiceNumber}
               </span>,
             ],
@@ -282,7 +376,7 @@ function PlateBody({ plate, ...p }: ChainProps & { readonly plate: PlateName }) 
             ["Due", <Figure key="d" cents={bundle.invoice.dueCents} state="landed" />],
             [
               "Reference",
-              <span key="r" className="fs-t-hash">
+              <span key="r" className="fs-t-id">
                 {bundle.invoice.reference}
               </span>,
             ],
@@ -313,7 +407,7 @@ function PlateBody({ plate, ...p }: ChainProps & { readonly plate: PlateName }) 
         <>
           <Facts
             rows={[
-              ["Slips", String(facts.slipsAccepted)],
+              ["Slips", plateFact("read", p)],
               [
                 "In the chain",
                 `${facts.photosAccepted} image or manifest hashes accepted before the lines were computed`,
@@ -324,17 +418,21 @@ function PlateBody({ plate, ...p }: ChainProps & { readonly plate: PlateName }) 
             [
               [
                 "images",
-                "Photo hashes: composed in code from AI-generated, synthetic hero flats and code-drawn slips",
+                `${photoGroups(bundle).images.length} photos composed in code from AI-generated, synthetic hero flats and code-drawn slips`,
                 "W-PF-01.photo-hashes",
               ],
-              ["manifest", "Earlier photo-manifest hashes (not imaged)", "W-PF-01.manifest-hashes"],
+              [
+                "manifest",
+                `${photoGroups(bundle).manifest.length} earlier photo-manifest entries (not imaged)`,
+                "W-PF-01.manifest-hashes",
+              ],
             ] as const
           ).map(([kind, label, testId]) => (
             <div key={kind}>
-              <p className="pf-plate__lead">{label} (SHA-256, first eight characters)</p>
+              <p className="pf-plate__lead">{label} · SHA-256, first 8</p>
               <ol className="pf-hashes" data-testid={testId}>
                 {photoGroups(bundle)[kind].map((d) => (
-                  <li key={d.documentId} className="fs-t-hash">
+                  <li key={d.documentId} className="fs-t-id">
                     {format.hashGroups(d.sha256)}
                   </li>
                 ))}
@@ -389,7 +487,7 @@ function PlateBody({ plate, ...p }: ChainProps & { readonly plate: PlateName }) 
               return (
                 <li key={a.keyId} className="pf-keys__key">
                   <span className="pf-keys__role">{a.role === "treasurer" ? "Treasurer" : "Chair"}</span>
-                  <span className="fs-t-hash">{a.keyId}</span>
+                  <ProofId value={a.keyId} max={KEY_ROOM} className="pf-keys__id" />
                   <span className="pf-keys__kind">{keyKindWords(reg?.kind ?? "", a.keyId)}</span>
                   <span className="pf-keys__meta">
                     Signs as {a.payload.approverId}
@@ -427,7 +525,7 @@ function Items({ bundle, items, names, rail, replayed = payoutReplayed(undefined
         rows={[
           [
             "Batch",
-            <span key="b" className="fs-t-hash">
+            <span key="b" className="fs-t-id">
               {bundle.batch.senderBatchId}
             </span>,
           ],
@@ -439,8 +537,8 @@ function Items({ bundle, items, names, rail, replayed = payoutReplayed(undefined
         {replayed
           ? "These statuses are a labelled replay of an earlier simulated PayPal sandbox run, including a seed snapshot. No simulator confirmation is claimed for this run."
           : rail === "simulator"
-            ? "These statuses are our record of the simulated sandbox's signed item notices."
-            : "These statuses are our record of PayPal's signed item notices on the configured rail (not simulated). No nightly reconciliation is served in this build."}
+            ? "Our record of the simulated sandbox's signed item notices."
+            : "Our record of PayPal's signed item notices on the configured rail (not simulated). No nightly reconciliation in this build."}
       </p>
       <ScrollRegion className="pf-table-wrap" label="Payout items, amount and status">
         <table className="pf-table" data-testid="W-PF-01.items">
@@ -475,7 +573,7 @@ function Items({ bundle, items, names, rail, replayed = payoutReplayed(undefined
                   data-state={presentation.replayed ? "replay" : item.status}
                   data-testid={`W-PF-01.item.${item.senderItemId}`}
                 >
-                  <th scope="row" className="fs-t-hash">
+                  <th scope="row" className="fs-t-id">
                     {item.senderItemId}
                   </th>
                   {names && <td>{label?.name ?? ""}</td>}
@@ -487,12 +585,21 @@ function Items({ bundle, items, names, rail, replayed = payoutReplayed(undefined
                   </td>
                   <td>
                     <Chip tone={presentation.tone} glyph={presentation.replayed ? "rail" : tone.glyph}>
-                      {presentation.statusWord}
+                      <RailWord presentation={presentation} />
                     </Chip>
                   </td>
-                  <td className="fs-t-hash">{item.payoutItemId ?? "Not yet"}</td>
-                  <td className="fs-t-hash">
-                    {presentation.replayed ? "Replayed, simulated" : noticeOf(item)}
+                  <td>
+                    {item.payoutItemId ? <span className="fs-t-id">{item.payoutItemId}</span> : "Not yet"}
+                  </td>
+                  <td>
+                    {/* An event ID is an id; how a live run learned the status is words (never mono as a costume). */}
+                    {presentation.replayed ? (
+                      "Replayed, simulated"
+                    ) : item.source === "bundle" && item.eventId ? (
+                      <span className="fs-t-id">{item.eventId}</span>
+                    ) : (
+                      noticeOf(item)
+                    )}
                   </td>
                 </tr>
               );

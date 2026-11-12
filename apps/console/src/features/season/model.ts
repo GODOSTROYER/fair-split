@@ -3,6 +3,7 @@
 // seed's or the run's (IC-03, I1): the invoice lines are the code's quote; Claude's part is only the labels.
 
 import type { InvoiceStatus, SeasonSnapshot } from "@fairsplit/contracts";
+import { cashStillDue } from "../../chrome/next-step.js";
 import { atLeast, type RunStripStage, type RunView, runStrip } from "../../data/run-view.js";
 
 export type SeasonScreenState =
@@ -77,6 +78,8 @@ export function seasonState({ view, snapshot, online }: SeasonStateInput): Seaso
 export interface StripStage {
   readonly id: RunStripStage;
   readonly lit: boolean;
+  /** Paid only: the run settled on PayPal but cash is still due at the bodega, so Paid stays unlit (round 4). */
+  readonly cashDue?: boolean;
 }
 
 export const STRIP_ORDER: readonly RunStripStage[] = [
@@ -88,13 +91,20 @@ export const STRIP_ORDER: readonly RunStripStage[] = [
   "PAID",
 ];
 
-/** The six stages in their true sequence; each lights only when its condition holds (register §7). */
+/**
+ * The six stages in their true sequence; each lights only when its condition holds (register §7). Paid never lights
+ * while cash is still due at the bodega (UI gate round 4, docs/DESIGN.md §6): a settled run with cash due says so
+ * instead.
+ */
 export function stripStages(view: RunView | undefined, snapshot: SeasonSnapshot): StripStage[] {
   const ratified = isRatified(snapshot);
   const lit = view
     ? runStrip(view, ratified)
     : { RATIFIED: ratified, FUNDED: false, READ: false, CHECKED: false, APPROVED: false, PAID: false };
-  return STRIP_ORDER.map((id) => ({ id, lit: lit[id] }));
+  const cashDue = view !== undefined && lit.PAID && cashStillDue(view, snapshot.figures.cashMembers);
+  return STRIP_ORDER.map((id) =>
+    id === "PAID" && cashDue ? { id, lit: false, cashDue: true } : { id, lit: lit[id] },
+  );
 }
 
 export interface InvoiceLine {

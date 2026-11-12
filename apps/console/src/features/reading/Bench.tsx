@@ -55,6 +55,12 @@ export function zoomOnSlip(position: SlipPosition, photoId?: string, serial?: st
   };
 }
 
+/** The photo's width over its height: the composed exhibit's own, else the drawn mat's. */
+export function photoAspect(photoId: string): number {
+  const composition = photoExhibit(photoId);
+  return composition ? composition.width / composition.height : PHOTO_W / PHOTO_H;
+}
+
 function clamp01(n: number): number {
   return Math.min(1, Math.max(0, n));
 }
@@ -72,6 +78,15 @@ export interface BenchProps {
   readonly testId: string;
   /** Printed at the end of the bench's heading row (the reading's progress). */
   readonly aside?: ReactNode;
+}
+
+/** The zoom buttons' plus and minus, drawn in the glyphs' 1.5 px square-ended stroke (never a typed character). */
+function ZoomMark({ plus }: { readonly plus: boolean }) {
+  return (
+    <svg className="fs-glyph" width={14} height={14} viewBox="0 0 14 14" aria-hidden focusable="false">
+      <path d={plus ? "M2 7h10M7 2v10" : "M2 7h10"} fill="none" stroke="currentColor" strokeWidth={1.5} />
+    </svg>
+  );
 }
 
 export function Bench({ photo, slips, band, outline, zoom, onZoom, mode, testId, aside }: BenchProps) {
@@ -138,11 +153,7 @@ export function Bench({ photo, slips, band, outline, zoom, onZoom, mode, testId,
       aria-labelledby={`${testId}-title`}
       data-testid={testId}
       data-photo={photo.photoId}
-      style={{
-        ["--fsc-photo-aspect" as string]: String(
-          composition ? composition.width / composition.height : PHOTO_W / PHOTO_H,
-        ),
-      }}
+      style={{ ["--fsc-photo-aspect" as string]: String(photoAspect(photo.photoId)) }}
     >
       <header className="fsc-bench__head">
         <h2 id={`${testId}-title`} className="fs-t-label fsc-bench__title">
@@ -153,23 +164,29 @@ export function Bench({ photo, slips, band, outline, zoom, onZoom, mode, testId,
           <button
             type="button"
             className="fsc-zoom-button"
+            data-icon=""
             onClick={() => zoomTo(step - 1)}
             aria-disabled={step <= 0 ? true : undefined}
+            aria-label={READING_COPY.zoomOut}
+            title={READING_COPY.zoomOut}
             data-testid={`${testId}.zoomOut`}
           >
-            {READING_COPY.zoomOut}
+            <ZoomMark plus={false} />
           </button>
-          <span className="fsc-bench__scale fs-t-figure" aria-live="polite" data-testid={`${testId}.scale`}>
+          <span className="fsc-bench__scale fs-t-micro" aria-live="polite" data-testid={`${testId}.scale`}>
             {READING_COPY.zoomLevel(s.toFixed(1))}
           </span>
           <button
             type="button"
             className="fsc-zoom-button"
+            data-icon=""
             onClick={() => zoomTo(step + 1)}
             aria-disabled={step >= ZOOM_STEPS.length - 1 ? true : undefined}
+            aria-label={READING_COPY.zoomIn}
+            title={READING_COPY.zoomIn}
             data-testid={`${testId}.zoomIn`}
           >
-            {READING_COPY.zoomIn}
+            <ZoomMark plus />
           </button>
           <button
             type="button"
@@ -189,7 +206,16 @@ export function Bench({ photo, slips, band, outline, zoom, onZoom, mode, testId,
         onPointerLeave={() => setTracking(false)}
         data-testid={`${testId}.viewport`}
       >
-        <Paper alt={READING_COPY.benchAlt(photo.photoId, serials)} className="fsc-bench__paper">
+        {/* The photo's own caption ("Code-composed · synthetic") is printed on the photo; the paper's glyph and its
+            alt text say it too, so no caption repeats it beneath (UI gate round 3). */}
+        <Paper
+          alt={
+            composition
+              ? `${READING_COPY.benchAlt(photo.photoId, serials)}. ${composition.label}`
+              : READING_COPY.benchAlt(photo.photoId, serials)
+          }
+          className="fsc-bench__paper"
+        >
           <div className="fsc-bench__frame">
             <div
               className="fsc-bench__zoomer"
@@ -229,12 +255,6 @@ export function Bench({ photo, slips, band, outline, zoom, onZoom, mode, testId,
           </div>
         </Paper>
       </div>
-      {photoExhibit(photo.photoId) && (
-        <p className="fs-t-caption fsc-bench__source">
-          {photoExhibit(photo.photoId)?.label}. Photos A–L are composed in code from synthetic hero flats and
-          code-drawn slips.
-        </p>
-      )}
     </section>
   );
 }

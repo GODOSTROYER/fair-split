@@ -129,16 +129,13 @@ describe("Proof's face", () => {
     await waitFor(() => expect(rootReadsProof()).toBe(false));
   });
 
-  it("the lot mark's face (FS Stencil, inline) blocks rather than swaps: no frame in the fallback face", () => {
-    // tokens' fonts.css declares FS Stencil with font-display: swap, so a cold /proof/2026A-r37 painted the lot mark
-    // one frame in FS Sans Proof 800 (256 px wide) before it snapped to Stencil (194 px): a layout shift on the
-    // hero. The face is a 3.7 KB data: URI, so a block period costs nothing.
+  it("the lot mark has no face of its own: no stencil, no Atkinson; the mark is the id role, the mono (round 3)", () => {
     const faces = [...surfaces.matchAll(/@font-face\s*\{([^}]*)\}/g)].map((m) => m[1] ?? "");
-    const stencil = faces.filter((f) => /font-family:\s*"FS Stencil"/.test(f));
-    expect(stencil).toHaveLength(1);
-    expect(stencil[0]).toMatch(/FSStencil\.woff2/);
-    expect(stencil[0]).toMatch(/font-weight:\s*800/);
-    expect(stencil[0]).toMatch(/font-display:\s*block/);
+    expect(faces.filter((f) => /FS Stencil|Atkinson/.test(f))).toHaveLength(0);
+    // Proof leaves --fs-font-mark to the tokens' mono; its statement slot reads in the Proof subset.
+    expect(surfaces).not.toMatch(/--fs-font-mark:/);
+    expect(surfaces).not.toMatch(/--fs-font-[a-z]+: "Atkinson/);
+    expect(surfaces).toMatch(/--fs-font-statement: "FS Sans Proof"/);
   });
 
   it("a cold Proof load starts the lot mark's face loading before the first render; a console path does not", () => {
@@ -154,7 +151,7 @@ describe("Proof's face", () => {
       bootFace("/sign-in");
       expect(loads).toEqual([]);
       bootFace(webRoutes.proof(RUN));
-      expect(loads).toEqual(['800 1em "FS Stencil"']);
+      expect(loads).toEqual(['500 1em "FS Sans Proof"']);
       bootFace("/b/fsb_0123456789abcdef.mock");
       expect(loads).toHaveLength(2);
     } finally {

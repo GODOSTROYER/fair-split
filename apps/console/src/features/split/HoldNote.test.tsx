@@ -47,8 +47,9 @@ describe("the inline hold note", () => {
     if (!note) throw new Error("no note");
     const onOpen = vi.fn();
     const { container } = render(<HoldNoteView note={note} onOpen={onOpen} />);
+    expect(note.netKg).toBe(slip("0457", "WHITE_ORIGINAL")?.boxes["8"]);
     expect(screen.getByTestId("W-TR-05.note.H1").textContent).toContain(
-      "Slip 0457 is here twice. The white original and the pink duplicate match on 4 of 4 fields.",
+      `Slip 0457 ×2 4/4 fields match · ${note.netKg} kg`,
     );
     expect(container.querySelector(".fs-slab")).toBeNull();
     fireEvent.click(screen.getByTestId("W-TR-05.note.H1.open"));

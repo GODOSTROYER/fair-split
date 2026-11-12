@@ -14,9 +14,9 @@ describe("the invoice identifier", () => {
       invoiceTitle(snapshot, { ...view, invoice: { ...view.invoice, number: "FS-2026A-r99" } }, true),
     ).toBe("Invoice FS-2026A-r99");
   });
-  it("labels the seed's identifier on the showcase", () => {
+  it("labels the seed's identifier as the showcase run's (round 3: one id, said for what it is)", () => {
     expect(invoiceTitle(snapshot, firstView(snapshot), false)).toBe(
-      `Invoice ${snapshot.run.invoice.invoiceNumber} (seeded sample)`,
+      `Invoice ${snapshot.run.invoice.invoiceNumber} (showcase run)`,
     );
   });
 });

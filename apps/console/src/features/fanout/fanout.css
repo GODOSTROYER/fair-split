@@ -1,8 +1,15 @@
-/* W-TR-08 Run: the split fan (MM-6), the parked decision, the run log in three lanes and the latency dots.
-   Graphite is sent, jade is PayPal-confirmed money, canary is a person's decision, red only a PayPal failure,
-   hatch is cash with its word. Durations and easings from @fairsplit/motion's CSS variables. */
+/* W-TR-08 Run (UI gate rounds 4 and 5, on the one 12-column grid): the run's one count ("7/8" in FS Sans with its
+   words and its one micro-tag while PayPal works; "7 PayPal  57 cash" once settled, each count's 12 px key on its
+   word's baseline, with "Review cash handover" under it as the one primary) rests on the fan's empty top left, right
+   above the 180-unit seal; the fan full width as the single hero (no money bar restates it), Rhea's decision as one
+   strip beneath it, then the last four events (columns 1–8) and the latency dots with their median (9–12), both
+   ending 32 px above the panel's foot.
+   In flight is neutral, jade only PayPal-confirmed money, marigold a person's decision, red only a PayPal failure,
+   the hatch is cash with its word. Dashed lines mean simulated, nothing else. Tokens only; durations from
+   @fairsplit/motion's CSS variables. One focus ring (ui-web); nothing here declares its own. */
 
 .fsr-fanout {
+  position: relative;
   display: grid;
   gap: var(--fs-space-16);
   min-width: 0;
@@ -15,38 +22,135 @@
 }
 
 .fsr-fanout__head {
+  z-index: 1;
+  display: grid;
+  justify-items: start;
+  align-content: start;
+  gap: var(--fs-space-12);
+  min-height: 36px;
+}
+
+.fsr-fanout__status {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
-  justify-content: space-between;
   gap: var(--fs-space-8) var(--fs-space-24);
-}
-
-.fsr-fanout__head h2,
-.fsr-fanout__status {
   margin: 0;
 }
 
-.fsr-fanout__status {
+/* The count, its words and its micro-tag, on one baseline. */
+.fsr-fanout__instrument {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--fs-space-8) var(--fs-space-12);
+}
+
+.fsr-fanout__count {
+  color: var(--fs-ink);
+}
+
+.fsr-fanout__unit {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--fs-space-8);
+  color: var(--fs-ink-2);
+}
+
+/* Settled (round 5): "7 ● PayPal  57 ▨ cash" on one baseline, the two outcomes as the one hero, 32 px apart (no
+   "·"). Each count's 12 px key sits right before its word, on the word's baseline: the jade dot says the 7 is money
+   the simulated PayPal confirmed, the hatch swatch says the 57 is cash. The micro-tag follows the PayPal part, the
+   cash's day the cash part. Never "7/8" after the move to cash. */
+.fsr-fanout__settled {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  column-gap: var(--fs-space-32);
+  row-gap: var(--fs-space-4);
+}
+
+/* Round 7: each outcome is its count and, beside it, two short lines: its key and word ("● PayPal", "▨ cash") over
+   its own qualifier (the "Simulated" tag, the cash's day). The qualifier never leaves its count, at any width. */
+.fsr-fanout__part {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: var(--fs-space-8);
+  white-space: nowrap;
+}
+
+.fsr-fanout__keys {
+  display: inline-grid;
+  justify-items: start;
+  gap: 2px;
+  /* The two 20 px lines stand on the 56 px numeral's baseline. */
+  padding-bottom: 9px;
+}
+
+/* The key and its word: the 12 px dot or swatch sits on the word's baseline (ui-web's size 12). */
+.fsr-fanout__key {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--fs-space-8);
+}
+
+.fsr-fanout__word {
+  color: var(--fs-ink);
+}
+
+/* The run's remaining action, a link on the slab's face: no underline, and a touch on it may still scroll. */
+.fsr-fanout__action .fs-slab__face {
+  text-decoration: none;
+  touch-action: manipulation;
+}
+
+.fsr-fanout__facts {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--fs-space-8) var(--fs-space-16);
+}
+
+/* The hero rides on the fan's empty top left, its fact (or the settled run's one primary) beneath it, just above
+   the seal (210 units down, 157 px at the fan's narrowest overlay): hero and seal read as one. The tallest head, the
+   settled hero over its primary, is 120 px. Only while the fan is drawn and 900 px wide or more; otherwise, and in
+   Data mode (the table), the hero sits above the fan in the flow. */
+@container (min-width: 900px) {
+  .fsr-fanout:has(> .fsr-fanout__figure:not([data-datamode])) > .fsr-fanout__head[data-instrument] {
+    position: absolute;
+    top: 0;
+    left: 0;
+    max-width: 44%;
+  }
+
+  .fsr-fanout:has(> .fsr-fanout__figure:not([data-datamode]))
+    > .fsr-fanout__head[data-instrument="count"]
+    .fsr-fanout__status {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--fs-space-4);
+  }
+}
+
+.fsr-fanout__micro {
+  color: var(--fs-ink-3);
+}
+
+/* The settled cash's day on the hero's baseline ("57 cash due 12 Nov"), in neutral. */
+.fsr-fanout__due {
+  color: var(--fs-ink-2);
+  white-space: nowrap;
+}
+
+.fsr-fanout__line {
   color: var(--fs-ink-2);
 }
 
 .fsr-fanout__figure {
-  padding-block: var(--fs-space-16);
-  border-block: 1px solid var(--fs-rule);
+  min-width: 0;
 }
 
-.fsr-fanout__share {
-  margin: 0;
-  color: var(--fs-ink-2);
-}
-
-.fsr-fanout__rerouted {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--fs-space-8);
-  margin: 0;
-  color: var(--fs-ink-2);
+.fsr-fanout__status {
+  border-radius: var(--fs-radius-cell);
 }
 
 /* ------------------------------------------------------------------ the fan */
@@ -55,7 +159,6 @@
 .fsr-fan {
   position: relative;
   width: 100%;
-  max-width: 1400px;
 }
 
 .fsr-fan__svg {
@@ -65,13 +168,14 @@
   overflow: visible;
 }
 
-/* The Run's seal is the same seal as Approve's and Proof's: ink rings, every other one in ballpoint indigo. */
+/* The Run's seal is Approve's: each key's rings in indigo (a person's hand), a ring not signed yet at 1 px in
+   neutral-400. The same on the Chair's phone. */
 .fsr-fan .fs-seal__ring {
-  stroke: var(--fs-ink-2);
+  stroke: var(--fs-pod);
 }
 
-.fsr-fan .fs-seal__ring:nth-of-type(even) {
-  stroke: var(--fs-pod);
+.fsr-fan__ring-unsigned {
+  stroke: var(--fs-unsigned);
 }
 
 .fsr-fan__bar {
@@ -79,23 +183,39 @@
 }
 
 .fsr-fan__hatch-line {
-  fill: var(--fs-hatch);
+  fill: var(--fs-cash-route);
 }
 
-/* A member paid in cash: one dashed line, hatch-coloured and still (design §1, signature 6; never jade). */
+/* The ribbon's mask stripes: white shows (a mask is luminance, not a colour); copy-white is #ffffff in both themes. */
+.fsr-fan__mask-line {
+  fill: var(--fs-copy-white);
+}
+
+/* The cash route: every member's share in neutral-300, meeting its neighbours as one 6-unit ribbon that shows
+   through the hatch mask. Still, never jade. */
 .fsr-fan__cash-line {
   fill: none;
-  stroke: var(--fs-hatch);
+  stroke: var(--fs-cash-route);
   stroke-linecap: butt;
 }
 
-/* Each cash line ends in a mark as tall as its money: hatched while due, ink once the cash is attested. */
-.fsr-fan__end {
-  stroke: var(--fs-rule);
-  stroke-width: 0.5;
+/* Cash handed over and attested at the bodega: that share turns ink-3, never jade. */
+.fsr-fan__cash-line[data-attested] {
+  stroke: var(--fs-ink-3);
 }
 
-.fsr-fan__end[data-attested] {
+/* A line moved to cash: one thin solid line in the cash route's colour, from its own thread's slot to the block. */
+.fsr-fan__cash-line[data-moved] {
+  stroke: var(--fs-cash-route);
+}
+
+/* The cash block: one hatch swatch with its words beside it; ink once every member's cash is attested. */
+.fsr-fan__block {
+  stroke: var(--fs-rule-strong);
+  stroke-width: 1;
+}
+
+.fsr-fan__block[data-attested] {
   fill: var(--fs-ink);
 }
 
@@ -123,20 +243,30 @@
 
 /* A thread is drawn with pathLength 1: its dash offset is how much is still to go. */
 .fsr-fan__thread {
-  stroke: var(--fs-pencil);
+  stroke: var(--fs-ink-3);
   stroke-dasharray: 1 1;
   stroke-dashoffset: calc(1 - var(--fsr-p, 0));
-  stroke-linecap: butt;
+  stroke-linecap: round;
 }
 
-/* In flight: money on its way reads as the dashed jade outline (decision §4), faint until PayPal confirms it. */
+/* In flight: money on its way is neutral (pending) until PayPal confirms it; jade is only confirmed money. */
 .fsr-fan__item[data-tone="sent"] .fsr-fan__thread {
-  stroke: var(--fs-jade-flush-border);
-  opacity: 0.6;
+  stroke: var(--fs-pending);
 }
 
 .fsr-fan__item[data-tone="landed"] .fsr-fan__thread {
   stroke: var(--fs-jade);
+}
+
+/* PayPal parked it: a person decides. The path runs on to her own marker as a fine marigold line. */
+.fsr-fan__item[data-tone="parked"] .fsr-fan__thread {
+  stroke: var(--fs-canary-border);
+  stroke-width: 1.5px;
+}
+
+.fsr-fan__item[data-tone="failed"] .fsr-fan__thread {
+  stroke: var(--fs-red);
+  stroke-width: 1.5px;
 }
 
 /* Live only: sent threads draw to 70% (500 ms, staggered 40 ms); a confirmation runs on to 100% (300 ms) and
@@ -158,56 +288,47 @@
   transition: stroke-dashoffset var(--fs-dur-thread-complete) var(--fs-ease-out) var(--fsr-delay, 0ms);
 }
 
-.fsr-fan__cap[data-tone="parked"] {
-  fill: var(--fs-canary);
-}
-
-.fsr-fan__cap[data-tone="failed"] {
-  fill: var(--fs-red);
-}
-
-/* The member stub: raised 3 px while the payment is in flight; PayPal's confirmation presses it flush, jade. */
-.fsr-fan__stub-edge {
-  fill: var(--fs-rule);
-}
-
+/* The member marker: a neutral outline while the payment is to send or in flight (solid: dashed means simulated);
+   PayPal's confirmation floods it jade, a parked item fills it marigold (the dot on her marker), a failure red. */
 .fsr-fan__stub-face {
   fill: var(--fs-plate);
   stroke: var(--fs-ink-3);
   stroke-width: 1;
-  transform: translate(-3px, -3px);
+}
+
+.fsr-fan__item[data-tone="sent"] .fsr-fan__stub-face {
+  stroke: var(--fs-pending);
+  stroke-width: 1.5;
 }
 
 .fsr-fan__item[data-tone="landed"] .fsr-fan__stub-face {
   fill: var(--fs-jade);
   stroke: var(--fs-jade-flush-border);
-  transform: none;
+}
+
+.fsr-fan__item[data-tone="parked"] .fsr-fan__stub-face {
+  fill: var(--fs-canary);
+  stroke: var(--fs-canary-border);
+}
+
+.fsr-fan__item[data-tone="failed"] .fsr-fan__stub-face {
+  fill: var(--fs-red);
+  stroke: var(--fs-red);
 }
 
 .fsr-fan__item[data-tone="moved"] .fsr-fan__stub-face {
-  stroke: var(--fs-rule);
-  transform: none;
-}
-
-.fsr-fan__item[data-tone="unsent"] .fsr-fan__stub-face {
-  stroke-dasharray: 2 2;
+  stroke: var(--fs-rule-strong);
 }
 
 .fsr-fan__stub[data-animate] .fsr-fan__stub-face {
-  transition:
-    transform var(--fs-spring-land-dur) var(--fs-spring-land)
-    calc(var(--fsr-delay, 0ms) + var(--fs-dur-thread-complete)),
-    fill var(--fs-dur-flood) var(--fs-ease-out) calc(var(--fsr-delay, 0ms) + var(--fs-dur-thread-complete));
+  transition: fill var(--fs-dur-flood) var(--fs-ease-out)
+    calc(var(--fsr-delay, 0ms) + var(--fs-dur-thread-complete));
 }
 
-/* Reduced motion: threads appear at 70%, completion is an instant colour change, no inset press; a line moved
-   to cash appears in place under a short fade instead of drawing along its path. */
+/* Reduced motion: threads appear at 70%, completion is an instant colour change; a line moved to cash appears in
+   place under a short fade instead of drawing along its path. */
 .fsr-fan[data-motion="reduced"] .fsr-fan__thread[data-animate] {
   transition: stroke var(--fs-dur-reduced) var(--fs-ease-out);
-}
-
-.fsr-fan[data-motion="reduced"] .fsr-fan__stub-face {
-  transform: none;
 }
 
 .fsr-fan[data-motion="reduced"] .fsr-fan__stub[data-animate] .fsr-fan__stub-face {
@@ -231,7 +352,7 @@
   }
 }
 
-/* The labels: HTML over the picture, so names stay 12 px captions and amounts 14 px figures at any width. */
+/* The labels: HTML over the picture, so names stay 14 px labels and amounts 14 px figures at any width. */
 .fsr-fan__labels {
   position: absolute;
   inset: 0;
@@ -244,41 +365,37 @@
   top: var(--fsr-y);
   right: 0;
   left: var(--fsr-x);
-  margin: 0;
-  transform: translateY(-50%);
-}
-
-.fsr-fan__row {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: var(--fs-space-8);
-}
-
-.fsr-fan__group {
-  display: grid;
-  justify-items: start;
-  gap: 2px;
+  margin: 0;
+  transform: translateY(-50%);
 }
 
 .fsr-fan__name {
   min-width: 0;
-  color: var(--fs-ink-2);
-}
-
-/* A row is one line at any width: a name that cannot fit is cut (the mirrored table carries it whole). */
-.fsr-fan__row .fsr-fan__name {
   overflow: hidden;
+  color: var(--fs-ink-2);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.fsr-fan__row[data-tone="landed"] .fsr-fan__name {
+.fsr-fan__group .fsr-fan__name {
   color: var(--fs-ink);
 }
 
-/* The amount grammar, inline (S2.2.1): pencil before the keys, ink after, ink-2 dashed while in flight. */
+.fsr-fan__row:is([data-tone="landed"], [data-tone="parked"], [data-tone="failed"]) .fsr-fan__name {
+  color: var(--fs-ink);
+}
+
+/* The amount grammar, inline (S2.2.1; round 3): pencil before the keys, ink after; pending (in flight, cash still
+   due) in neutral-500 with a hollow dot, never a dashed underline. */
 .fsr-fan__amount {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
   color: var(--fs-ink);
   white-space: nowrap;
 }
@@ -288,54 +405,44 @@
 }
 
 .fsr-fan__amount[data-amount-state="hollow"] {
-  color: var(--fs-ink-2);
-  text-decoration: underline dashed 1.5px;
-  text-underline-offset: 4px;
+  color: var(--fs-pending);
 }
 
-/* PayPal parked it: a person decides (canary), never red. */
-.fsr-fan__chip {
+/* Moved to cash (round 5): her amount stays on her row in ink-3 behind the hatch swatch; it rides with the cash. */
+.fsr-fan__amount[data-amount-state="moved"] {
+  color: var(--fs-ink-3);
+}
+
+/* What the holds kept for members: one caption under the cash row, its start under the row's words. */
+.fsr-fan__caption {
   position: absolute;
-  top: var(--fsr-y);
-  left: var(--fsr-x);
-  padding: 0 var(--fs-space-4);
-  border-radius: var(--fs-radius-pill);
-  background: var(--fs-canary);
-  color: var(--fs-on-canary);
-  font-weight: 600;
-  transform: translateY(-50%);
+  top: 100%;
+  left: 0;
+  margin-top: var(--fs-space-4);
+  color: var(--fs-ink-2);
+  white-space: nowrap;
 }
 
 /* ------------------------------------------------------------------ the parked decision (Rhea) */
 
-/* While a payment is parked, its decision stands in a right column beside the fan and its legend, so the slab is
-   in the first view with the thread it decides. */
-.fsr-fanout__stage {
-  display: grid;
-  gap: var(--fs-space-24);
-  min-width: 0;
-}
-
-.fsr-fanout__main {
-  display: grid;
-  gap: var(--fs-space-16);
-  min-width: 0;
-}
-
-@container (min-width: 1040px) {
-  .fsr-fanout__stage[data-parked] {
-    grid-template-columns: minmax(0, 1fr) 344px;
-    align-items: start;
-  }
+/* Round 7: the parked payout is one row of the fan, hers. Her name and amount are the row; the second line under
+   them says why it is parked and gives the one quiet way out ("Re-send"); the decision's primary stands under the
+   hero count. No card under the fan repeats her. The indigo marker and thread already say a person must decide. */
+.fsr-fan__note {
+  position: absolute;
+  top: var(--fsr-y);
+  right: 0;
+  left: var(--fsr-x);
+  /* Under the row's own 20 px line (centred on the marker). */
+  margin-top: 10px;
 }
 
 .fsr-parked {
-  display: grid;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
   gap: var(--fs-space-12);
-  max-width: 760px;
-  padding: var(--fs-space-24);
-  background: var(--fs-plate);
-  box-shadow: inset 0 0 0 1px var(--fs-rule);
+  min-width: 0;
 }
 
 .fsr-parked h3,
@@ -343,62 +450,28 @@
   margin: 0;
 }
 
-.fsr-parked h3 {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--fs-space-12);
+.fsr-parked__line {
+  min-width: 0;
+  color: var(--fs-ink-2);
 }
 
-.fsr-parked__chip {
-  padding: 2px 10px;
-  border: 1px solid var(--fs-canary-border, var(--fs-canary));
-  border-radius: var(--fs-radius-pill);
-  background: var(--fs-canary);
-  color: var(--fs-on-canary);
+.fsr-parked__resend {
+  flex: none;
 }
 
-.fsr-parked__actions {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  gap: var(--fs-space-24) var(--fs-space-32);
-}
-
-.fsr-parked__flat {
+/* The queue or an error of the cash decision: under the fan, never over a row. */
+.fsr-fanout__notices {
   display: grid;
-  gap: var(--fs-space-4);
-  max-width: 320px;
-}
-
-/* In the right column the decision stacks: the slab, then the flat with its note, each the column's width. */
-.fsr-fanout__stage[data-parked] .fsr-parked {
-  padding: var(--fs-space-16) var(--fs-space-16) var(--fs-space-24);
-}
-
-.fsr-fanout__stage[data-parked] .fsr-parked__actions {
-  display: grid;
-  gap: var(--fs-space-16);
-}
-
-.fsr-fanout__stage[data-parked] .fsr-parked__flat {
-  max-width: none;
-}
-
-.fsr-fanout__stage[data-parked] .fsr-parked__flat .fs-flat {
-  min-height: 40px;
-  height: auto;
-  padding-block: var(--fs-space-8);
-  white-space: normal;
-  text-align: left;
+  gap: var(--fs-space-8);
 }
 
 /* ------------------------------------------------------------------ the run log and the latency dots */
 
-.fsr-fanout__below {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 280px;
-  align-items: start;
-  gap: var(--fs-space-32);
+/* Stacked below 1,040 px of panel the latency dots come last: only they keep the 32 px above the panel's foot. */
+@container fsc-screen (max-width: 1039px) {
+  .fsr-fanout__log.fsc-peek {
+    margin-bottom: 0;
+  }
 }
 
 .fsr-fanout__side {
@@ -406,8 +479,21 @@
   gap: var(--fs-space-16);
 }
 
+/* A tall window (1,920 x 1,080) once no payment waits for a decision: the log's four rows and the latency dots stand
+   further from the fan and each row breathes, so the settled run's panel ends near its 32 px foot instead of in a
+   band (round 5: still four rows and "All N events"). While Rhea's card shows, the screen is full as it is. */
+@media (min-height: 1000px) {
+  .fsr-fanout-screen :is(.fsr-fanout__log, .fsr-fanout__side) {
+    margin-top: var(--fs-space-16);
+  }
+
+  .fsr-fanout-screen .fsr-fanout__log .fsr-log__item {
+    padding: var(--fs-space-12) 0;
+  }
+}
+
 .fsr-fanout__fees {
-  margin: 0;
+  margin: var(--fs-space-12) 0 0;
   color: var(--fs-ink-3);
 }
 
@@ -415,6 +501,10 @@
   display: grid;
   gap: var(--fs-space-12);
   min-width: 0;
+}
+
+.fsr-log__head {
+  color: var(--fs-ink);
 }
 
 .fsr-log h2,
@@ -426,10 +516,100 @@
   color: var(--fs-ink-3);
 }
 
+.fsr-log__latest {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* One line per event: a time, a lane and what happened. */
+.fsr-log__item {
+  display: grid;
+  grid-template-columns: 64px 76px minmax(0, 1fr);
+  align-items: baseline;
+  gap: var(--fs-space-12);
+  padding: var(--fs-space-8) 0;
+  border-bottom: 1px solid var(--fsc-rule-row);
+}
+
+.fsr-log__item:last-child {
+  border-bottom: 0;
+}
+
+.fsr-log__lane-name {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--fs-space-8);
+  color: var(--fs-ink-2);
+}
+
+/* A lane's dot (round 5: the one vocabulary's 8 px round dot, as the stage's Run log): the machine in graphite, a
+   person in ink (indigo is for action only), PayPal a hollow ring that turns jade only for a payment the simulated
+   PayPal confirmed. No dashed glyph: the screen's id line says the rail once. */
+.fsr-log__dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--fs-pencil);
+}
+
+.fsr-log__dot[data-lane="PEOPLE"] {
+  background: var(--fs-ink);
+}
+
+.fsr-log__dot[data-lane="PAYPAL"] {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--fs-pending);
+}
+
+.fsr-log__dot[data-lane="PAYPAL"][data-landed] {
+  background: var(--fs-jade);
+  box-shadow: inset 0 0 0 1px var(--fs-jade-flush-border);
+}
+
+.fsr-log__empty {
+  margin: 0;
+  color: var(--fs-ink-3);
+}
+
+.fsr-log__all {
+  border-top: 1px solid var(--fs-rule);
+  padding-top: var(--fs-space-12);
+}
+
+.fsr-log__summary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--fs-space-8);
+  border-radius: var(--fs-radius-cell);
+  color: var(--fs-ink-2);
+  list-style: none;
+  cursor: pointer;
+}
+
+.fsr-log__summary::-webkit-details-marker {
+  display: none;
+}
+
+.fsr-log__summary:hover {
+  color: var(--fs-ink);
+}
+
+.fsr-log__summary .fs-glyph {
+  transition: transform var(--fs-dur-crossfade) var(--fs-ease-out);
+}
+
+.fsr-log__all[open] .fsr-log__summary .fs-glyph {
+  transform: rotate(180deg);
+}
+
 .fsr-log__lanes {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: var(--fs-space-24);
+  margin-top: var(--fs-space-16);
 }
 
 .fsr-log__lane {
@@ -441,15 +621,13 @@
 }
 
 .fsr-log__lane-title {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--fs-space-8);
   margin: 0;
   padding-bottom: var(--fs-space-8);
-  border-bottom: 1px solid var(--fs-ink-3);
+  border-bottom: 1px solid var(--fs-rule-strong);
   color: var(--fs-ink);
-}
-
-.fsr-log__empty {
-  margin: 0;
-  color: var(--fs-ink-3);
 }
 
 /* The lane scrolls, and takes focus to scroll by keyboard (chrome/ScrollRegion.tsx). */
@@ -483,6 +661,7 @@
   min-width: 0;
   align-items: center;
   gap: var(--fs-space-4);
+  margin: 0;
   color: var(--fs-ink);
 }
 
@@ -490,15 +669,12 @@
   min-width: 0;
   overflow-wrap: anywhere;
 }
+
 .fsr-log__amount {
   white-space: nowrap;
 }
-.fsr-log__event {
-  grid-column: 1;
-  color: var(--fs-ink-3);
-  overflow-wrap: anywhere;
-}
 
+.fsr-log__event,
 .fsr-log__detail {
   grid-column: 1;
   color: var(--fs-ink-3);
@@ -506,22 +682,24 @@
 }
 
 .fsr-log__time {
-  grid-column: 2;
-  grid-row: 1;
-  color: var(--fs-ink-3);
-  font-variant-numeric: tabular-nums;
-}
-
-/* A repeated delivery changes nothing: one quiet row, no motion, no sound. */
-.fsr-log__row[data-duplicate] .fsr-log__words {
   color: var(--fs-ink-2);
 }
 
-.fsr-log__row[data-live] .fsr-log__words {
+.fsr-log__row .fsr-log__time {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+/* A repeated delivery changes nothing: one quiet row, no motion, no sound. */
+:is(.fsr-log__row, .fsr-log__item)[data-duplicate] .fsr-log__words {
+  color: var(--fs-ink-2);
+}
+
+:is(.fsr-log__row, .fsr-log__item)[data-live] .fsr-log__words {
   animation: fsr-wipe var(--fs-dur-print) linear both;
 }
 
-[data-motion="reduced"] .fsr-log__row[data-live] .fsr-log__words {
+[data-motion="reduced"] :is(.fsr-log__row, .fsr-log__item)[data-live] .fsr-log__words {
   animation: none;
 }
 
@@ -536,7 +714,7 @@
 
 .fsr-latency {
   display: grid;
-  gap: var(--fs-space-8);
+  gap: var(--fs-space-12);
   margin: 0;
 }
 
@@ -544,38 +722,37 @@
   margin: 0;
 }
 
-.fsr-latency__track {
-  position: relative;
-  height: 24px;
-  margin-bottom: 20px;
-  border-bottom: 1px solid var(--fs-ink-3);
+.fsr-latency figcaption {
+  color: var(--fs-ink);
 }
 
-/* Each confirmed payment is money: a jade dot on its border (decision §4). */
+/* The dot strip (round 5): the dots on one hairline, the median's tick through it, then one line under it. */
+.fsr-latency__track {
+  position: relative;
+  height: 32px;
+  margin-inline: 6px;
+  border-bottom: 1px solid var(--fs-rule-strong);
+}
+
+/* Each confirmed payment is money: a jade dot on its border (decision §4). Round 8: 12 px, so seven payouts read as
+   seven marks on an axis, not as specks. */
 .fsr-latency__dot {
   position: absolute;
-  top: 9px;
-  width: 9px;
-  height: 9px;
-  margin-left: -4.5px;
+  top: 10px;
+  width: 12px;
+  height: 12px;
+  margin-left: -6px;
   border-radius: 50%;
   background: var(--fs-jade);
   box-shadow: 0 0 0 1px var(--fs-jade-flush-border);
 }
 
-.fsr-latency__tick {
-  position: absolute;
-  top: calc(100% + 4px);
-  color: var(--fs-ink-3);
-  white-space: nowrap;
-}
-
-.fsr-latency__tick[data-end="start"] {
-  left: 0;
-}
-
-.fsr-latency__tick[data-end="end"] {
-  right: 0;
+/* The axis's two ends: the fastest and the slowest confirmation, in the id role (times). */
+.fsr-latency__ends {
+  display: flex;
+  justify-content: space-between;
+  margin-top: calc(-1 * var(--fs-space-4));
+  color: var(--fs-ink-2);
 }
 
 .fsr-latency__p50 {
@@ -586,19 +763,27 @@
   background: var(--fs-ink-2);
 }
 
-@media (max-width: 1279px) {
-  .fsr-fanout__below {
-    grid-template-columns: minmax(0, 1fr);
-  }
+.fsr-latency__summary {
+  color: var(--fs-ink-2);
+}
 
+@media (max-width: 1279px) {
   .fsr-log__lanes {
     grid-template-columns: minmax(0, 1fr);
   }
 }
 
 @container (max-width: 319px) {
-  .fsr-log__time {
+  .fsr-log__row .fsr-log__time {
     grid-column: 1;
     grid-row: auto;
+  }
+}
+
+/* Round 6: under 1,040 px of fan the cash row keeps "57 members · cash" whole; "at the bodega" steps aside (its
+   day is the row's title, and the hero says "cash"). */
+@container (max-width: 1039px) {
+  .fsr-fan__more {
+    display: none;
   }
 }

@@ -1,14 +1,16 @@
-/* W-BR-01's header strip, above the same Proof column (Adlaw). A plate with an ink rule beneath, never a card:
-   corners 0, no shadow (only paper has one), tokens only. */
+/* W-BR-01's header strip, above the same Proof column (Adlaw; UI gate rounds 2 to 4). One white card on a hairline
+   ring, like Proof's own cards: who it is for, the invoice and the payouts as two facts, and the export. Tokens
+   only, on docs/DESIGN.md's steps (the title step for the title, the label step for labels, 14 px secondary words, the
+   mono id role for the invoice id), the 4 px spacing scale; no dashed line (dashed means simulated only). */
 
 .br-strip {
   display: grid;
-  gap: 18px;
+  gap: 16px 32px;
   margin-bottom: 48px;
-  padding: 20px 20px 18px;
-  border: 1px solid var(--fs-rule);
-  border-bottom: 2px solid var(--fs-ink);
+  padding: 24px;
+  border-radius: var(--fs-radius-card);
   background: var(--fs-plate);
+  box-shadow: var(--fs-shadow-e1);
 }
 
 .br-strip__who {
@@ -16,70 +18,70 @@
   gap: 4px;
 }
 
+/* The title step (fs-t-title). */
 .br-strip__title {
-  font-weight: 660;
-  font-size: 1.375rem;
-  line-height: 1.75rem;
-  letter-spacing: -0.01em;
+  margin: 0;
 }
 
 .br-strip__for {
-  color: var(--fs-ink-2);
-  font-size: 0.875rem;
-  line-height: 1.25rem;
+  color: var(--fs-ink-3);
 }
 
 .br-strip__facts {
   display: grid;
   margin: 0;
-  border-top: 1px solid var(--fs-rule);
 }
 
 .br-strip__fact {
   display: grid;
-  grid-template-columns: minmax(0, 6rem) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 5rem) minmax(0, 1fr);
   gap: 12px;
-  padding: 10px 0;
-  border-bottom: 1px solid var(--fs-rule);
+  padding: 8px 0;
+  border-top: 1px solid var(--fs-rule);
 }
 
 .br-strip__fact > dt {
-  color: var(--fs-ink-2);
-  font-size: 0.8125rem;
-  line-height: 1.375rem;
+  color: var(--fs-ink-3);
+  font-weight: 520;
+  font-size: 0.875rem;
+  line-height: 1.5rem;
 }
 
 .br-strip__fact > dd {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
-  gap: 2px 10px;
+  align-items: center;
+  gap: 4px 12px;
   margin: 0;
-  font-weight: 560;
+  font-weight: 520;
+  font-size: 0.875rem;
+  line-height: 1.5rem;
+  text-wrap: pretty;
 }
 
-.br-strip__fact[data-state="unpaid"] .br-strip__status {
-  padding: 0 6px;
-  border: 1px solid var(--fs-canary-border);
-  background: var(--fs-canary-wash);
-}
-
-.br-strip__how,
-.br-strip__rail {
-  flex-basis: 100%;
-  color: var(--fs-ink-2);
-  font-weight: 450;
-  font-size: 0.75rem;
-  line-height: 1rem;
+/* Waiting for the brand's payment: ui-web's amber state dot beside the words. */
+.br-strip__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .br-strip__export {
   display: grid;
-  gap: 10px;
+  align-content: start;
+  gap: 8px;
 }
 
 .br-strip__label {
-  font-weight: 640;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 8px;
+  font-weight: 520;
+}
+
+.br-strip__what {
+  color: var(--fs-ink-3);
 }
 
 .br-strip__buttons {
@@ -88,29 +90,36 @@
   gap: 8px;
 }
 
+/* Nothing to export yet: a quiet solid outline (dashed means simulated only, UI gate round 3). */
 .br-strip__buttons .fs-flat:disabled {
-  border-style: dashed;
+  border-color: var(--fs-rule);
+  background: var(--fs-plate);
   color: var(--fs-ink-3);
   cursor: default;
 }
 
 .br-strip__note,
+.br-strip__showcase {
+  color: var(--fs-ink-3);
+}
+
 .br-strip__saved {
   color: var(--fs-ink-2);
-  font-size: 0.75rem;
-  line-height: 1rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
 }
 
 .br-strip__saved:empty {
   display: none;
 }
 
+/* Exports wait while the record does not match: ink and the lock (red is only PayPal saying no). */
 .br-strip__withheld {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: var(--fs-red);
-  font-weight: 560;
+  color: var(--fs-ink);
+  font-weight: 520;
   font-size: 0.875rem;
 }
 
@@ -122,6 +131,27 @@
 
 .br-loading > .fsc-bed--plate {
   width: 100%;
+}
+
+/* A laptop (round 4): the strip on the one 12-column grid and its 24 px gutter, top-aligned. Who it is for and the
+   two facts take seven columns, so the title and its line read on one line each; the export takes the other five,
+   its two downloads side by side, level with the title. */
+@media (min-width: 1120px) {
+  .br-strip {
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    column-gap: 24px;
+    align-items: start;
+  }
+
+  .br-strip__who,
+  .br-strip__facts {
+    grid-column: 1 / span 7;
+  }
+
+  .br-strip__export {
+    grid-column: 8 / -1;
+    grid-row: 1 / span 2;
+  }
 }
 
 @media (max-width: 560px) {

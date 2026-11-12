@@ -1,5 +1,6 @@
 /* Sheets, menus and notices: What's real (W-JG-02), the shortcut sheet (W-TR-10), the run pill's menu, command
-   notices and Data mode's tables. Sheets are plate on e3 over the scrim, menus plate on e2 at radius 10 (ADR-0016).
+   notices and Data mode's tables. Sheets are plate on e3 over the scrim, menus plate on e2 (ADR-0016); a lifted
+   surface has its shadow and no border (round 3). A menu item takes the one focus ring inside the 6 px padding.
    Base UI's data-starting-style and data-ending-style drive the motion. */
 
 /* ---------------------------------------------------------------- sheets */
@@ -12,22 +13,21 @@
   transition: opacity var(--fs-dur-drawer-in) var(--fs-ease-drawer);
 }
 
+/* Every sheet (What's real, the run log, shortcuts) starts under the top bar (round 4), like the hold drawer: it
+   stands in the stage's gutters, a panel at the panel radius, so the bar and what it says stay in view. */
 .fsc-sheet {
   position: fixed;
-  top: 0;
-  right: 0;
-  bottom: 0;
+  top: var(--fsc-stage-top);
+  right: var(--fsc-stage-gutter);
+  bottom: var(--fsc-stage-gutter);
   z-index: calc(var(--fs-z-dialog) + 1);
   display: flex;
   flex-direction: column;
-  width: min(var(--fs-console-drawer), 100vw);
+  width: min(var(--fs-console-drawer), calc(100vw - var(--fsc-stage-gutter) * 2));
   overflow: hidden auto;
-  border-left: 1px solid var(--fs-rule);
-  border-radius: var(--fs-radius-panel) 0 0 var(--fs-radius-panel);
+  border-radius: var(--fs-radius-panel);
   background: var(--fs-plate);
-  box-shadow:
-    inset 0 1px 0 var(--fs-drawer-highlight),
-    var(--fs-shadow-e3);
+  box-shadow: var(--fs-shadow-e3);
   color: var(--fs-ink);
   overscroll-behavior: contain;
   transition:
@@ -36,7 +36,27 @@
 }
 
 .fsc-sheet--narrow {
-  width: min(440px, 100vw);
+  width: min(440px, calc(100vw - var(--fsc-stage-gutter) * 2));
+}
+
+/* A sheet that hugs its content ends at its last row, never past the stage's foot, where it scrolls. (What's real is
+   a full-height side sheet since round 6.) */
+.fsc-sheet--hug {
+  bottom: auto;
+  max-height: calc(100dvh - var(--fsc-stage-top) - var(--fsc-stage-gutter));
+}
+
+/* The phone visit (under 1,024 px) has no stage bar to clear: a sheet takes the screen. */
+@media (max-width: 1023px) {
+  .fsc-sheet,
+  .fsc-sheet--hug {
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 100vw;
+    max-height: none;
+    border-radius: 0;
+  }
 }
 
 .fsc-sheet[data-starting-style],
@@ -54,6 +74,7 @@
   opacity: 0;
 }
 
+/* The drawer's head (round 4: one head for drawers and sheets): sticky, 56 px, the title and Close, on plate. */
 .fsc-sheet__head {
   position: sticky;
   top: 0;
@@ -62,9 +83,10 @@
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 20px 16px 16px 28px;
+  min-height: 56px;
+  padding: 8px 12px 8px 28px;
   border-bottom: 1px solid var(--fs-rule);
-  background: var(--fs-plate-2);
+  background: var(--fs-plate);
 }
 
 .fsc-sheet__close {
@@ -102,6 +124,11 @@
   padding: 0;
 }
 
+.fsc-sheet__slot {
+  display: grid;
+  gap: 8px;
+}
+
 .fsc-sheet__slot:empty {
   display: none;
 }
@@ -119,18 +146,13 @@
   display: none;
 }
 
+/* The stand-in rows: the attempts' names, left-aligned, one rule between them (round 3). */
 .fsc-sheet__attempts li {
-  display: grid;
-  grid-template-columns: 16px minmax(0, 1fr);
-  gap: 12px;
-  padding: 12px 0;
+  display: flex;
+  align-items: center;
+  min-height: 48px;
   border-top: 1px solid var(--fs-rule);
   color: var(--fs-ink-2);
-}
-
-.fsc-sheet__attempts .fs-glyph {
-  margin-top: 2px;
-  color: var(--fs-steel-line);
 }
 
 /* "Try to break it" sits on a bolted plate: a plate-2 card with two bolt heads, because every attempt in it meets
@@ -143,7 +165,6 @@
   border: 1px solid var(--fs-rule-strong);
   border-radius: var(--fs-radius-card);
   background: var(--fs-plate-2);
-  box-shadow: var(--fs-shadow-e1);
 }
 
 .fsc-bolted::before,
@@ -183,6 +204,124 @@
 
 .fsc-bolted__bolt--r {
   right: 8px;
+}
+
+/* Round 2: no bolt heads or corner dots on any plate; its rule and the steel glyphs say "bolted". */
+.fsc-bolted__bolt {
+  display: none;
+}
+
+/* ---------------------------------------------------------------- What's real: five rows (UI gate round 2) */
+
+/* Each row is one disclosure (rounds 4 and 6): a 16 px slot, its name over its one short line, a chevron at the end;
+   the details open under the line. The slot is the same on every row, so the names start on one edge; only the
+   simulated PayPal sandbox's holds a mark, the dashed steel ring the screens carry beside PayPal money. The three lead
+   rows (real code, simulated, replayed) set their name on the heading step; Synthetic and Not built are quieter. No
+   hatch (it means cash), no squares. */
+.fsc-truth {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fsc-truth__row {
+  border-bottom: 1px solid var(--fs-rule);
+}
+
+.fsc-truth__summary {
+  display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) 16px;
+  align-items: center;
+  gap: 2px 12px;
+  padding: 12px 20px 12px 28px;
+  cursor: pointer;
+  list-style: none;
+}
+
+/* Round 7: every row has one height and one type pair; a tall window gives each row more air, so the sheet's
+   content runs most of its height instead of leaving its lower third empty. */
+.fsc-truth__summary {
+  padding-block: 16px;
+}
+
+@media (min-height: 1000px) {
+  .fsc-truth__summary {
+    padding-block: 22px;
+  }
+
+  .fsc-sheet__break .fsc-tamper__row {
+    min-height: 60px;
+  }
+}
+
+.fsc-truth__summary::-webkit-details-marker {
+  display: none;
+}
+
+.fsc-truth__summary:hover {
+  background: var(--fs-plate-2);
+}
+
+/* The one ring sits inside the row, never clipped by the sheet's edge. */
+.fsc-truth__summary:focus-visible {
+  outline-offset: -2px;
+}
+
+.fsc-truth__mark {
+  grid-row: 1;
+  grid-column: 1;
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 24px;
+}
+
+.fsc-truth__term {
+  grid-row: 1;
+  grid-column: 2;
+  min-width: 0;
+  color: var(--fs-ink);
+}
+
+.fsc-truth__line {
+  grid-row: 2;
+  grid-column: 2;
+  min-width: 0;
+  color: var(--fs-ink-2);
+}
+
+.fsc-truth__chev {
+  grid-row: 1 / span 2;
+  grid-column: 3;
+  display: inline-flex;
+  align-self: center;
+  color: var(--fs-ink-3);
+  transition: transform var(--fs-dur-crossfade) var(--fs-ease-out);
+}
+
+.fsc-truth__more[open] .fsc-truth__chev {
+  transform: rotate(180deg);
+}
+
+/* The details, under the line (aligned to it), in secondary ink. */
+.fsc-truth__items {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0 52px 16px 56px;
+  list-style: none;
+  color: var(--fs-ink-2);
+}
+
+@media (max-width: 639px) {
+  .fsc-truth__summary {
+    padding-inline: 20px 16px;
+  }
+
+  .fsc-truth__items {
+    padding: 0 20px 14px 48px;
+  }
 }
 
 /* ---------------------------------------------------------------- ledgers (term on the left, items beside) */
@@ -295,7 +434,6 @@
   display: grid;
   min-width: 248px;
   padding: 6px;
-  border: 1px solid var(--fs-rule);
   border-radius: var(--fs-radius-control);
   background: var(--fs-plate);
   box-shadow: var(--fs-shadow-e2);
@@ -325,22 +463,27 @@
   font-size: 0.875rem;
   line-height: 1.25rem;
   text-decoration: none;
-  outline: none;
   cursor: pointer;
   user-select: none;
 }
 
 .fsc-menu__item[data-highlighted] {
-  background: var(--fs-plate);
+  background: var(--fs-plate-2);
   color: var(--fs-ink);
-}
-
-.fsc-menu__item:focus-visible {
-  box-shadow: inset 0 0 0 var(--fs-focus-width) var(--fs-pod);
 }
 
 .fsc-menu__item .fsc-kbd {
   margin-left: auto;
+}
+
+/* A toggle's state at the item's end ("Sound · Off"): ink-3, never a second control. */
+.fsc-menu__state {
+  margin-left: auto;
+  color: var(--fs-ink-3);
+}
+
+.fsc-menu__item[aria-disabled="true"] {
+  color: var(--fs-ink-3);
 }
 
 .fsc-menu__rule {
@@ -438,5 +581,5 @@
 
 .fsc-datatable [data-numeric] {
   text-align: right;
-  font-stretch: 87.5%;
+  font-stretch: 100%;
 }

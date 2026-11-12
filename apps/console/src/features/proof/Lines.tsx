@@ -13,8 +13,9 @@ import { payoutStatus } from "../../data/payout-replay.js";
 // if a table ever scrolls sideways.
 
 import type { MemberLineState, ProofBundle, ProofLine, SnapshotSlip } from "@fairsplit/contracts";
+import { translate } from "@fairsplit/i18n";
 import { spring } from "@fairsplit/motion/web";
-import { Chip, Glyph, StatusChip } from "@fairsplit/ui-web";
+import { CheckMark, Chip, Glyph, HONESTY, MicroTag, StatusChip, Swatch } from "@fairsplit/ui-web";
 import { animate, type MotionValue, motion, useMotionValue, useTransform } from "motion/react";
 import {
   type KeyboardEvent,
@@ -30,6 +31,7 @@ import { format } from "../../lib/format.js";
 import { useMoment } from "../../lib/moment.js";
 import { useViewportWidth } from "../../stage/layout.js";
 import { LINES_COPY } from "./copy.js";
+import { ZoomGlyph } from "./glyphs.js";
 import { itemsByMember, type LineStates, lineStateOf, type ProofItemView } from "./model.js";
 import { SlipCrop, slipAlt } from "./SlipCrop.js";
 
@@ -205,7 +207,11 @@ export function Lines({ bundle, items, lineStates, slips, ruleNames, markNames, 
         }
       }}
     >
-      <p className="pf-lines__hint">{LINES_COPY.hint}</p>
+      {/* The table's PayPal money is named simulated once, by the micro-tag, never per row. */}
+      <p className="pf-lines__bar">
+        <span className="pf-lines__hint fs-t-caption">{LINES_COPY.hint}</span>
+        <MicroTag testId="W-PF-01.lines.tag" />
+      </p>
       <div className="pf-table-wrap" data-testid="W-PF-01.lines.scroller">
         <table
           className="pf-table pf-lines__table"
@@ -302,8 +308,8 @@ export function Lines({ bundle, items, lineStates, slips, ruleNames, markNames, 
                                 onClick={() => zoomTo(line.memberNo, serial)}
                               >
                                 <Glyph name="triplicate-slip" size={16} />
-                                <span className="pf-slipchip__no">{serial}</span>
-                                {kg && <span className="pf-slipchip__kg">{kg}</span>}
+                                <span className="pf-slipchip__no fs-t-id">{serial}</span>
+                                {kg && <span className="pf-slipchip__kg fs-t-figure">{kg}</span>}
                               </button>
                             );
                           })}
@@ -455,14 +461,19 @@ interface CropPanelProps {
 }
 
 /**
- * The slip: evidence, so it is paper with the only shadow and the "Synthetic sample" tag. The zoom buttons carry
- * the keys too: with one focused, the arrow keys pan and plus and minus zoom, so nothing needs a drag (WCAG 2.5.7).
+ * The slip: evidence, so it is paper with the only shadow. Round 5, provenance once: no corner glyph; "Synthetic
+ * sample" is its title and in its name (the page's id line says it once). The zoom buttons carry the keys too: with
+ * one focused, the arrow keys pan and plus and minus zoom, so nothing needs a drag (WCAG 2.5.7).
  */
 function CropPanel({ serial, slip, zoom, tiles, panX, panY, onKey, onZoom }: CropPanelProps) {
   return (
     <div className="pf-crop" data-testid="W-PF-01.trace.crop">
       {slip ? (
-        <figure className="fs-paper pf-crop__paper" data-testid="W-PF-01.trace.paper">
+        <figure
+          className="fs-paper pf-crop__paper"
+          data-testid="W-PF-01.trace.paper"
+          title={HONESTY.syntheticSample.label}
+        >
           <div className="pf-crop__focus" role="img" aria-label={`${slipAlt(slip)}. Synthetic sample.`}>
             <SlipCrop
               slip={slip}
@@ -473,7 +484,7 @@ function CropPanel({ serial, slip, zoom, tiles, panX, panY, onKey, onZoom }: Cro
               testId="W-PF-01.trace.slip"
             />
           </div>
-          <figcaption className="fs-paper__tag fs-t-caption">Synthetic sample</figcaption>
+          <figcaption className="fs-sr">{HONESTY.syntheticSample.label}</figcaption>
         </figure>
       ) : (
         <p className="pf-crop__missing">{LINES_COPY.cropMissing(serial)}</p>
@@ -487,7 +498,7 @@ function CropPanel({ serial, slip, zoom, tiles, panX, panY, onKey, onZoom }: Cro
           data-testid="W-PF-01.trace.zoom-out"
           aria-label={LINES_COPY.zoomOut}
         >
-          <span aria-hidden>−</span>
+          <ZoomGlyph dir="out" />
         </button>
         <button
           type="button"
@@ -497,7 +508,7 @@ function CropPanel({ serial, slip, zoom, tiles, panX, panY, onKey, onZoom }: Cro
           data-testid="W-PF-01.trace.zoom-in"
           aria-label={LINES_COPY.zoomIn}
         >
-          <span aria-hidden>+</span>
+          <ZoomGlyph dir="in" />
         </button>
         <span className="pf-crop__note">{LINES_COPY.cropNote}</span>
       </div>
@@ -517,6 +528,32 @@ function breakAfterAt(receiver: string): ReactNode {
     </>
   );
 }
+
+/**
+ * A PayPal status in a table row: the bare word on screen ("Paid"), since the table's micro-tag names the simulated
+ * sandbox once (UI gate round 3: never per row); a screen reader still hears the rail on every row, so the text
+ * is the whole status ("Paid (Simulated PayPal sandbox)"). A replay keeps its own label in view.
+ */
+export function RailWord({
+  presentation,
+}: {
+  readonly presentation: Pick<ReturnType<typeof payoutStatus>, "word" | "replayed" | "simulatedLabel">;
+}) {
+  return (
+    <>
+      {presentation.word}
+      {!presentation.replayed && presentation.simulatedLabel && (
+        <span className="fs-sr"> ({presentation.simulatedLabel})</span>
+      )}
+    </>
+  );
+}
+
+/** A cash line's status in words: the console's own (one catalog), with no pill (unslop spec §3.12). */
+const CASH_WORDS = {
+  OFF_RAIL_DUE: translate("en", "console.status.OFF_RAIL_DUE"),
+  OFF_RAIL_PAID: translate("en", "console.status.OFF_RAIL_PAID"),
+} as const;
 
 interface LineRowsProps {
   readonly replayed?: boolean;
@@ -555,17 +592,32 @@ function LineRows({
   });
   const amountState = presentation.amountState;
   const cash = line.rail === "CASH" || state === "OFF_RAIL_DUE" || state === "OFF_RAIL_PAID";
+  // The rail in one word: the table's tag names PayPal as the simulated sandbox once, for every row. Cash is a
+  // hatch swatch and the word, never a pill.
   const rail = (
     <span className="pf-rail" data-rail={cash ? "cash" : "paypal"}>
-      <span>{cash ? "Cash" : "Simulated PayPal sandbox"}</span>
+      {cash && <Swatch kind="cash" />}
+      <span>{cash ? "Cash" : "PayPal"}</span>
     </span>
   );
-  const status = presentation.simulatedLabel ? (
+  const cashWords = state === "OFF_RAIL_PAID" || state === "OFF_RAIL_DUE" ? CASH_WORDS[state] : null;
+  // Cash the clerk attested is a checked fact: the line ✓ and its word (round 5); cash due is its word alone.
+  const status = cashWords ? (
+    <span className="pf-cash-status" data-state={state}>
+      {state === "OFF_RAIL_PAID" ? (
+        <CheckMark>
+          <span className="fs-t-label">{cashWords}</span>
+        </CheckMark>
+      ) : (
+        <span className="fs-t-label">{cashWords}</span>
+      )}
+    </span>
+  ) : presentation.simulatedLabel ? (
     <Chip
       tone={presentation.tone}
       glyph={presentation.replayed ? "rail" : presentation.amountState === "landed" ? "ms:check" : "rail"}
     >
-      {presentation.statusWord}
+      <RailWord presentation={presentation} />
     </Chip>
   ) : (
     <StatusChip state={state} surface="console" />
@@ -596,7 +648,7 @@ function LineRows({
         {fold ? (
           <th scope="row">
             <div className="pf-line__who">
-              <span className="fs-t-figure">{line.memberNo}</span>
+              <span className="fs-t-id">{line.memberNo}</span>
               {names && <span className="pf-line__name">{label?.name ?? ""}</span>}
               {names && label?.receiverMasked && (
                 <span className="pf-table__receiver pf-line__receiver">
@@ -607,7 +659,7 @@ function LineRows({
             </div>
           </th>
         ) : (
-          <th scope="row" className="fs-t-figure">
+          <th scope="row" className="fs-t-id">
             {line.memberNo}
           </th>
         )}

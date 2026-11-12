@@ -45,7 +45,7 @@ describe("cash day follows the run", () => {
 });
 
 it("POSTING says confirmations are arriving, rather than asking for keys again", () => {
-  expect(
-    FANOUT.shareCounts({ onRail: 8, sent: 0, confirmed: 0, parked: 0, failed: 0, cash: 56, posting: true }),
-  ).toBe("Sent to the simulated PayPal sandbox. Confirmations land one by one. 56 in cash at the bodega.");
+  // The run's status row reads "0/8 confirmed · posted 10:00:00 · 0:05"; the money bar's in-flight row is "Sent".
+  expect(FANOUT.posted("10:00:00", "0:05")).toBe("posted 10:00:00 · 0:05");
+  expect(FANOUT.legend.flight).toBe("Sent");
 });

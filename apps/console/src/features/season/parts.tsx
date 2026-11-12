@@ -1,4 +1,4 @@
-// The season's quieter parts: the stencilled season mark, the run strip (six stages in a true sequence), the
+// The season's quieter parts: the run strip (six stages in a true sequence), the
 // contact sheet of the replay photos, and the eval waffle. Built on ui-web's marks and the console's tokens.
 
 import type { SeasonSnapshot, SnapshotPhoto } from "@fairsplit/contracts";
@@ -14,43 +14,6 @@ import { SEASON_COPY } from "./copy.js";
 import type { StripStage } from "./model.js";
 import "./season.css";
 
-/** "2026-A" in the stencil cut, as on the jute sacks; the lot beside it and the co-op beneath. */
-export function SeasonMark({
-  snapshot,
-  testId,
-  size = "small",
-  lot = false,
-  coop = true,
-}: {
-  readonly snapshot: SeasonSnapshot;
-  readonly testId: string;
-  readonly size?: "hero" | "small";
-  readonly lot?: boolean;
-  readonly coop?: boolean;
-}) {
-  const t = useT();
-  // Spans throughout, so the mark can sit inside a heading.
-  return (
-    <span className="fsc-mark" data-size={size} data-testid={testId}>
-      <span className="fsc-mark__stencil">
-        <span className="fsc-mark__season fs-t-mark fsc-nowrap">{snapshot.season.label}</span>
-        {lot && (
-          <span className="fsc-mark__lot fs-t-mark">
-            <span className="fs-sr">, lot </span>
-            {snapshot.lot.lotCode}
-          </span>
-        )}
-      </span>
-      {coop && (
-        <span className="fsc-mark__coop fs-t-label">
-          <span className="fs-sr">, </span>
-          {t("W-TR-01.coop")}
-        </span>
-      )}
-    </span>
-  );
-}
-
 const STRIP_KEYS = {
   RATIFIED: "W-TR-01.strip.ratified",
   FUNDED: "W-TR-01.strip.funded",
@@ -62,8 +25,7 @@ const STRIP_KEYS = {
 
 /**
  * The run strip: six stages in their true sequence on one plate, with a notch cut between each stage and the
- * next, like a tally cut into a sack's edge. Words are sentence case (the stencil belongs to season and lot marks
- * only). A stage that has not happened is a dashed print bed with its word faint inside, waiting to print; the
+ * next, like a tally cut into a sack's edge. Words are sentence case. A stage that has not happened is a dashed print bed with its word faint inside, waiting to print; the
  * first of them is next. A stage that has happened prints in ink after an ink tick. Funded is the one PayPal
  * decides, and lights only once the invoice has read back as paid; its jade is the arc's and the pool's, once
  * per event. Each stage lights only when register §7's condition holds.
@@ -87,7 +49,7 @@ export function RunStrip({
     <ol className="fsc-strip" aria-label={SEASON_COPY.strip} data-testid={testId}>
       {stages.map((stage) => {
         const state = stage.lit ? "lit" : stage.id === current ? "current" : "unlit";
-        // The word alone in the stencil; the ratification date prints beneath it, by the bolt.
+        // The word alone; the ratification date prints beneath it, by the bolt.
         const word =
           stage.id === "RATIFIED"
             ? t(STRIP_KEYS.RATIFIED, { date: "" }).trim()
@@ -114,12 +76,13 @@ export function RunStrip({
                 {ratified}
               </span>
             ) : state === "current" ? (
+              // Settled with cash still due (round 4): Paid waits, and its note names what it waits for.
               <span className="fsc-strip__note fs-t-caption" aria-hidden>
-                {SEASON_COPY.stripNextWord}
+                {stage.cashDue ? SEASON_COPY.stripCashDue : SEASON_COPY.stripNextWord}
               </span>
             ) : null}
             <span className="fs-sr">
-              {`, ${state === "lit" ? SEASON_COPY.stripDone : state === "current" ? SEASON_COPY.stripNext : SEASON_COPY.stripLater}`}
+              {`, ${state === "lit" ? SEASON_COPY.stripDone : stage.cashDue ? SEASON_COPY.stripCashDue.toLowerCase() : state === "current" ? SEASON_COPY.stripNext : SEASON_COPY.stripLater}`}
             </span>
           </li>
         );

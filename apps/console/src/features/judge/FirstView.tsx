@@ -1,39 +1,52 @@
-// W-JG-01's first view (S1.6, design §6 J1, plan "Judge Mode" step 0): "Season 2026-A is ready to pay." It
-// leads with paper on lacquer (design §1, signature 1): the twelve replay photos lie as a contact sheet beside
-// the invoice plate, under the pool's one-line strip, with the evidence shadow, inside the first screen. The
-// bolted BR 2026-04 plate carries its hash, and the invoice plate holds Claude's recorded draft in pencil with
-// US$4,333.50 hollow. Nothing here calls the API: the snapshot and the first view are built locally (S3.9).
-// The single d2 slab is the first press: it starts the judge session, then records Lantern Bay's payment; MM-S
-// plays when the invoice reads back as paid, on the event, never on the press, and the title says it's funded.
-// Under the invoice and the slab, the five story tiles (Read, Check, Sign, Pay, Prove: the story and the colour
-// key at once) and the honest "What's real" strip (ADR-0016).
+// W-JG-01's first view (S1.6, design §6 J1, plan "Judge Mode" step 0). UI gate round 5, on the one twelve-column
+// grid, top to bottom:
+// - The title row: "Season 2026-A" (the season the grey suffix) and the run's state as one chip on the same row,
+//   "Awaiting payment", then "Funded" (MM-S floods it jade), then the settled run's words ("PayPal complete · cash
+//   due"); its id line holds the run id once a session starts and the screen's one provenance phrase.
+// - The invoice (its hero amount, its one micro-tag, its one press, its seeded lines folded) beside the pool it
+//   funds (the pool's amount first, where the one jade arc from the invoice lands, the sum in words under it, and
+//   the rate card that shares it as the card's foot). No invoice id until a session starts.
+// - The slips as one 12-up strip of small prints, their counts' scope ("48 this run · 264 season") beside them.
+// - The pipeline: Read, Check, Sign, Pay, Prove on one track, each step's dot its state only.
+// No legend glyph anywhere on the screen. Nothing here calls the API: the snapshot and the first view are built
+// locally (S3.9). The single press starts the judge session, then records Lantern Bay's payment; MM-S plays when
+// the invoice reads back as paid, on the event, never on the press.
 
 import { PAY_RUN_RANK, type PayRunState, webRoutes } from "@fairsplit/contracts";
-import { Glyph, Slab, useT } from "@fairsplit/ui-web";
+import { Chip, Glyph, Slab, useT } from "@fairsplit/ui-web";
 import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { AppLink } from "../../chrome/AppLink.js";
 import { CommandNotice } from "../../chrome/CommandNotice.js";
+import { PROVENANCE } from "../../chrome/copy.js";
+import { cashStillDue } from "../../chrome/next-step.js";
+import { ScreenHead } from "../../chrome/ScreenGrid.js";
 import { ScreenRoot } from "../../chrome/ScreenRoot.js";
-import { SeasonText } from "../../chrome/SeasonText.js";
 import { Stamp } from "../../chrome/Stamp.js";
 import { isApiClientError } from "../../data/errors.js";
 import { useCommand, useJudgeSession, usePaypalRail, useStageRun } from "../../data/hooks.js";
-import { payoutReplayed, payoutStatus } from "../../data/payout-replay.js";
+import { payoutReplayed } from "../../data/payout-replay.js";
 import { atLeast } from "../../data/run-view.js";
+import { runLabel, seasonLabel, slipCounts } from "../../lib/display.js";
 import { env } from "../../lib/env.js";
 import { useFocusAfterRemoval } from "../../lib/focus.js";
 import { format } from "../../lib/format.js";
-import { useNextStep, usePrefocus } from "../../stage/context.js";
-import { HashPlate } from "../ratecard/parts.js";
+import { useProofChecks } from "../../lib/proof-checks.js";
+import { prefocusQuietly, usePrefocus } from "../../stage/context.js";
+import { sealedText } from "../ratecard/model.js";
 import { ExhibitLink } from "../reading/ExhibitLink.js";
 import { photoIsRead, replayPhotos } from "../reading/model.js";
 import { FIRST_VIEW_COPY } from "../season/copy.js";
-import { FundingBlock, useFundingMoment } from "../season/funding.js";
+import {
+  FundedMark,
+  FundingBlock,
+  fundedSourceTitle,
+  fundingValues,
+  useFundingMoment,
+} from "../season/funding.js";
 import { gateBeds, SeasonGate } from "../season/gate.js";
 import { isFunded } from "../season/model.js";
-import { ContactSheet, SeasonMark } from "../season/parts.js";
-import { splitRows } from "../split/model.js";
-import { StoryTiles, WhatsRealStrip } from "./StoryTiles.js";
+import { ContactSheet } from "../season/parts.js";
+import { StoryTiles } from "./StoryTiles.js";
 import "./judge.css";
 
 export function FirstView() {
@@ -54,6 +67,16 @@ function reachedFunding(state: PayRunState): boolean {
 
 type PressPhase = "idle" | "starting" | "recording" | "funded" | "failed";
 
+/** Whether the focused control wears the keyboard's ring (and not the quiet pre-focus's absence of one). */
+function wasKeyed(el: HTMLElement): boolean {
+  if (el.dataset.prefocused !== undefined) return false;
+  try {
+    return el.matches(":focus-visible");
+  } catch {
+    return true;
+  }
+}
+
 function Desk() {
   const t = useT();
   const { runSlug, view, inSession, snapshot } = useStageRun();
@@ -61,7 +84,7 @@ function Desk() {
   const rail = usePaypalRail() ?? env.paypalRail;
   const markPaid = useCommand("markPaid");
   const moment = useFundingMoment(inSession ? runSlug : null, view);
-  const next = useNextStep();
+  const proof = useProofChecks(inSession ? (view?.runSlug ?? runSlug) : null);
   const slabArea = useRef<HTMLDivElement>(null);
   // The slab is remounted (at rest) after a failure, so the judge can press again.
   const [attempt, setAttempt] = useState(0);
@@ -110,9 +133,12 @@ function Desk() {
     if (!movedOn) return;
     const active = document.activeElement;
     if (active instanceof HTMLElement && active.closest('[data-testid="W-JG-01.markPaid"]')) {
-      actionEl
-        ?.querySelector<HTMLElement>('[data-testid="W-JG-01.continue"]')
-        ?.focus({ preventScroll: true });
+      // Round 6: the step that is left is the top bar's pill (the card keeps no second link). The spent press hands
+      // its focus there: with its ring after a key, quietly after a click or the pre-focus (round 3: one ring).
+      const pill = document.querySelector<HTMLElement>('[data-testid="W-JG-01.runPill.next"]');
+      if (!pill) return;
+      if (wasKeyed(active)) pill.focus({ preventScroll: true });
+      else prefocusQuietly(pill);
     }
   }, [movedOn, actionEl]);
 
@@ -128,9 +154,15 @@ function Desk() {
       event.type === "invoice.state" &&
       (event.payload.to === "PAID" || event.payload.to === "MARKED_AS_PAID"),
   )?.at;
-  const recordText = `Marked paid by ${treasurer?.shortName.split(" ")[0] ?? "Analyn"}${paidAt ? `, ${format.time(paidAt).slice(0, 5)}` : ""}`;
+  // Round 6 (film U1): the record says whose money it is. Lantern Bay pays; the treasurer's part is recording that
+  // payment (on the simulated PayPal sandbox: the amount above carries the tag), so it never reads "paid by Analyn".
+  const recordText = FIRST_VIEW_COPY.recorded(
+    snapshot.lot.buyer,
+    treasurer?.shortName.split(" ")[0] ?? "the treasurer",
+    paidAt ? format.time(paidAt).slice(0, 5) : null,
+  );
   const record = (
-    <span>
+    <span className="fsc-first__record">
       {treasurer && (
         <Stamp
           stamp={{
@@ -139,11 +171,12 @@ function Desk() {
             at: paidAt ? format.time(paidAt) : "",
           }}
         />
-      )}{" "}
-      {recordText}
+      )}
+      <span>{recordText}</span>
     </span>
   );
   const photos = replayPhotos(snapshot);
+  const slips = slipCounts(snapshot);
   const readPhotos = new Set(
     photos.filter((photo) => photoIsRead({ view, snapshot, photo })).map((p) => p.photoId),
   );
@@ -162,7 +195,8 @@ function Desk() {
     idle: null,
     starting: FIRST_VIEW_COPY.starting,
     recording: FIRST_VIEW_COPY.pending,
-    funded: FIRST_VIEW_COPY.funded,
+    // Funded: the title row's chip says it (round 5); the action keeps only the next step's link.
+    funded: null,
     failed: null,
   };
 
@@ -232,7 +266,6 @@ function Desk() {
         label={label}
         glyph="thumbmark"
         width="100%"
-        trailing={<kbd className="fsc-kbd fsc-first__key">Enter</kbd>}
         srLabel={
           movedOn
             ? recordText
@@ -253,28 +286,16 @@ function Desk() {
   }
 
   const settled = view?.state === "SETTLED" || view?.state === "CLOSED";
-  const runLines = view ? splitRows(snapshot, view) : [];
-  // Each PayPal line asks the shared payout policy: only this run's confirmed money counts as paid by PayPal.
-  const payouts = runLines
-    .filter((line) => line.rail === "PAYPAL" && !line.movedToCash)
-    .map((line) => payoutStatus({ state: line.state, view, memberNo: line.memberNo }));
-  const replayedPayouts = payouts.some((payout) => payout.replayed);
-  const title = settled
-    ? FIRST_VIEW_COPY.settled(season, {
-        replayed: replayedPayouts,
-        paypal: replayedPayouts
-          ? payouts.length
-          : payouts.filter((payout) => payout.amountState === "landed").length,
-        cash: runLines.filter((line) => line.rail === "CASH" || line.movedToCash).length,
-      })
-    : funded
-      ? FIRST_VIEW_COPY.titleFunded(season)
-      : t("W-JG-01.ready", { season });
+  const replayed = payoutReplayed(view);
+  // Cash at the bodega is due until every cash line is handed over: the state never reads done before then.
+  const cashDue = settled && view !== undefined && cashStillDue(view, snapshot.figures.cashMembers);
+  const stateKey = settled ? "settled" : funded || moment.playing ? "funded" : "ready";
   const status = settled
-    ? `${payoutReplayed(view) ? "Replayed payouts" : "Payouts recorded"}. Simulated PayPal sandbox. Cash is collected at the bodega.`
+    ? null
     : markPaid.queuedMs === null
       ? statusLine[phase]
       : `You're next, about ${Math.ceil(markPaid.queuedMs / 1000)} s`;
+  // Round 6: no link under the record. The top bar's pill is the one route forward ("Next: …"), said once.
   const action = (
     <div
       className="fsc-first__action"
@@ -286,21 +307,12 @@ function Desk() {
       <div className="fsc-first__slab">{slab}</div>
       {status ? (
         <p className="fsc-first__status fs-t-label" role="status" data-testid="W-JG-01.status">
-          <Glyph name={phase === "funded" ? "ms:check" : "rail"} size={16} />
+          <Glyph name="rail" size={16} />
           <span>{status}</span>
-          {phase === "funded" && next && next.id !== "mark-paid" && (
-            <AppLink href={next.to} className="fs-link" data-testid="W-JG-01.continue">
-              {FIRST_VIEW_COPY.openNext}
-            </AppLink>
-          )}
         </p>
-      ) : (
-        <p className="fsc-first__note fs-t-caption">
-          {movedOn
-            ? FIRST_VIEW_COPY.movedOn
-            : FIRST_VIEW_COPY.pressNote(snapshot.payer.shortName, format.money(cents), rail)}
-        </p>
-      )}
+      ) : movedOn && !funded && !settled ? (
+        <p className="fsc-first__note fs-t-caption">{FIRST_VIEW_COPY.movedOn}</p>
+      ) : null}
       <CommandNotice
         error={isApiClientError(markPaid.error) && markPaid.error.status === 409 ? null : markPaid.error}
         testId="W-JG-01.error"
@@ -308,30 +320,80 @@ function Desk() {
     </div>
   );
 
+  // The rate card as the pool card's foot (round 5: the rules that share the pool, a row over a rule, not a card):
+  // its name, its hash in the mono and its seal date, then "Open".
+  const rateCard = (
+    <AppLink
+      href={webRoutes.rateCard(season)}
+      className="fsc-first__card"
+      aria-label={`${FIRST_VIEW_COPY.openCard}: ${sealedText(snapshot.rateCard)}`}
+      data-testid="W-JG-01.rules"
+    >
+      <Glyph name="ms:lock" size={16} />
+      <span className="fs-t-label">{FIRST_VIEW_COPY.card}</span>
+      {/* The hash in the mono (an id), its seal date in words. */}
+      <span className="fsc-first__card-hash" data-testid="W-JG-01.rules.sealed">
+        <span className="fs-t-id">{format.hashGroups(snapshot.rateCard.sha256)}</span>
+        <span className="fs-t-caption">
+          {FIRST_VIEW_COPY.cardSealedOn(format.dateShort(snapshot.rateCard.canonical.ratifiedOn))}
+        </span>
+      </span>
+      <span className="fsc-first__card-open fs-t-label" aria-hidden>
+        {FIRST_VIEW_COPY.open}
+      </span>
+    </AppLink>
+  );
+
+  // The run's state, one chip on the title row (round 5). "Funded" is MM-S's own mark: its inset closes and jade
+  // floods it on the invoice's event; its title (and its hidden words) say where the word came from.
+  const values = fundingValues(moment, funded);
+  const fundedTitle = fundedSourceTitle(rail, view);
+  const stateChip =
+    stateKey === "settled" ? (
+      <Chip tone={cashDue ? "hatch" : replayed ? "neutral" : "jade"} glyph={cashDue ? "cash" : "rail"}>
+        {FIRST_VIEW_COPY.settledStatus(replayed, cashDue)}
+      </Chip>
+    ) : stateKey === "funded" ? (
+      <>
+        <FundedMark
+          inset={values.inset}
+          flood={values.flood}
+          landed={moment.phase === "funded"}
+          title={fundedTitle}
+          testId="W-JG-01.funded"
+        />
+        <span className="fs-sr" data-testid="W-JG-01.funded.source">
+          {fundedTitle}
+        </span>
+      </>
+    ) : (
+      <Chip tone="neutral" glyph="ms:schedule">
+        {FIRST_VIEW_COPY.awaiting}
+      </Chip>
+    );
+
   return (
     <ScreenRoot
       id="W-JG-01"
       state={inSession ? "session" : "ready"}
       labelledBy="fsc-first-title"
       className="fsc-first"
+      grid
     >
-      <header className="fsc-first__head">
-        <div className="fsc-first__titles">
-          <SeasonMark snapshot={snapshot} testId="W-JG-01.mark" />
-          <h1 id="fsc-first-title" className="fs-t-display fsc-first__title" data-testid="W-JG-01.title">
-            <SeasonText text={title} season={season} />
-          </h1>
-          <p className="fsc-first__lede fs-t-lede">
-            {FIRST_VIEW_COPY.lede(snapshot.figures.members, snapshot.lot.buyer)}
-          </p>
-        </div>
-        <div className="fsc-first__rules">
-          <HashPlate snapshot={snapshot} testId="W-JG-01.rules" compact />
-          <AppLink href={webRoutes.rateCard(season)} className="fs-link fs-t-caption fsc-first__rules-link">
-            {FIRST_VIEW_COPY.openCard}
-          </AppLink>
-        </div>
-      </header>
+      <ScreenHead
+        title={FIRST_VIEW_COPY.title}
+        suffix={<span data-testid="W-JG-01.mark">{seasonLabel(season)}</span>}
+        titleId="fsc-first-title"
+        status={
+          <span className="fsc-first__state" data-testid="W-JG-01.title" data-state={stateKey}>
+            {stateChip}
+          </span>
+        }
+        meta={inSession && view ? runLabel(view.runSlug).run : undefined}
+        provenance={PROVENANCE.seededSlips}
+        testId="W-JG-01.head"
+        className="fsc-first__head"
+      />
 
       <FundingBlock
         snapshot={snapshot}
@@ -343,36 +405,38 @@ function Desk() {
         totalRole="amount-hero"
         action={action}
         compact
-        desk={
-          <section className="fsc-first__desk" aria-labelledby="fsc-first-desk" data-testid="W-JG-01.desk">
-            <header className="fsc-first__desk-head">
-              <h2 id="fsc-first-desk" className="fsc-section-title fs-t-label">
-                {FIRST_VIEW_COPY.desk}
-              </h2>
-              <p className="fs-t-caption fsc-first__desk-note">
-                {FIRST_VIEW_COPY.deskNote(photos.length, funded)}
-              </p>
-              <ExhibitLink season={season} />
-            </header>
-            <div className="fsc-first__sheet">
-              <ContactSheet
-                snapshot={snapshot}
-                photos={photos}
-                readPhotos={readPhotos}
-                hrefFor={(photo) => webRoutes.reading(season, photo)}
-                testId="W-JG-01.photos"
-                columns={6}
-              />
-              <p className="fsc-first__synthetic fs-t-caption" data-testid="W-JG-01.synthetic">
-                <Glyph name="triplicate-slip" size={14} />
-                {FIRST_VIEW_COPY.synthetic}
-              </p>
-            </div>
-          </section>
-        }
+        poolFoot={rateCard}
+        fundedMark={false}
       />
-      <StoryTiles snapshot={snapshot} />
-      <WhatsRealStrip members={snapshot.figures.members} />
+
+      {/* Round 6: the pipeline is the second row, right under the two cards. */}
+      <StoryTiles
+        snapshot={snapshot}
+        view={inSession ? view : undefined}
+        progress={{ proofChecked: proof.checked && proof.matched === proof.total }}
+      />
+
+      {/* The slips (rounds 5 and 6): one 12-up strip ending the screen, its head over it ("Slips", the counts'
+          scope, the recorded exhibit's link); each print opens in the reading room. */}
+      <section className="fsc-first__desk" aria-labelledby="fsc-first-desk" data-testid="W-JG-01.desk">
+        <header className="fsc-first__desk-head" title={FIRST_VIEW_COPY.deskNote(photos.length, funded)}>
+          <h2 id="fsc-first-desk" className="fsc-first__desk-title fs-t-label">
+            {FIRST_VIEW_COPY.desk}
+          </h2>
+          <span className="fsc-first__desk-note fs-t-caption" data-testid="W-JG-01.slips">
+            {FIRST_VIEW_COPY.slipsMicro(photos.length, slips.text)}
+          </span>
+          <ExhibitLink season={season}>{FIRST_VIEW_COPY.exhibit}</ExhibitLink>
+        </header>
+        <ContactSheet
+          snapshot={snapshot}
+          photos={photos}
+          readPhotos={readPhotos}
+          hrefFor={(photo) => webRoutes.reading(season, photo)}
+          testId="W-JG-01.photos"
+          columns={12}
+        />
+      </section>
     </ScreenRoot>
   );
 }

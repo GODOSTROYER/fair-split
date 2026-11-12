@@ -76,14 +76,50 @@ describe("W-TR-06 hold drawer", () => {
       await waitFor(() => expect(stateOf()).toBe("open"), WAIT);
       await waitFor(() => expect(sinceOpen()).toContain("ready"), WAIT);
       expect(sinceOpen()).toEqual(["glide-in", "converge", "pairs", "ready"]);
-      expect(screen.getByTestId("W-TR-06.card.gate").textContent).toBe("Blocks approval. Changes kilos.");
+      // Round 4: the pill is a few words, never a sentence with a full stop.
+      expect(screen.getByTestId("W-TR-06.card.gate").textContent).toBe("Blocks approval");
       const card = screen.getByTestId("W-TR-06.card");
-      expect(card.textContent).toMatch(
-        /Slip 0457 is in two photos: the white original \(B\) and the pink duplicate \(D\)\. Counting both moves US\$17\.94 from 63 members to Nong Dioning and puts shrink at 2\.05%, over the 2\.0% limit\./,
+      // One effect line directly above "Count it once" (round 4): no engine row, no "Money effect" caption, no dial
+      // of the drawer's own (the split's dial behind it moves); holds.css draws the paired receipts under it.
+      expect(screen.getByTestId("W-TR-06.card.effect").textContent).toMatch(
+        /^If\scounted\sonce:\s\+US\$17\.94\sto\s63\smembers\s·\s2\.05%\s→\s1\.62%$/,
       );
-      expect(card.textContent).toMatch(/The second image is the office's pink copy of the same receipt\./);
-      expect(screen.getByTestId("W-TR-06.twin.verdict").textContent).toBe("4 of 4 fields match. Same slip.");
+      expect(card.querySelector('[data-voice="engine"]')).toBeNull();
+      expect(card.textContent).not.toMatch(/Nong Dioning \+US\$17\.94/);
+      expect(card.textContent).not.toMatch(/Money effect/);
+      expect(screen.queryByTestId("W-TR-06.dial")).toBeNull();
+      expect(card.textContent).not.toMatch(/Counting both moves/);
+      expect(card.textContent).not.toMatch(/pink copy of the same receipt/);
+      expect(card.querySelector(".fs-hold__effect")?.nextElementSibling).toBe(
+        card.querySelector(".fs-hold__actions"),
+      );
       const twin = screen.getByTestId("W-TR-06.twin");
+      expect(card.contains(twin)).toBe(true);
+      // The copies' photos are their captions; the pair is the seed's: round 5 draws no glyph (the split's id line
+      // says it on screen), and its canonical words stay here for assistive technology (inv.i8).
+      expect(card.textContent).toMatch(/B · white original/);
+      expect(card.textContent).toMatch(/D · pink duplicate/);
+      expect(screen.getByTestId("W-TR-06.twin.standIn").getAttribute("title")).toBe(
+        "Seed stand-in, not a Claude recording",
+      );
+      expect(screen.getByTestId("W-TR-06.twin.standIn").classList.contains("fs-sr")).toBe(true);
+      expect(screen.getByTestId("W-TR-06.drawer").querySelectorAll("[data-fs-glyph]")).toHaveLength(0);
+      // The pair at one 48 px height (the secondary data-size="l"), its caption under the pair (round 5); the open
+      // drawer hugs its content.
+      expect(screen.getByTestId("W-TR-06.twoDeliveries").dataset.size).toBe("l");
+      expect(screen.getByTestId("W-TR-06.twoDeliveries").getAttribute("aria-describedby")).toBe(
+        "W-TR-06.card-flat-note",
+      );
+      expect(card.querySelector(".fs-hold__buttons")?.nextElementSibling?.textContent).toBe(
+        "Needs a reason and the Chair's OK",
+      );
+      expect(screen.getByTestId("W-TR-06.drawer").hasAttribute("data-hug")).toBe(true);
+      expect(screen.getByTestId("W-TR-06.twin.verdict").textContent).toBe(
+        "4/4 fields matchSeed stand-in, not a Claude recording",
+      );
+      expect(screen.getByTestId("W-TR-06.twin.verdict").getAttribute("title")).toBe(
+        "4 of 4 fields match. Same slip.",
+      );
       expect(twin.dataset.lit).toBe("");
       // Canary is a person's decision: the matching field pairs light in turn (serial, date, member, net kg,
       // TIMING.pairStagger apart), with nothing drawn on the slips themselves: no underline, no highlight.
@@ -96,7 +132,6 @@ describe("W-TR-06 hold drawer", () => {
         expect(row.style.getPropertyValue("--fsr-pair-at")).toBe(`${i * TIMING.pairStagger}ms`);
         expect(row.querySelector(".fsr-twin__eq")?.textContent).toBe("=");
       });
-      expect(screen.getByTestId("W-TR-06.dial.status").dataset.status).toBe("OUTSIDE");
       expect(screen.getByTestId("W-TR-06.drawer").textContent).toMatch(/Hold 1 of 3/);
       await expectNoAxeViolations(screen.getByTestId("W-TR-06.drawer"));
     },
@@ -129,11 +164,14 @@ describe("W-TR-06 hold drawer", () => {
         "resolved",
       ]);
       expect(view.world.hold("H1")?.state).toBe("RESOLVED");
-      expect(screen.getByTestId("W-TR-06.dial.status").dataset.status).toBe("INSIDE");
-      expect(screen.getByTestId("W-TR-06.result").textContent).toMatch(
-        /Returned to 63 members: US\$17\.94\./,
+      // The outcome leads the decided drawer: the delta and the card renamed for what was decided (the split's dial
+      // behind it reads 1.62%, "was 2.05%").
+      expect(screen.getByTestId("W-TR-06.result").textContent).toBe("+US$17.94 back to 63 members");
+      expect(document.getElementById("W-TR-06.card-title")?.textContent).toBe("Slip 0457, counted once");
+      expect(screen.queryByTestId("W-TR-06.card.effect")).toBeNull();
+      expect(screen.getByTestId("W-TR-06.card.resolution").textContent).toMatch(
+        /Resolved by Analyn · \d\d:\d\d/,
       );
-      expect(screen.getByTestId("W-TR-06.card.resolution").textContent).toMatch(/Resolved by AS/);
       expect(screen.getByTestId("W-TR-06.next").textContent).toBe("Next: hold H2");
       await expectNoAxeViolations(screen.getByTestId("W-TR-06.drawer"));
     },
@@ -187,7 +225,10 @@ describe("W-TR-06 hold drawer", () => {
         await waitFor(() => expect(face.isConnected).toBe(false), WAIT);
         const next = await screen.findByTestId("W-TR-06.next");
         await waitFor(() => expect(document.activeElement).toBe(next), WAIT);
-        expect(scrolled).toContain(next);
+        // Round 8: the decided hold is a receipt in the screen's own flow (no scrollport of its own): focus lands on
+        // its next step, inside it.
+        expect(screen.getByTestId("W-TR-06.drawer").contains(next)).toBe(true);
+        expect(screen.getByTestId("W-TR-06.drawer").hasAttribute("data-receipt")).toBe(true);
       } finally {
         vi.restoreAllMocks();
       }
@@ -215,11 +256,12 @@ describe("W-TR-06 hold drawer", () => {
   );
 
   it(
-    "Count it once: a result line that unfolds above Next after the settle window (MM-3's wave on a slow machine) still brings Next back into the drawer",
+    "Count it once: the decided drawer is a compact success card, Next pinned to its sticky footer as the one primary, and a layout change after the settle window still keeps Next in view",
     async () => {
-      // At 1100 × 768 the drawer's scrollport is 85..643 and Next sits at 611 once it takes focus. On a machine four
-      // times slower, MM-3 reaches its wave, and the result line is drawn above Next, 2.4 s later: Next is pushed
-      // 58 px down, under the fold, long after any time-boxed watch has ended (WCAG 2.4.7, 2.4.11).
+      // Round 5: once decided, the drawer hugs its content with no blocking scrim (the dial and the wave behind it
+      // stay lit), and Next sits on its sticky footer, apart from the result line that unfolds above the card when
+      // MM-3 reaches its wave (later still on a slow machine): the line can never push Next under the fold. Should
+      // the footer move anyway (a layout change long after the settle window), Next is brought back into view.
       const layout = fakeResizeObserver();
       clearMomentTrace();
       await inReview(webRoutes.holdDrawer(RUN, "H1"));
@@ -254,14 +296,32 @@ describe("W-TR-06 hold drawer", () => {
         press("W-TR-06.countOnce");
         const next = await screen.findByTestId("W-TR-06.next");
         await waitFor(() => expect(document.activeElement).toBe(next), WAIT);
-        // The settle window has ended; nothing has moved Next yet.
+        const drawer = screen.getByTestId("W-TR-06.drawer");
+        const foot = screen.getByTestId("W-TR-06.drawer.foot");
+        expect(foot.contains(next)).toBe(true);
+        expect(screen.getByTestId("W-TR-06").contains(next)).toBe(false);
+        expect(next.closest(".fs-slab")).not.toBeNull();
+        // Round 8: a decided hold is a compact receipt in the split review's flow, not a sheet: no drawer frame, no
+        // scrim, nothing taken from the screen's width.
+        expect(drawer.hasAttribute("data-receipt")).toBe(true);
+        expect(drawer.classList.contains("fsc-drawer")).toBe(false);
+        expect(screen.queryByTestId("W-TR-06.drawer.scrim")).toBeNull();
+        // The evidence is one disclosure away on the decided card.
+        expect(screen.getByTestId("W-TR-06.card.evidence").tagName).toBe("DETAILS");
+        // What changed for the slip's own member (the engine's two figures) and for everyone else.
+        const holder = screen.getByTestId("W-TR-06.holder");
+        expect(holder.textContent).toMatch(/US\$[\d,.]+.*US\$[\d,.]+/);
+        expect((await screen.findByTestId("W-TR-06.result", undefined, WAIT)).textContent).toBe(
+          "+US$17.94 back to 63 members",
+        );
+        // The settle window has ended; a layout change never scrolls a receipt whose Next is in view.
         const now = performance.now();
         vi.spyOn(performance, "now").mockReturnValue(now + REVEAL_SETTLE_MS + 924);
         await new Promise<void>((done) => requestAnimationFrame(() => requestAnimationFrame(() => done())));
         scrolled.length = 0;
         nextTop = 669;
-        layout.resized(screen.getByTestId("W-TR-06"));
-        expect(scrolled).toEqual([next]);
+        layout.resized(foot);
+        expect(scrolled).toEqual([]);
       } finally {
         vi.restoreAllMocks();
         vi.unstubAllGlobals();
@@ -321,10 +381,11 @@ describe("W-TR-06 hold drawer", () => {
     async () => {
       const view = await inReview(webRoutes.holdDrawer(RUN, "H2"));
       await waitFor(() => expect(stateOf()).toBe("open"), WAIT);
+      expect(document.getElementById("W-TR-06.card-title")?.textContent).toBe("Merlyn Ponce: 2.14 kg a tree");
       expect(screen.getByTestId("W-TR-06.card").textContent).toMatch(
-        /Merlyn Ponce: 300\.0 kg from 140 registered trees is 2\.14 kg a tree\. The limit is 1\.6\./,
+        /300\.0 kg from 140 registered trees\. The limit is 1\.6 kg a tree\./,
       );
-      expect(screen.getByTestId("W-TR-06.plot.P-053-B").textContent).toMatch(/not in the registry yet/);
+      expect(screen.getByTestId("W-TR-06.plot.P-053-B").textContent).toMatch(/Not registered/);
       expect(screen.getByTestId("W-TR-06.yield.now").textContent).toBe("2.14 kg a tree now");
       await expectNoAxeViolations(screen.getByTestId("W-TR-06.drawer"));
       press("W-TR-06.registerPlot");
@@ -347,16 +408,19 @@ describe("W-TR-06 hold drawer", () => {
         view.world.resolve("H2");
       });
       await waitFor(() => expect(stateOf()).toBe("open"), WAIT);
-      expect(screen.getByTestId("W-TR-06.card.gate").textContent).toBe(
-        "Reserves this line only. Never redistributed.",
-      );
+      expect(screen.getByTestId("W-TR-06.card.gate").textContent).toBe("Reserves this line");
       const marks = screen.getByTestId("W-TR-06.norule");
-      expect(marks.textContent).toMatch(/Hauling ₱91\.20.*Matches R2/);
+      // Round 5, no ids for people: "Allowed", the rule's id in its title.
+      expect(marks.textContent).toMatch(/Hauling ₱91\.20.*Allowed/);
+      expect(marks.querySelector("[title='Rule R2 · hauling']")?.textContent).toBe("Allowed");
       expect(marks.textContent).toMatch(/Multa \(absent GA\) ₱200.*No rule/);
+      expect(screen.getByTestId("W-TR-06.card").textContent).toMatch(
+        /Multa \(absent GA\) ₱200 matches no Schedule A rule\..*\+US\$3\.20 correction credit from the co-op/,
+      );
       press("W-TR-06.returnCredit");
       await waitFor(() => expect(stateOf()).toBe("resolved"), WAIT);
       expect(screen.getByTestId("W-TR-06.result").textContent).toMatch(
-        /Returned as a US\$3\.20 credit paid by the co-op\./,
+        /^\+US\$3\.20 credit, paid by the co-op$/,
       );
       await waitFor(
         () =>

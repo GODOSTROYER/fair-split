@@ -3,12 +3,15 @@
 // reads in the console's words; autoplay presses with a visible cursor and stops before the keys.
 
 import { getSnapshot } from "@fairsplit/api-client/seed";
+import { tagBudget } from "@fairsplit/ui-web";
 import { act, configure, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { getResponse, HttpResponse, http } from "msw";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { RunView } from "../../data/run-view.js";
+import { format } from "../../lib/format.js";
 import {
   clearMomentTrace,
+  clickStageMenuItem,
   createTestWorld,
   expectNoAxeViolations,
   momentPhase,
@@ -30,19 +33,40 @@ async function press(testId: string) {
 }
 
 describe("W-JG-01 first view", { timeout: 60_000 }, () => {
-  it("keeps the short invoice action and season code whole while preserving its accessible name", async () => {
+  it("keeps the short invoice action whole, says where the run is, and names the season under it", async () => {
     await renderConsole({ path: "/judge" });
     const button = screen.getByRole("button", { name: /Mark Lantern Bay.s invoice paid/ });
     // The face's words; its Enter keycap is decoration, hidden from assistive tech.
     expect(button.querySelector(".fs-slab__words")?.textContent).toBe("Mark the invoice paid");
-    expect(screen.getByTestId("W-JG-01.invoice.draft").textContent).toContain(
-      "Invoice lines (seeded sample)",
+    // The lines' fold names itself; round 5: no legend glyph, its seeded provenance is its title and its hidden
+    // words, and its note stays inside.
+    const draft = screen.getByTestId("W-JG-01.invoice.draft");
+    expect(draft.textContent).toContain("Invoice lines");
+    expect(draft.textContent).toContain("(seeded sample)");
+    expect(draft.querySelector("summary")?.getAttribute("title")).toBe("Invoice lines (seeded sample)");
+    expect(draft.querySelector(".fs-legend-glyph, [data-fs-glyph], .fs-honesty")).toBeNull();
+    expect(draft.textContent).toContain("Claude did not draft these lines");
+    // Round 5: a noun title with the season as its grey suffix, the state in a chip on the same row.
+    const heading = screen.getByRole("heading", { level: 1, name: "Season 2026-A" });
+    expect(heading.previousElementSibling).toBeNull();
+    expect(heading.classList.contains("fs-t-title")).toBe(true);
+    expect(heading.contains(screen.getByTestId("W-JG-01.mark"))).toBe(true);
+    expect(screen.getByTestId("W-JG-01.mark").textContent).toBe("2026-A");
+    const state = screen.getByTestId("W-JG-01.title");
+    expect(state.dataset.state).toBe("ready");
+    expect(state.textContent).toBe("Awaiting payment");
+    expect(state.querySelector(".fs-chip")).toBeTruthy();
+    // One provenance phrase in the id line, its whole sentence in its title; no run id before a session.
+    const provenance = screen.getByTestId("W-JG-01.head.provenance");
+    expect(provenance.textContent).toContain("Synthetic co-op · seeded slips");
+    expect(provenance.getAttribute("title")).toMatch(/Seed stand-in, not a Claude recording/);
+    expect(screen.getByTestId("W-JG-01.head").querySelector(".fsc-screen__id")).toBeNull();
+    // Ids and hashes in the one mono, words beside them in FS Sans.
+    expect(screen.getByTestId("W-JG-01.rules.sealed").querySelector(".fs-t-id")?.textContent).toMatch(
+      /^[0-9a-f]{4} [0-9a-f]{4}$/,
     );
-    expect(screen.getByTestId("W-JG-01.invoice.draft").textContent).toContain(
-      "Claude did not draft these lines",
-    );
-    const heading = screen.getByRole("heading", { name: /Season 2026-A is ready to pay/ });
-    expect(heading.querySelector(".fsc-nowrap")?.textContent).toBe("2026-A");
+    // Round 5: no invoice id until a session starts (the showcase run's id is not the judge's).
+    expect(screen.queryByTestId("W-JG-01.invoice.id")).toBeNull();
   });
 
   it("keeps the recording pill until the payment command answers", async () => {
@@ -80,13 +104,29 @@ describe("W-JG-01 first view", { timeout: 60_000 }, () => {
     world.payCash("M-031");
     const view = await renderConsole({ path: "/judge", world });
     await view.startSession();
+    // Round 3: never "settled" or "done" while the bodega's cash is due; the pay split is what happened.
+    // Round 5: the state is the title row's chip, cash due on the hatch; the pipeline says what happened.
     await waitFor(() =>
-      expect(screen.getByTestId("W-JG-01.title").textContent).toBe(
-        "Season 2026-A is paid: 7 by PayPal, 57 in cash.",
-      ),
+      expect(screen.getByTestId("W-JG-01.title").textContent).toBe("PayPal complete · cash due"),
     );
-    expect(screen.getByTestId("W-JG-01.markPaid").textContent).toMatch(/Marked paid by Analyn/);
-    expect(screen.getByTestId("W-JG-01.status").textContent).not.toMatch(/plays next/);
+    expect(screen.getByTestId("W-JG-01.title").dataset.state).toBe("settled");
+    expect(screen.getByTestId("W-JG-01.title").querySelector(".fs-chip")?.getAttribute("data-tone")).toBe(
+      "hatch",
+    );
+    expect(screen.getByTestId("W-JG-01.title").textContent).not.toMatch(/settled|done|success/i);
+    // Round 6 (film U1): the record says whose payment it is; the treasurer recorded it.
+    expect(screen.getByTestId("W-JG-01.markPaid").textContent).toMatch(
+      /Lantern Bay's payment · recorded by Analyn/,
+    );
+    expect(screen.getByTestId("W-JG-01.markPaid").textContent).not.toMatch(/paid by Analyn/i);
+    // Round 6: nothing under the record. The step that is left is the top bar's pill, said once.
+    expect(screen.queryByTestId("W-JG-01.status")).toBeNull();
+    expect(screen.queryByTestId("W-JG-01.continue")).toBeNull();
+    expect(screen.getByTestId("W-JG-01.runPill.next").textContent).toMatch(/review cash handover/i);
+    expect(screen.getByTestId("story-tiles.pay").textContent).toContain("7 PayPal · 57 cash");
+    expect(screen.getByTestId("story-tiles.pay").dataset.phase).toBe("settled");
+    expect(screen.getByTestId("story-tiles.pay").dataset.state).toBe("paid");
+    expect(screen.getByTestId("story-tiles.sign").dataset.state).toBe("done");
   });
 
   it("inv.i8.a settled run whose payouts replayed names the replay, never PayPal payments", async () => {
@@ -98,18 +138,18 @@ describe("W-JG-01 first view", { timeout: 60_000 }, () => {
     world.payCash("M-031");
     const view = await renderConsole({ path: "/judge", world });
     await view.startSession();
-    await waitFor(() => expect(screen.getByTestId("W-JG-01.title").textContent).toMatch(/by PayPal/));
+    await waitFor(() => expect(screen.getByTestId("W-JG-01.title").textContent).toMatch(/^PayPal complete/));
     const key = ["run", getSnapshot().run.runSlug];
     const live = view.runtime.client.getQueryData<RunView>(key);
     if (!live) throw new Error("the settled run must be cached");
     const items = Object.entries(live.items).map(([id, item]) => [id, { ...item, provenance: "replay" }]);
     act(() => view.runtime.client.setQueryData(key, { ...live, items: Object.fromEntries(items) }));
     await waitFor(() =>
-      expect(screen.getByTestId("W-JG-01.title").textContent).toBe(
-        "Season 2026-A is settled: 7 payout statuses replayed (labelled), 57 in cash.",
-      ),
+      expect(screen.getByTestId("W-JG-01.title").textContent).toBe("Payouts replayed · cash due"),
     );
-    expect(screen.getByTestId("W-JG-01.status").textContent).toMatch(/^Replayed payouts/);
+    expect(screen.getByTestId("W-JG-01.title").textContent).not.toMatch(/PayPal/);
+    // A replay is a fact, never confirmed money: the Pay step is ink, not jade.
+    expect(screen.getByTestId("story-tiles.pay").dataset.state).toBe("done");
   });
 
   it("shows the showcase with no calls: the desk, the bolted card, Claude's draft in pencil, the invoice hollow", async () => {
@@ -118,11 +158,29 @@ describe("W-JG-01 first view", { timeout: 60_000 }, () => {
     const view = await renderConsole({ path: "/judge", handlers: [log.handler] });
     const root = await screen.findByTestId("W-JG-01");
     expect(root.dataset.state).toBe("ready");
-    expect(within(root).getByRole("heading", { level: 1 }).textContent).toBe(
-      "Season 2026-A is ready to pay.",
-    );
+    expect(within(root).getByRole("heading", { level: 1 }).textContent).toBe("Season 2026-A");
+    expect(screen.getByTestId("W-JG-01.title").textContent).toBe("Awaiting payment");
     expect(screen.getByTestId("W-JG-01.invoice.amount").dataset.amountState).toBe("hollow");
     expect(screen.getByTestId("W-JG-01.pool.amount").dataset.amountState).toBe("hollow");
+    // Round 5: no invoice id before a session (the showcase run's is not the judge's).
+    expect(screen.queryByTestId("W-JG-01.invoice.id")).toBeNull();
+    expect(root.textContent).not.toContain(getSnapshot().run.invoice.invoiceNumber);
+    // The pool, true to the cent: its amount, then the invoice minus the payout costs. Pending until the simulated
+    // PayPal funds it: grey, and no tag yet. The hollow dot and its word sit in the card's head ("Pool · 64
+    // members", "Not funded"), never inside the sum. Round 5: what the members share it as (premium and bonus).
+    const eq = screen.getByTestId("W-JG-01.pool.eq");
+    expect(eq.dataset.state).toBe("pending");
+    expect(eq.textContent).toContain("Invoice US$4,333.50 minus costs US$60.00 equals the pool");
+    expect(eq.querySelector(".fs-state-dot")).toBeNull();
+    const poolState = screen.getByTestId("W-JG-01.pool.state");
+    expect(poolState.textContent).toBe("Not funded");
+    expect(poolState.querySelector('.fs-state-dot[data-kind="pending"]')).toBeTruthy();
+    expect(screen.getByRole("heading", { name: /^Pool\W+64 members$/ })).toBeTruthy();
+    expect(screen.getByTestId("W-JG-01.pool.disbursement").textContent).toBe("US$60.00");
+    const { quote } = getSnapshot().run;
+    expect(screen.getByTestId("W-JG-01.pool.premium").textContent).toBe(format.money(quote.premiumPoolCents));
+    expect(screen.getByTestId("W-JG-01.pool.bonus").textContent).toBe(format.money(quote.bonusPoolCents));
+    expect(screen.queryByTestId("W-JG-01.pool.tag")).toBeNull();
     const draft = screen.getByTestId("W-JG-01.invoice.draft");
     expect(draft.dataset.provenance).toBe("seeded");
     const figures = draft.querySelectorAll<HTMLElement>("[data-amount-state]");
@@ -130,8 +188,29 @@ describe("W-JG-01 first view", { timeout: 60_000 }, () => {
     for (const f of figures) expect(f.dataset.amountState).toBe("pencil");
     expect(within(screen.getByTestId("W-JG-01.photos")).getAllByRole("link")).toHaveLength(12);
     expect(screen.getByTestId("W-JG-01.rules.sealed").textContent).toMatch(
-      /^sha256 [0-9a-f]{4} [0-9a-f]{4}, sealed/,
+      /^[0-9a-f]{4} [0-9a-f]{4} · sealed \d{1,2} [A-Z][a-z]{2}$/,
     );
+    // The slips' counts say their scope (round 3); round 5: one 12-up strip.
+    expect(screen.getByTestId("W-JG-01.slips").textContent).toBe("12 photos · 48 this run · 264 season");
+    expect(screen.getByTestId("W-JG-01.photos").dataset.columns).toBe("12");
+    // The PayPal money value wears the one micro-tag; a screen reader hears the whole label. No legend row, and
+    // the stage stays inside the tag budget (the top bar's indicator included).
+    const tag = screen.getByTestId("W-JG-01.invoice.tag");
+    expect(tag.dataset.fsTag).toBe("micro");
+    expect(tag.textContent).toContain("Simulated PayPal sandbox");
+    expect(screen.queryByTestId("W-JG-01.realStrip")).toBeNull();
+    // Round 5 (provenance once): no legend glyph anywhere on the screen; the id line says it.
+    expect(screen.queryByTestId("W-JG-01.synthetic")).toBeNull();
+    expect(root.querySelector(".fs-legend-glyph, [data-fs-glyph]")).toBeNull();
+    const budget = tagBudget(screen.getByTestId("W-JG-01.stage"));
+    expect(budget).toMatchObject({ ok: true });
+    expect(budget.tags).toBeLessThanOrEqual(3);
+    expect(screen.getByTestId("story-tiles.pay").textContent).toContain("8 PayPal · 56 cash planned");
+    // Nothing has happened yet: every step's dot is the pending ring (round 5: state colours only, no indigo).
+    for (const step of within(screen.getByTestId("story-tiles")).getAllByRole("listitem")) {
+      expect(step.dataset.state).toBe("pending");
+      expect(step.querySelector('.fs-state-dot[data-kind="pending"]')).toBeTruthy();
+    }
     expect(root.querySelectorAll(".fs-slab").length).toBeLessThanOrEqual(2);
     expect(screen.getByTestId("W-JG-01.markPaid").dataset.state).toBe("rest");
     expect(log.calls()).toEqual([]);
@@ -141,7 +220,7 @@ describe("W-JG-01 first view", { timeout: 60_000 }, () => {
   it("the desk's exhibit link opens the reading room and focuses the exhibit once its screen has drawn it", async () => {
     await renderConsole({ path: "/judge" });
     const link = within(screen.getByTestId("W-JG-01.desk")).getByRole("link", {
-      name: /Claude's real readings of 10 hero slips/,
+      name: /Claude's readings of 10 slips/,
     });
     // The reading room can commit after navigate() resolves (a lazy chunk, a transition): for a moment after the
     // route changes, its exhibit heading is not in the document yet.
@@ -168,19 +247,45 @@ describe("W-JG-01 first view", { timeout: 60_000 }, () => {
     }
   });
 
-  it("leads with the paper: at 1470 × 956 the desk lies beside the invoice, under the pool's strip", async () => {
+  it("lays the first view on the grid: the invoice beside the pool, then the pipeline, then the slips' strip", async () => {
     await renderConsole({ path: "/judge", viewport: { width: 1470, height: 956 } });
     const funding = await screen.findByTestId("W-JG-01.funding");
-    // The composition: the invoice on the left; the pool as one strip and the desk under it on the right, all
-    // inside the one grid (never a row of its own after the money, which put the paper under the ribbon).
+    const root = screen.getByTestId("W-JG-01");
+    // Rounds 5 and 6: the first view sits on the one twelve-column grid: the invoice beside the pool it funds (the
+    // rate card the pool card's foot), then the pipeline right under the cards, then the slips as one strip that ends
+    // the screen, each a row of the screen's grid.
+    expect(root.classList.contains("fsc-screen")).toBe(true);
     expect(funding.dataset.layout).toBe("desk");
     expect(screen.getByTestId("W-JG-01.pool").dataset.variant).toBe("strip");
     const desk = screen.getByTestId("W-JG-01.desk");
-    expect(desk.parentElement?.parentElement).toBe(funding);
-    const order = [screen.getByTestId("W-JG-01.invoice"), screen.getByTestId("W-JG-01.pool"), desk];
+    const money = screen.getByTestId("W-JG-01.invoice").parentElement;
+    const paper = screen.getByTestId("W-JG-01.pool").parentElement;
+    expect(money?.dataset.col).toBe("money");
+    expect(paper?.dataset.col).toBe("paper");
+    expect(money?.parentElement).toBe(funding);
+    expect(paper?.parentElement).toBe(funding);
+    expect(screen.getByTestId("W-JG-01.rules").closest("[data-testid='W-JG-01.pool']")).toBeTruthy();
+    expect(desk.parentElement).toBe(root);
+    expect(screen.getByTestId("story-tiles").parentElement).toBe(root);
+    const order = [
+      screen.getByTestId("W-JG-01.invoice"),
+      screen.getByTestId("W-JG-01.pool"),
+      screen.getByTestId("W-JG-01.rules"),
+      screen.getByTestId("story-tiles"),
+      desk,
+    ];
     for (let i = 1; i < order.length; i++) {
-      expect(order[i - 1]?.compareDocumentPosition(order[i] as Node)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+      const position = order[i - 1]?.compareDocumentPosition(order[i] as Node) ?? 0;
+      expect(position & Node.DOCUMENT_POSITION_FOLLOWING).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     }
+    // The title row keeps the heading, its state and its id line only; the slips follow the pipeline.
+    expect(within(screen.getByTestId("W-JG-01")).getAllByRole("heading", { level: 1 })).toHaveLength(1);
+    expect(
+      screen.getByTestId("W-JG-01").querySelector(".fsc-first__head [data-testid='W-JG-01.rules']"),
+    ).toBeNull();
+    expect(funding.compareDocumentPosition(screen.getByTestId("story-tiles"))).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
     // Where the desk lands against the fold is a layout fact jsdom cannot measure (it lays nothing out): the
     // browser checks it. Hand-written pixel budgets here could not fail for a CSS change, so none is kept.
   });
@@ -195,15 +300,34 @@ describe("W-JG-01 first view", { timeout: 60_000 }, () => {
     expect(screen.getByTestId("W-JG-01").dataset.state).toBe("session");
     expect(screen.getByTestId("W-JG-01.invoice.amount").dataset.amountState).toBe("landed");
     expect(screen.getByTestId("W-JG-01.pool").dataset.state).toBe("landed");
+    // Round 5: "Funded" is the screen's state, the chip on its title row (MM-S floods it), said once; no "status
+    // check · time" on screen: where the word came from is the chip's title and its hidden words.
+    const state = screen.getByTestId("W-JG-01.title");
+    expect(state.dataset.state).toBe("funded");
+    expect(state.contains(screen.getByTestId("W-JG-01.funded"))).toBe(true);
     expect(screen.getByTestId("W-JG-01.funded").textContent).toBe("Funded");
-    expect(screen.getByTestId("W-JG-01.funded.source").textContent).toMatch(
+    expect(screen.getByTestId("W-JG-01.funded").getAttribute("title")).toMatch(
       /Simulated PayPal sandbox, status check/,
     );
-    expect(screen.getByTestId("W-JG-01.status").textContent).toMatch(/^Funded\./);
+    expect(screen.getByTestId("W-JG-01.funded.source").classList.contains("fs-sr")).toBe(true);
+    expect(screen.getByTestId("W-JG-01").textContent).not.toMatch(/status check · \d/);
+    expect(screen.getByTestId("W-JG-01.pool").querySelector("[data-testid='W-JG-01.funded']")).toBeNull();
+    // The session's own run: its id in the id line, its invoice id on the card.
+    expect(screen.getByTestId("W-JG-01.head").querySelector(".fsc-screen__id")?.textContent).toMatch(
+      // Round 7: the run id alone; the title's suffix says the season.
+      /^r\d+$/,
+    );
+    expect(screen.getByTestId("W-JG-01.invoice.id").textContent).toMatch(/^FS-2026A-r\d+$|^draft$/);
+    // Funded, the pool is ink and wears the second micro-tag: still three tags on the stage at most.
+    expect(screen.getByTestId("W-JG-01.pool.eq").dataset.state).toBe("landed");
+    expect(screen.getByTestId("W-JG-01.pool.tag").dataset.fsTag).toBe("micro");
+    expect(tagBudget(screen.getByTestId("W-JG-01.stage")).ok).toBe(true);
+    // Round 6: nothing under the record (the chip says "Funded", the pill says what is next).
+    expect(screen.queryByTestId("W-JG-01.status")).toBeNull();
+    expect(screen.queryByTestId("W-JG-01.next")).toBeNull();
+    expect(screen.queryByTestId("W-JG-01.continue")).toBeNull();
     expect(screen.getByTestId("W-JG-01.markPaid").dataset.state).toBe("committed");
-    // The title follows the run: no longer "ready to pay" once the invoice has read back as paid.
-    expect(screen.getByTestId("W-JG-01.title").textContent).toBe("Season 2026-A is funded.");
-    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Season 2026-A is funded.");
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Season 2026-A");
     await expectNoAxeViolations(view.container);
   });
 
@@ -242,9 +366,7 @@ describe("W-JG-01 first view", { timeout: 60_000 }, () => {
     const log = recordRequests();
     await renderConsole({ path: "/judge", world, handlers: [log.handler] });
     await press("W-JG-01.markPaid");
-    await waitFor(() =>
-      expect(screen.getByTestId("W-JG-01.title").textContent).toBe("Season 2026-A is funded."),
-    );
+    await waitFor(() => expect(screen.getByTestId("W-JG-01.title").dataset.state).toBe("funded"));
     expect(log.sent.some((r) => r.path === "/v1/judge/session")).toBe(true);
     expect(log.sent.filter((r) => r.path.endsWith("/mark-paid"))).toEqual([]);
     expect(screen.queryByTestId("W-JG-01.error")).toBeNull();
@@ -416,7 +538,7 @@ describe("server payment pacing", () => {
       ],
     });
     await press("W-JG-01.markPaid");
-    await waitFor(() => expect(screen.getByTestId("W-JG-01.title").textContent).toContain("is funded"));
+    await waitFor(() => expect(screen.getByTestId("W-JG-01.title").dataset.state).toBe("funded"));
     expect(screen.queryByTestId("W-JG-01.error")).toBeNull();
   });
   it("shows a QUEUED delay, then retries exactly once", async () => {
@@ -458,10 +580,11 @@ describe("server payment pacing", () => {
     });
     await press("W-JG-01.markPaid");
     await waitFor(() => expect(screen.getByTestId("W-JG-01.status").textContent).toContain("You're next"));
-    await act(async () => {
-      fireEvent.click(screen.getByTestId("W-JG-01.reset"));
-    });
-    await waitFor(() => expect(screen.getByTestId("W-JG-01.title").textContent).toContain("ready to pay"));
+    // Round 4: Reset is in the chevron's menu.
+    await clickStageMenuItem("W-JG-01.reset");
+    await waitFor(() =>
+      expect(screen.getByTestId("W-JG-01.title").textContent).toContain("Awaiting payment"),
+    );
     await new Promise((resolve) => setTimeout(resolve, 800));
     expect(calls).toBe(1);
     expect(screen.queryByText(/You're next/)).toBeNull();

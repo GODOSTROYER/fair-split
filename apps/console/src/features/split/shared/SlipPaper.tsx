@@ -7,6 +7,7 @@
 
 import type { SnapshotSlip } from "@fairsplit/contracts";
 import { Paper } from "@fairsplit/ui-web";
+import { useId } from "react";
 
 /** The boxes a person compares or a hold points at. */
 export type SlipBox = "serial" | "date" | "member" | "name" | "gross" | "tare" | "net" | "grade";
@@ -69,6 +70,7 @@ export function SlipPaper({ slip, width = 200, alt, markLine, testId, className 
   const rows = rowsOf(slip);
   const marks = slip.boxes["13"];
   const stained = slip.artifacts.includes("WATER_STAIN");
+  const stainId = `fsr-stain-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
   return (
     <Paper alt={alt} testId={testId} className={["fsr-slip", className].filter(Boolean).join(" ")}>
       <svg
@@ -152,7 +154,24 @@ export function SlipPaper({ slip, width = 200, alt, markLine, testId, className 
         <text x={14} y={H - 10} fill={FORM_INK} className="fsr-slip__form">
           Clerk {slip.clerkInitials}
         </text>
-        {stained && <ellipse cx={150} cy={190} rx={58} ry={34} className="fsr-slip__stain" />}
+        {/* Round 6 (film U2): the water stain is a cool grey 45° hatch over a faint wash, never an ochre blot. */}
+        {stained && (
+          <g data-stain="" aria-hidden>
+            <defs>
+              <pattern
+                id={stainId}
+                width={5}
+                height={5}
+                patternUnits="userSpaceOnUse"
+                patternTransform="rotate(45)"
+              >
+                <rect width={1.4} height={5} className="fsr-slip__stain-line" />
+              </pattern>
+            </defs>
+            <ellipse cx={150} cy={190} rx={58} ry={34} className="fsr-slip__stain" />
+            <ellipse cx={150} cy={190} rx={58} ry={34} fill={`url(#${stainId})`} />
+          </g>
+        )}
       </svg>
     </Paper>
   );

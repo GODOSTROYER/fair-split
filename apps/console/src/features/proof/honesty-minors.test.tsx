@@ -45,7 +45,12 @@ describe("Proof and log copy stays faithful to its evidence", () => {
     expect(screen.getByTestId("W-PF-01.metric.timing").textContent).toContain(
       "No timing: payout statuses are replayed from an earlier simulated PayPal sandbox run.",
     );
-    expect(screen.getByTestId("W-PF-01.metric.rails").textContent).toMatch(/On PayPal \(simulated sandbox\)/);
+    expect(screen.getByTestId("W-PF-01.metric.rails").textContent).toMatch(/^On PayPal/);
+    // The rail is named in words for a screen reader (round 5, provenance once: no legend glyph in view; the page's
+    // quiet indicator says it on screen).
+    const rails = screen.getByTestId("W-PF-01.metric.rails");
+    expect(rails.querySelector(".fs-legend-glyph")).toBeNull();
+    expect(rails.querySelector("dt .fs-sr")?.textContent).toBe(" (Simulated PayPal sandbox)");
     expect(screen.getByTestId("W-PF-01.railbar.table").textContent).toContain("PayPal (simulated sandbox)");
   });
 

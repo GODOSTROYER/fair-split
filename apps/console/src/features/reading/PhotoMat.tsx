@@ -45,6 +45,14 @@ export const PhotoMat = memo(function PhotoMat({
           loading="lazy"
         />
       )}
+      {/* Round 6: the compositor's notes baked into the picture are covered in the desk's own tone (reading.css). */}
+      {photo && (
+        <>
+          <span className="fsc-mat__veil" data-at="head" aria-hidden />
+          <span className="fsc-mat__veil" data-at="mid" aria-hidden />
+          <span className="fsc-mat__veil" data-at="foot" aria-hidden />
+        </>
+      )}
       {fieldOutline && <span className="fsc-mat__outline" style={fracStyle(fieldOutline)} />}
       {!photo &&
         slips.map(({ position, slip }) => (

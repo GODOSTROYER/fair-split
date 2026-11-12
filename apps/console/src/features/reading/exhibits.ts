@@ -134,6 +134,37 @@ export function photoFieldFrac(photoId: string, serial: string, field: string): 
   return rect ? fraction(rect) : null;
 }
 
+/**
+ * The by-hand witness (round 8): the real photograph cropped to one slip, at the slip's own width and centred on its
+ * gross and net rows, so the stained digits show as the clerk's photo has them (never a redrawn form). Fractions of
+ * the photo; null when the photo or the slip's boxes are not in the manifest.
+ */
+export function photoSlipCrop(
+  photoId: string,
+  serial: string,
+): {
+  readonly image: string;
+  /** The slip's left edge and width, as fractions of the photo's width. */
+  readonly left: number;
+  readonly width: number;
+  /** The middle of the gross and net rows, as a fraction of the photo's height. */
+  readonly centreY: number;
+} | null {
+  const photo = manifest.compositions[photoId];
+  const slip = photo?.slips.find((entry) => entry.serial === serial);
+  const gross = slip?.fields.gross_kg;
+  const net = slip?.fields.net_kg;
+  if (!photo || !slip || !gross || !net) return null;
+  const width = slip.rect.x2 - slip.rect.x1;
+  if (width <= 0) return null;
+  return {
+    image: photo.image.file,
+    left: slip.rect.x1,
+    width,
+    centreY: (Math.min(gross.y1, net.y1) + Math.max(gross.y2, net.y2)) / 2,
+  };
+}
+
 export function photoBandFrac(photoId: string, serial: string): Frac | null {
   const slip = manifest.compositions[photoId]?.slips.find((entry) => entry.serial === serial);
   const net = slip?.fields.net_kg;

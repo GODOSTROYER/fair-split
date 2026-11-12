@@ -15,19 +15,23 @@ export const GATE_COPY = {
 
 export const SEASON_COPY = {
   title: (season: string) => `Season ${season}`,
-  lot: (lot: string, kg: string, buyer: string, sacks: number) =>
-    `Lot ${lot}: ${sacks} jute sacks, ${kg}, shipped to ${buyer}.`,
+  /** The lot's facts under the co-op (round 4): data joined by " · ", the lot's code already beside the season. */
+  lotFacts: (kg: string, buyer: string, sacks: number) => `${sacks} jute sacks · ${kg} · shipped to ${buyer}`,
   strip: "Run stages",
   stripDone: "done",
   stripNext: "next",
   stripNextWord: "Next",
   stripLater: "not yet",
+  /** Paid's note on a run that settled on PayPal while cash is still due at the bodega (round 4). */
+  stripCashDue: "Cash due",
   /** The last stage on a run that settled on replayed payout statuses: never "Paid". */
   stripReplayed: "Replayed",
   pool: "The pool",
   poolShare: (members: number) => `What ${members} members share`,
   premium: "Premium",
   premiumNote: "Never deducted, R0",
+  /** The first view's premium lock, in words (round 5: no rule id where a person reads). */
+  premiumNever: "Never deducted",
   bonus: "Quality bonus",
   disbursement: "Disbursement",
   disbursementNote: "Payout costs, never shared",
@@ -38,19 +42,16 @@ export const SEASON_COPY = {
     "Line labels: a placeholder written with the seed (no Claude recording in this build). Every amount is the engine's quote, checked by the live policy lattice before anything is sent.",
   invoiceLines: "Invoice lines (seeded sample)",
   invoiceLinesNote: (_recorded: string) =>
-    "Written with the seed; Claude did not draft these lines in this build. Every amount is the engine's quote; policy checks it before anything is sent.",
+    "Written with the seed; Claude did not draft these lines. Every amount is the engine's quote.",
   memo: (note: string) => `Memo: ${note}`,
   autoCancel: (date: string) => `Auto-cancels ${date} if unpaid.`,
   sentBy: (name: string) => `Sent by ${name}`,
   funded: "Funded",
   waiting: "Waiting for payment",
-  photos: (count: number) => `The desk: ${count} photos to read`,
-  photosNote: "Four synthetic slips a photo, composed in code. Open one in the reading room.",
   photoLabel: (id: string, serials: string, read: boolean) =>
     `Photo ${id}: slips ${serials}${read ? ", read" : ""}. Synthetic sample.`,
   evalTitle: "Reading eval",
-  evalEmpty:
-    "No payroll eval report is served here. The reading room separately shows the ten real hero-slip readings with provisional, agent-checked labels.",
+  evalEmpty: "No eval report is served here.",
   evalCaption: (exact: string, baseline: string, unsafe: number, date: string) =>
     `40 labelled synthetic cases. Exact rows ${exact} against an OCR-only baseline of ${baseline}. Unsafe auto-accepts ${unsafe}. Run ${date}.`,
   evalCase: "Case",
@@ -84,34 +85,57 @@ export function fundedSource(rail: PaypalRail): string {
     : "The payment was recorded on the untested PayPal sandbox rail, then the invoice read back as paid with nothing due.";
 }
 
-/** The first view's single action (W-JG-01), and what happens while it runs. */
+/** The buyer's short name on a line of words: "Lantern Bay" for "Lantern Bay Chocolate Co.". */
+export function shortBuyer(buyer: string): string {
+  return buyer
+    .replace(/\s+Chocolate(\s+(Co\.?|Company))?$/i, "")
+    .replace(/\s+(Co\.?|Company|Inc\.?|Ltd\.?)$/i, "");
+}
+
+/** The first view's single action (W-JG-01), and what happens while it runs (UI gate round 2: one line each). */
 export const FIRST_VIEW_COPY = {
-  lede: (members: number, buyer: string) =>
-    `${members} members' cacao went to ${buyer} in one lot. One invoice funds every member's share; the slips on the desk decide who gets what.`,
-  pressNote: (payer: string, amount: string, rail: PaypalRail) =>
-    `${payer}, ${amount}. ${rail === "simulator" ? "Simulated PayPal sandbox" : "Untested PayPal sandbox rail"}. The run starts once the invoice reads as paid.`,
+  /**
+   * The title row (round 5): a noun title with the season as its grey suffix, "Season 2026-A", and the run's state
+   * as one chip on the same row: "Awaiting payment" until the invoice reads back paid, then "Funded", then the
+   * settled run's words (`settledStatus`), never more than the run has done.
+   */
+  title: "Season",
+  awaiting: "Awaiting payment",
   srConsequence: "starts the run, changes a line",
   starting: "Starting your run.",
-  pending: "Recording the payment, then reading the invoice back.",
-  funded: "Funded. The slips decide each member's share.",
+  pending: "Recording the payment.",
   movedOn: "The invoice is paid. The run has moved on.",
-  /** A settled run's title: PayPal counts only payouts its own evidence confirmed; a replay says so. */
-  settled: (
-    season: string,
-    c: { readonly paypal: number; readonly cash: number; readonly replayed: boolean },
-  ) =>
-    c.replayed
-      ? `Season ${season} is settled: ${c.paypal} payout statuses replayed (labelled), ${c.cash} in cash.`
-      : `Season ${season} is paid: ${c.paypal} by PayPal, ${c.cash} in cash.`,
-  openNext: "Go to the next step",
-  rules: "The rules, bolted before the first slip",
+  /** A settled run's status line: PayPal's part, then the cash still due (the pill's own words). */
+  settledStatus: (replayed: boolean, cashDue: boolean) =>
+    `${replayed ? "Payouts replayed" : "PayPal complete"}${cashDue ? " · cash due" : ""}`,
+  /**
+   * The spent press's record (round 6, film U1): whose payment it is, who recorded it and when. Lantern Bay pays;
+   * the treasurer records it. Never "paid by" the treasurer.
+   */
+  recorded: (buyer: string, by: string, time: string | null) =>
+    `${shortBuyer(buyer)}'s payment · recorded by ${by}${time ? ` · ${time}` : ""}`,
   openCard: "Open the rate card",
-  titleFunded: (season: string) => `Season ${season} is funded.`,
-  desk: "The slips on the desk",
-  synthetic: "Synthetic samples",
+  /** The rate card's row, the pool card's foot (round 5): its name, its hash and seal date, then "Open". */
+  card: "Rate card",
+  /** The chip's seal date, after its hash (the hash is an id, in the mono). */
+  cardSealedOn: (date: string) => ` · sealed ${date}`,
+  open: "Open",
+  /** The pool's strip and the desk's head (W-JG-01). */
+  pool: "Pool",
+  members: (n: number) => `${n} members`,
+  /** The pool's state before the simulated PayPal funds it, beside its hollow dot (round 4). */
+  notFunded: "Not funded",
+  /** The pool's amount, then its sum in words under it (round 5): "Invoice US$4,333.50 − costs US$60.00". */
+  eqInvoice: "Invoice",
+  eqCosts: "costs",
+  eqSpoken: (invoice: string, costs: string) => `Invoice ${invoice} minus costs ${costs} equals the pool: `,
+  /** The desk's counts with their scope (round 3): this run's photos and slips, then the season's slip images. */
+  slipsMicro: (photos: number, counts: string) => `${photos} photos · ${counts}`,
+  exhibit: "Claude's readings of 10 slips",
+  invoice: "Invoice",
+  desk: "Slips",
   deskNote: (count: number, funded: boolean) =>
     funded
       ? `${count} photos composed in code, four synthetic slips each, in Jessie's blue block capitals. Each photo ticks once its rows land.`
       : `${count} photos composed in code, four synthetic slips each, in Jessie's blue block capitals.`,
-  stamp: (name: string) => `Pressed by ${name}`,
 } as const;

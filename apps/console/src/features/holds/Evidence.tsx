@@ -2,21 +2,24 @@
 // H1: the two copies of slip 0457 side by side, converging, then their matching fields lit in turn (MM-3, "The
 // pink copy"; S2.9: the two photos are separate generations, so the proof is matching fields, not an overlay).
 // Serial, date, member and net kg light in turn, 120 ms apart, their values printing in ink, two to a row; one
-// canary underline draws beneath the two serials (design §7 M3), then "4 of 4 fields match. Same slip." prints.
-// The count is the DTO's: a field that differs keeps its pencil "≠" and is never lit, so a mismatch reads "3 of
-// 4". H2: the registry's plots and the
-// kilos-per-tree bar. H3: box 13 of slip 0458, each line against Schedule A's closed list. Every figure is the
-// seed's or the engine's.
+// canary underline draws beneath the two serials (design §7 M3), then "4/4 fields match" prints. The count is
+// the DTO's: a field that differs keeps its pencil "≠" and is never lit, so a mismatch reads "3/4". H2: the
+// registry's plots and the kilos-per-tree bar. H3: box 13 of slip 0458, each line against Schedule A's closed
+// list (its four rules as micro chips). Every figure is the seed's or the engine's.
 
 import type { SnapshotSlip } from "@fairsplit/contracts";
 import { MOMENTS, type MomentPhase, TIMING } from "@fairsplit/motion";
-import { Glyph, Print } from "@fairsplit/ui-web";
+import { Glyph, HONESTY, Print } from "@fairsplit/ui-web";
+import { ruleTitle } from "../../lib/plain.js";
 import { HOLDS } from "../split/shared/copy.js";
 import { copyWord, SlipPaper } from "../split/shared/SlipPaper.js";
 import type { NoRuleFacts, TwinRow, YieldFacts } from "./model.js";
 
 type Mm3Phase = MomentPhase<"MM-3">;
 const MM3 = MOMENTS["MM-3"] as readonly Mm3Phase[];
+
+/** Each copy's width in the 560 px drawer: two side by side with the seam between them. */
+const TWIN_PX = 216;
 
 /** True once MM-3 has reached `at` (phases run in the catalogue's order). */
 export function reached(phase: Mm3Phase, at: Mm3Phase): boolean {
@@ -43,14 +46,15 @@ export function TwinCompare({ a, b, rows, phase, animate, mode }: TwinComparePro
   let pair = 0;
   const copy = (slip: SnapshotSlip, side: "a" | "b") => (
     <figure className="fsr-twin__copy" data-side={side} data-copy={slip.copy}>
+      {/* The two copies at a readable size (round 5): their handwritten fields carry the comparison's weight. */}
       <SlipPaper
         slip={slip}
-        width={152}
+        width={TWIN_PX}
         alt={HOLDS.slipAlt(slip.serial, copyWord(slip.copy), slip.photoId)}
         testId={`W-TR-06.twin.${side}`}
       />
-      <figcaption className="fsr-twin__caption fs-t-caption">
-        <span className="fs-t-label">{HOLDS.photo(slip.photoId)}</span> {copyWord(slip.copy)}
+      <figcaption className="fsr-twin__caption fs-t-micro">
+        {HOLDS.copyCaption(slip.photoId, copyWord(slip.copy))}
       </figcaption>
     </figure>
   );
@@ -104,7 +108,13 @@ export function TwinCompare({ a, b, rows, phase, animate, mode }: TwinComparePro
           ))}
         </tbody>
       </table>
-      <p className="fsr-twin__verdict" data-testid="W-TR-06.twin.verdict" hidden={!ready}>
+      <p
+        className="fsr-twin__verdict"
+        data-testid="W-TR-06.twin.verdict"
+        data-all={matched.length === rows.length ? "" : undefined}
+        title={HOLDS.fieldsMatchSpoken(matched.length, rows.length)}
+        hidden={!ready}
+      >
         <Glyph name="duplicate" size={16} />
         <Print
           value={HOLDS.fieldsMatch(matched.length, rows.length)}
@@ -113,6 +123,11 @@ export function TwinCompare({ a, b, rows, phase, animate, mode }: TwinComparePro
           typeRole="label"
           reveal={animate && ready}
         />
+        {/* The pair is the seed's: said once on screen, in the split's id line (round 5: no inline glyph); its
+            canonical phrase stays here in words for assistive technology and as its title (inv.i8). */}
+        <span className="fs-sr" title={HONESTY.seedStandIn.label} data-testid="W-TR-06.twin.standIn">
+          {HONESTY.seedStandIn.label}
+        </span>
       </p>
     </div>
   );
@@ -151,27 +166,40 @@ export function YieldEvidence({ facts, plots, registered }: YieldEvidenceProps) 
         </figcaption>
       </figure>
       <div className="fsr-plots">
-        <p className="fs-t-caption fsr-muted">{HOLDS.plotsTitle}</p>
+        <p className="fsr-plots__title fs-t-caption fsr-muted" title={HOLDS.plotPrivate}>
+          {HOLDS.plotsTitle}
+          <Glyph name="ms:lock" size={12} label={HOLDS.plotPrivate} />
+        </p>
         <ul>
-          {plots.map((p) => (
-            <li
-              key={p.plotNo}
-              data-registered={p.registered || registered ? "" : undefined}
-              data-testid={`W-TR-06.plot.${p.plotNo}`}
-            >
-              <Glyph name={p.registered || registered ? "plot-fill" : "plot"} size={16} />
-              <span className="fs-t-body">
-                {p.registered || registered
-                  ? HOLDS.plotRegistered(p.plotNo, p.areaHa, p.trees)
-                  : HOLDS.plotPending(p.plotNo, p.areaHa, p.trees)}
-              </span>
-            </li>
-          ))}
+          {plots.map((p) => {
+            const isRegistered = p.registered || registered;
+            return (
+              <li
+                key={p.plotNo}
+                data-registered={isRegistered ? "" : undefined}
+                data-testid={`W-TR-06.plot.${p.plotNo}`}
+              >
+                <Glyph name={isRegistered ? "plot-fill" : "plot"} size={16} />
+                <span className="fs-t-figure">
+                  {isRegistered
+                    ? HOLDS.plotRegistered(p.plotNo, p.areaHa, p.trees)
+                    : HOLDS.plotPending(p.plotNo, p.areaHa, p.trees)}
+                </span>
+                {!isRegistered && (
+                  <span className="fsr-plots__pending fs-t-label">{HOLDS.plotNotRegistered}</span>
+                )}
+              </li>
+            );
+          })}
         </ul>
-        <p className="fs-t-caption fsr-muted">{HOLDS.plotPrivate}</p>
       </div>
     </div>
   );
+}
+
+/** A Schedule A rule's name by its id ("R2" is "hauling"), for its title. */
+function ruleName(id: string): string | undefined {
+  return HOLDS.rules.find((r) => r.id === id)?.name;
 }
 
 export interface NoRuleEvidenceProps {
@@ -199,9 +227,9 @@ export function NoRuleEvidence({ slip, facts }: NoRuleEvidenceProps) {
             <li key={m.text} data-rule={m.rule ?? "none"}>
               <span className="fs-t-body">{m.text}</span>
               {m.rule ? (
-                <span className="fsr-norule__ok fs-t-label">
+                <span className="fsr-norule__ok fs-t-label" title={ruleTitle(m.rule, ruleName(m.rule))}>
                   <Glyph name="ms:check" size={14} />
-                  {HOLDS.ruleOk(m.rule)}
+                  {HOLDS.ruleOk}
                 </span>
               ) : (
                 <span className="fsr-norule__none fs-t-label">
@@ -212,7 +240,21 @@ export function NoRuleEvidence({ slip, facts }: NoRuleEvidenceProps) {
             </li>
           ))}
         </ul>
-        <p className="fs-t-caption fsr-muted">{HOLDS.closedList}</p>
+        <p className="fsr-norule__rules" title={HOLDS.closedList}>
+          <span className="fs-t-caption fsr-muted">{HOLDS.closedListLabel}</span>
+          {/* Each rule by its name (round 5: no ids for people); its id is its title. */}
+          {HOLDS.rules.map((r) => (
+            <span
+              key={r.id}
+              className="fsr-norule__rule fs-t-micro"
+              title={ruleTitle(r.id)}
+              data-used={facts.marks.some((m) => m.rule === r.id) ? "" : undefined}
+            >
+              {r.name}
+            </span>
+          ))}
+          <span className="fs-sr">{HOLDS.closedList}</span>
+        </p>
       </div>
     </div>
   );

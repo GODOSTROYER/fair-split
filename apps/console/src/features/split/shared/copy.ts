@@ -4,6 +4,7 @@
 // "real", "live" or "verified" (S1.11). Every figure arrives as an argument formatted by `format.*`.
 
 import { type MessageKey, translate, type Values } from "@fairsplit/i18n";
+import { IDS_LABEL, KEY_CAPTION, SHRINK } from "../../../lib/plain.js";
 
 /** A catalog message in the console's language (English, in the co-op's own words). */
 export const en = (key: MessageKey, values?: Values): string => translate("en", key, values);
@@ -13,17 +14,70 @@ export const SPLIT = {
   empty: "No lines yet. They appear once the slips are read.",
   emptyLink: "Open the reading room",
   declined: "The simulated PayPal sandbox declined the batch: the balance is too low. Nothing was sent.",
-  allDecided: "Every hold is decided. The batch is ready for two keys.",
-  decidedKey1: "Every hold is decided. Analyn signed; the batch waits for Ernesto.",
-  decidedApproved:
-    "Every hold is decided and both keys signed. The simulated PayPal sandbox confirms each payment as it lands.",
-  decidedSettled: "Every hold was decided and the run is settled.",
+  allDecided: "Every hold decided",
+  decidedKey1: "Every hold decided · Analyn signed",
+  decidedApproved: "Every hold decided · both keys signed",
+  decidedSettled: "Every hold decided · settled",
+  /** Settled with cash still due at the bodega: PayPal's part is complete, the run is not (round 3). */
+  decidedCashDue: "Every hold decided · PayPal complete · cash due",
+  /** A replay run never promises fresh simulator confirmations (inv.i8). */
+  decidedReplayed: "Every hold decided · both keys signed · payouts replayed (labelled)",
+  /** The open decisions as counts: "3 holds open · 1 by hand". Nothing that is zero is said. */
+  summary: (holds: number, byHand: number) =>
+    [
+      ...(holds > 0 ? [holds === 1 ? "1 hold open" : `${holds} holds open`] : []),
+      ...(byHand > 0 ? [`${byHand} by hand`] : []),
+    ].join(" · "),
   approveLink: "Open Approve",
+  /** The bench's word over the next decision's link (round 5: the open counts are the title row's chip). */
+  nextLabel: "Next",
+  /** A line waiting for slip 0462's entry, in its status cell (its hold's label is the slip's, too long a tag). */
+  byHandStatus: "By hand",
   nextHold: (label: string, title: string) => `Open ${label}: ${title}`,
   byHandNext: (slip: string) => `Enter slip ${slip} by hand`,
   filters: "Filter lines",
+  filter: { all: "All", held: "Held", byHand: "By hand", paypal: "PayPal", cash: "Cash" },
+  /** The rail filters before the batch posts: the lines' planned rails, not payments. */
+  railPlanned: "planned",
+  railPlannedTitle: "Rails as planned: nothing is sent before both keys sign",
   allColumns: "All columns",
   fewerColumns: "Fewer columns",
+  columns: "Columns",
+  title: "Split review",
+  /**
+   * The id line's run (round 5: one run id everywhere, "2026-A · r37"); the lines, the engine, what the lines
+   * include and the rate card's hash are its title ("… · rate card f2d7 026d").
+   */
+  rateCardWord: "rate card",
+  provenanceTitle: (lines: number, basis: string) => `${lines} lines · engine v1 · ${basis}`,
+  /** The grid's column words in the console's English (round 3): the money column says its currency. */
+  netColumn: "Net US$",
+  deductionsColumn: "Deductions",
+  /** The footer says what its figure is. */
+  totalsLabel: "Member net total",
+  /** The reconciliation above the grid: pool − deductions (+ credits) = member net, every figure the engine's. */
+  reconcile: {
+    pool: "Pool",
+    deductions: "deductions",
+    credits: "credits",
+    net: "member net",
+  },
+  reconcileSpoken: (pool: string, deductions: string, credits: string | null, net: string) =>
+    `Pool ${pool} minus deductions ${deductions}${credits ? ` plus credits ${credits}` : ""} equals member net ${net}`,
+  /** A narrow grid opens a line's calculation under it. */
+  showParts: (name: string) => `Show ${name}'s premium, bonus and deductions`,
+  partsColumn: "Parts",
+  basis: {
+    read: "before slip 0462",
+    byHand: "after slip 0462 by hand",
+    resolved: "every decision so far",
+  },
+  balancedTitle: (gross: string) =>
+    `Gross = pool, to the cent (${gross}). Net + ruled deductions − credits = pool.`,
+  premiumLock: "R0 · never deducted",
+  dialWas: (was: string) => `was ${was}`,
+  dialLimit: (limit: string) => `limit ±${limit}`,
+  dialSpoken: (value: string) => `Shrink ${value} percent`,
   totalsLines: (n: number) => `${n} lines`,
   slipCount: (n: number) => (n === 1 ? "1 slip" : `${n} slips`),
   showAll: (n: number) => `Show all ${n} lines`,
@@ -37,15 +91,26 @@ export const SPLIT = {
   creditReturned: "Returned multa",
   confidenceUnknown: "Read earlier this season",
   byHand: "By hand",
-  perTreeOver: (kg: string, limit: string) => `${kg} a tree, over ${limit}`,
+  /** The Verified kg cell's title: what the kilos make per registered tree, against the limit. */
+  perTreeTitle: (kg: string, trees: number, limit: string) =>
+    `${kg} kg a tree from ${trees} registered trees; the limit is ${limit}`,
+  /** The duplicate badge (round 4): "0457 ×2" while its hold is open, "0457 counted once" once decided. */
+  countedTwice: (serial: string) => `${serial} ×2`,
+  countedOnce: (serial: string) => `${serial} counted once`,
+  /** H2's note under Merlyn's line (round 4): the figure the hold is about, and its limit. */
+  perTreeNote: (kg: string) => `${kg} kg a tree`,
+  perTreeNoteMicro: (limit: string, trees: number) => `limit ${limit} kg · ${trees} registered trees`,
+  openNote: (label: string) => `Open ${label}`,
   movedToCash: "Moved to cash",
-  reserved: "Reserved, never redistributed.",
-  held: "Gisusi pa",
+  /** The console is English: "Held" and "Reserved"; Cebuano ("Gisusi pa") lives on the phone. */
+  reserved: "Reserved",
+  reservedTitle: "Reserved, never redistributed",
+  held: "Held",
   openLine: (name: string) => `Open ${name}'s line`,
   openHold: (label: string, name: string) => `Open hold ${label} on ${name}'s line`,
   dialPending: (slip: string) => `Waits for slip ${slip}`,
-  dialInside: "Inside the limit",
-  dialOutside: "Over the limit",
+  dialInside: "Inside limit",
+  dialOutside: "Over limit",
   massBalanceCaption: (verified: string, shipped: string) =>
     `${verified} verified against ${shipped} shipped`,
   provenance: "Lines",
@@ -53,6 +118,10 @@ export const SPLIT = {
 
 export const HOLDS = {
   meta: (index: number, total: number) => en("W-TR-06.position", { index, total }),
+  /** A decided hold's place in the run (round 6): "Hold 1 of 3 · done". */
+  metaDone: (index: number, total: number) => `${en("W-TR-06.position", { index, total })} · done`,
+  /** Who decided it and when, by name (round 6: never initials alone). */
+  resolvedBy: (name: string, time: string) => `Resolved by ${name} · ${time}`,
   notFound: "No hold with that name in this run.",
   notFoundHelp: "Open the split review to see the holds this run has.",
   next: (label: string) => `Next: hold ${label}`,
@@ -60,20 +129,51 @@ export const HOLDS = {
   slipMeta: (serial: string) => `Slip ${serial}`,
   back: "Back to the split",
   resolvedNote: "Decided. The engine recomputed every line.",
-  overrideNote:
-    "Counted as two deliveries, an override: Ernesto co-signs it with the batch (Schedule A, R5).",
+  overrideNote: "Two deliveries, an override: Ernesto co-signs it with the batch.",
+  // One line plus the decision (unslop spec §3.7). Every figure arrives from the engine's facts.
+  h1EngineInside: (amount: string, members: number, shrink: string, limit: string) =>
+    `Counting both moves ${amount} from ${members} members. Shrink ${shrink}, inside the ${limit} limit until slip 0462 is in.`,
+  /** Counting both, as a number line (round 3): what leaves the 63 and where it lands. */
+  h1Flow: (amount: string, members: number, name: string) =>
+    `${members} members −${amount} → ${name} +${amount}`,
+  /**
+   * H1's one effect line (round 4), directly above "Count it once": what counting it once does to the money and the
+   * dial. The drawer has no engine row and no dial of its own.
+   */
+  h1Effect: (amount: string, members: number, shrinkBoth: string, shrinkOnce: string) =>
+    `If counted once: +${amount} to ${members} members · ${shrinkBoth} → ${shrinkOnce}`,
   h1EffectInside: (amount: string, members: number) =>
-    `Counting it once returns ${amount} to ${members} members. Enter slip 0462 first to see the mass balance it settles.`,
-  yieldEffect: (plot: string) =>
-    `Registering ${plot} adds its trees to her yield check. Her kilos and pay don't change.`,
-  creditReturned: (credit: string) => `Returned as a ${credit} credit paid by the co-op.`,
-  ruleOk: (rule: string) => `Matches ${rule}`,
+    `If counted once: +${amount} to ${members} members · shrink after slip 0462`,
+  /** A hold's gate as its status pill (round 4): a few words, never a sentence with a full stop. */
+  gate: { BLOCKS_APPROVAL: "Blocks approval", RESERVES_LINE: "Reserves this line" } as Readonly<
+    Record<string, string>
+  >,
+  h1TitleOnce: (slip: string) => `Slip ${slip}, counted once`,
+  h1TitleTwo: (slip: string) => `Slip ${slip}, two deliveries`,
+  h1Returned: (amount: string, members: number) => `+${amount} back to ${members} members`,
+  /** Round 8: the receipt's before and after for the slip's own member, for a screen reader. */
+  holderWas: "was",
+  holderNow: "now",
+  h2Title: (name: string, perTree: string) => `${name}: ${perTree} kg a tree`,
+  h2TitleDone: (name: string) => `${name}, plot registered`,
+  h2Engine: (kg: string, trees: number, limit: string) =>
+    `${kg} from ${trees} registered trees. The limit is ${limit} kg a tree.`,
+  h3Title: (slip: string) => `Slip ${slip}, a fine with no rule`,
+  h3TitleDone: (slip: string) => `Slip ${slip}, fine returned`,
+  h3Engine: (mark: string) => `${mark} matches no Schedule A rule.`,
+  yieldEffect: (_plot: string) => "Her kilos and pay don't change.",
+  creditReturned: (credit: string) => `+${credit} credit, paid by the co-op`,
+  /** A written deduction Schedule A allows (round 5: the rule's id is its title, never on screen). */
+  ruleOk: "Allowed",
+  twoDeliveries: "Two deliveries",
+  twoDeliveriesNote: "Needs a reason and the Chair's OK",
   twoDeliveriesTitle: "Why are these two deliveries?",
   twoDeliveriesHint: "Say what the clerk or the member told you. The Chair reads this before he signs.",
   reasonLabel: "Reason",
   reasonSubmit: "Count both, with this reason",
   reasonCancel: "Keep it open",
-  fieldsMatch: (n: number, total: number) =>
+  fieldsMatch: (n: number, total: number) => `${n}/${total} fields match`,
+  fieldsMatchSpoken: (n: number, total: number) =>
     n === total ? `${n} of ${total} fields match. Same slip.` : `${n} of ${total} fields match.`,
   compareCaption: "The two copies, field by field",
   field: { serial: "Serial", date: "Date", member: "Member", net: "Net kg" },
@@ -81,25 +181,15 @@ export const HOLDS = {
   copyPink: "pink duplicate",
   copyYellow: "yellow copy",
   photo: (id: string) => `Photo ${id}`,
+  copyCaption: (id: string, copy: string) => `${id} · ${copy}`,
   slipAlt: (serial: string, copy: string, photo: string) => `Slip ${serial}, ${copy}, photo ${photo}`,
-  shrinkNow: "Mass balance now",
+  shrinkNow: "Shrink now",
   shrinkInside: (shrink: string, limit: string) => `Shrink ${shrink}, inside the ${limit} limit.`,
-  h1EngineInside: (
-    slip: string,
-    photoA: string,
-    photoB: string,
-    amount: string,
-    members: number,
-    name: string,
-    shrink: string,
-    limit: string,
-  ) =>
-    `Slip ${slip} is in two photos: the white original (${photoA}) and the pink duplicate (${photoB}). Counting both moves ${amount} from ${members} members to ${name}. Shrink reads ${shrink}, inside the ${limit} limit, because slip 0462 is not entered yet.`,
   plotsTitle: "Registered plots",
-  plotRegistered: (no: string, ha: string, trees: number) => `${no}, ${ha} ha, ${trees} trees`,
-  plotPending: (no: string, ha: string, trees: number) =>
-    `${no}, ${ha} ha, ${trees} trees, not in the registry yet`,
-  plotPrivate: "The plot point stays private.",
+  plotRegistered: (no: string, ha: string, trees: number) => `${no} · ${ha} ha · ${trees} trees`,
+  plotPending: (no: string, ha: string, trees: number) => `${no} · ${ha} ha · ${trees} trees`,
+  plotNotRegistered: "Not registered",
+  plotPrivate: "Plot points stay private",
   plotForm: "The plot to register",
   plotNo: "Plot",
   plotArea: "Area (ha)",
@@ -111,12 +201,18 @@ export const HOLDS = {
   markNoRule: "No rule",
   closedList:
     "Schedule A is a closed list: CBU (R1), hauling (R2), a loan with an Authority to Deduct (R3), an advance with a voucher (R4).",
-  creditEffect: (credit: string) =>
-    `Returns ${credit} to him as a correction credit paid by the co-op. Nobody else's line changes.`,
+  closedListLabel: "Schedule A",
+  rules: [
+    { id: "R1", name: "CBU" },
+    { id: "R2", name: "hauling" },
+    { id: "R3", name: "loan" },
+    { id: "R4", name: "advance" },
+  ],
+  creditEffect: (credit: string) => `+${credit} correction credit from the co-op · others unchanged`,
   byHandTitle: (slip: string) => `Slip ${slip} needs a person`,
   byHandLink: (slip: string) => `Enter slip ${slip} by hand`,
   byHandDone: (slip: string) => `Slip ${slip} was entered by hand.`,
-  massTitle: "Mass balance",
+  massTitle: "Shrink",
   massLink: "Open H1, the slip counted twice",
   massCleared: "The engine cleared it when the duplicate was counted once.",
   asked: "Asked Ernesto",
@@ -134,24 +230,79 @@ export const APPROVE = {
   blockedReading: "The slips are still being read. Approval opens once every line is computed.",
   blockedWaiting: "Approval waits for",
   blockedLink: (label: string) => `Open ${label}`,
-  signing: "Signing the batch hash with this browser's key",
-  keyLine: (keyId: string, label: string) => `Key ${keyId}, ${label}`,
-  keySeeded: "Sample key (seeded)",
-  keyDevice: "Device key",
-  keyBrowser: "Browser key, registered from /ops",
-  keyDemoChair: "Demo key (the Chair's phone frame)",
+  signing: "Signing",
+  /** The signers' count beside their title (unslop spec §3.9): "0/2 signed". */
+  signedCount: (n: number) => `${n}/2 signed`,
+  /** The two named signers beside the seal (UI gate round 3). */
+  signersTitle: (officers: number) =>
+    officers === 2 ? "Two officers sign this batch" : "One officer signs this batch",
+  batchHashLabel: "Batch hash",
+  /** The hero's label: what the amount is, before the tag says where it runs. */
+  heroLabel: (count: number) => `PayPal batch · ${count === 1 ? "1 payout" : `${count} payouts`}`,
+  railLabel: "The batch and the cash, by value",
+  legendPaypal: "PayPal",
+  legendCash: "Cash at the bodega",
+  checksLabel: "Checks before signing",
+  checkOpen: "Open",
+  checkHolds: "Holds resolved",
+  checkShrink: `${SHRINK} within limit`,
+  checkLines: "Lines explained",
+  checkRateCard: "Rate card unchanged",
+  byHand: (n: number) => `${n} by hand`,
+  since: (date: string) => `since ${date}`,
+  /** The details' summary (round 5): the fees, and every id and hash behind "IDs" (spec §3.9). */
+  detailsSummary: (fees: string) => `Fees ≈ ${fees} · ${IDS_LABEL}`,
+  keyName: { treasurer: "Analyn · Treasurer", chair: "Ernesto · Chair" },
+  /**
+   * Under a signer, where the key lives in words (round 5: no ids for people). The id itself sits behind "IDs".
+   * The Chair's caption before he signs is `chairCaption` ("Co-signs batches over US$300").
+   */
+  keyCaption: {
+    demo: KEY_CAPTION,
+    chairDemo: "Key on the Chair's phone",
+    sample: "Sample key",
+    web: "Browser key",
+    device: "Device key",
+  },
+  /** The ids behind "IDs": each signer's key, by name. */
+  keyIdLabel: { treasurer: "Analyn's key", chair: "Ernesto's key" },
+  /** Approve's state on its title row (round 5): how many keys signed, or what stops them. */
+  chip: {
+    holds: (n: number) => (n === 1 ? "1 hold open" : `${n} holds open`),
+    reading: "Reading",
+    denied: "PayPal declined",
+    paused: "Paused",
+    sentBack: "Sent back",
+  },
+  /** The PayPal recipients under the bar (round 5), for a screen reader. */
+  payeesLabel: (n: number) => `${n} PayPal payouts`,
+  /** Under the slab while no key has signed (round 6): whose signature the press is, and whose comes next. */
+  firstKey: "Then Ernesto signs · 2 of 2",
+  /** Round 8: each signer's place in the order, in his row, until he signs ("Signs first", "Signs second"). */
+  signsFirst: "Signs first",
+  signsSecond: "Signs second",
+  signsNext: "Signs next",
+  /**
+   * Round 8: one short label under the seal per state, so the drawing explains itself: no ring inked, half of them
+   * inked by the treasurer's key, all of them once the Chair's key signs too.
+   */
+  sealState: ["Not signed yet", "Half signed · Analyn", "Signed · Analyn and Ernesto"],
+  payeeWord: { paid: "confirmed", held: "parked" },
   keyWebCrypto: "Made by WebCrypto in this browser; the private half can't be exported.",
   keyNoble: "Held in this page's memory for this session; it never leaves the browser.",
+  keyDemoChair: "Made in the Chair's phone frame.",
   waitingKey: en("W-TR-07.key.waiting"),
-  waitingChair: en("W-TR-07.waiting"),
   presence: (hold: string) => en("W-TR-07.presence", { hold }),
-  presenceApproval: "Ernesto is on the co-sign request",
+  presenceApproval: "Ernesto is reviewing the batch",
+  /** Ernesto's row while he is on the batch (round 4: his state said once, in his row). */
+  reviewing: "Reviewing",
+  reviewingHold: (hold: string) => `Reviewing hold ${hold}`,
+  sameOnPhone: "Same seal on Ernesto's phone",
   approved: en("W-TR-07.approved"),
   postedLink: "Watch the payments land",
   watchPayouts: "Watch the payouts",
-  posting: (batch: string) => en("W-TR-07.posting", { batch }),
-  posted:
-    "The simulated PayPal sandbox accepted the batch. Each payment turns jade only when the simulated PayPal sandbox confirms it.",
+  posting: (batch: string) => `Posting ${batch} · re-hashed, it matches`,
+  posted: "Batch accepted",
   declined: (who: string) => `${who} sent the batch back`,
   declinedNext: "Fix what he asked, then approve again.",
   expired: "The co-sign request expired. Send again.",
@@ -176,106 +327,117 @@ export const APPROVE = {
   batchLabel: "Batch",
   batchPending: "Not final yet",
   linesDigest: "Lines digest",
-  linesNote: (lines: number, cash: number) =>
-    `all ${lines} lines, the ${cash} cash lines too; this browser recomputed it`,
+  linesNote: (lines: number, cash: number) => `· all ${lines} lines, ${cash} cash · recomputed here`,
   rateCard: "Rate card",
-  signTitle: "What you and Ernesto sign",
+  signTitle: "What both keys sign",
   voided: (time: string) =>
     `Both approvals voided at ${time}. A payout changed after signing, so nothing was sent. Review and sign again.`,
   voidedKey: (time: string) => `Voided ${time}`,
-  ledgerNote: "Compare these by eye with the Chair's phone: the seal above grows from the batch hash.",
-  cosignTitle: "Co-sign as Ernesto from your own phone",
-  cosignBody: "Uses a labelled demo key made in your phone's browser.",
+  cosignTitle: "Co-sign on your phone",
+  /** The co-sign title's title (round 5: no glyph beside it). */
+  cosignDemo: en("W-TR-07.qr"),
   cosignMake: "Make a co-sign code",
-  cosignCode: "Type it on the phone's pairing screen. It works once.",
-  cosignLink: "Or open the pairing link on the phone",
-  cosignExpires: (time: string) => `Expires ${time}.`,
-  cosignFrame: "Or sign in the Chair frame on the stage",
+  cosignCode: "Type it on the phone, once",
+  cosignLink: "Open the pairing link",
+  cosignExpires: (time: string) => `expires ${time}`,
+  cosignFrame: "Or sign in the Chair frame",
   feesLabel: en("W-TR-07.feesLabel"),
-  chairWhy: (threshold: string) => en("W-TR-07.key.chairWhy", { threshold }),
   safeEngine: "Engine",
 } as const;
 
 export const FANOUT = {
   loading: "Drawing the fan",
-  notPosted: "Not posted yet. The batch posts after both keys.",
+  notPosted: "Not posted yet.",
   notPostedLink: "Open Approve",
-  waiting: (time: string) =>
-    `Posted ${time}. The simulated PayPal sandbox confirms each payment as it lands.`,
-  waitingSeeded: "Posted. The simulated PayPal sandbox confirms each payment as it lands.",
-  elapsed: (clock: string) => `${clock} since posting`,
-  parked: (name: string) => `${name} is parked. Decide how she gets paid.`,
+  /** The run's instrument while PayPal works: "7/8" over "confirmed". */
+  confirmedWord: "confirmed",
+  /** Settled (round 4): the two outcomes as one hero, "7 PayPal · 57 cash". */
+  settledPaypal: "PayPal",
+  settledCash: "cash",
+  settledSpoken: (paypal: number, cash: number) => `${paypal} confirmed on PayPal · ${cash} in cash`,
+  /** Beside "57 cash" once the cash is attested at the bodega (until then, "due 12 Nov"). */
+  cashHandedOver: "handed over",
+  posted: (time: string, clock: string) => `posted ${time} · ${clock}`,
+  postedSeeded: "posted · confirming",
+  needsYou: (n: number) => `${n} needs you`,
+  dueOn: (date: string) => `due ${date}`,
+  replayedStatus: "Payout statuses replayed (labelled) from an earlier simulated PayPal sandbox run.",
   denied: "The simulated PayPal sandbox declined the batch. No money moved.",
-  done: (paid: number, cash: number, kept: string) =>
-    `${paid} paid by the simulated PayPal sandbox. ${cash} in cash. ${kept} kept for members.`,
-  doneFees:
-    "The simulated PayPal sandbox reports each modelled fee with the item; none is shown until it arrives.",
-  onPaypal: (pct: string, n: number, total: number) =>
-    `On simulated PayPal: ${pct} of value (${n} of ${total} members)`,
-  /**
-   * The fan's one-line count, in the same words as the stage's Proof counter: what PayPal was sent, what it
-   * confirmed, what waits on a person, and who is paid in cash. "8 sent through the simulated PayPal sandbox, 7 confirmed, 1 parked."
-   */
-  shareCounts: (c: {
-    readonly onRail: number;
-    readonly sent: number;
-    readonly confirmed: number;
-    readonly parked: number;
-    readonly failed: number;
-    readonly cash: number;
-    readonly posting?: boolean;
-  }) => {
-    if (c.posting)
-      return `Sent to the simulated PayPal sandbox. Confirmations land one by one. ${c.cash} in cash at the bodega.`;
-    const paypal =
-      c.sent === 0
-        ? `${c.onRail} to send through the simulated PayPal sandbox once both keys sign`
-        : [
-            `${c.sent} sent through the simulated PayPal sandbox`,
-            `${c.confirmed} confirmed`,
-            ...(c.parked > 0 ? [`${c.parked} parked`] : []),
-            ...(c.failed > 0 ? [`${c.failed} failed`] : []),
-          ].join(", ");
-    return `${paypal}. ${c.cash} in cash at the bodega.`;
+  /** The run's state on its title row (round 5), said once. */
+  chip: {
+    notPosted: "Not posted",
+    confirming: "Confirming",
+    replayed: "Replayed",
+    cashDue: en("W-JG-01.pill.stateCashDue"),
+    settled: en("run.SETTLED"),
+    denied: "PayPal declined",
   },
-  shareValue: (pct: string) => `On simulated PayPal: ${pct} of value.`,
-  cashBand: (n: number, date: string, amount: string) =>
-    `${n} members, cash at the bodega on ${date}: ${amount}`,
-  cashBandMembers: (n: number, date: string) => `${n} members, cash at the bodega on ${date}`,
-  cashBandFirst: (n: number) => `${n} members, cash at`,
-  cashBandSecond: (date: string) => `the bodega on ${date}`,
-  movedToCash: (name: string) => `${name}, moved to cash`,
+  /** The payout states in words ("Sent" while in flight). */
+  legend: {
+    planned: "To send",
+    flight: "Sent",
+    confirmed: "Confirmed",
+    held: "Parked",
+    failed: "Failed",
+    returned: "Returned",
+    replayed: "Replayed (labelled)",
+    cash: "Cash at the bodega",
+    kept: "Kept for members",
+  },
+  cashBandMembers: (n: number) => `${n} members · cash at the bodega`,
+  /** The same words in two parts: the second steps aside on a narrow fan (round 6: nothing is cut mid-word). */
+  cashBandShort: (n: number) => `${n} members · cash`,
+  cashBandWhere: " at the bodega",
+  /** Round 8: a line moved to cash says the cash is still due ("Rhea Jumawan · cash due 12 Nov"), never paid. */
+  movedToCash: (name: string, day: string) => `${name} · cash due ${day}`,
+  movedToCashDone: (name: string) => `${name} · cash handed over`,
   title: "Run",
-  feesSoFar:
-    "The simulated PayPal sandbox reports each modelled fee with its item; none has arrived in this run's notices.",
+  feesSoFar: "Simulated PayPal fees: none in this run's notices yet.",
+  feesReplayed: "Fees belong to the earlier simulated run (labelled replay).",
+  timingReplayed: "Timing replayed (labelled) from an earlier simulated run.",
+  /** The run's remaining action while cash is due at the bodega: the run pill's words, said where the cash is. */
+  reviewCash: en("W-JG-01.pill.cashDue"),
   railCash: "Cash",
   statusWaiting: "Sent, waiting for simulated PayPal",
   parkedChip: "Parked",
   failedChip: "Simulated PayPal failed it",
   log: "Run log",
+  latest: "Latest",
+  showAll: (n: number) => `All ${n} events`,
   lane: { MACHINE: "Machine", PEOPLE: "People", PAYPAL: "PayPal" },
   laneEmpty: {
     MACHINE: "Nothing from the machines yet.",
     PEOPLE: "Nobody has acted yet.",
     PAYPAL: "No PayPal notice yet.",
   },
-  seededLog: "Seeded showcase history. Start a run to watch each notice arrive.",
-  latency: "From funding to each confirmed payment",
-  latencySummary: (p50: string, max: string) => `Median ${p50}, slowest ${max}`,
-  latencyEmpty: "Confirmations appear here as the simulated PayPal sandbox sends them.",
-  rheaWhy: (name: string, amount: string) =>
-    `${name}'s address has no PayPal account, so the simulated PayPal sandbox parked ${amount} as unclaimed. It returns to the co-op by itself after 30 days, or you can decide now.`,
-  payCash: "Pay in cash at the bodega",
+  logEmpty: "Nothing has happened in this run yet.",
+  seededLog: "Seeded showcase history",
+  /** Round 8: what the strip measures, in the run's own words: from the invoice paid to each payout confirmed. */
+  latency: "Invoice paid to payout confirmed",
+  /** The dot strip's one line (round 8): whose timings they are (this run's simulated payouts), then the median. */
+  latencySummary: (p50: string, n: number) =>
+    `This run · ${n === 1 ? "1 simulated payout" : `${n} simulated payouts`} · median ${p50}`,
+  latencyEmpty: "No confirmations yet",
+  /** Confirmed, but this page did not see the notices arrive (a reload): the count, and why there are no dots. */
+  latencyUntimed: (confirmed: number) => `${confirmed} confirmed · timed only while the run is live`,
+  latencySeeded: "Timed only on a live run",
+  /** Round 7: the parked reason is the second line of her own fan row, so it is short; the day count steps aside on a narrow fan. */
+  rheaLine: "No PayPal account",
+  rheaReplayed: "Unclaimed in the earlier simulated PayPal sandbox run · a labelled replay",
+  returns: "returns in 30 days",
+  /**
+   * Round 8: the action is named for what it does. It moves her line to the cash list (the cash is then due on cash
+   * day); it pays nobody, so it never says "Pay".
+   */
+  payCash: (first: string) => `Move ${first} to cash at the bodega`,
   payCashUnavailable: "Moving a line to cash needs the live run. This is the seeded showcase.",
   srPayCash: (name: string, amount: string) =>
-    `Pay ${name} ${amount} in cash at the bodega, changes a line, button`,
-  resend: "Re-send after she confirms her email",
-  resendNote: "Needs her confirmed email and your key on a new one-item batch",
-  resendPending: "Re-sending needs a confirmed email address. Ask Rhea at the bodega first.",
-  wait: "Or wait: she can join PayPal and claim it within 30 days. This simulator models claiming; PayPal's own sandbox is untested.",
+    `Move ${name}'s ${amount} to cash at the bodega, changes a line, button`,
+  resend: "Re-send",
+  resendNote: "her email + your key",
+  resendPending: "needs her confirmed email first",
   // S1.7's wording: the cash is due on cash day, not paid yet.
-  rerouted: (_name: string, date: string) =>
-    `Returned to the co-op's simulated PayPal balance. Cash at the bodega on ${date}.`,
+  rerouted: (name: string) => `${name} → cash at the bodega`,
   duplicate: "Delivery repeated, already applied.",
   figure: "Where the money goes",
   tableCaption: "Payout threads and cash lines",

@@ -244,7 +244,7 @@
 }
 
 .op-num {
-  font-stretch: 87.5%;
+  font-stretch: 100%;
   font-variant-numeric: tabular-nums lining-nums;
   white-space: nowrap;
 }

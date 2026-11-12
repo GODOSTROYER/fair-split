@@ -131,6 +131,28 @@ describe("the run strip (register §7)", () => {
     expect(lit).toEqual(["RATIFIED", "FUNDED"]);
     expect(isFunded(funded(session))).toBe(true);
   });
+
+  it("never lights Paid while cash is due at the bodega (UI gate round 4); it does once every cash line is handed over", () => {
+    // The showcase settled with PayPal's 7 confirmed and 57 lines still due in cash.
+    const due = stripStages(showcaseView(snapshot), snapshot);
+    const paid = due.find((s) => s.id === "PAID");
+    expect(paid?.lit).toBe(false);
+    expect(paid?.cashDue).toBe(true);
+    expect(due.filter((s) => s.id !== "PAID").every((s) => s.lit)).toBe(true);
+    const settled = showcaseView(snapshot);
+    const handedOver: RunView = {
+      ...settled,
+      lines: Object.fromEntries(
+        Object.entries(settled.lines).map(([key, line]) => [
+          key,
+          line.state === "OFF_RAIL_DUE" ? { ...line, state: "OFF_RAIL_PAID" } : line,
+        ]),
+      ),
+    };
+    const done = stripStages(handedOver, snapshot).find((s) => s.id === "PAID");
+    expect(done?.lit).toBe(true);
+    expect(done?.cashDue).toBeFalsy();
+  });
 });
 
 describe("the invoice Claude drafted", () => {
@@ -150,8 +172,8 @@ describe("the invoice Claude drafted", () => {
 
 describe("the next step as a sentence", () => {
   it("drops the pill's 'Next:' and capitalises", () => {
-    expect(nextSentence("Next: 3 holds need you")).toBe("3 holds need you");
-    expect(nextSentence("Next: approve 8 payouts")).toBe("Approve 8 payouts");
+    expect(nextSentence("Next: decide 3 holds")).toBe("Decide 3 holds");
+    expect(nextSentence("Next: sign 1 of 2 · 8 payouts")).toBe("Sign 1 of 2 · 8 payouts");
   });
 });
 

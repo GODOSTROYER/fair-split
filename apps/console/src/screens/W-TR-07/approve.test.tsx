@@ -10,6 +10,7 @@
 import { urlPattern } from "@fairsplit/api-client/msw";
 import { API_COMMANDS, webRoutes } from "@fairsplit/contracts";
 import { sealHash } from "@fairsplit/seal";
+import { tagBudget } from "@fairsplit/ui-web";
 import { ed25519 } from "@noble/curves/ed25519.js";
 import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { HttpResponse, http, type RequestHandler } from "msw";
@@ -99,6 +100,13 @@ function face(testId: string): HTMLElement {
   return screen.getByTestId(`${testId}.face`);
 }
 
+/** What a sighted reader sees in an element: its text without the screen-reader-only words. */
+function visibleText(el: Element): string {
+  const copy = el.cloneNode(true) as Element;
+  for (const sr of copy.querySelectorAll(".fs-sr")) sr.remove();
+  return copy.textContent ?? "";
+}
+
 describe("W-TR-07 approve", () => {
   it("a run from another visit shows the visit gate without an amount", async () => {
     await renderConsole({ path: webRoutes.approve("2026A-r99") });
@@ -169,27 +177,121 @@ describe("W-TR-07 approve", () => {
       expect(screen.getByTestId("W-TR-07.fees").textContent).toMatch(
         /Published rates, not fees PayPal reported/,
       );
-      expect(screen.getByTestId("W-TR-07.safe").textContent).toMatch(
-        /3 holds resolved\. 1 field entered by hand/,
+      // Four checks above the slab, each a ✓ in ink with its figure in micro.
+      expect(
+        [...screen.getByTestId("W-TR-07.safe").querySelectorAll("li")].map((li) => li.textContent),
+      ).toEqual([
+        "Holds resolved3/3 · 1 by hand",
+        "Shrink within limit1.62% ≤ 2.0%",
+        "Lines explained64/64",
+        "Rate card unchangedsince 14 Mar",
+      ]);
+      expect(screen.getByTestId("W-TR-07.safe").querySelectorAll("[data-done]")).toHaveLength(4);
+      // The hero says what the amount is, with the one micro-tag for the batch it heads ("Simulated" on screen since
+      // round 4, the whole label for a screen reader). Every other honesty mark is a bare glyph: the screen holds one
+      // tag, the top bar's indicator the second (round 3's budget is three).
+      const hero = screen.getByTestId("W-TR-07.amount").parentElement as HTMLElement;
+      expect(hero.textContent).toMatch(/^PayPal batch · 8 payouts.*Simulated PayPal sandbox/);
+      expect(screen.getByTestId("W-TR-07.tag").querySelector(".fs-microtag__word")?.textContent).toBe(
+        "Simulated",
       );
+      expect(tagBudget(root)).toMatchObject({ tags: 1, micro: 1, ok: true });
+      // Round 5, provenance once: no legend glyph anywhere on the screen; the id line says it in words.
+      expect(tagBudget(root).glyphs).toBe(0);
+      // Round 5, the title row: a noun title with its grey suffix, the state as one chip (the keys signed), the run
+      // id in the mono and the one provenance phrase.
+      expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Approve 2026-A");
+      expect(screen.getByTestId("W-TR-07.keysCount").closest(".fsc-screen__status")).toBeTruthy();
+      expect(screen.getByTestId("W-TR-07.head.provenance").textContent).toContain(
+        "Synthetic co-op · seeded slips",
+      );
+      expect(screen.getByTestId("W-TR-07.head").querySelector(".fsc-screen__id")?.textContent).toBe("r37");
+      // The seal is the screen's hero at one relative size (round 8: 14% of the window's width), beside "Two officers
+      // sign this batch" and its two named signers, each waiting on a hollow circle; its state is said under it.
+      expect(screen.getByTestId("W-TR-07.seal").getAttribute("width")).toBe("268");
+      expect(screen.getByTestId("W-TR-07.sealState").textContent).toBe("Not signed yet");
+      expect(screen.getByRole("heading", { name: "Two officers sign this batch" })).toBeTruthy();
+      expect(screen.getByTestId("W-TR-07.keysCount").textContent).toBe("0/2 signed");
+      // Round 8: each row says its signer's place in the order ("Signs first", "Signs second"), so the Chair's step
+      // is visible as the second before anyone signs.
+      for (const [officer, place] of [
+        ["treasurer", "Signs first"],
+        ["chair", "Signs second"],
+      ] as const) {
+        const row = screen.getByTestId(`W-TR-07.key.${officer}`);
+        expect(row.querySelector('.fs-state-dot[data-kind="waiting"]')).toBeTruthy();
+        expect(screen.getByTestId(`W-TR-07.key.${officer}.status`).textContent).toBe(place);
+      }
+      // The press is named for which signature it is, never "Approve" (it is the first of two).
+      expect(screen.getByTestId("W-TR-07.approve.face").textContent).toBe("Sign 1 of 2 · 8 payouts");
+      // Round 5, no ids for people: each signer's line is words. The Chair's rule id is only its title.
+      const chairLine = screen.getByTestId("W-TR-07.key.chair.caption");
+      expect(chairLine.firstChild?.textContent).toBe("Co-signs batches over US$300");
+      expect(chairLine.getAttribute("title")).toBe("Rule R5");
+      expect(screen.getByTestId("W-TR-07.key.treasurer.caption").firstChild?.textContent).toBe(
+        "Key on this browser",
+      );
+      for (const officer of ["treasurer", "chair"]) {
+        expect(visibleText(screen.getByTestId(`W-TR-07.key.${officer}`))).not.toMatch(/\bR\d\b|fs-[a-z]+-|>/);
+      }
+      // The money bar: the PayPal segment a steel dashed outline until the simulated PayPal confirms it (round 5),
+      // each legend row keyed by the vocabulary's one square.
+      expect(
+        [...screen.getByTestId("W-TR-07.rail").querySelectorAll(".fsr-money__row")].map((r) => r.textContent),
+      ).toEqual(["PayPal8US$368.39", expect.stringMatching(/^Cash at the bodega56.+US\$3,849\.78$/)]);
+      expect(
+        screen.getByTestId("W-TR-07.rail").querySelector(".fsr-money__seg")?.getAttribute("data-tone"),
+      ).toBe("planned");
+      expect(
+        [...screen.getByTestId("W-TR-07.rail").querySelectorAll(".fs-swatch")].map((s) =>
+          s.getAttribute("data-kind"),
+        ),
+      ).toEqual(["planned", "cash"]);
+      // Round 5, no dead band at 1,920: the eight PayPal recipients under the bar, the largest first, each a hollow
+      // 8 px dot until the simulated PayPal confirms it.
+      const payees = [...screen.getByTestId("W-TR-07.payees").querySelectorAll("li")];
+      expect(payees).toHaveLength(8);
+      expect(payees[0]?.textContent).toBe("Consolacion BacusUS$64.45");
+      expect(payees.every((p) => p.querySelector('.fs-state-dot[data-kind="pending"]'))).toBe(true);
+      // The checks: a 16 px line ✓ and the word (the one check mark), never a filled disc.
+      expect(screen.getByTestId("W-TR-07.safe").querySelectorAll(".fs-check")).toHaveLength(4);
       // The payload's lines root (IC-02) prints beside what two people sign, once this browser has recomputed it
       // from the run's own lines: the workspace's, whose returned mark (M-018) has the workspace's own mark ID, so
       // its root is not the seed's.
       const root64 = linesRoot(workspaceLines(view.world));
       expect(root64).not.toBe(linesRoot(seedSnapshot().checkpoints.resolved.lines));
       expect(screen.getByTestId("W-TR-07.linesDigest").getAttribute("title")).toBe(root64);
-      // The decision comes first (seal, amount, rails with their fees, why it is safe, the slab, the keys); what
-      // both keys sign follows it, for a person to compare by eye.
+      // One way to sign (round 4): the slab hugs its label (never the card's width), and the Chair's co-sign block
+      // waits for key 1.
+      expect(screen.getByTestId("W-TR-07.approve").hasAttribute("data-full")).toBe(false);
+      expect(screen.queryByTestId("W-TR-07.cosign")).toBeNull();
+      // Both on the one 12-column grid: the batch in columns 1–7, the decision in 8–12, under the title row.
+      expect(screen.getByTestId("W-TR-07").classList.contains("fsc-screen")).toBe(true);
+      expect(screen.getByTestId("W-TR-07.seal").closest("[data-span]")?.getAttribute("data-span")).toBe("7");
+      // Round 6: the decision card stands in the right column's aside (columns 8–12), with who is paid under it.
+      const aside = screen.getByTestId("W-TR-07.safe").closest(".fsr-approve__aside");
+      expect(aside).toBeTruthy();
+      expect(aside?.querySelector(".fsr-approve__decide")?.contains(screen.getByTestId("W-TR-07.safe"))).toBe(
+        true,
+      );
+      expect(aside?.contains(screen.getByTestId("W-TR-07.payees"))).toBe(true);
+      expect(screen.getByTestId("W-TR-07.payees").querySelectorAll(".fsr-payee")).toHaveLength(8);
+      expect(screen.getByTestId("W-TR-07.firstKey").textContent).toBe("Then Ernesto signs · 2 of 2");
+      // The batch first (the seal, the amount and the two signers as one composition), its money bar, then the
+      // decision (the four checks, the slab) with who is paid, and last the fees and what both keys sign, behind
+      // Details (round 6).
       const order = [
         "W-TR-07.seal",
         "W-TR-07.amount",
-        "W-TR-07.rail",
-        "W-TR-07.fees",
-        "W-TR-07.safe",
-        "W-TR-07.ledger",
-        "W-TR-07.approve",
         "W-TR-07.keys",
+        "W-TR-07.rail",
+        "W-TR-07.safe",
+        "W-TR-07.approve",
+        "W-TR-07.payees",
+        "W-TR-07.fees",
+        "W-TR-07.ledger",
       ].map((id) => screen.getByTestId(id));
+      expect(screen.getByTestId("W-TR-07.ledger").closest("details")?.open).toBe(false);
       for (let i = 1; i < order.length; i++) {
         const before = order[i - 1] as HTMLElement;
         const after = order[i] as HTMLElement;
@@ -212,21 +314,36 @@ describe("W-TR-07 approve", () => {
       fireEvent.keyDown(face("W-TR-07.approve.dialog.confirm"), { key: "Enter" });
 
       await waitFor(() => expect(root.dataset.state).toBe("key1"), { timeout: 10_000 });
-      expect(screen.getByTestId("W-TR-07.approve").textContent).toMatch(
-        /Signed by Analyn, .*Waiting for Ernesto/,
-      );
-      expect(document.activeElement).not.toBe(face("W-TR-07.approve"));
+      // The spent slab goes with no status box in its place: Ernesto's row says he signs next (round 8), and
+      // Analyn's row carries the signers' dot and her time.
+      expect(screen.queryByTestId("W-TR-07.approve")).toBeNull();
+      expect(screen.getByTestId("W-TR-07.key.chair.status").textContent).toBe("Signs next");
+      expect(screen.getByTestId("W-TR-07.sealState").textContent).toBe("Half signed · Analyn");
+      expect(screen.getByTestId("W-TR-07.key.treasurer.status").textContent).toMatch(/^Signed \d\d:\d\d$/);
+      const signedRow = screen.getByTestId("W-TR-07.key.treasurer");
+      expect(signedRow.classList.contains("fs-solid-row")).toBe(true);
+      expect(signedRow.querySelector('.fs-state-dot[data-kind="done"]')).toBeTruthy();
+      expect(screen.getByTestId("W-TR-07.keysCount").textContent).toBe("1/2 signed");
+      expect(screen.getByTestId("W-TR-07").textContent).not.toMatch(/Waiting for Ernesto/);
       // Focus moves on to the run pill's next step, which never scrolls the seal away.
       await waitFor(() =>
         expect(document.activeElement?.getAttribute("data-testid")).toBe("W-JG-01.runPill.next"),
       );
       await waitFor(() => expect(screen.getByTestId("W-TR-07.seal").dataset.state).toBe("keys-1"));
       expect(screen.getByTestId("W-TR-07.key.treasurer").dataset.state).toBe("signed");
-      // The session's demo key, as fs-api registered it (C-13): never the treasurer's own fs-analyn-w1.
-      expect(screen.getByTestId("W-TR-07.key.treasurer").textContent).toMatch(
-        /fs-analyn-demo-[a-z0-9]{6}, Demo key \(this browser\)/,
-      );
-      expect(screen.getByTestId("W-TR-07.key.treasurer").textContent).not.toMatch(/fs-analyn-w1/);
+      // The session's demo key, as fs-api registered it (C-13): never the treasurer's own fs-analyn-w1. Round 5: her
+      // row says where the key lives in words; its id waits behind "IDs", on one line, whole, its value its title
+      // (round 4: ids never break mid-word).
+      const treasurerRow = screen.getByTestId("W-TR-07.key.treasurer");
+      expect(visibleText(treasurerRow)).toMatch(/^Analyn · TreasurerKey on this browserSigned \d\d:\d\d$/);
+      const keyIdText = screen.getByTestId("W-TR-07.keyId.treasurer");
+      expect(keyIdText.getAttribute("title")).toMatch(/^fs-analyn-demo-[a-z0-9]{6}$/);
+      expect(keyIdText.querySelector("[aria-hidden]")?.textContent).toBe(keyIdText.getAttribute("title"));
+      expect(keyIdText.closest("details")?.querySelector("summary")?.textContent).toMatch(/· IDs$/);
+      expect(screen.getByTestId("W-TR-07").textContent).not.toMatch(/fs-analyn-w1/);
+      // Now the Chair's co-sign block shows: his ways to sign arrive only after key 1, with no glyph beside it.
+      expect(screen.getByTestId("W-TR-07.cosign")).toBeTruthy();
+      expect(tagBudget(root).glyphs).toBe(0);
 
       const approval = view.world.approvals().find((a) => a.role === "treasurer");
       if (!approval) throw new Error("no treasurer approval");
@@ -241,7 +358,33 @@ describe("W-TR-07 approve", () => {
       );
 
       await waitFor(() => expect(tracedPhases("MM-5")).toContain("waiting-2"), { timeout: 5_000 });
-      expect(screen.getByTestId("W-TR-07.presence").textContent).toBe("Waiting for Ernesto");
+      // Ernesto is not here yet: his row says "Signs next", once.
+      expect(screen.getByTestId("W-TR-07.key.chair.status").textContent).toBe("Signs next");
+      // Once he is on the batch his row says so in its place, never a second line (round 4).
+      act(() =>
+        view.runtime.client.setQueryData<RunView>(
+          queryKeys.run(RUN),
+          (old) =>
+            old && {
+              ...old,
+              presence: [
+                {
+                  persona: "board:ernesto",
+                  view: "approval",
+                  holdId: null,
+                  expiresAt: new Date(Date.now() + 20_000).toISOString(),
+                },
+              ],
+            },
+        ),
+      );
+      await waitFor(() =>
+        expect(screen.getByTestId("W-TR-07.key.chair.status").textContent).toBe(APPROVE.reviewing),
+      );
+      expect(screen.getByTestId("W-TR-07.key.chair.status").getAttribute("title")).toBe(
+        APPROVE.presenceApproval,
+      );
+      expect(screen.getByTestId("W-TR-07").textContent).not.toMatch(/Waiting|is reviewing/);
 
       act(() => {
         view.world.cosign();
@@ -254,7 +397,8 @@ describe("W-TR-07 approve", () => {
         expect.arrayContaining(["ready", "signed-1", "waiting-2", "signed-2", "sealed", "inked"]),
       );
       expect(root.dataset.state).toMatch(/approved|posting/);
-      expect(screen.getByTestId("W-TR-07.approve").textContent).toMatch(/Approved by Analyn and Ernesto/);
+      expect(screen.queryByTestId("W-TR-07.approve")).toBeNull();
+      expect(screen.getByTestId("W-TR-07.keysCount").textContent).toBe("2/2 signed");
       expect(
         screen
           .getByTestId("W-TR-07.amount")
@@ -267,7 +411,7 @@ describe("W-TR-07 approve", () => {
       expect(sealScroll).toHaveBeenCalledWith(expect.objectContaining({ block: "nearest" }));
       // A focus that comes back to the console now (the Chair's phone lowering) lands on the completed seal.
       await waitFor(() => expect(screenControl()?.dataset.testid).toBe("W-TR-07.sealBlock"));
-      expect(screen.getByTestId("W-TR-07.approved").textContent).toMatch(/Approved by Analyn and Ernesto/);
+      expect(screen.getByTestId("W-TR-07.approved").textContent).toMatch(/^Approved by Analyn and Ernesto/);
     },
     SLOW,
   );
@@ -508,7 +652,7 @@ describe("W-TR-07 approve", () => {
       const root = await screen.findByTestId("W-TR-07");
       await waitFor(() => expect(root.dataset.state).toBe("approved"));
       expect(screen.getByTestId("W-TR-07.seal").dataset.state).toBe("keys-2");
-      expect(screen.getByTestId("W-TR-07.key.chair").textContent).toMatch(/Sample key \(seeded\)/);
+      expect(screen.getByTestId("W-TR-07.key.chair").textContent).toMatch(/Ernesto · Chair.*Sample key/);
       expect(screen.getByTestId("W-TR-07.batchHash").textContent).toMatch(/^0f83 9be7/);
       await expectNoAxeViolations(root);
     },
@@ -752,9 +896,9 @@ describe("W-TR-07 approve", () => {
       });
       await waitFor(() => expect(root.dataset.state).toBe("posting"), { timeout: 5_000 });
       expect(screen.getByTestId("W-TR-07.posting").textContent).toMatch(
-        /^Posting batch 2026A-[0-9a-f]{8}-r37\. The Payouts tool re-hashed the batch: it matches\./,
+        /^Posting 2026A-[0-9a-f]{8}-r37 · re-hashed, it matches$/,
       );
-      expect(screen.getByTestId("W-TR-07.approved").textContent).toMatch(/Approved by Analyn and Ernesto/);
+      expect(screen.getByTestId("W-TR-07.approved").textContent).toMatch(/^Approved by Analyn and Ernesto/);
       expect(screen.getByTestId("W-TR-07.fanout").getAttribute("href")).toBe(webRoutes.fanout(RUN));
       expect(screen.getByTestId("W-TR-07.seal").dataset.state).toBe("keys-2");
       expect(screen.queryByTestId("W-TR-07.retrying")).toBeNull();

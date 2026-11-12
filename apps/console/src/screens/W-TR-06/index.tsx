@@ -5,11 +5,22 @@
 // returns a fine no rule allows; both resolve as flush ink stamps, with no moment. A hold is never an error.
 
 import { type ResolveHoldRequest, webRoutes } from "@fairsplit/contracts";
-import { Glyph, HoldCard, type HoldView, Print } from "@fairsplit/ui-web";
+import { Glyph, Print } from "@fairsplit/ui-web";
 import { useRouter } from "@tanstack/react-router";
-import { type FormEvent, type ReactNode, useCallback, useEffect, useId, useRef, useState } from "react";
+import {
+  type FormEvent,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
+import { createPortal } from "react-dom";
 import { AppLink } from "../../chrome/AppLink.js";
 import { CommandNotice } from "../../chrome/CommandNotice.js";
+import { DRAWER } from "../../chrome/copy.js";
 import { RunRouteGate } from "../../chrome/Fallbacks.js";
 import { PrintBed } from "../../chrome/PrintBed.js";
 import { ScreenRoot } from "../../chrome/ScreenRoot.js";
@@ -18,6 +29,7 @@ import { Stamp } from "../../chrome/Stamp.js";
 import { useCommand } from "../../data/hooks.js";
 import { livePresence, type RunHold, type RunView } from "../../data/run-view.js";
 import { NoRuleEvidence, TwinCompare, YieldEvidence } from "../../features/holds/Evidence.js";
+import { HoldPanel, type HoldPanelProps, type PanelHold } from "../../features/holds/HoldPanel.js";
 import {
   cardState,
   duplicateFacts,
@@ -34,15 +46,16 @@ import {
   voices,
   yieldFacts,
 } from "../../features/holds/model.js";
-import { basisEventId, isOpenHold, massBalanceView, splitBasis } from "../../features/split/model.js";
-import { Dial, dialLabel } from "../../features/split/SplitHeader.js";
+import { basisEventId, isOpenHold, massBalanceView } from "../../features/split/model.js";
+import { Dial } from "../../features/split/SplitHeader.js";
 import { en, HOLDS } from "../../features/split/shared/copy.js";
 import { stampFor } from "../../features/split/shared/people.js";
 import { useLiveEvents, useRunData } from "../../features/split/shared/run-data.js";
 import { useMomentScript, usePhaseSync } from "../../features/split/shared/script.js";
+import { type FocusPlace, focusAndReveal, rememberFocus, returnFocus } from "../../lib/focus.js";
 import { useMoment } from "../../lib/moment.js";
-import { provenanceFooter } from "../../lib/provenance.js";
 import type { ScreenState } from "../../lib/screens.js";
+import { useShortcut } from "../../lib/shortcuts.js";
 import type { HoldDrawerProps } from "../contract.js";
 import "../../features/split/shared/runs.css";
 import "../../features/split/split.css";
@@ -50,12 +63,16 @@ import "../../features/holds/holds.css";
 
 type Mm3Resting = "ready" | "pressed" | "resolved";
 
-export function Screen({ runSlug, holdId }: HoldDrawerProps) {
+export function Screen({ runSlug, holdId, receiptTarget }: HoldDrawerProps) {
   const data = useRunData(runSlug);
   const { snapshot, view } = data;
   const router = useRouter();
   const instance = useId();
   const close = useCallback(() => router.history.push(webRoutes.split(runSlug)), [router, runSlug]);
+  // What opened the hold (a grid row, a link), remembered as the hold first renders: the open sheet and, once it is
+  // decided, its receipt hand focus back to the same place when they close.
+  const opener = useRef<FocusPlace | null | undefined>(undefined);
+  if (opener.current === undefined) opener.current = rememberFocus();
   const hold = view ? findHold(view, holdId) : undefined;
   const resolve = useCommand("resolveHold");
   const [slabKey, setSlabKey] = useState(0);
@@ -155,13 +172,20 @@ export function Screen({ runSlug, holdId }: HoldDrawerProps) {
   const pos = view && hold ? position(view, hold) : null;
   const drawerLabel = hold ? `Hold ${hold.label}` : `Hold ${holdId}`;
   const meta = pos
-    ? HOLDS.meta(pos.index, pos.total)
+    ? hold?.resolvedAt
+      ? HOLDS.metaDone(pos.index, pos.total)
+      : HOLDS.meta(pos.index, pos.total)
     : seeded?.serials[0]
       ? HOLDS.slipMeta(seeded.serials[0])
       : null;
 
   if (data.access === "missing") return <RunRouteGate data={data} />;
 
+  // Round 5 (no dead bands): the drawer hugs its content in every state. Once the hold is decided it is a compact
+  // success card: what changed, the decision and its stamp (the evidence one disclosure away), and the next hold as
+  // the drawer's one primary on its sticky footer, with no blocking scrim, so the dial and the wave behind it show.
+  let compact = false;
+  let footer: ReactNode = null;
   const body = (() => {
     if (data.error && !view) {
       return (
@@ -206,8 +230,10 @@ export function Screen({ runSlug, holdId }: HoldDrawerProps) {
     const state = askedChair ? "asked-chair" : cardState(hold, flags);
     const screenState: ScreenState<"W-TR-06"> = state;
     const next = !holdOpen ? nextAfter(snapshot, view, hold) : null;
+    compact = !holdOpen;
+    footer = next ? <NextLink next={next} /> : null;
     if (hold.kind === "LOW_CONFIDENCE") {
-      return <ByHandCard snapshot={snapshot} view={view} hold={hold} state={screenState} next={next} />;
+      return <ByHandCard snapshot={snapshot} view={view} hold={hold} state={screenState} />;
     }
     if (hold.kind === "MASS_BALANCE") {
       return (
@@ -221,57 +247,45 @@ export function Screen({ runSlug, holdId }: HoldDrawerProps) {
       );
     }
     const v = voices(snapshot, view, hold);
-    const card: HoldView = {
-      id: hold.label,
+    // H1 (round 4): no engine row, one effect line ("If counted once: …") right above the decision.
+    const card: PanelHold = {
       kind: hold.kind,
       title: v.title,
-      engineLine: v.engineLine,
-      ...(v.claudeLine ? { claudeLine: v.claudeLine } : {}),
-      ...(holdOpen && v.effect ? { effect: v.effect } : {}),
+      engineLine: isDuplicate ? null : v.engineLine,
+      claudeLine: v.claudeLine,
+      effect: holdOpen && v.effect ? (isDuplicate ? keepFacts(v.effect) : v.effect) : null,
       state,
     };
     const stamp = stampFor(snapshot, hold.resolvedBy, hold.resolvedAt);
     const result = resultLine(snapshot, view, hold, hold.resolution);
+    // Round 8: what the decision changed for the member the slip belongs to (the engine's own two figures: his net
+    // with both copies counted, and with one), beside what it gave back to everyone else. Never computed here.
+    const holder =
+      hold.kind === "DUPLICATE_SLIP" && !holdOpen && hold.resolution === "COUNT_ONCE"
+        ? duplicateFacts(factsFor(snapshot, view, hold), seeded)
+        : null;
     const member = memberOf(snapshot, hold.memberNo);
     const facts = factsFor(snapshot, view, hold);
     const phase = moment.phase === "closed" && resting !== null ? resting : moment.phase;
 
     let evidence: ReactNode = null;
-    let actions: Parameters<typeof HoldCard>[0]["actions"];
+    let actions: HoldPanelProps["actions"];
     if (hold.kind === "DUPLICATE_SLIP") {
       const d = duplicateFacts(facts, seeded);
       const [a, b] = slipCopies(snapshot, d.serial);
-      const dial = massBalanceView(snapshot, view);
-      evidence = (
-        <>
-          {a && b && (
-            <TwinCompare
-              a={a}
-              b={b}
-              rows={twinRows(a, b)}
-              phase={phase}
-              animate={script.busy}
-              mode={moment.mode}
-            />
-          )}
-          <div className="fsr-hold__dial" data-testid="W-TR-06.dialBlock">
-            <Dial
-              dial={dial}
-              swing={live.isLive(basisEventId(view, splitBasis(view)))}
-              size={112}
-              testId="W-TR-06.dial"
-            />
-            <p className="fs-t-caption">
-              <span className="fsr-muted">{HOLDS.shrinkNow}: </span>
-              <span data-testid="W-TR-06.dial.status" data-status={dial.status}>
-                {dial.status === "PENDING"
-                  ? dialLabel(dial)
-                  : `${dial.display}, ${dialLabel(dial).toLowerCase()}`}
-              </span>
-            </p>
-          </div>
-        </>
-      );
+      // The two copies and their four fields, under the decision (round 4). The drawer has no dial of its own: the
+      // split's dial behind it swings when H1 is counted once.
+      evidence =
+        a && b ? (
+          <TwinCompare
+            a={a}
+            b={b}
+            rows={twinRows(a, b)}
+            phase={phase}
+            animate={script.busy}
+            mode={moment.mode}
+          />
+        ) : null;
       actions = [
         {
           kind: "slab",
@@ -282,8 +296,8 @@ export function Screen({ runSlug, holdId }: HoldDrawerProps) {
         },
         {
           kind: "flat",
-          label: en("W-TR-06.H1.flat"),
-          note: en("W-TR-06.H1.flatNote"),
+          label: HOLDS.twoDeliveries,
+          note: HOLDS.twoDeliveriesNote,
           testId: "W-TR-06.twoDeliveries",
           onSelect: () => setReasonOpen(true),
         },
@@ -337,15 +351,18 @@ export function Screen({ runSlug, holdId }: HoldDrawerProps) {
       ];
     }
 
+    // H1 leads with the decision (UI gate round 4): holds.css draws its one effect line directly above "Count it
+    // once", then the paired receipts and their fields under the decision. The receipts stay in the card's markup
+    // (they hold no control, so the keyboard order is the same), so the card still says whose they are.
     const cardNode = (
-      <HoldCard
+      <HoldPanel
         key={slabKey}
         hold={card}
-        readingProvenance="seeded"
         gate={hold.gate}
         actions={actions}
         {...(stamp ? { resolution: stamp } : {})}
         evidence={evidence}
+        {...(isDuplicate ? { effectLabel: null } : {})}
         testId="W-TR-06.card"
         className="fsr-hold"
       />
@@ -401,29 +418,154 @@ export function Screen({ runSlug, holdId }: HoldDrawerProps) {
             </div>
           </form>
         )}
+        {/* The outcome leads the drawer once decided (holds.css orders it first): what changed, then the next hold. */}
         {showResult && (
           <Print
             value={result}
             provenance="engine"
             state="ink"
-            typeRole="label"
+            typeRole="title-2"
             as="p"
             reveal={script.busy}
-            footer={provenanceFooter({ kind: "engine", rateCardSha256: snapshot.rateCard.sha256 })}
             className="fsr-hold__result"
             testId="W-TR-06.result"
           />
         )}
+        {holder?.holderBoth && holder.holderOnce && (
+          <p className="fsr-hold__holder" data-testid="W-TR-06.holder">
+            <span className="fsr-hold__holder-name fs-t-caption">{member?.consoleName ?? hold.memberNo}</span>
+            <span className="fsr-hold__holder-figures fs-t-heading">
+              <span className="fs-sr">{HOLDS.holderWas} </span>
+              <span className="fsr-hold__holder-was">{holder.holderBoth}</span>
+              <Glyph name="ms:arrow-back" size={16} className="fsr-hold__arrow" />
+              <span className="fs-sr">{HOLDS.holderNow} </span>
+              <span>{holder.holderOnce}</span>
+            </span>
+          </p>
+        )}
         {resolve.error && inFlight && <CommandNotice error={resolve.error} testId="W-TR-06.error" />}
-        {next && <NextLink next={next} />}
       </ScreenRoot>
     );
   })();
 
+  // Round 8: a decided hold is a compact receipt in the split review itself (above the table), not a 560 px sheet
+  // with an empty lower half: the table keeps its width, its columns and its evidence rows at every width.
+  if (compact) {
+    return (
+      <HoldReceipt
+        label={drawerLabel}
+        meta={meta}
+        onClose={close}
+        target={receiptTarget}
+        footer={footer}
+        opener={opener.current ?? null}
+      >
+        {body}
+      </HoldReceipt>
+    );
+  }
+
   return (
-    <StageDrawer label={drawerLabel} meta={meta} onClose={close} testId="W-TR-06.drawer">
+    <StageDrawer
+      label={drawerLabel}
+      meta={meta}
+      onClose={close}
+      testId="W-TR-06.drawer"
+      hug
+      scrim={!compact}
+      {...(footer ? { footer } : {})}
+    >
       {body}
     </StageDrawer>
+  );
+}
+
+/**
+ * H1's effect is two facts, "+US$17.94 to 63 members" and "2.05% → 1.62%", on the title step: each holds together
+ * and a narrow drawer breaks the line only after its " · " (round 3).
+ */
+function keepFacts(line: string): string {
+  return line
+    .split(" · ")
+    .map((part) => part.replaceAll(" ", "\u00a0"))
+    .join("\u00a0· ");
+}
+
+/**
+ * A decided hold's receipt (round 8): one strip in the split review, above its table. It keeps the drawer's hooks
+ * (`W-TR-06.drawer`, its Close and its foot) and its manners: Esc closes it, focus lands on the next step when it
+ * appears and goes back to what opened it when it leaves. It takes nothing from the screen's width and lays no scrim.
+ */
+function HoldReceipt({
+  target,
+  ...frame
+}: ReceiptFrameProps & {
+  /** The split review's slot; undefined renders in place (a screen test), null waits for the slot. */
+  readonly target: HTMLElement | null | undefined;
+}) {
+  if (target === null) return null;
+  const node = <ReceiptFrame {...frame} />;
+  return target ? createPortal(node, target) : node;
+}
+
+interface ReceiptFrameProps {
+  readonly label: string;
+  readonly meta: ReactNode;
+  readonly onClose: () => void;
+  readonly footer: ReactNode;
+  /** What opened the hold: focus goes back to it when the receipt closes. */
+  readonly opener: FocusPlace | null;
+  readonly children: ReactNode;
+}
+
+function ReceiptFrame({ label, meta, onClose, footer, opener, children }: ReceiptFrameProps) {
+  const ref = useRef<HTMLElement>(null);
+  const close = useRef(onClose);
+  close.current = onClose;
+  useShortcut({
+    id: "drawer.close",
+    keys: "Escape",
+    label: "Close the drawer",
+    group: "Review",
+    run: () => close.current(),
+  });
+  const from = useRef(opener);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    if (!el.contains(document.activeElement)) {
+      focusAndReveal(el.querySelector<HTMLElement>("[data-focus-after]") ?? el);
+    }
+    const place = from.current;
+    return () => {
+      returnFocus(place, { leaving: el });
+    };
+  }, []);
+  return (
+    <aside
+      ref={ref}
+      className="fsr-receipt"
+      aria-label={label}
+      tabIndex={-1}
+      data-receipt=""
+      data-testid="W-TR-06.drawer"
+    >
+      {/* Which hold of how many is the strip's name for assistive technology; the title chip counts the open ones. */}
+      {meta && <p className="fs-sr">{meta}</p>}
+      <div className="fsr-receipt__body">{children}</div>
+      <div className="fsr-receipt__actions" data-testid="W-TR-06.drawer.foot">
+        {footer}
+        <button
+          type="button"
+          className="fsr-receipt__close fs-flat"
+          onClick={() => close.current()}
+          data-testid="W-TR-06.drawer.close"
+        >
+          <Glyph name="ms:close" size={18} />
+          <span>{DRAWER.close}</span>
+        </button>
+      </div>
+    </aside>
   );
 }
 
@@ -432,13 +574,27 @@ function NextLink({
 }: {
   readonly next: { readonly href: string; readonly words: string; readonly kind: string };
 }) {
+  // After a decision the next one is the drawer's one primary (round 5), on its sticky footer: the Slab's own face
+  // (indigo, 48 px, hugging its words) on a real link, an arrow forward. Focus lands here when the decision's
+  // control goes.
   return (
-    <p className="fsr-next" data-kind={next.kind === "approve" ? "approve" : "hold"}>
-      <span className="fsr-next__mark" aria-hidden />
-      <AppLink href={next.href} className="fs-link fs-t-label" data-testid="W-TR-06.next" data-focus-after="">
-        {next.words}
-      </AppLink>
-    </p>
+    <span
+      className="fs-slab fsr-hold__next"
+      data-tone="chalk"
+      data-depth="d1"
+      data-size="l"
+      data-state="rest"
+      data-kind={next.kind === "approve" ? "approve" : "hold"}
+    >
+      <span className="fs-slab__body">
+        <AppLink href={next.href} className="fs-slab__face" data-testid="W-TR-06.next" data-focus-after="">
+          <span className="fs-slab__label">
+            <span className="fs-slab__words">{next.words}</span>
+            <Glyph name="ms:arrow-back" size={20} className="fsr-hold__arrow" />
+          </span>
+        </AppLink>
+      </span>
+    </span>
   );
 }
 
@@ -450,13 +606,7 @@ interface SideCardProps {
 }
 
 /** Slip 0462: decided on W-TR-04, one field at a time; this card says why and links there. */
-function ByHandCard({
-  snapshot,
-  view,
-  hold,
-  state,
-  next,
-}: SideCardProps & { readonly next: ReturnType<typeof nextAfter> }) {
+function ByHandCard({ snapshot, view, hold, state }: SideCardProps) {
   const seeded = seededHold(snapshot, hold);
   const serial = seeded?.serials[0] ?? "";
   const field = Object.values(view.fields).find((f) => f.serial === serial);
@@ -488,7 +638,7 @@ function ByHandCard({
         </header>
         <p className="fs-hold__gate" data-gate={hold.gate}>
           <Glyph name="hanging-scale" size={16} />
-          <span className="fs-t-label">{en(`hold.gate.${hold.gate}`)}</span>
+          <span className="fs-t-label">{HOLDS.gate[hold.gate] ?? en(`hold.gate.${hold.gate}`)}</span>
         </p>
         <dl className="fs-hold__voices">
           <div className="fs-hold__voice" data-voice="engine">
@@ -514,7 +664,6 @@ function ByHandCard({
           )}
         </footer>
       </article>
-      {next && <NextLink next={next} />}
     </ScreenRoot>
   );
 }
@@ -553,7 +702,7 @@ function MassBalanceCard({
         </header>
         <p className="fs-hold__gate" data-gate={hold.gate}>
           <Glyph name="hanging-scale" size={16} />
-          <span className="fs-t-label">{en(`hold.gate.${hold.gate}`)}</span>
+          <span className="fs-t-label">{HOLDS.gate[hold.gate] ?? en(`hold.gate.${hold.gate}`)}</span>
         </p>
         <div className="fsr-hold__dial">
           <Dial dial={dial} swing={swing} size={132} testId="W-TR-06.dial" />

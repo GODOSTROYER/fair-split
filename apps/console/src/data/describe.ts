@@ -20,6 +20,7 @@ import {
   type SystemFlagName,
 } from "@fairsplit/contracts";
 import { format } from "../lib/format.js";
+import { refusalTitle, toolWords } from "../lib/plain.js";
 
 export interface LogRow {
   readonly id: string;
@@ -234,7 +235,9 @@ export function describeEvent(event: RunEvent, ctx: DescribeContext): LogRow | n
           : p.to === "UNCLAIMED"
             ? `${name}'s address has no PayPal account. Parked`
             : p.to === "RETURNED" && p.source === "cancel"
-              ? `${name}: returned to the co-op's simulated PayPal balance`
+              ? // Round 8: one named row for a cancelled payment, verb first like the rows around it; it still names
+                // the simulated balance (I8).
+                `${name}: cancelled · back to the simulated PayPal balance`
               : `${name}: ${presentation.statusWord}`;
       const eventName = presentation.replayed
         ? null
@@ -354,13 +357,15 @@ export function describeEvent(event: RunEvent, ctx: DescribeContext): LogRow | n
     }
     case "policy.verdict": {
       const p = event.payload;
+      // Round 4: words for a farmer or a judge. A refusal reads "Refused · invoice must equal quote"; the rule ids
+      // and the tool's name stay in the row's detail (its title), never in the words on screen.
       const words =
         p.verdict === "DENY"
-          ? `Policy refused ${p.tool}`
+          ? refusalTitle(p.decidedBy)
           : p.verdict === "REQUIRE_APPROVAL"
-            ? `Policy asked for a person on ${p.tool}`
-            : `Policy allowed ${p.tool}`;
-      return { ...base, words, detail: join(p.decidedBy.join(", "), note) };
+            ? `Needs a person · ${toolWords(p.tool)}`
+            : `Allowed · ${toolWords(p.tool)}`;
+      return { ...base, words, detail: join(p.tool, p.decidedBy.join(", "), note) };
     }
     case "flag.changed": {
       const p = event.payload;

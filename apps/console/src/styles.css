@@ -20,28 +20,15 @@
     text-rendering: optimizeLegibility;
   }
 
+  /* Body text on the body step (16/24, UI gate round 3). The selection, caret, scrollbars, tabular figures and the
+     one focus ring are ui-web's (styles.css), declared once for every surface. */
   body {
     min-height: 100dvh;
     background: var(--fs-ground);
     font-family: var(--fs-font-ui);
-    font-weight: 450;
-    font-size: 0.875rem;
-    line-height: 1.25rem;
-  }
-
-  ::selection {
-    background: var(--fs-pod-wash);
-    color: var(--fs-ink);
-  }
-
-  * {
-    scrollbar-color: var(--fs-rule) transparent;
-    scrollbar-width: thin;
-  }
-
-  :focus-visible {
-    outline: var(--fs-focus-width) solid var(--fs-pod);
-    outline-offset: var(--fs-focus-offset);
+    font-weight: 430;
+    font-size: 1rem;
+    line-height: 1.5rem;
   }
 
   :where(h1, h2, h3, h4, p, figure, dl, dd, ol, ul) {
@@ -60,13 +47,11 @@
     border: 0;
   }
 
-  /* No monospace anywhere (design §2.3): code-like names are set in the condensed UI face. */
-  code,
+  /* The mono is for hashes, IDs and timestamps (ui-web sets code and samp in it); a keycap and preformatted words
+     stay FS Sans. */
   kbd,
-  samp,
   pre {
     font-family: var(--fs-font-ui);
-    font-stretch: 87.5%;
     font-size: inherit;
     color: var(--fs-ink);
   }

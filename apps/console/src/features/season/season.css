@@ -1,5 +1,5 @@
 /* The season slice's shared materials (W-TR-01, and the parts the Judge stage's first view borrows): the
-   stencilled marks, the run strip, the invoice and the pool with MM-S's arc, the contact sheet of photos and the
+   season mark, the run strip, the invoice and the pool with MM-S's arc, the contact sheet of photos and the
    eval waffle. Every colour, size and timing is a --fs-* token. Paper is the only thing with a shadow; money
    is outlined until PayPal says so; Claude's draft prints in pencil. */
 
@@ -43,53 +43,9 @@
   gap: 16px;
 }
 
-/* ---------------------------------------------------------------- marks */
-
-.fsc-mark {
-  display: inline-flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.fsc-mark__stencil {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 16px;
-}
-
-.fsc-mark__season {
-  color: var(--fs-ink);
-}
-
-.fsc-mark__lot {
-  color: var(--fs-ink-2);
-}
-
-.fsc-mark__coop {
-  color: var(--fs-ink-2);
-}
-
-/* The sack stencil, full size: the season's own name in paint, the lot beside it. */
-.fsc-mark[data-size="hero"] .fsc-mark__season {
-  font-size: 4.5rem;
-  line-height: 0.9;
-  letter-spacing: 0.01em;
-}
-
-.fsc-mark[data-size="hero"] .fsc-mark__lot {
-  font-size: 1.75rem;
-  line-height: 1;
-  letter-spacing: 0.02em;
-}
-
-.fsc-section-title {
-  margin: 0;
-  color: var(--fs-ink-2);
-}
-
 /* ---------------------------------------------------------------- the run strip */
 
-/* One flat plate, stencilled like a sack, with a V notch cut into its top and bottom edge between each stage
+/* One flat plate with a V notch cut into its top and bottom edge between each stage
    and the next: the sequence reads as a tally, not a checklist. */
 .fsc-strip {
   --fsc-notch: 7px;
@@ -139,14 +95,14 @@
   border-bottom: var(--fsc-notch) solid var(--fs-ground);
 }
 
-/* The stage's word in sentence case (the stencil is kept for season and lot marks, design §2.3). Done: ink,
-   after an ink tick. Not yet: a dashed print bed, the word faint in it. */
+/* The stage's word in sentence case. Done: ink, after an ink tick. Not yet: a solid hairline print bed, the word
+   faint in it (round 4: dashed means simulated, and nothing else). */
 .fsc-strip__word {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   padding: 2px 7px;
-  border: 1px dashed transparent;
+  border: 1px solid transparent;
   white-space: nowrap;
 }
 
@@ -188,68 +144,112 @@
 .fsc-fund {
   position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  column-gap: 96px;
-  row-gap: 40px;
+  grid-template-columns: minmax(0, 1fr);
+  row-gap: 24px;
   align-items: start;
 }
 
-.fsc-fund[data-layout="column"] {
-  grid-template-columns: minmax(0, 1fr);
+/* W-TR-01 (round 4): the invoice beside the pool on the screen's twelve columns (a subgrid of .fsc-screen), six
+   each from 720 px, each card top-aligned and hugging its content; narrower, one above the other. */
+.fsc-fund[data-layout="row"] {
+  grid-template-columns: subgrid;
+  column-gap: normal;
 }
 
-.fsc-fund[data-layout="row"] > .fsc-fund__invoice {
-  grid-row: 1;
-  grid-column: 1;
+.fsc-fund[data-layout="row"] > :is(.fsc-fund__invoice, .fsc-fund__pool) {
+  grid-column: 1 / -1;
 }
 
-.fsc-fund[data-layout="row"] > .fsc-fund__pool {
-  grid-row: 1;
-  grid-column: 2;
-}
+@container fsc-screen (min-width: 720px) {
+  .fsc-fund[data-layout="row"] > .fsc-fund__invoice {
+    grid-row: 1;
+    grid-column: 1 / span 6;
+  }
 
-/* The Judge stage's desk: the invoice on the left; on the right the pool as one strip and, under it, the paper
-   the invoice pays out over, so the slips lie in the first screen beside the money. */
-.fsc-fund[data-layout="desk"] {
-  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
-  grid-template-rows: auto 1fr;
-  column-gap: 48px;
-  row-gap: 24px;
-}
-
-.fsc-fund[data-layout="desk"] > .fsc-fund__invoice {
-  grid-row: 1 / span 2;
-  grid-column: 1;
-}
-
-.fsc-fund[data-layout="desk"] > .fsc-fund__pool {
-  grid-row: 1;
-  grid-column: 2;
-}
-
-.fsc-fund__desk {
-  grid-row: 2;
-  grid-column: 2;
-  min-width: 0;
-}
-
-/* Below 1600 px the invoice keeps half the desk, so its press and its amount never squeeze under 340 px. */
-@media (max-width: 1599px) {
-  .fsc-fund[data-layout="desk"] {
-    grid-template-columns: minmax(0, 6fr) minmax(0, 6fr);
-    column-gap: 32px;
+  .fsc-fund[data-layout="row"] > .fsc-fund__pool {
+    grid-row: 1;
+    grid-column: 7 / span 6;
   }
 }
 
-/* The pool as a strip: its total and its three parts on one line. */
-.fsc-fund__pool[data-variant="strip"] {
-  container-type: inline-size;
-  gap: 10px;
-  padding: 14px 20px 16px;
+/* The Judge stage's desk (UI gate rounds 4 and 5): the screen's twelve columns (a subgrid of .fsc-screen, so its edges
+   are the title's and the steps'), two cards that end level: the money (the invoice and its press) takes five
+   columns at 1,920 and six from 720 px; the pool it funds (its amount, its sum, the rate card at its foot) the rest.
+   Narrower, one column. */
+.fsc-fund[data-layout="desk"] {
+  grid-template-columns: subgrid;
+  /* The subgrid keeps the screen's own 24 px gutter. */
+  column-gap: normal;
+  row-gap: 24px;
 }
 
+.fsc-fund__col {
+  display: grid;
+  grid-column: 1 / -1;
+  align-content: start;
+  gap: 24px;
+  min-width: 0;
+}
+
+/* Side by side, the two cards end level (round 5: no band under the shorter one); the pool's foot sits at its end. */
+@container fsc-screen (min-width: 720px) {
+  .fsc-fund[data-layout="desk"] > .fsc-fund__col {
+    align-self: stretch;
+    grid-template-rows: minmax(0, 1fr);
+  }
+}
+
+.fsc-fund[data-layout="desk"] .fsc-fund__pool {
+  display: flex;
+  flex-direction: column;
+}
+
+@container fsc-screen (min-width: 720px) {
+  .fsc-fund__col[data-col="money"] {
+    grid-row: 1;
+    grid-column: 1 / span 6;
+  }
+
+  .fsc-fund__col[data-col="paper"] {
+    grid-row: 1;
+    grid-column: 7 / span 6;
+  }
+}
+
+@container fsc-screen (min-width: 1040px) {
+  .fsc-fund__col[data-col="money"] {
+    grid-column: 1 / span 5;
+  }
+
+  .fsc-fund__col[data-col="paper"] {
+    grid-column: 6 / span 7;
+  }
+}
+
+/* The pool as a strip: its head, then its amount and its sum (or its total and three parts). */
+.fsc-fund__pool[data-variant="strip"] {
+  container-type: inline-size;
+  gap: 16px;
+  padding: 20px 24px;
+}
+
+/* "Pool · 64 members": one name, the count after a quiet dot. */
 .fsc-fund__share {
-  margin-left: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--fs-ink-2);
+}
+
+.fsc-fund__sep {
+  color: var(--fs-ink-3);
+}
+
+/* Before funding: the hollow dot and "Not funded" at the head's end (round 4). */
+.fsc-fund__pending {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   color: var(--fs-ink-2);
 }
 
@@ -277,8 +277,8 @@
   align-items: center;
   gap: 4px;
   color: var(--fs-ink-2);
-  font-size: 0.75rem;
-  line-height: 1rem;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
 }
 
 .fsc-fund__part .fs-glyph {
@@ -293,6 +293,161 @@
 .fsc-fund__part[data-aside] {
   padding-left: 24px;
   border-left: 1px solid var(--fs-rule);
+}
+
+/* The pool's amount, then its sum (round 5): the pool in the money role (title step, its US$ raised but never under
+   the 12 px floor), where the arc from the invoice lands, its one micro-tag beside it once funded; under it,
+   "Invoice US$4,333.50 − costs US$60.00" in the figure role. Pending (before the simulated PayPal funds it) the pool
+   is grey; funded it is ink. */
+.fsc-fund__eq {
+  display: grid;
+  justify-items: start;
+  gap: 4px;
+  margin: 0;
+}
+
+.fsc-fund__eq-terms {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+}
+
+.fsc-fund__eq-term {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.fsc-fund__eq-word {
+  color: var(--fs-ink-2);
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+.fsc-fund__eq-op {
+  color: var(--fs-ink-3);
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+.fsc-fund__eq-result {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 12px;
+  white-space: nowrap;
+}
+
+/* What the members share the pool as (round 5, the first view): the premium (its lock: never deducted) and the
+   quality bonus, each a label over its amount, with the pool's other figures; the rate card is the card's foot. */
+.fsc-fund__split {
+  display: flex;
+  gap: 2px;
+  margin: 0;
+}
+
+/* Round 6: the pool's two parts drawn once, as a bar in proportion (the premium in ink, the quality bonus in ink-2;
+   both pending grey until the simulated PayPal funds the pool), each part's name and amount under its own segment. */
+.fsc-fund__share-of {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.fsc-fund__bar {
+  display: flex;
+  gap: 2px;
+  height: 8px;
+}
+
+.fsc-fund__bar > span {
+  flex-basis: 0;
+  min-width: 0;
+  border-radius: 2px;
+  background: var(--fs-ink);
+  transition: background-color var(--fs-dur-crossfade) var(--fs-ease-out);
+}
+
+.fsc-fund__bar > [data-part="bonus"] {
+  background: var(--fs-ink-3);
+}
+
+.fsc-fund__share-of[data-state="pending"] .fsc-fund__bar > span {
+  background: var(--fs-pending);
+}
+
+.fsc-fund__share-of[data-state="pending"] .fsc-fund__bar > [data-part="bonus"] {
+  background: var(--fs-rule-strong);
+}
+
+/* Each part under its own segment: its name (the premium's lock: never deducted), then its amount. */
+.fsc-fund__seg {
+  display: grid;
+  flex-basis: 0;
+  gap: 2px;
+  min-width: 0;
+}
+
+.fsc-fund__seg dt {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--fs-ink-2);
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  white-space: nowrap;
+}
+
+.fsc-fund__seg .fs-glyph {
+  color: var(--fs-ink-3);
+}
+
+.fsc-fund__seg dd {
+  margin: 0;
+}
+
+/* The pool card's foot (round 5: the first view's rate card), over a rule at the card's end. */
+.fsc-fund__foot {
+  margin-top: auto;
+  padding-top: 8px;
+  border-top: 1px solid var(--fs-rule);
+}
+
+/* Under the invoice hero: its one micro-tag, then the peso estimate. */
+.fsc-fund__under {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+}
+
+/* Round 8: before funding the pool's hero is ink, like the invoice's (a grey figure read as disabled): "Not funded"
+   is said by the hollow dot and its words at the head's end, and by the bar's pending tone. */
+.fsc-fund__eq[data-state="pending"]
+  .fsc-figure
+  :is(.fsc-figure__hollow, .fsc-figure__solid, .fsc-figure__ink) {
+  color: var(--fs-ink);
+}
+
+/* The head's end: "Funded" (W-TR-01) or "Not funded"; a narrow card keeps it at the right on its own line. */
+.fsc-fund__head-end,
+.fsc-fund__pending {
+  margin-left: auto;
+}
+
+.fsc-fund__head-end {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* The invoice amount on its own line, so the arc starts at its right edge. */
+.fsc-fund__figure-row {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
 }
 
 /* A narrow strip keeps one band: the parts stack as three short lines beside the total. */
@@ -339,7 +494,7 @@
   align-content: start;
   gap: 20px;
   min-width: 0;
-  padding: 22px 26px 24px;
+  padding: 24px;
   border-radius: var(--fs-radius-card);
   background: var(--fs-plate);
   box-shadow: var(--fs-shadow-e1);
@@ -387,8 +542,9 @@
   color: var(--fs-ink-3);
 }
 
-/* A large amount: the outline (money in flight) under a solid layer the evidence fills. Both layers use the
-   hollow cut so the fill lands exactly on its outline. */
+/* A large amount: the one hero numeral, solid ink in every state (UI gate round 2: no outline face, no yellow
+   prefix). Its state (data-amount-state: hollow until its money lands, then landed) is said by the "Funded" pill
+   beside it; the three layers are the same figure, so the moment's cross-fades change nothing a viewer reads. */
 .fsc-figure {
   display: inline-block;
 }
@@ -397,18 +553,10 @@
   position: relative;
   display: inline-block;
   white-space: nowrap;
-  font-family: var(--fs-font-hollow);
 }
 
 .fsc-figure__hollow {
-  color: transparent;
-  -webkit-text-stroke: var(--fs-hollow-stroke) var(--fs-ink);
-}
-
-/* At hero size a 1.25 px outline dissolves at a glance (and under video compression): the money being decided
-   keeps the member surfaces' 2 px stroke (S2.2.1), still clearly lighter than landed ink. */
-.fsc-figure__digits.fs-t-amount-hero .fsc-figure__hollow {
-  -webkit-text-stroke-width: var(--fsc-hollow-stroke-hero);
+  color: var(--fs-ink);
 }
 
 .fsc-figure__solid {
@@ -417,8 +565,8 @@
   color: var(--fs-ink);
 }
 
-/* The hollow cut's two layers move as one; once the amount has landed and filled, they give way to the ink layer:
-   FS Sans with proportional lining figures, so a landed amount reads as money, never as code (decision §7). */
+/* The hollow cut's two layers move as one; once the amount has landed and filled, they give way to the ink layer.
+   Every layer is FS Sans in tabular lining figures (round 3: one money style), so the cross-fade moves no digit. */
 .fsc-figure__cut {
   position: relative;
   display: inline-block;
@@ -430,12 +578,13 @@
   inset: 0;
   color: var(--fs-ink);
   font-family: var(--fs-font-ui);
-  font-variant-numeric: lining-nums proportional-nums;
+  font-variant-numeric: tabular-nums lining-nums;
   transition: opacity var(--fs-dur-crossfade) var(--fs-ease-out);
   pointer-events: none;
 }
 
-/* An inline amount in flight is ink-2 with a dashed underline; landed is plain ink (S2.2.1). */
+/* An inline amount in flight is the pending grey; landed is plain ink (S2.2.1). Never dashed: dashed lines mean
+   simulated only (round 3). */
 .fsc-inline-amount {
   color: var(--fs-ink);
   white-space: nowrap;
@@ -443,9 +592,7 @@
 
 .fsc-inline-amount[data-amount-state="hollow"],
 .fsc-fund[data-moment-phase="arc"] .fsc-inline-amount {
-  color: var(--fs-ink-2);
-  text-decoration: underline dashed 1.5px var(--fs-ink-3);
-  text-underline-offset: 5px;
+  color: var(--fs-pending);
 }
 
 .fsc-fund__draft {
@@ -472,11 +619,6 @@ summary.fsc-fund__draft-head {
 
 summary.fsc-fund__draft-head::-webkit-details-marker {
   display: none;
-}
-
-summary.fsc-fund__draft-head:focus-visible {
-  outline: var(--fs-focus-width) solid var(--fs-pod);
-  outline-offset: var(--fs-focus-offset);
 }
 
 summary.fsc-fund__draft-head > .fs-glyph:last-child {
@@ -571,9 +713,14 @@ details[open] > summary.fsc-fund__draft-head > .fs-glyph:last-child {
   border-top: 0;
 }
 
-/* The first view's denser plate: Claude's draft, then the slab, then the memo in one caption. */
+/* The first view's denser plate (round 4: it hugs its content): the head, the amount 32 px under it, the press,
+   then the folded lines directly under it. */
 .fsc-fund[data-compact] .fsc-fund__plate {
   gap: 16px;
+}
+
+.fsc-fund[data-compact] .fsc-fund__invoice > .fsc-fund__total {
+  margin-top: 16px;
 }
 
 .fsc-fund[data-compact] .fsc-fund__draft {
@@ -587,6 +734,12 @@ details[open] > summary.fsc-fund__draft-head > .fs-glyph:last-child {
 
 .fsc-fund__memo {
   margin: 0;
+  color: var(--fs-ink-3);
+}
+
+/* The first view's invoice title: "Invoice", then its number in micro (UI gate round 2). */
+.fsc-fund__number {
+  margin-left: 4px;
   color: var(--fs-ink-3);
 }
 
@@ -617,11 +770,12 @@ details[open] > summary.fsc-fund__draft-head > .fs-glyph:last-child {
   overflow: visible;
 }
 
+/* One 1.5 px jade arc, drawn once, from the invoice's amount to the pool's (round 5). */
 .fsc-fund__arc-path {
   fill: none;
   stroke: var(--fs-jade);
-  stroke-width: 2;
-  stroke-linecap: square;
+  stroke-width: 1.5;
+  stroke-linecap: round;
 }
 
 /* "Funded": PayPal's press. A 3 px raised chip whose inset closes and whose face floods jade from the corner. */
@@ -647,7 +801,7 @@ details[open] > summary.fsc-fund__draft-head > .fs-glyph:last-child {
   left: 100%;
   width: 3px;
   height: 100%;
-  background: var(--fs-slab-jade-right);
+  background: var(--fs-jade-flush-border);
 }
 
 .fsc-funded__edge--b {
@@ -655,7 +809,7 @@ details[open] > summary.fsc-fund__draft-head > .fs-glyph:last-child {
   left: 0;
   width: 100%;
   height: 3px;
-  background: var(--fs-slab-jade-bottom);
+  background: var(--fs-jade-text);
 }
 
 .fsc-funded__face {
@@ -672,7 +826,8 @@ details[open] > summary.fsc-fund__draft-head > .fs-glyph:last-child {
 }
 
 .fsc-fund[data-moment-phase="funded"] .fsc-funded__face,
-.fsc-fund__pool[data-state="landed"] .fsc-funded__face {
+.fsc-fund__pool[data-state="landed"] .fsc-funded__face,
+.fsc-funded[data-landed] .fsc-funded__face {
   box-shadow: inset 0 0 0 1px var(--fs-jade-flush-border);
 }
 
@@ -690,7 +845,8 @@ details[open] > summary.fsc-fund__draft-head > .fs-glyph:last-child {
   gap: 6px;
 }
 
-.fsc-fund[data-moment-phase="funded"] .fsc-funded__label {
+.fsc-fund[data-moment-phase="funded"] .fsc-funded__label,
+.fsc-funded[data-landed] .fsc-funded__label {
   color: var(--fs-on-jade);
 }
 
@@ -737,6 +893,10 @@ details[open] > summary.fsc-fund__draft-head > .fs-glyph:last-child {
   transform: rotate(var(--fsc-turn, 0deg));
 }
 
+.fsc-contact__id {
+  font-weight: 520;
+}
+
 .fsc-contact__link:hover .fsc-contact__id {
   color: var(--fs-ink);
   text-decoration: underline;
@@ -748,19 +908,16 @@ details[open] > summary.fsc-fund__draft-head > .fs-glyph:last-child {
   outline: none;
 }
 
+/* The one ring, drawn on the print rather than around its caption. */
 .fsc-contact__link:focus-visible .fsc-contact__paper {
   outline: var(--fs-focus-width) solid var(--fs-pod);
-  outline-offset: 4px;
+  outline-offset: var(--fs-focus-offset);
 }
 
 .fsc-contact__caption {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-}
-
-.fsc-contact__id {
-  font-weight: 600;
 }
 
 .fsc-contact__item[data-read] .fsc-contact__caption {
@@ -781,10 +938,11 @@ details[open] > summary.fsc-fund__draft-head > .fs-glyph:last-child {
   gap: 4px;
 }
 
+/* An empty cell is a solid hairline bed (round 4: dashed means simulated, and nothing else). */
 .fsc-waffle__cell {
   width: 16px;
   height: 16px;
-  border: 1px dashed var(--fs-rule);
+  border: 1px solid var(--fs-rule);
 }
 
 .fsc-waffle__cell[data-cell="exact"] {
@@ -812,38 +970,22 @@ details[open] > summary.fsc-fund__draft-head > .fs-glyph:last-child {
 
 /* ---------------------------------------------------------------- W-TR-01 Season */
 
-.fsc-season {
-  display: grid;
-  align-content: start;
-  gap: 28px;
-  max-width: 1280px;
-}
+/* Rounds 4 and 5: W-TR-01 sits on the one twelve-column grid (.fsc-screen), top-aligned, 32 px between its rows: the
+   shared title row ("Season 2026-A", the lot's code and the provenance phrase in the id line, the next step at the
+   row's end), the co-op and the lot's facts, the run strip with the run's state under it, the invoice beside the
+   pool, then the slips beside the eval. It fills the panel to its inner edge. */
 
-.fsc-season__head {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 16px 40px;
-}
-
-.fsc-season__titles {
-  display: grid;
-  gap: 10px;
-  min-width: 0;
-}
-
-.fsc-season__title {
-  margin: 0;
-}
-
-.fsc-season__coop {
-  color: var(--fs-ink);
-}
-
+/* The co-op and the lot's facts, data joined by " · " (no sentence), right under the title row. */
 .fsc-season__lede {
-  max-width: 64ch;
+  margin: -16px 0 0;
   color: var(--fs-ink-2);
+}
+
+/* The run strip and the run's state under it: one group. */
+.fsc-season__run {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
 }
 
 /* The next human step, as one linked sentence: the mark says who moves the run, as on the run pill. */
@@ -851,6 +993,7 @@ details[open] > summary.fsc-fund__draft-head > .fs-glyph:last-child {
   display: grid;
   justify-items: end;
   gap: 4px;
+  margin: 0;
 }
 
 .fsc-season__next-word {
@@ -872,10 +1015,12 @@ details[open] > summary.fsc-fund__draft-head > .fs-glyph:last-child {
   text-decoration-color: currentColor;
 }
 
+/* Round 5 (one marker vocabulary): an 8 px round dot, never a square. */
 .fsc-season__next-mark {
   flex: none;
   width: 8px;
   height: 8px;
+  border-radius: 50%;
   background: var(--fs-canary);
 }
 
@@ -894,7 +1039,7 @@ details[open] > summary.fsc-fund__draft-head > .fs-glyph:last-child {
   align-items: center;
   gap: 8px;
   justify-self: start;
-  margin: -8px 0 0;
+  margin: 0;
   color: var(--fs-ink);
 }
 
@@ -906,56 +1051,48 @@ details[open] > summary.fsc-fund__draft-head > .fs-glyph:last-child {
   color: var(--fs-ink-3);
 }
 
+/* The slips (eight columns at 1,920) beside the eval (four), under a rule; one above the other below 1,040 px. */
 .fsc-season__lower {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 32px 56px;
+  grid-template-columns: subgrid;
+  column-gap: normal;
+  row-gap: 32px;
   padding-top: 24px;
   border-top: 1px solid var(--fs-rule);
 }
 
+.fsc-season__lower > * {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+
+@container fsc-screen (min-width: 1040px) {
+  .fsc-season__desk {
+    grid-column: 1 / span 8;
+  }
+
+  .fsc-season__lower > .fsc-waffle {
+    grid-column: 9 / span 4;
+  }
+}
+
 .fsc-season__desk {
   display: grid;
+  align-content: start;
   gap: 16px;
 }
 
+/* "Slips", its counts and the synthetic mark: one row, as on the first view. */
 .fsc-season__desk-head {
-  display: grid;
-  gap: 4px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
 }
 
 /* ---------------------------------------------------------------- narrower screens */
 
-@media (max-width: 1279px) {
-  .fsc-fund {
-    column-gap: 72px;
-  }
-
-  .fsc-season__lower {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
 @media (max-width: 1099px) {
-  .fsc-fund {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .fsc-fund[data-layout="row"] > :is(.fsc-fund__invoice, .fsc-fund__pool) {
-    grid-row: auto;
-    grid-column: 1;
-  }
-
-  .fsc-fund[data-layout="desk"] {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: none;
-  }
-
-  .fsc-fund[data-layout="desk"] > :is(.fsc-fund__invoice, .fsc-fund__pool, .fsc-fund__desk) {
-    grid-row: auto;
-    grid-column: 1;
-  }
-
   .fsc-strip {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
@@ -973,10 +1110,6 @@ details[open] > summary.fsc-fund__draft-head > .fs-glyph:last-child {
   .fsc-contact[data-columns="6"] {
     --fsc-cols: 4;
   }
-
-  .fsc-mark[data-size="hero"] .fsc-mark__season {
-    font-size: 3.5rem;
-  }
 }
 
 .fsc-fund__action > *,
@@ -986,12 +1119,4 @@ details[open] > summary.fsc-fund__draft-head > .fs-glyph:last-child {
 }
 .fsc-fund__invoice .fs-slab__label {
   white-space: normal;
-}
-.fsc-fund__invoice .fs-t-amount-hero {
-  font-size: clamp(2rem, 3.7vw, 4.5rem);
-}
-
-/* The raised US$ prefix keeps a light outline at its half size (ADR-0016). */
-.fsc-figure__hollow .fs-cur {
-  -webkit-text-stroke-width: 1px;
 }

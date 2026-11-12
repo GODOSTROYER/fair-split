@@ -1,0 +1,83 @@
+/* Nothing clipped at any width (UI gate round 5, docs/DESIGN.md §3 "Scroll columns"): a column that scrolls on its own
+   rests on whole rows and fades 24 px at an edge only where there is more beyond it. The fade is a plate veil laid
+   over the scroller (never a mask on it, which would also hide the one focus ring); it sits inside a sticky head or a
+   sticky foot, so a total or a header row stays solid. chrome/SnapScroll.tsx sets the attributes and the heights. */
+
+.fsc-snap {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+}
+
+.fsc-snap__scroller {
+  max-height: 100%;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: var(--fs-rule-strong) transparent;
+}
+
+/* The content keeps `end` px of room at its foot, so its last line never sits on the edge. */
+.fsc-snap__scroller::after {
+  content: "";
+  display: block;
+  height: var(--fsc-snap-end, var(--fs-console-end));
+}
+
+/* A table or a row list inside snaps whole rows to the top, under the sticky head. */
+.fsc-snap__scroller[data-snap="rows"] {
+  scroll-snap-type: y mandatory;
+  scroll-padding-top: var(--fsc-snap-head, 0px);
+}
+
+.fsc-snap__scroller[data-snap="rows"] :is(tbody > tr, [data-snap-row]) {
+  scroll-snap-align: start;
+}
+
+/* A table's room at its foot is its own row's, never a gap under a sticky total. */
+.fsc-snap__scroller:has([data-snap-foot])::after {
+  display: none;
+}
+
+.fsc-snap__fade {
+  position: absolute;
+  right: 0;
+  left: 0;
+  z-index: 2;
+  height: var(--fs-console-fade);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--fs-dur-swap) var(--fs-ease-out);
+}
+
+.fsc-snap__fade[data-edge="start"] {
+  top: var(--fsc-snap-head, 0px);
+  background: linear-gradient(to bottom, var(--fsc-snap-on, var(--fs-plate)), transparent);
+}
+
+.fsc-snap__fade[data-edge="end"] {
+  bottom: var(--fsc-snap-foot, 0px);
+  background: linear-gradient(to top, var(--fsc-snap-on, var(--fs-plate)), transparent);
+}
+
+.fsc-snap[data-more-start] > .fsc-snap__fade[data-edge="start"],
+.fsc-snap[data-more-end] > .fsc-snap__fade[data-edge="end"] {
+  opacity: 1;
+}
+
+/* A log shows its newest rows (PEEK_ROWS) and an "All N events" disclosure, and ends 32 px above its panel's foot. */
+.fsc-peek {
+  margin-bottom: var(--fs-console-end);
+}
+
+/* A panel's last card or column ends 32 px above the panel's foot (the screen's own padding is the rest). */
+.fsc-end {
+  padding-bottom: var(--fs-console-end);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fsc-snap__fade {
+    transition-duration: var(--fs-dur-reduced);
+  }
+}

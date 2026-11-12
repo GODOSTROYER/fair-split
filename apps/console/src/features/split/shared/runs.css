@@ -66,22 +66,12 @@
 
 /* ------------------------------------------------------------------ the next decision, marked by who decides */
 
+/* A hold's link carries the 8 px held StateDot, 8 px from its words (round 5: one marker vocabulary, no square). */
 .fsr-next {
   display: inline-flex;
   align-items: center;
   gap: var(--fs-space-8);
   margin: 0;
-}
-
-.fsr-next__mark {
-  width: 8px;
-  height: 8px;
-  flex: none;
-  background: var(--fs-canary);
-}
-
-.fsr-next[data-kind="approve"] .fsr-next__mark {
-  background: var(--fs-ink);
 }
 
 /* ------------------------------------------------------------------ DigitSwap */
@@ -177,6 +167,8 @@
   letter-spacing: 0;
 }
 
+/* The pad's printed heading is the form's own narrow print (evidence paper, not a UI figure): it keeps its
+   condensed cut, so it never runs into the red serial. */
 .fsr-slip__form--title {
   font-size: 9px;
   font-weight: 700;
@@ -203,15 +195,21 @@
   font-size: 11.5px;
 }
 
-/* A canary highlighter stroke behind the handwriting: the line a person must decide on (H3's unruled fine). */
+/* A faint wash in the decision's colour behind the handwriting (round 6: indigo at 14%, never an amber
+   highlighter): the line a person must decide on (H3's unruled fine). */
 .fsr-slip__highlight {
   fill: var(--fs-canary);
-  opacity: 0.85;
+  opacity: 0.14;
 }
 
+/* Slip 0462's water stain (round 6, film U2): a faint cool wash under a 45° hatch in the tokens' neutral. */
 .fsr-slip__stain {
   fill: var(--fs-evidence-stain);
-  opacity: 0.32;
+  opacity: 0.22;
+}
+
+.fsr-slip__stain-line {
+  fill: var(--fs-evidence-stain);
 }
 
 /* ------------------------------------------------------------------ flat form controls inside the slice */

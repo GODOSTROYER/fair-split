@@ -3,14 +3,7 @@
 
 import { getSnapshot } from "@fairsplit/api-client/seed";
 import { describe, expect, it } from "vitest";
-import {
-  allowedDeductions,
-  clauseLines,
-  nextSeason,
-  refusalParts,
-  scheduleRules,
-  sealedText,
-} from "./model.js";
+import { clauseLines, nextSeason, refusalParts, scheduleRules, sealedText } from "./model.js";
 
 const snapshot = getSnapshot();
 const card = snapshot.rateCard;
@@ -54,15 +47,15 @@ describe("the bolted plate and the refusal (MM-4)", () => {
     expect(sealedText(card)).toMatch(/^sha256 [0-9a-f]{4} [0-9a-f]{4}, sealed 14 Mar 2026 by BR 2026-04$/);
   });
 
-  it("builds the refusal plate from the 409 body: the closed list, the next season, and the hash it cites", () => {
-    const { body, hash } = refusalParts(card, {
+  it("builds the refusal plate from the 409 body: its title, a one-line why, and the hash it cites", () => {
+    const { title, body, hash } = refusalParts(card, {
       hash: card.sha256,
       rateCard: "BR 2026-04",
       ratifiedOn: "2026-03-14",
     });
-    expect(body).toBe(
-      "Closed list. BR 2026-04, Schedule A, allows only CBU, hauling, loans with an Authority to Deduct and advances with a voucher. A new deduction needs a new Board resolution for Season 2026-B.",
-    );
+    // Round 3: the title is the refusal; the why is one line and never repeats the schedule's rule list.
+    expect(title).toBe("Refused · Schedule A is closed until 2026-B");
+    expect(body).toBe("BR 2026-04 locked Schedule A for 2026-A. A new deduction needs a 2026-B resolution.");
     expect(hash).toBe(`Rate card ${card.sha256.slice(0, 4)} ${card.sha256.slice(4, 8)}.`);
   });
 
@@ -80,17 +73,9 @@ describe("the bolted plate and the refusal (MM-4)", () => {
       ratifiedOn: "2026-03-14",
     };
     const { body, hash } = refusalParts(card, refusal);
-    expect(body).toMatch(
-      /^Closed list\. Rate card BR 2026-04, Schedule A, allows only .+ for Season 2026-B\.$/,
-    );
+    expect(body).toMatch(/^Rate card BR 2026-04 locked Schedule A for 2026-A\. .+ 2026-B resolution\.$/);
     expect(body).not.toContain("fedc");
     expect(hash).toBe("Rate card fedc ba98.");
-  });
-
-  it("lists the closed list's deductions in the co-op's words", () => {
-    expect(allowedDeductions(card)).toBe(
-      "CBU, hauling, loans with an Authority to Deduct and advances with a voucher",
-    );
   });
 
   it("knows the season after this one", () => {

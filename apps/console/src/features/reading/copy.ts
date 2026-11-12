@@ -2,9 +2,12 @@
 // the slip's own text or a score the reading reported; nothing here is a number of its own.
 
 export const READING_COPY = {
+  /** The room's one primary while a slip waits for a person (round 6). */
+  enterByHand: (serial: string) => `Enter slip ${serial} by hand`,
   title: "Reading room",
   filmstrip: "Photos in the seed stand-in",
-  progress: (read: number, total: number) => `${read} of ${total} slips read`,
+  progress: (read: number, total: number, needs = 0) =>
+    needs > 0 ? `${read} of ${total} read · ${needs} needs a person` : `${read} of ${total} slips read`,
   photoLink: (id: string, read: boolean, pending: boolean) =>
     `Photo ${id}${read ? ", read" : ", not read yet"}${pending ? ", needs a person" : ""}`,
   earlier: (count: number) => `Read earlier this season (${count})`,
@@ -35,9 +38,25 @@ export const READING_COPY = {
   byHand: (serial: string) => `Enter slip ${serial} by hand`,
   entered: (name: string) => `Entered by ${name}`,
   readTwice: "Seed stand-in, not a Claude recording",
-  footer: (_model: string, _date: string) =>
-    "Seed stand-in, not a Claude recording. Amounts are computed by the engine, never by the model.",
-  earlierFooter: (date: string) => `Read on ${date}, earlier this season. Seeded sample.`,
+  /** The canonical phrase, once per surface: the stand-in tag's whole text (its tail for screen readers). */
+  footer: (_model: string, _date: string) => "Seed stand-in, not a Claude recording",
+  /** A photo read earlier: its date beside the seeded-sample glyph (the glyph says "Seeded sample"). */
+  earlierRead: (date: string) => `read ${date}`,
+  /** The by-hand row's inline action; its accessible name starts with these words (WCAG 2.5.3). */
+  byHandShort: "Enter by hand",
+  byHandName: (serial: string) => `Enter by hand, slip ${serial}`,
+  needsPerson: "Needs a person",
+  /** The hero count: "48/48" in FS Sans, its scope beside it (one truth for slip counts: 48 this run, 264 season). */
+  progressDots: (read: number, total: number) => `${read}/${total}`,
+  progressUnit: "slips read this run",
+  /** Round 5, the truthful count: while a slip waits for a person, the count says so beside it. */
+  /** Round 8: the title row's chip says a slip waits for a person; the count says only what it counts. */
+  progressNeeds: (_needs: number) => "slips read",
+  /** The room's state in the title row's chip (round 5). */
+  stateWaiting: "Waits for payment",
+  stateReading: "Reading",
+  stateNeeds: "Needs a person",
+  stateRead: "All read",
   stateOffline: "You're offline. Rows already read stay; new ones arrive when the connection returns.",
   stateLivePaused: "Live reading is paused for today (budget cap). The labelled seed stand-in still plays.",
   illegible: "Too blurred to read",
@@ -83,7 +102,7 @@ export const READING_COPY = {
   replayStop: "Stop the stand-in",
   // The mock's stand-in is built from the seed's own text: not the recording, and it shows no scores.
   replayNote: (_date: string) =>
-    "Mock data: the mock API sends no rows, so this page plays the seed stand-in, not a Claude recording. It shows no agreement scores: none were read.",
+    "Mock data: a replay of the seed stand-in, not a Claude recording. No scores were read.",
   replayRunning: (done: number, total: number, _date: string) =>
     `Playing the seed's stand-in here: ${done} of ${total} rows. Mock data.`,
   replayDone: (total: number, _date: string) => `Played all ${total} rows of the seed's stand-in. Mock data.`,

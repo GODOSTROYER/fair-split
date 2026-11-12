@@ -1,17 +1,22 @@
-// SplitFan (S2.7, design §1 signature 6): one seal, 64 lines, eight PayPal threads and 56 dashed cash lines, in
-// one SVG on one linear scale (width is money). Threads draw to 70% in graphite on PayPal's 201 (sent, not
-// paid), finish and turn jade only on a verified SUCCESS, hold at 70% with a canary cap when PayPal parks an
-// item, and retract when the line moves to cash, while that member's own dashed cash line draws from the same
-// slot. The 56 cash lines are already drawn and stay still. History is drawn in place; only live events animate.
-// Every word and figure is HTML laid over the picture at its own type size (12 to 14 px at any width); the
-// picture is hidden from screen readers and mirrored in a table (Data mode).
+// SplitFan (S2.7, design §1 signature 6; UI gate rounds 3 and 5): the run's single hero. One seal at 180 units, 64
+// lines: eight PayPal threads fan out from the hub beside the seal to one row each, at one even stroke, and the cash
+// members run together as one 6-unit hatched ribbon in neutral-300 into one marker. Threads draw to 70% in flight on
+// PayPal's 201 (sent, not paid), finish and turn jade only on a verified SUCCESS, run on to the member's own marker
+// in marigold when PayPal parks an item (the marker is the dot; nothing floats in mid-air), and retract when the
+// line moves to cash, while that member's own thin cash line draws from the same slot to the cash marker. Round 5:
+// every line ends on a round marker (the one vocabulary: jade confirmed, marigold parked, hatch cash); a row moved to
+// cash keeps its amount in ink-3 behind the hatch swatch; what the holds kept for members is a caption under the cash
+// row. The seal's rings fill in indigo per key, as on Approve and the Chair's phone. History is drawn in place; only
+// live events animate. Every word and figure is HTML laid over the picture at its own type size; the picture is
+// hidden from screen readers and mirrored in a table (Data mode).
 
 import { TIMING } from "@fairsplit/motion";
-import { seal } from "@fairsplit/seal";
-import { type CSSProperties, useId, useMemo } from "react";
+import { isRingSigned, seal } from "@fairsplit/seal";
+import { MoneyFigure, StateDot, Swatch } from "@fairsplit/ui-web";
+import { type CSSProperties, type ReactNode, useId, useMemo } from "react";
 import { format } from "../../lib/format.js";
 import { FANOUT } from "../split/shared/copy.js";
-import { CASH_DASHARRAY, type CashLine, FAN, type FanThread, type FanView } from "./model.js";
+import { type CashLine, FAN, type FanThread, type FanView } from "./model.js";
 
 export interface SplitFanProps {
   readonly fan: FanView;
@@ -21,6 +26,11 @@ export interface SplitFanProps {
   readonly drawing: boolean;
   readonly mode: "full" | "reduced" | "low";
   readonly cashDay: string;
+  /**
+   * Round 7: a parked payout's reason and its quiet way out, as the second line of that member's own row (never a
+   * card that repeats her under the fan). It is the one part of the fan a reader and a pointer reach.
+   */
+  readonly parkedNote?: { readonly memberNo: string; readonly node: ReactNode };
 }
 
 function threadStyle(t: FanThread, delayMs: number | undefined, drawing: boolean): CSSProperties {
@@ -37,7 +47,7 @@ function at(x: number, y: number): CSSProperties {
   return { ["--fsr-x" as string]: pct(x / FAN.width), ["--fsr-y" as string]: pct(y / FAN.height) };
 }
 
-/** A member moved to cash: the dashed line draws in along its own path where the thread retracts (MM-6). */
+/** A member moved to cash: the thin cash line draws in along its own path where the thread retracts (MM-6). */
 function MovedLine({ line, live, maskId }: { line: CashLine; live: number | undefined; maskId: string }) {
   return (
     <g
@@ -53,8 +63,6 @@ function MovedLine({ line, live, maskId }: { line: CashLine; live: number | unde
         d={line.d}
         pathLength={1}
         strokeWidth={line.stroke}
-        strokeDasharray={CASH_DASHARRAY}
-        strokeDashoffset={line.dashOffset}
         mask={`url(#${maskId})`}
         data-moved=""
         data-attested={line.attested ? "" : undefined}
@@ -64,24 +72,46 @@ function MovedLine({ line, live, maskId }: { line: CashLine; live: number | unde
   );
 }
 
-export function SplitFan({ fan, animate, drawing, mode, cashDay }: SplitFanProps) {
+/**
+ * A pending amount: neutral-500 with a hollow dot (never a dashed underline: dashed means simulated). An amount moved
+ * to cash: ink-3 behind the hatch swatch (round 5), its money now riding with the cash row.
+ */
+function Amount({ cents, state }: { readonly cents: number; readonly state: string }) {
+  return (
+    <span className="fsr-fan__amount fs-t-figure" data-amount-state={state}>
+      {state === "hollow" && <StateDot kind="pending" className="fsr-fan__pending" />}
+      {state === "moved" && <Swatch kind="cash" className="fsr-fan__pending" />}
+      <MoneyFigure display={format.money(cents)} />
+    </span>
+  );
+}
+
+const DOT_R = FAN.dot / 2;
+
+export function SplitFan({ fan, animate, drawing, mode, cashDay, parkedNote }: SplitFanProps) {
+  const notedThread = parkedNote ? fan.threads.find((t) => t.memberNo === parkedNote.memberNo) : undefined;
   const uid = useId().replaceAll(":", "");
   const geometry = useMemo(() => (fan.sealHash ? seal(fan.sealHash, FAN.seal.size) : null), [fan.sealHash]);
   const half = FAN.seal.size / 2;
   const hatchId = `fsr-fan-hatch-${uid}`;
+  const ribbonHatchId = `fsr-fan-ribbon-hatch-${uid}`;
+  const ribbonMaskId = `fsr-fan-ribbon-${uid}`;
+  const band = fan.cashLines.filter((l) => !l.moved);
+  // The block sits on the ribbon's end, one stub tall, so the label beside it reads level with both.
+  const ribbonMid = (fan.cash.top + fan.cash.bottom) / 2;
   return (
     <div
       className="fsr-fan"
       data-motion={mode}
       data-drawing={drawing ? "" : undefined}
       data-testid="W-TR-08.fan"
-      aria-hidden="true"
     >
       <svg
         className="fsr-fan__svg"
         viewBox={`0 0 ${FAN.width} ${FAN.height}`}
         role="presentation"
         focusable="false"
+        aria-hidden="true"
       >
         <defs>
           <pattern
@@ -93,23 +123,50 @@ export function SplitFan({ fan, animate, drawing, mode, cashDay }: SplitFanProps
           >
             <rect width="1.5" height="6" className="fsr-fan__hatch-line" />
           </pattern>
+          {/* The ribbon's hatch, as a mask: the 56 shares draw solid and meet as one ribbon, then show through
+              these stripes only, so the hatch keeps its own edges. */}
+          <pattern
+            id={ribbonHatchId}
+            width="4"
+            height="4"
+            patternUnits="userSpaceOnUse"
+            patternTransform="rotate(45)"
+          >
+            <rect width="1.5" height="4" className="fsr-fan__mask-line" />
+          </pattern>
+          <mask
+            id={ribbonMaskId}
+            maskUnits="userSpaceOnUse"
+            x={0}
+            y={0}
+            width={FAN.width}
+            height={FAN.height}
+          >
+            <rect width={FAN.width} height={FAN.height} fill={`url(#${ribbonHatchId})`} />
+          </mask>
         </defs>
 
-        {/* The seal the two keys completed, and the bar of the run's net. */}
+        {/* The seal the two keys completed: each key's rings in indigo, a ring not signed yet at 1 px in
+            neutral-400; and the hub every line leaves. */}
         <g
           className="fsr-fan__seal"
           data-digest={fan.sealHash ?? undefined}
+          data-keys={fan.sealKeys}
           transform={`translate(${FAN.seal.cx - half} ${FAN.seal.cy - half})`}
         >
-          {geometry?.rings.map((ring) => (
-            <path
-              key={ring.d.slice(0, 24)}
-              d={ring.d}
-              className="fs-seal__ring"
-              fill="none"
-              strokeWidth={geometry.strokeWidth}
-            />
-          ))}
+          {geometry?.rings.map((ring) => {
+            const signed = isRingSigned(ring, fan.sealKeys);
+            return (
+              <path
+                key={ring.d.slice(0, 24)}
+                d={ring.d}
+                className={signed ? "fs-seal__ring" : "fsr-fan__ring-unsigned"}
+                fill="none"
+                strokeWidth={signed ? geometry.strokeWidth : 1}
+                strokeLinejoin="round"
+              />
+            );
+          })}
         </g>
         <rect
           className="fsr-fan__bar"
@@ -117,49 +174,48 @@ export function SplitFan({ fan, animate, drawing, mode, cashDay }: SplitFanProps
           y={FAN.bar.y0}
           width={FAN.bar.x1 - FAN.bar.x0}
           height={FAN.bar.y1 - FAN.bar.y0}
+          rx={2}
         />
 
-        {/* One dashed line per member paid in cash: already drawn, still, hatch-coloured (never jade). */}
+        {/* The cash members as one hatched ribbon: each member's share, still, meeting its neighbours. A line
+            moved to cash draws in, thin and solid, from its own thread's slot. */}
         <g className="fsr-fan__cash" data-testid="W-TR-08.cash">
-          {fan.cashLines.map((line) =>
-            line.moved ? (
-              <MovedLine
-                key={line.memberNo}
-                line={line}
-                live={animate.get(line.memberNo)}
-                maskId={`fsr-fan-reveal-${uid}-${line.memberNo}`}
-              />
-            ) : (
+          <g className="fsr-fan__ribbon" mask={`url(#${ribbonMaskId})`} data-testid="W-TR-08.ribbon">
+            {band.map((line) => (
               <path
                 key={line.memberNo}
                 className="fsr-fan__cash-line"
                 d={line.d}
                 pathLength={1}
                 strokeWidth={line.stroke}
-                strokeDasharray={CASH_DASHARRAY}
-                strokeDashoffset={line.dashOffset}
                 data-attested={line.attested ? "" : undefined}
                 data-testid={`W-TR-08.cash.${line.memberNo}`}
               />
-            ),
-          )}
+            ))}
+          </g>
+          {fan.cashLines
+            .filter((l) => l.moved)
+            .map((line) => (
+              <MovedLine
+                key={line.memberNo}
+                line={line}
+                live={animate.get(line.memberNo)}
+                maskId={`fsr-fan-reveal-${uid}-${line.memberNo}`}
+              />
+            ))}
         </g>
-        <g className="fsr-fan__ends">
-          {fan.cashLines.map((line) => (
-            <rect
-              key={line.memberNo}
-              className="fsr-fan__end"
-              x={FAN.endX}
-              y={line.endY}
-              width={FAN.cash.w}
-              height={Math.max(0.5, line.h - 1)}
-              style={line.attested ? undefined : { fill: `url(#${hatchId})` }}
-              data-attested={line.attested ? "" : undefined}
-            />
-          ))}
-        </g>
+        {fan.cashLines.length > 0 && (
+          <circle
+            className="fsr-fan__block"
+            cx={FAN.endX + DOT_R}
+            cy={ribbonMid}
+            r={DOT_R}
+            style={fan.cash.amountState === "attested" ? undefined : { fill: `url(#${hatchId})` }}
+            data-attested={fan.cash.amountState === "attested" ? "" : undefined}
+          />
+        )}
 
-        {/* Eight PayPal threads, each as wide as its payment. */}
+        {/* Eight PayPal threads, one row each. */}
         {fan.threads.map((t) => {
           const live = animate.get(t.memberNo);
           return (
@@ -179,27 +235,17 @@ export function SplitFan({ fan, animate, drawing, mode, cashDay }: SplitFanProps
                 data-animate={live !== undefined || drawing ? "" : undefined}
                 style={threadStyle(t, live, drawing)}
               />
-              {(t.tone === "parked" || t.tone === "failed") && (
-                <rect
-                  className="fsr-fan__cap"
-                  x={t.capAt.x - FAN.cap / 2}
-                  y={t.capAt.y - FAN.cap / 2}
-                  width={FAN.cap}
-                  height={FAN.cap}
-                  data-tone={t.replayed ? "sent" : t.tone}
-                />
-              )}
               <g
                 className="fsr-fan__stub"
                 transform={`translate(${FAN.endX} ${t.stubY})`}
                 data-animate={live !== undefined ? "" : undefined}
                 style={{ ["--fsr-delay" as string]: `${live ?? 0}ms` }}
               >
-                <rect className="fsr-fan__stub-edge" width={FAN.stub.w} height={FAN.stub.h} />
-                <rect
+                <circle
                   className="fsr-fan__stub-face"
-                  width={FAN.stub.w}
-                  height={FAN.stub.h}
+                  cx={DOT_R}
+                  cy={FAN.stub.h / 2}
+                  r={DOT_R}
                   style={t.tone === "moved" ? { fill: `url(#${hatchId})` } : undefined}
                 />
               </g>
@@ -208,7 +254,7 @@ export function SplitFan({ fan, animate, drawing, mode, cashDay }: SplitFanProps
         })}
       </svg>
 
-      <div className="fsr-fan__labels">
+      <div className="fsr-fan__labels" aria-hidden="true">
         {fan.threads.map((t) => (
           <p
             key={t.memberNo}
@@ -218,48 +264,43 @@ export function SplitFan({ fan, animate, drawing, mode, cashDay }: SplitFanProps
             data-testid={`W-TR-08.label.${t.memberNo}`}
           >
             {t.tone === "moved" ? (
-              // Her money now rides with the cash line and the cash total beneath: the row says where it went.
-              <span className="fsr-fan__name fs-t-caption">{FANOUT.movedToCash(t.name)}</span>
+              // Her money now rides with the cash row beneath: the row says where it went, and how much.
+              <>
+                <span className="fsr-fan__name fs-t-label">
+                  {fan.cash.amountState === "attested"
+                    ? FANOUT.movedToCashDone(t.name)
+                    : FANOUT.movedToCash(t.name, cashDay)}
+                </span>
+                <Amount cents={t.cents} state="moved" />
+              </>
             ) : (
               <>
-                <span className="fsr-fan__name fs-t-caption" title={t.statusWord}>
+                <span className="fsr-fan__name fs-t-label" title={t.statusWord}>
                   {t.name}
                   {t.replayed ? " · Replayed (labelled, simulated)" : ""}
                 </span>
-                <span className="fsr-fan__amount fs-t-figure" data-amount-state={t.amountState}>
-                  {format.money(t.cents)}
-                </span>
+                <Amount cents={t.cents} state={t.amountState} />
               </>
             )}
           </p>
         ))}
-        {fan.threads
-          .filter((t) => t.tone === "parked")
-          .map((t) => (
-            <span
-              key={t.memberNo}
-              className="fsr-fan__chip fs-t-caption"
-              style={at(t.capAt.x + 12, t.capAt.y)}
-              data-testid={`W-TR-08.chip.${t.memberNo}`}
-            >
-              {t.replayed ? "Replayed (labelled, simulated)" : FANOUT.parkedChip}
-            </span>
-          ))}
         {fan.cashLines.length > 0 && (
-          <p
-            className="fsr-fan__group"
-            style={at(FAN.labelX, (fan.cash.top + fan.cash.bottom) / 2)}
-            data-testid="W-TR-08.cashLabel"
-          >
-            <span className="fsr-fan__name fs-t-caption">
-              {FANOUT.cashBandMembers(fan.cash.members, cashDay)}
+          <p className="fsr-fan__group" style={at(FAN.labelX, ribbonMid)} data-testid="W-TR-08.cashLabel">
+            {/* Round 6: on a narrow fan the row says "57 members · cash" whole (never cut with an ellipsis); "at the
+                bodega" joins it where there is room. */}
+            <span className="fsr-fan__name fs-t-label" title={FANOUT.dueOn(cashDay)}>
+              {FANOUT.cashBandShort(fan.cash.members)}
+              <span className="fsr-fan__more">{FANOUT.cashBandWhere}</span>
             </span>
-            <span className="fsr-fan__amount fs-t-figure" data-amount-state={fan.cash.amountState}>
-              {format.money(fan.cash.cents)}
-            </span>
+            <Amount cents={fan.cash.cents} state={fan.cash.amountState} />
           </p>
         )}
       </div>
+      {parkedNote && notedThread && (
+        <div className="fsr-fan__note" style={at(FAN.labelX, notedThread.stubY + FAN.stub.h / 2)}>
+          {parkedNote.node}
+        </div>
+      )}
     </div>
   );
 }

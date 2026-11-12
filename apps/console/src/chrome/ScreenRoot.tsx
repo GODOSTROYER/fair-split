@@ -3,6 +3,7 @@
 
 import type { ReactNode } from "react";
 import type { ConsoleScreenId, ScreenState } from "../lib/screens.js";
+import { SCREEN_GRID } from "./ScreenGrid.js";
 
 export interface ScreenRootProps<S extends ConsoleScreenId> {
   readonly id: S;
@@ -12,6 +13,11 @@ export interface ScreenRootProps<S extends ConsoleScreenId> {
   /** The heading that names the screen, for aria-labelledby. */
   readonly labelledBy?: string;
   readonly as?: "section" | "main" | "article";
+  /**
+   * Sit on the one 12-column grid (UI gate round 4, docs/DESIGN.md §3): the root takes `fsc-screen`, its children
+   * are a ScreenHead and Cells, top-aligned 32 px under the title row.
+   */
+  readonly grid?: boolean;
 }
 
 export function ScreenRoot<S extends ConsoleScreenId>({
@@ -21,10 +27,11 @@ export function ScreenRoot<S extends ConsoleScreenId>({
   className,
   labelledBy,
   as: Tag = "section",
+  grid = false,
 }: ScreenRootProps<S>) {
   return (
     <Tag
-      className={className}
+      className={[grid ? SCREEN_GRID : null, className].filter(Boolean).join(" ") || undefined}
       data-testid={id}
       data-screen={id}
       data-state={state}

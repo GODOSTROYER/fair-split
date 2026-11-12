@@ -1,20 +1,25 @@
 // W-TR-05 Split review (S1.7, design §6 C5): every member's line in one grid, on the engine computation the
-// run's decisions match. The bench above it holds the mass-balance dial, the pool (the screen's money, in pencil
-// until the keys turn, with the engine's provenance and the balance check beneath it), the open decisions and the
-// filters. The lines a person must still decide are pinned above the rest; the pinned totals sit on the ribbon,
-// so the grid fills the screen and nothing else scrolls. `?hold=` opens W-TR-06 beside it and `?member=` opens
-// W-TR-09; the route renders those, this screen marks their row.
+// run's decisions match. The title row says the review's state in one chip and the run once (round 5). The bench
+// under it holds the shrink dial, the pool (the screen's money, in pencil until the keys turn) and the next
+// decision; the filters run beneath it. The lines a person must still decide are pinned above the rest and the
+// totals beneath, and the lines between rest on whole rows (round 5: nothing half-hidden under the total). `?hold=`
+// opens W-TR-06 beside it and `?member=` opens W-TR-09; the route renders those, this screen marks their row.
 
 import { webRoutes } from "@fairsplit/contracts";
+import { Chip, Glyph } from "@fairsplit/ui-web";
 import { useRouter } from "@tanstack/react-router";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { AppLink } from "../../chrome/AppLink.js";
 import { CommandNotice } from "../../chrome/CommandNotice.js";
+import { PROVENANCE } from "../../chrome/copy.js";
 import { RunRouteGate } from "../../chrome/Fallbacks.js";
+import { cashStillDue } from "../../chrome/next-step.js";
 import { PrintBed } from "../../chrome/PrintBed.js";
+import { ScreenHead } from "../../chrome/ScreenGrid.js";
 import { ScreenRoot } from "../../chrome/ScreenRoot.js";
 import { payoutReplayed } from "../../data/payout-replay.js";
-import type { GridContext } from "../../features/split/cells.js";
+import { type ScheduleRuleId, shortRules } from "../../features/ratecard/model.js";
+import { type GridContext, statusLabel } from "../../features/split/cells.js";
 import {
   basisEventId,
   decisionRows,
@@ -23,7 +28,6 @@ import {
   filterRows,
   hasLines,
   massBalanceView,
-  nextOpenCard,
   openCounts,
   type SplitFilter,
   type SplitRow,
@@ -32,25 +36,22 @@ import {
   splitTotals,
 } from "../../features/split/model.js";
 import { SplitGrid } from "../../features/split/SplitGrid.js";
-import { type NextDecision, SplitHeader } from "../../features/split/SplitHeader.js";
-import { en, SPLIT } from "../../features/split/shared/copy.js";
+import { Reconcile, SplitHeader } from "../../features/split/SplitHeader.js";
+import { SPLIT } from "../../features/split/shared/copy.js";
 import { stampFor } from "../../features/split/shared/people.js";
 import { useLiveEvents, useRunData } from "../../features/split/shared/run-data.js";
 import { waveDelays } from "../../features/split/wave.js";
+import { runLabel, seasonLabel } from "../../lib/display.js";
 import { format } from "../../lib/format.js";
-import { provenanceFooter } from "../../lib/provenance.js";
 import type { ScreenState } from "../../lib/screens.js";
 import type { SplitScreenProps } from "../contract.js";
 import "../../features/split/shared/runs.css";
 import "../../features/split/split.css";
 
-const BASIS_NOTE = {
-  read: "after reading, before slip 0462 is entered",
-  byHand: "after slip 0462 by hand",
-  resolved: "with every decision so far",
-} as const;
+/** States after which the grid's statuses come from the simulated PayPal sandbox (the batch has posted). */
+const POSTED = ["APPROVED", "POSTING", "POSTED", "SETTLING", "NEEDS_FOLLOW_UP", "SETTLED", "CLOSED"];
 
-export function Screen({ runSlug, hold, member }: SplitScreenProps) {
+export function Screen({ runSlug, hold, member, receiptRef }: SplitScreenProps) {
   const router = useRouter();
   const data = useRunData(runSlug);
   const live = useLiveEvents(data.live ? runSlug : null);
@@ -99,7 +100,10 @@ export function Screen({ runSlug, hold, member }: SplitScreenProps) {
   const context = useMemo<GridContext | null>(() => {
     if (!snapshot) return null;
     const limit = snapshot.rateCard.canonical.rules.tolerances.kgPerTreeMaxG;
+    // A deduction chip reads "CBU −1.37" (round 5): its rule's id and words are its title, from the card's own terms.
+    const rules = shortRules(snapshot.rateCard);
     return {
+      ruleText: (ruleId: string) => rules[ruleId as ScheduleRuleId],
       isLive: live.isLive,
       waveDelay: (memberNo) => waves.get(memberNo) ?? 0,
       stamp: (by, at) => stampFor(snapshot, by, at),
@@ -146,18 +150,51 @@ export function Screen({ runSlug, hold, member }: SplitScreenProps) {
   else if (!hasLines(view)) state = "empty";
   else state = "ready";
 
+  const season = snapshot ? seasonLabel(snapshot.season.label) : null;
+  const posted = view ? POSTED.includes(view.state) : false;
+  // The grid holds simulated PayPal statuses (posted, or any line already with the rail): the id line's one phrase
+  // says so (round 5: provenance once, no glyph), and the rows' words carry it for screen readers.
+  const simulated = posted || rows.some((r) => statusLabel(r) !== null);
+  const lined = Boolean(snapshot && view && hasLines(view));
+  const open = view ? openCounts(view) : { holds: 0, byHand: 0 };
+  const cashDue = view && snapshot ? cashStillDue(view, snapshot.figures.cashMembers) : false;
+  // The title row (round 5): a noun with the season in grey, the review's state in one chip on the same row, then
+  // one id line: the run id (the one run id everywhere) and the screen's one provenance phrase. The lines, the
+  // engine and the rate card's hash are the run id's title.
   const title = (
-    <header className="fsr-screen__head">
-      <h1 id="W-TR-05-title" className="fs-t-title-1">
-        {en("W-TR-05.title")}
-      </h1>
-      <p className="fsr-screen__slug fs-t-hash">{runSlug}</p>
-    </header>
+    <ScreenHead
+      title={SPLIT.title}
+      suffix={season}
+      titleId="W-TR-05-title"
+      status={
+        lined && view ? (
+          <SplitState
+            open={open}
+            decided={decidedWords(view.state, replayed, cashDue)}
+            cashDue={cashDue && !replayed}
+          />
+        ) : undefined
+      }
+      meta={
+        lined && snapshot && view ? (
+          <span
+            data-testid="W-TR-05.provenance"
+            title={`${SPLIT.provenanceTitle(rows.length, SPLIT.basis[splitBasis(view)])} · ${SPLIT.rateCardWord} ${format.hashGroups(snapshot.rateCard.sha256)}`}
+          >
+            {runLabel(runSlug).run}
+          </span>
+        ) : (
+          runLabel(runSlug).run
+        )
+      }
+      provenance={lined ? (simulated ? PROVENANCE.simulatedPaypal : PROVENANCE.seededSlips) : undefined}
+      testId="W-TR-05.head"
+    />
   );
 
   if (state === "loading" || state === "error") {
     return (
-      <ScreenRoot id="W-TR-05" state={state} className="fsr-screen fsr-split" labelledBy="W-TR-05-title">
+      <ScreenRoot id="W-TR-05" state={state} className="fsr-screen fsr-split" labelledBy="W-TR-05-title" grid>
         {title}
         {state === "error" ? (
           <CommandNotice error={data.error} testId="W-TR-05.error" onRetry={data.retry} />
@@ -182,7 +219,7 @@ export function Screen({ runSlug, hold, member }: SplitScreenProps) {
 
   if (state === "empty") {
     return (
-      <ScreenRoot id="W-TR-05" state="empty" className="fsr-screen fsr-split" labelledBy="W-TR-05-title">
+      <ScreenRoot id="W-TR-05" state="empty" className="fsr-screen fsr-split" labelledBy="W-TR-05-title" grid>
         {title}
         <div className="fsr-empty" data-testid="W-TR-05.empty">
           <span className="fsr-empty__beds" aria-hidden>
@@ -198,87 +235,60 @@ export function Screen({ runSlug, hold, member }: SplitScreenProps) {
   }
 
   const basis = splitBasis(view);
-  const output = engineOutput(snapshot, basis);
   const dial = massBalanceView(snapshot, view);
-  const open = openCounts(view);
-  const card = nextOpenCard(view);
-  const byHandOpen = Object.values(view.holds).find((h) => h.kind === "LOW_CONFIDENCE" && h.state === "OPEN");
-  const byHandSerial = snapshot.holds.find((h) => h.kind === "LOW_CONFIDENCE")?.serials[0] ?? null;
-  let next: NextDecision | null = null;
-  if (byHandOpen && byHandSerial) {
-    next = {
-      kind: "by-hand",
-      href: webRoutes.byHand(snapshot.season.label, byHandSerial),
-      words: SPLIT.byHandNext(byHandSerial),
-    };
-  } else if (card) {
-    const seeded = snapshot.holds.find((h) => h.key === card.key);
-    const name = rows.find((r) => r.memberNo === card.memberNo)?.name ?? "";
-    next = {
-      kind: "hold",
-      href: webRoutes.holdDrawer(runSlug, card.label),
-      words: SPLIT.nextHold(
-        card.label,
-        seeded ? holdHeadline(card.kind, seeded.serials[0] ?? "", name) : name,
-      ),
-    };
-  } else if (
-    open.holds === 0 &&
-    open.byHand === 0 &&
-    !["APPROVED", "POSTING", "POSTED", "SETTLING", "NEEDS_FOLLOW_UP", "SETTLED", "CLOSED"].includes(
-      view.state,
-    )
-  ) {
-    next = { kind: "approve", href: webRoutes.approve(runSlug), words: SPLIT.approveLink };
-  }
+  // The reading before the last decision moved it: slip 0457 counted twice, once the by-hand slip is in.
+  const was =
+    basis === "resolved" ? format.percentBp(engineOutput(snapshot, "byHand").massBalance.shrinkBp) : null;
 
   return (
-    <ScreenRoot id="W-TR-05" state={state} className="fsr-screen fsr-split" labelledBy="W-TR-05-title">
+    <ScreenRoot id="W-TR-05" state={state} className="fsr-screen fsr-split" labelledBy="W-TR-05-title" grid>
       {title}
       {state === "declined" && (
         <p className="fsr-banner" data-tone="red" role="status" data-testid="W-TR-05.declined">
           {SPLIT.declined}
         </p>
       )}
+      {/* Round 8: a decided hold's receipt prints here (W-TR-06 portals into it); empty, it takes no room. */}
+      <div ref={receiptRef} className="fsr-split__receipt" data-testid="W-TR-05.receipt" />
       <SplitHeader
         dial={dial}
         swing={live.isLive(basisEventId(view, basis))}
-        pools={{
-          premiumCents: output.conservation.premiumPoolCents,
-          bonusCents: output.conservation.bonusPoolCents,
-          poolCents: output.conservation.poolCents,
-          amountState: rows.some((r) => r.partsState === "ink") ? "ink" : "pencil",
-        }}
-        open={open}
-        next={next}
+        was={was}
         counts={filterCounts(rows)}
         filter={filter}
         onFilter={setFilter}
-        decidedWords={decidedWords(view.state, replayed)}
-        proof={
-          <div className="fsr-split__foot">
-            <p className="fsr-split__totals fs-t-caption" data-testid="W-TR-05.totals">
-              <span className="fsr-split__check" data-balanced={totals.balanced ? "" : undefined}>
+        railsPlanned={!posted}
+        reconcile={
+          <Reconcile
+            totals={totals}
+            poolState={rows.some((r) => r.partsState === "ink") ? "ink" : "pencil"}
+            check={
+              <p
+                className="fsr-split__totals fs-t-label"
+                data-testid="W-TR-05.totals"
+                data-balanced={totals.balanced ? "" : undefined}
+                title={SPLIT.balancedTitle(format.amount(totals.grossCents))}
+              >
+                <Glyph name={totals.balanced ? "ms:check" : "ms:help"} size={14} />
                 {totals.balanced ? SPLIT.balanced : SPLIT.unbalanced}
-              </span>{" "}
-              {en("W-TR-05.totals", { gross: format.amount(totals.grossCents) })}
-            </p>
-            <p className="fsr-split__provenance fs-t-caption" data-testid="W-TR-05.provenance">
-              {provenanceFooter({ kind: "engine", rateCardSha256: snapshot.rateCard.sha256 })},{" "}
-              {BASIS_NOTE[basis]}.
-              {view.origin === "showcase" ? ` ${provenanceFooter({ kind: "seeded" })}.` : ""}
-            </p>
-          </div>
+              </p>
+            }
+          />
         }
         columns={
           <button
             type="button"
-            className="fsr-chip fsr-chip--columns fs-t-label"
+            className="fsr-columns fs-flat"
             aria-pressed={allColumns}
+            aria-label={allColumns ? SPLIT.fewerColumns : SPLIT.allColumns}
+            title={allColumns ? SPLIT.fewerColumns : SPLIT.allColumns}
             onClick={() => setAllColumns((v) => !v)}
             data-testid="W-TR-05.allColumns"
           >
-            {allColumns ? SPLIT.fewerColumns : SPLIT.allColumns}
+            <Glyph name={allColumns ? "ms:expand-less" : "ms:expand-more"} size={18} />
+            <span className="fs-t-label" aria-hidden>
+              {SPLIT.columns}
+            </span>
           </button>
         }
       />
@@ -295,29 +305,44 @@ export function Screen({ runSlug, hold, member }: SplitScreenProps) {
   );
 }
 
-/** What the bench says once every hold is decided, by how far the run has gone since. */
-export function decidedWords(state: string, replayed = false): string {
-  if (
-    replayed &&
-    ["APPROVED", "POSTING", "POSTED", "SETTLING", "NEEDS_FOLLOW_UP", "SETTLED", "CLOSED"].includes(state)
-  )
-    return "Every hold is decided and both keys signed. Payout statuses are replayed (labelled) from an earlier simulated PayPal sandbox run.";
-  if (state === "SETTLED" || state === "CLOSED") return SPLIT.decidedSettled;
+/**
+ * What the bench says once every hold is decided, by how far the run has gone since. A settled run with cash still
+ * due never reads "settled" (round 3): PayPal's part is complete, the cash is not handed over.
+ */
+export function decidedWords(state: string, replayed = false, cashDue = false): string {
+  if (replayed && POSTED.includes(state)) return SPLIT.decidedReplayed;
+  if (state === "SETTLED" || state === "CLOSED") return cashDue ? SPLIT.decidedCashDue : SPLIT.decidedSettled;
   if (state === "TREASURER_APPROVED" || state === "AWAITING_BOARD") return SPLIT.decidedKey1;
   if (["APPROVED", "POSTING", "POSTED", "SETTLING", "NEEDS_FOLLOW_UP"].includes(state))
     return SPLIT.decidedApproved;
   return SPLIT.allDecided;
 }
 
-function holdHeadline(kind: string, serial: string, name: string): string {
-  switch (kind) {
-    case "DUPLICATE_SLIP":
-      return en("W-TR-06.H1.title", { slip: serial });
-    case "IMPLAUSIBLE_YIELD":
-      return en("W-TR-06.H2.title", { name });
-    case "NO_RULE":
-      return en("W-TR-06.H3.title", { slip: serial });
-    default:
-      return name;
+/**
+ * The review's state as the title row's one chip (round 5): the open decisions in amber while a person must still
+ * decide, then how far the run has gone, short ("PayPal complete · cash due" in hatch, never "settled" while cash
+ * is due). Its full words are `decidedWords`.
+ */
+function SplitState({
+  open,
+  decided,
+  cashDue,
+}: {
+  readonly open: { readonly holds: number; readonly byHand: number };
+  readonly decided: string;
+  readonly cashDue: boolean;
+}) {
+  if (open.holds + open.byHand > 0) {
+    return (
+      <Chip tone="canary" glyph="hanging-scale" testId="W-TR-05.summary">
+        {SPLIT.summary(open.holds, open.byHand)}
+      </Chip>
+    );
   }
+  const words = decided === SPLIT.allDecided ? decided : decided.replace(`${SPLIT.allDecided} · `, "");
+  return (
+    <Chip tone={cashDue ? "hatch" : "neutral"} glyph={cashDue ? "cash" : "ms:check"} testId="W-TR-05.summary">
+      {words}
+    </Chip>
+  );
 }

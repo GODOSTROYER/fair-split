@@ -59,7 +59,9 @@ describe("seeded console provenance", () => {
       /Read a slip live|same recording|showcase run's cash receipts|recorded on 29 Oct/,
     );
     expect(text).toContain("photos A–L are composed in code");
-    expect(text).toContain("Codex-made");
+    expect(text).toContain("OpenAI's image model");
+    // Round 6: no production wording where a judge reads.
+    expect(text).not.toMatch(/Codex-made|hero flats|hero slips|hero-slip/);
     expect(text).toContain("untested against PayPal's own sandbox");
     expect(TRY_TO_BREAK.attempts.join(" ")).not.toMatch(/Claude's draft|insufficient-funds/);
     expect(STAGE_NOTICE.queued(3)).toContain("simulated PayPal sandbox");

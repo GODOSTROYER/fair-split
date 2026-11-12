@@ -6,12 +6,12 @@ import { payoutStatus } from "../../data/payout-replay.js";
 // on the event's ID, and history never animates.
 
 import type { ProofBundle } from "@fairsplit/contracts";
-import { RailBar } from "@fairsplit/ui-web";
+import { Glyph, Swatch } from "@fairsplit/ui-web";
 import { type CSSProperties, useId, useRef } from "react";
 import { DataTable, Mirrored } from "../../chrome/DataTable.js";
 import type { PaypalRail } from "../../lib/env.js";
 import { format } from "../../lib/format.js";
-import { FEES_COPY, FIGURE_COPY } from "./copy.js";
+import { FEES_COPY, FIGURE_COPY, railShort } from "./copy.js";
 import type { FeeFigures, ProofFigures } from "./metrics.js";
 import { type LineStates, mergeItems, type ProofItemView, paidTiers } from "./model.js";
 
@@ -59,7 +59,7 @@ export function Figures({
   const total = tiers.netCents;
   return (
     <section className="pf-figures" aria-labelledby={`${id}-figures`} data-testid="W-PF-01.figures">
-      <h2 id={`${id}-figures`} className="pf-section__title">
+      <h2 id={`${id}-figures`} className="pf-section__title fs-t-title">
         {FIGURE_COPY.heading}
       </h2>
       <dl className="pf-ledger">
@@ -69,7 +69,6 @@ export function Figures({
             <span className="pf-ledger__value" data-amount-state="ink">
               {FIGURE_COPY.explainedValue(figures.lines.explained, figures.lines.total)}
             </span>
-            <span className="pf-ledger__note">{FIGURE_COPY.explainedNote}</span>
           </dd>
         </div>
 
@@ -80,11 +79,11 @@ export function Figures({
               <span data-amount-state="ink">{format.money(figures.premium.allocatedCents)}</span>
               <span className="pf-ledger__aside">{pct(figures.premium.allocatedBp, 0)}</span>
             </span>
-            <span className="pf-ledger__note">
-              {figures.premium.deductedFromPremiumCents === 0
-                ? FIGURE_COPY.premiumNote
-                : FIGURE_COPY.premiumBreach(format.money(figures.premium.deductedFromPremiumCents))}
-            </span>
+            {figures.premium.deductedFromPremiumCents !== 0 && (
+              <span className="pf-ledger__note" data-state="breach">
+                {FIGURE_COPY.premiumBreach(format.money(figures.premium.deductedFromPremiumCents))}
+              </span>
+            )}
           </dd>
         </div>
 
@@ -94,24 +93,30 @@ export function Figures({
             <Mirrored
               testId="W-PF-01.tierbar"
               className="pf-tierbar"
+              // The hero's money bar already draws a live run's tiers; only a replay (which shows no hero bar)
+              // draws them here, in ink-3.
               visual={
-                <span className="pf-tierbar__bar" data-replayed={replayed ? "" : undefined}>
-                  <span
-                    className="pf-tierbar__seg"
-                    data-tier="paypal"
-                    style={{ width: widthOf(tiers.paypal.cents, total) } as CSSProperties}
-                  />
-                  <span
-                    className="pf-tierbar__seg"
-                    data-tier="attested"
-                    style={{ width: widthOf(tiers.attested.cents, total) } as CSSProperties}
-                  />
-                  <span
-                    className="pf-tierbar__seg"
-                    data-tier="due"
-                    style={{ width: widthOf(tiers.due.cents + tiers.reserved.cents, total) } as CSSProperties}
-                  />
-                </span>
+                replayed && (
+                  <span className="pf-tierbar__bar" data-replayed="">
+                    <span
+                      className="pf-tierbar__seg"
+                      data-tier="paypal"
+                      style={{ width: widthOf(tiers.paypal.cents, total) } as CSSProperties}
+                    />
+                    <span
+                      className="pf-tierbar__seg"
+                      data-tier="attested"
+                      style={{ width: widthOf(tiers.attested.cents, total) } as CSSProperties}
+                    />
+                    <span
+                      className="pf-tierbar__seg"
+                      data-tier="due"
+                      style={
+                        { width: widthOf(tiers.due.cents + tiers.reserved.cents, total) } as CSSProperties
+                      }
+                    />
+                  </span>
+                )
               }
               table={
                 <DataTable
@@ -155,7 +160,7 @@ export function Figures({
             />
             <ul className="pf-tiers" data-replayed={replayed ? "" : undefined}>
               <li className="pf-tier" data-tier="paypal" data-testid="W-PF-01.tier.paypal">
-                <span className="pf-tier__swatch" aria-hidden />
+                <Swatch kind="paid" className="pf-tier__swatch" />
                 <span className="pf-tier__words">
                   {replayed
                     ? "Replayed payout statuses (simulated PayPal sandbox): successful in the source run"
@@ -179,7 +184,7 @@ export function Figures({
                 </span>
               </li>
               <li className="pf-tier" data-tier="attested" data-testid="W-PF-01.tier.attested">
-                <span className="pf-tier__swatch" aria-hidden />
+                <Swatch kind="cash" className="pf-tier__swatch" />
                 <span className="pf-tier__words">{FIGURE_COPY.tierAttested}</span>
                 <span className="pf-tier__count">
                   {FIGURE_COPY.attestedOf(tiers.attested.members, tiers.attested.ofMembers)}
@@ -193,7 +198,7 @@ export function Figures({
                 </span>
               </li>
               <li className="pf-tier" data-tier="due" data-testid="W-PF-01.tier.due">
-                <span className="pf-tier__swatch" aria-hidden />
+                <Swatch kind="cash" className="pf-tier__swatch" />
                 <span className="pf-tier__words">
                   {FIGURE_COPY.tierDue}
                   <span className="pf-tier__sub">
@@ -213,7 +218,7 @@ export function Figures({
               </li>
               {tiers.reserved.members > 0 && (
                 <li className="pf-tier" data-tier="reserved" data-testid="W-PF-01.tier.reserved">
-                  <span className="pf-tier__swatch" aria-hidden />
+                  <Swatch kind="held" className="pf-tier__swatch" />
                   <span className="pf-tier__words">{FIGURE_COPY.tierReserved}</span>
                   <span className="pf-tier__count">{FIGURE_COPY.members(tiers.reserved.members)}</span>
                   <span className="pf-tier__amount" data-amount-state="pencil">
@@ -222,7 +227,6 @@ export function Figures({
                 </li>
               )}
             </ul>
-            <span className="pf-ledger__note">{FIGURE_COPY.attestedNote}</span>
           </dd>
         </div>
 
@@ -238,14 +242,14 @@ export function Figures({
                     members
                   </span>
                 </span>
-                <span className="pf-ledger__note">
-                  {figures.holds.duplicateCents !== null && figures.holds.creditCents !== null
-                    ? FIGURE_COPY.holdsNote(
-                        format.money(figures.holds.duplicateCents),
-                        format.money(figures.holds.creditCents),
-                      )
-                    : "From this run's public Proof metrics: duplicate slips counted once and unruled fines returned as credits."}
-                </span>
+                {figures.holds.duplicateCents !== null && figures.holds.creditCents !== null && (
+                  <span className="pf-ledger__note">
+                    {FIGURE_COPY.holdsNote(
+                      format.money(figures.holds.duplicateCents),
+                      format.money(figures.holds.creditCents),
+                    )}
+                  </span>
+                )}
               </>
             ) : (
               <span className="pf-ledger__note">{FIGURE_COPY.holdsUnknown}</span>
@@ -254,22 +258,19 @@ export function Figures({
         </div>
 
         <div className="pf-ledger__row pf-ledger__row--rails" data-testid="W-PF-01.metric.rails">
-          <dt>{FIGURE_COPY.rails()}</dt>
+          <dt>
+            {FIGURE_COPY.rails()}
+            {/* Round 5, provenance once: the rail in words for a screen reader, no legend glyph in view. */}
+            <span className="fs-sr">{` (${railShort(rail)})`}</span>
+          </dt>
           <dd>
             <span className="pf-ledger__value" data-testid="W-PF-01.metric.onPaypal">
               {FIGURE_COPY.onPaypal(rails.paypalMembers, figures.lines.total, share)}
             </span>
+            {/* The hero's bar already draws PayPal against cash: here the split is a table, read in Data mode. */}
             <Mirrored
               testId="W-PF-01.railbar"
-              visual={
-                <RailBar
-                  paypalShare={rails.paypalValueBp / 10_000}
-                  paypalText={FIGURE_COPY.railsPaypal(rails.paypalMembers, share)}
-                  cashText={FIGURE_COPY.railsCash(rails.cashMembers)}
-                  cashWord={FIGURE_COPY.railsWord}
-                  confirmed={tiers.paypal.members > 0}
-                />
-              }
+              visual={null}
               table={
                 <DataTable
                   caption="PayPal (simulated sandbox) and cash this season"
@@ -316,22 +317,23 @@ export function Figures({
                   ? FIGURE_COPY.timingPending
                   : format.elapsedWords(figures.timingMs)}
             </span>
-            <span className="pf-ledger__note">
-              {replayed
-                ? "No timing: payout statuses are replayed from an earlier simulated PayPal sandbox run."
-                : FIGURE_COPY.timingNote}
-            </span>
+            {replayed && (
+              <span className="pf-ledger__note">
+                No timing: payout statuses are replayed from an earlier simulated PayPal sandbox run.
+              </span>
+            )}
           </dd>
         </div>
       </dl>
-      <p className="pf-figures__source">{FIGURE_COPY.source}</p>
 
       <details className="pf-fees" data-testid="W-PF-01.fees">
         <summary className="pf-fees__summary">
+          <Glyph name="ms:expand-more" size={16} className="pf-summary__chevron" />
           <span className="pf-fees__title">{FEES_COPY.heading}</span>
           <span className="pf-fees__lede">
             {replayed ? "Replayed simulated payout fees and this run’s invoice" : FEES_COPY.summary}
           </span>
+          {!replayed && <span className="fs-sr">{` (${railShort(rail)})`}</span>}
         </summary>
         <ul className="pf-fees__list">
           <li>

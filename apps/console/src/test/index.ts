@@ -10,6 +10,7 @@
 //   timersBeforeCommit zero-delay timers fire before React's scheduled commit (a loaded machine's order)
 //   focusAcrossRemoval where focus is in the commit that removes a drawer or trace, and on the frames after it
 //   fakeResizeObserver a layout change jsdom never makes, delivered to the observers watching it
+//   openStageMenu / stageMenuItem / clickStageMenuItem   the chevron menu's items (the run log, sound, Reset: round 4)
 
 export { axeViolations, describeViolations, expectNoAxeViolations } from "./axe.js";
 export { type FocusSamples, focusAcrossRemoval } from "./focus.js";
@@ -18,6 +19,13 @@ export { clearMomentTrace, momentPhase, phasesAreCatalogued, tracedPhases } from
 export { type MockServer, startMockServer, TEST_ORIGIN } from "./msw.js";
 export { type RenderConsoleOptions, type RenderedConsole, renderConsole } from "./render.js";
 export { type RequestLog, recordRequests, type SentRequest } from "./requests.js";
+export {
+  clickStageMenuItem,
+  closeStageMenu,
+  openStageMenu,
+  queryStageMenuItem,
+  stageMenuItem,
+} from "./stage-menu.js";
 export { timersBeforeCommit } from "./timers.js";
 export { resetViewport, resizeTo, STAGE_WIDTHS, setViewport } from "./viewport.js";
 export {

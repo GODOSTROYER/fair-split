@@ -8,10 +8,12 @@ import { act, configure, fireEvent, screen, waitFor, within } from "@testing-lib
 import { getResponse, HttpResponse, http } from "msw";
 import { describe, expect, it, vi } from "vitest";
 import { screenControl } from "../lib/focus.js";
+import { developerWords } from "../lib/plain.js";
 import { expectNoAxeViolations } from "../test/axe.js";
 import { focusAcrossRemoval } from "../test/focus.js";
 import { renderConsole } from "../test/render.js";
 import { recordRequests } from "../test/requests.js";
+import { clickStageMenuItem, closeStageMenu, queryStageMenuItem, stageMenuItem } from "../test/stage-menu.js";
 import { timersBeforeCommit } from "../test/timers.js";
 import { resizeTo } from "../test/viewport.js";
 import { createTestWorld } from "../test/world.js";
@@ -29,7 +31,7 @@ async function press(testId: string) {
 
 describe("Judge stage", () => {
   it("keeps a viewer's raise through co-sign cues and resets to Member", async () => {
-    const view = await renderConsole({ path: "/judge", viewport: { width: 1470 } });
+    const view = await renderConsole({ path: "/judge", viewport: { width: 1366 } });
     await press("W-JG-01.markPaid");
     await waitFor(() => expect(view.world.run.state).toBe("FUNDED"));
     fireEvent.click(screen.getByTestId("W-JG-01.phoneTab"));
@@ -50,7 +52,7 @@ describe("Judge stage", () => {
     expect(screen.getByTestId("W-JG-01.tab.member").getAttribute("aria-selected")).toBe("true");
   });
   it("ignores unrelated frame focus until the story names that persona", async () => {
-    const view = await renderConsole({ path: "/judge", viewport: { width: 1470 } });
+    const view = await renderConsole({ path: "/judge", viewport: { width: 1366 } });
     const sendFocus = async () => {
       for (const persona of ["chair", "clerk"]) {
         const frame = (await screen.findByTestId(`W-JG-01.frame.${persona}`)) as HTMLIFrameElement;
@@ -78,7 +80,8 @@ describe("Judge stage", () => {
   });
 
   it("lowers a moment when the next step has no persona, and resets scroll only for a pathname", async () => {
-    const view = await renderConsole({ path: "/judge", viewport: { width: 1470 } });
+    // Round 7: a beat raises the phone only where it has its own column (1440 px and up).
+    const view = await renderConsole({ path: "/judge", viewport: { width: 1700, height: 1000 } });
     await press("W-JG-01.markPaid");
     await waitFor(() => expect(view.world.run.state).toBe("FUNDED"));
     act(() => {
@@ -106,21 +109,36 @@ describe("Judge stage", () => {
     const callSpy = vi.spyOn(view.adapter, "call");
     const stage = screen.getByTestId("W-JG-01.stage");
     expect(stage.dataset.state).toBe("ready");
-    expect(stage.dataset.layout).toBe("tab");
-    expect(screen.getByTestId("W-JG-01.ribbon").textContent).toMatch(/Davao time/);
+    // The test window is 1470 px wide: the phone has its column, folded to its rail (round 3), and the rail keeps
+    // its labels; "Fair Split" leads the bar.
+    expect(stage.dataset.layout).toBe("dock");
+    expect(stage.dataset.phone).toBe("folded");
+    expect(stage.dataset.rail).toBe("full");
+    expect(screen.getByTestId("W-JG-01.bar").textContent).toMatch(/^Fair Split/);
+    // No ribbon: the first view's seeded history is in the Log, newest first.
+    expect(screen.queryByTestId("W-JG-01.ribbon")).toBeNull();
+    expect(screen.queryByTestId("W-JG-01.toast")).toBeNull();
     expect(screen.getByTestId("W-JG-01.runPill").dataset.step).toBe("mark-paid");
-    expect(screen.getByTestId("W-JG-01.notice").textContent).toMatch(/simulated PayPal sandbox/i);
-    expect(screen.getByTestId("W-JG-01.ribbon.paypal").textContent).toMatch(/FS-2026A-r37/);
-    expect(screen.getByTestId("W-JG-01.caption").textContent).toMatch(
-      /Seed stand-in, not a Claude recording/,
-    );
+    expect(screen.getByTestId("W-JG-01.notice").textContent).toBe("Simulated PayPal sandbox");
+    // No session yet: the chevron's menu offers no Reset.
+    expect(await queryStageMenuItem("W-JG-01.reset")).toBeNull();
+    await clickStageMenuItem("W-JG-01.logOpen");
+    const log = await screen.findByTestId("W-JG-01.log");
+    expect(log.textContent).toMatch(/\d\d:\d\d:\d\d PHT/);
+    expect(within(log).getByTestId("W-JG-01.log.paypal").textContent).toMatch(/FS-2026A-r37/);
+    // The seeded rows say the seed stand-in in their title and to assistive technology (round 5: no glyph).
+    const machine = within(log).getByTestId("W-JG-01.log.machine");
+    expect(machine.getAttribute("title")).toContain("Seed stand-in, not a Claude recording");
+    expect(machine.querySelector("[data-fs-glyph]")).toBeNull();
+    expect(machine.textContent).toMatch(/Seed stand-in, not a Claude recording/);
+    expect(screen.queryByTestId("W-JG-01.caption")).toBeNull();
     expect(screen.queryByTestId("W-JG-01.reset")).toBeNull();
     expect(callSpy).not.toHaveBeenCalled();
     expect(view.world.run.state).toBe("INVOICED");
     expect(view.world.events()).toEqual([]);
   });
 
-  it("the first press starts the run; the stream moves the stage, the pill and the ribbon", async () => {
+  it("the first press starts the run; the stream moves the stage, the pill, the toast and the Log", async () => {
     const view = await renderConsole({ path: "/judge" });
     await press("W-JG-01.markPaid");
     const stage = screen.getByTestId("W-JG-01.stage");
@@ -132,10 +150,22 @@ describe("Judge stage", () => {
     });
     await waitFor(() => expect(screen.getByTestId("W-JG-01.runPill").dataset.step).toBe("by-hand"));
     expect(screen.getByTestId("W-JG-01.runPill.state").textContent).toBe("In review");
-    expect(screen.getByTestId("W-JG-01.ribbon.machine").textContent).toMatch(
-      /Raised by the engine|Lines computed|In review/,
-    );
-    expect(screen.getByTestId("W-JG-01.reset")).toBeTruthy();
+    // Each new event toasts once, in the bar's status area; the whole timeline is behind the menu's Run log.
+    expect(screen.getByTestId("W-JG-01.toast").dataset.state).toBe("in");
+    await clickStageMenuItem("W-JG-01.logOpen");
+    const log = await screen.findByTestId("W-JG-01.log");
+    expect(
+      within(log)
+        .getAllByTestId("W-JG-01.log.machine")
+        .some((row) =>
+          /Raised by the engine|Lines computed|In review|Season check/.test(row.textContent ?? ""),
+        ),
+    ).toBe(true);
+    await act(async () => {
+      fireEvent.click(within(log).getByTestId("W-JG-01.log.close"));
+    });
+    expect(await stageMenuItem("W-JG-01.reset")).toBeTruthy();
+    await closeStageMenu();
     // The rest of the loop arrives the same way: by events, never by timers.
     const runSlug = view.runtime.session.getState().session?.runSlug ?? "";
     act(() => {
@@ -164,7 +194,7 @@ describe("Judge stage", () => {
   });
 
   it("the skip link moves focus to the screen without scrolling the stage, so the top bar stays in view", async () => {
-    await renderConsole({ path: "/judge", viewport: { width: 1470, height: 956 } });
+    await renderConsole({ path: "/judge", viewport: { width: 1366, height: 768 } });
     const main = document.getElementById("fsc-main") as HTMLElement;
     const focus = vi.spyOn(main, "focus");
     const skip = screen.getByText("Skip to the screen");
@@ -195,7 +225,15 @@ describe("Judge stage", () => {
     [1470, "push", false],
     [1920, "overlay", true],
   ])("a drawer at %i px (%s) leaves the screen it covers inert: %s", async (width, mode, inert) => {
-    await renderConsole({ path: "/runs/2026A-r37/split?hold=H1", viewport: { width, height: 900 } });
+    // An open hold (the session's H1, before anyone decides it): the drawer covers the screen with its scrim.
+    const view = await renderConsole({ path: "/runs/2026A-r37/split", viewport: { width, height: 900 } });
+    await view.startSession();
+    act(() => {
+      view.world.markPaid();
+      view.world.enterByHand();
+    });
+    await view.navigate("/runs/2026A-r37/split?hold=H1");
+    await waitFor(() => expect(screen.getByTestId("W-TR-06").dataset.state).toBe("open"));
     const drawer = await screen.findByTestId("W-TR-06.drawer");
     expect(drawer.dataset.mode).toBe(mode);
     const main = document.getElementById("fsc-main") as HTMLElement;
@@ -204,14 +242,24 @@ describe("Judge stage", () => {
     expect(main.contains(drawer)).toBe(false);
   });
 
+  it("a decided hold at 1920 px is a compact receipt in the split review, with no scrim: the screen stays live", async () => {
+    // UI gate round 8: the showcase's H1 is decided, so it prints as one strip above the split's table (the screen's
+    // own slot), not a sheet beside it: it takes no width, lays no scrim and leaves the screen live.
+    await renderConsole({ path: "/runs/2026A-r37/split?hold=H1", viewport: { width: 1920, height: 900 } });
+    const drawer = await screen.findByTestId("W-TR-06.drawer");
+    expect(drawer.hasAttribute("data-receipt")).toBe(true);
+    expect(drawer.classList.contains("fsc-drawer")).toBe(false);
+    expect(screen.getByTestId("W-TR-05.receipt").contains(drawer)).toBe(true);
+    expect(screen.queryByTestId("W-TR-06.drawer.scrim")).toBeNull();
+    expect((document.getElementById("fsc-main") as HTMLElement).hasAttribute("inert")).toBe(false);
+  });
+
   it("Reset ends the session and returns the first view", async () => {
     const view = await renderConsole({ path: "/judge" });
     await press("W-JG-01.markPaid");
     await waitFor(() => expect(screen.getByTestId("W-JG-01.stage").dataset.state).toBe("session"));
     const runSlug = view.runtime.session.getState().session?.runSlug ?? "";
-    await act(async () => {
-      fireEvent.click(screen.getByTestId("W-JG-01.reset"));
-    });
+    await clickStageMenuItem("W-JG-01.reset");
     await waitFor(() => expect(screen.getByTestId("W-JG-01.stage").dataset.state).toBe("ready"));
     expect(view.world.run.state).toBe("INVOICED");
     expect(view.world.events()).toEqual([]);
@@ -230,9 +278,7 @@ describe("Judge stage", () => {
     expect(starts()).toBe(1);
     // The press is over (the payment is recorded and the run funded): the slab is spent, drawn committed.
     await waitFor(() => expect(view.world.run.state).toBe("FUNDED"));
-    await act(async () => {
-      fireEvent.click(screen.getByTestId("W-JG-01.reset"));
-    });
+    await clickStageMenuItem("W-JG-01.reset");
     await waitFor(() => expect(stage.dataset.state).toBe("ready"));
     expect(view.router.state.location.pathname).toBe("/judge");
     // The slab is at rest, not the spent press: nothing says it can't be pressed.
@@ -309,7 +355,8 @@ describe("Judge stage", () => {
     await waitFor(() => expect(view.router.state.location.pathname).toBe("/judge"));
     expect(stage.dataset.state).toBe("session-ended");
     expect(screen.getByTestId("W-JG-01.notice.state").textContent).toMatch(/back at the first press/);
-    expect(screen.queryByTestId("W-JG-01.reset")).toBeNull();
+    expect(await queryStageMenuItem("W-JG-01.reset")).toBeNull();
+    await closeStageMenu();
   });
 
   it("a renewal that lands in another workspace ends the session and takes the stage back to /judge", async () => {
@@ -349,7 +396,8 @@ describe("Judge stage", () => {
     expect(stage.dataset.state).toBe("session-ended");
     expect(screen.getByTestId("W-JG-01.notice.state").textContent).toMatch(/back at the first press/);
     await waitFor(() => expect(screen.getByTestId("W-JG-01.runPill").dataset.step).toBe("mark-paid"));
-    expect(screen.queryByTestId("W-JG-01.reset")).toBeNull();
+    expect(await queryStageMenuItem("W-JG-01.reset")).toBeNull();
+    await closeStageMenu();
   });
 
   it("What's real separates real from simulated PayPal, and holds Try to break it", async () => {
@@ -359,7 +407,27 @@ describe("Judge stage", () => {
     });
     const sheet = await screen.findByTestId("W-JG-01.whatsReal");
     expect(sheet.dataset.rail).toBe("simulator");
-    expect(within(sheet).getByText("PayPal, simulated")).toBeTruthy();
+    // Five rows, each one short sentence; the whole row opens to its details (round 4: no repeated "More").
+    const rows = within(sheet).getByTestId("W-JG-01.whatsReal.rows");
+    expect(rows.querySelector('[data-section="simulated-paypal"] .fsc-truth__term')?.textContent).toBe(
+      "Simulated PayPal sandbox",
+    );
+    const lines = [...rows.querySelectorAll(".fsc-truth__line")].map((l) => l.textContent ?? "");
+    expect(lines).toHaveLength(6);
+    for (const line of lines) expect(line, line).not.toMatch(/[.;]\s+\S/);
+    expect(within(sheet).queryByText("More")).toBeNull();
+    for (const summary of rows.querySelectorAll("summary"))
+      expect(developerWords(summary.textContent ?? "")).toEqual([]);
+    // A mock-data build says so first (I8); then the five rows.
+    expect([...rows.querySelectorAll("[data-section]")].map((r) => r.getAttribute("data-section"))).toEqual([
+      "build",
+      "real",
+      "simulated-paypal",
+      "replayed",
+      "synthetic",
+      "not-built",
+    ]);
+    expect(rows.querySelectorAll("details")).toHaveLength(6);
     expect(within(sheet).getByTestId("W-JG-01.tryToBreak").textContent).toMatch(/Try to break it/);
     await expectNoAxeViolations(sheet);
     await act(async () => {
@@ -368,24 +436,31 @@ describe("Judge stage", () => {
     await waitFor(() => expect(screen.queryByTestId("W-JG-01.whatsReal")).toBeNull());
   });
 
-  it("keeps sound off until the viewer turns it on", async () => {
+  it("keeps sound off until the viewer turns it on (round 4: a checkbox item in the chevron's menu)", async () => {
     await renderConsole({ path: "/judge" });
-    const toggle = screen.getByTestId("W-JG-01.sound");
-    expect(toggle.getAttribute("aria-pressed")).toBe("false");
+    const toggle = await stageMenuItem("W-JG-01.sound");
+    expect(toggle.getAttribute("role")).toBe("menuitemcheckbox");
+    expect(toggle.getAttribute("aria-checked")).toBe("false");
     await act(async () => {
       fireEvent.click(toggle);
     });
-    expect(toggle.getAttribute("aria-pressed")).toBe("true");
+    await waitFor(async () =>
+      expect((await stageMenuItem("W-JG-01.sound")).getAttribute("aria-checked")).toBe("true"),
+    );
     await act(async () => {
-      fireEvent.click(toggle);
+      fireEvent.click(await stageMenuItem("W-JG-01.sound"));
     });
+    await waitFor(async () =>
+      expect((await stageMenuItem("W-JG-01.sound")).getAttribute("aria-checked")).toBe("false"),
+    );
   });
 
-  it("raises the phone from its ribbon lane and lowers it with Escape (1024–1679 px)", async () => {
-    await renderConsole({ path: "/judge", viewport: { width: 1470 } });
+  it("raises the phone from its rail and lowers it with Escape (1024–1439 px)", async () => {
+    await renderConsole({ path: "/judge", viewport: { width: 1366 } });
     const tab = screen.getByTestId("W-JG-01.phoneTab");
-    // The collapsed phone is the ribbon's fourth lane: it never covers the screen.
-    expect(screen.getByTestId("W-JG-01.ribbon").contains(tab)).toBe(true);
+    // The folded phone is its 56 px rail at the right: it never covers the screen.
+    expect(screen.getByTestId("W-JG-01.phone").contains(tab)).toBe(true);
+    expect(screen.getByTestId("W-JG-01.stage").dataset.phone).toBe("folded");
     expect(tab.getAttribute("aria-expanded")).toBe("false");
     expect(tab.textContent).toMatch(/Gisusi pa/);
     await act(async () => {
@@ -401,8 +476,21 @@ describe("Judge stage", () => {
     expect(tab.getAttribute("aria-expanded")).toBe("false");
   });
 
+  it("the shown frame's avatar on the folded rail opens the phone too (round 3: it opens on click)", async () => {
+    await renderConsole({ path: "/judge", viewport: { width: 1366 } });
+    const tab = screen.getByTestId("W-JG-01.phoneTab");
+    const member = screen.getByTestId("W-JG-01.tab.member");
+    expect(member.getAttribute("aria-selected")).toBe("true");
+    expect(tab.getAttribute("aria-expanded")).toBe("false");
+    await act(async () => {
+      fireEvent.click(member);
+    });
+    expect(tab.getAttribute("aria-expanded")).toBe("true");
+    expect(screen.getByTestId("W-JG-01.tab.member").getAttribute("aria-selected")).toBe("true");
+  });
+
   it("under the viewer's scrim the console is inert and focus is in the phone; lowering hands focus back", async () => {
-    await renderConsole({ path: "/judge", viewport: { width: 1470 } });
+    await renderConsole({ path: "/judge", viewport: { width: 1366 } });
     const tab = screen.getByTestId("W-JG-01.phoneTab");
     const console_ = document.querySelector<HTMLElement>(".fsc-console");
     tab.focus();
@@ -421,43 +509,38 @@ describe("Judge stage", () => {
     await waitFor(() => expect(document.activeElement).toBe(tab));
   });
 
-  it("a moment raises the phone beside a lit console: no scrim, both screens read at once", async () => {
-    const view = await renderConsole({ path: "/judge", viewport: { width: 1470 } });
-    await press("W-JG-01.markPaid");
-    await waitFor(() => expect(screen.getByTestId("W-JG-01.stage").dataset.state).toBe("session"));
-    await waitFor(() => expect(view.world.run.state).toBe("FUNDED"));
-    // Key 1 signs: the co-sign request raises the Chair's frame (S1.6), as a moment.
-    act(() => {
-      view.world.settle();
-      view.world.resolveAll();
-      view.world.sign("treasurer");
-    });
-    await waitFor(() => expect(screen.getByTestId("W-JG-01.stage").dataset.raised).toBe("moment"));
-    expect(screen.queryByTestId("W-JG-01.phoneBackdrop")).toBeNull();
-    expect(screen.getByTestId("W-JG-01.phoneTab").getAttribute("aria-expanded")).toBe("true");
-    expect(screen.getByTestId("W-JG-01.poster.chair")).toBeTruthy();
-  });
+  it.each([1366, 1100])(
+    "below 1440 px (%i) a beat never opens the phone: the rail turns to the Chair and the console keeps the screen (round 7)",
+    async (width) => {
+      const view = await renderConsole({ path: "/judge", viewport: { width, height: 800 } });
+      await press("W-JG-01.markPaid");
+      await waitFor(() => expect(screen.getByTestId("W-JG-01.stage").dataset.state).toBe("session"));
+      await waitFor(() => expect(view.world.run.state).toBe("FUNDED"));
+      // Key 1 signs: the co-sign request turns the rail to the Chair's frame (S1.6), and opens nothing.
+      act(() => {
+        view.world.settle();
+        view.world.resolveAll();
+        view.world.sign("treasurer");
+      });
+      await waitFor(() =>
+        expect(screen.getByTestId("W-JG-01.tab.chair").getAttribute("aria-selected")).toBe("true"),
+      );
+      expect(screen.getByTestId("W-JG-01.stage").dataset.raised).toBeUndefined();
+      expect(screen.getByTestId("W-JG-01.stage").dataset.phone).toBe("folded");
+      expect(screen.queryByTestId("W-JG-01.phoneBackdrop")).toBeNull();
+      expect(screen.queryByTestId("W-JG-01.phoneClose")).toBeNull();
+      expect(screen.getByTestId("W-JG-01.phoneTab").getAttribute("aria-expanded")).toBe("false");
+      expect(document.querySelector(".fsc-console")?.hasAttribute("inert")).toBe(false);
+      // The viewer opens it: the sheet shows the Chair's frame, never dims the page, and says how to leave it.
+      fireEvent.click(screen.getByTestId("W-JG-01.phoneTab"));
+      await waitFor(() => expect(screen.getByTestId("W-JG-01.stage").dataset.raised).toBe("user"));
+      expect(screen.getByTestId("W-JG-01.poster.chair")).toBeTruthy();
+      fireEvent.click(screen.getByTestId("W-JG-01.phoneClose"));
+      await waitFor(() => expect(screen.getByTestId("W-JG-01.stage").dataset.raised).toBeUndefined());
+    },
+  );
 
-  it("below 1280 px a moment's raise takes the phone over a scrim: no room to squeeze the screen beside it", async () => {
-    // At 1024 px the squeeze left the screen 488 px: the approve column ran under the phone and the fan's labels
-    // overlapped. Below 1280 px the moment raises the phone the way S1.6's table has it, over the scrim.
-    const view = await renderConsole({ path: "/judge", viewport: { width: 1100, height: 800 } });
-    await press("W-JG-01.markPaid");
-    await waitFor(() => expect(view.world.run.state).toBe("FUNDED"));
-    act(() => {
-      view.world.settle();
-      view.world.resolveAll();
-      view.world.sign("treasurer");
-    });
-    await waitFor(() =>
-      expect(screen.getByTestId("W-JG-01.phoneTab").getAttribute("aria-expanded")).toBe("true"),
-    );
-    expect(screen.getByTestId("W-JG-01.stage").dataset.raised).toBe("user");
-    expect(screen.getByTestId("W-JG-01.phoneBackdrop")).toBeTruthy();
-    expect(document.querySelector(".fsc-console")?.hasAttribute("inert")).toBe(true);
-  });
-
-  it("the co-sign's raise over the scrim puts focus on the Chair's tab, the frame the phone now shows", async () => {
+  it("the viewer's raise after a co-sign request puts focus on the Chair's tab, the frame the phone now shows", async () => {
     const view = await renderConsole({ path: "/judge", viewport: { width: 1100, height: 800 } });
     await press("W-JG-01.markPaid");
     await waitFor(() => expect(view.world.run.state).toBe("FUNDED"));
@@ -469,6 +552,9 @@ describe("Judge stage", () => {
     });
     const chair = screen.getByTestId("W-JG-01.tab.chair");
     await waitFor(() => expect(chair.getAttribute("aria-selected")).toBe("true"));
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("W-JG-01.phoneTab"));
+    });
     await waitFor(() => expect(document.activeElement).toBe(chair));
   });
 
@@ -528,6 +614,13 @@ describe("Judge stage", () => {
           view.world.resolveAll();
           view.world.sign("treasurer");
         });
+        // Round 7: the co-sign request turns the rail to the Chair; the viewer opens the sheet.
+        await waitFor(() =>
+          expect(screen.getByTestId("W-JG-01.tab.chair").getAttribute("aria-selected")).toBe("true"),
+        );
+        await act(async () => {
+          fireEvent.click(screen.getByTestId("W-JG-01.phoneTab"));
+        });
         await waitFor(() => expect(console_?.hasAttribute("inert")).toBe(true));
         // The browser's focus fixup: the inert console's focused control loses focus to <body>.
         const held = document.activeElement;
@@ -557,6 +650,10 @@ describe("Judge stage", () => {
       view.world.settle();
       view.world.resolveAll();
       view.world.sign("treasurer");
+    });
+    // Round 7: the viewer opens the sheet (a beat no longer does below 1440 px); focus was on the screen.
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("W-JG-01.phoneTab"));
     });
     await waitFor(() => expect(console_?.hasAttribute("inert")).toBe(true));
     await waitFor(() =>
@@ -602,22 +699,25 @@ describe("Judge stage", () => {
       const console_ = document.querySelector<HTMLElement>(".fsc-console");
       const panel = document.getElementById("fsc-phone-panel") as HTMLElement;
       const main = document.getElementById("fsc-main") as HTMLElement;
-      // Key 1 raises the Chair; the judge lowers it and the Chair co-signs.
+      // Key 1, then the Chair co-signs: M-014's payment lands and the rail turns to the Member's frame (round 7:
+      // the beat opens nothing below 1440 px).
       act(() => {
         view.world.settle();
         view.world.resolveAll();
         view.world.sign("treasurer");
       });
-      await waitFor(() => expect(stage.dataset.raised).toBe("user"));
-      await act(async () => {
-        fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
-      });
-      await waitFor(() => expect(stage.dataset.raised).toBeUndefined());
-      // The followed link is gone: focus is on <body> when M-014's payment lands.
-      (document.activeElement as HTMLElement | null)?.blur();
-      expect(document.activeElement).toBe(document.body);
       act(() => {
         view.world.cosign();
+      });
+      await waitFor(() =>
+        expect(screen.getByTestId("W-JG-01.tab.member").getAttribute("aria-selected")).toBe("true"),
+      );
+      expect(stage.dataset.raised).toBeUndefined();
+      // The followed link is gone: focus is on <body> when the viewer opens the phone from its rail.
+      (document.activeElement as HTMLElement | null)?.blur();
+      expect(document.activeElement).toBe(document.body);
+      await act(async () => {
+        fireEvent.click(screen.getByTestId("W-JG-01.phoneTab"));
       });
       await waitFor(() => expect(stage.dataset.raised).toBe("user"));
       await waitFor(() => expect(console_?.hasAttribute("inert")).toBe(true));
@@ -641,7 +741,8 @@ describe("Judge stage", () => {
           fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
         });
         expect(stage.dataset.raised).toBeUndefined();
-        expect(panel.hasAttribute("inert")).toBe(true);
+        // Round 3: the phone folds to its rail; its frames go inert, its avatars stay.
+        expect(panel.querySelector("#fsc-phone-device")?.hasAttribute("inert")).toBe(true);
         // The browser's focus fixup: a control under the now-inert panel loses focus to <body>.
         const held = document.activeElement;
         if (held instanceof HTMLElement && held.closest("[inert]")) held.blur();
@@ -696,6 +797,10 @@ describe("Judge stage", () => {
       view.world.resolveAll();
       view.world.sign("treasurer");
     });
+    // Round 7: the viewer opens the sheet over the console (a beat no longer does below 1440 px).
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("W-JG-01.phoneTab"));
+    });
     await waitFor(() => expect(console_?.hasAttribute("inert")).toBe(true));
 
     const focus = HTMLElement.prototype.focus;
@@ -726,7 +831,51 @@ describe("Judge stage", () => {
     expect(console_?.contains(document.activeElement)).toBe(true);
   });
 
-  it("docks the phone under a scrim from 1680 px, and the scrim hands it focus", async () => {
+  it("at 1470 px keeps the rail's labels and folds the phone to its rail; the glyph opens it beside the screen", async () => {
+    await renderConsole({ path: "/judge", viewport: { width: 1470, height: 956 } });
+    const stage = screen.getByTestId("W-JG-01.stage");
+    expect(stage.dataset.layout).toBe("dock");
+    expect(stage.dataset.rail).toBe("full");
+    expect(stage.dataset.phone).toBe("folded");
+    // Folded, the frames stay loaded, only hidden (never a skeleton on the way back), and nothing in them takes a key.
+    expect(document.getElementById("fsc-phone-device")?.hasAttribute("inert")).toBe(true);
+    const toggle = screen.getByTestId("W-JG-01.phoneTab");
+    expect(toggle.textContent).toMatch(/Open phone\. Nang Celing: Gisusi pa/);
+    await act(async () => {
+      fireEvent.click(toggle);
+    });
+    expect(stage.dataset.phone).toBe("open");
+    expect(toggle.getAttribute("aria-expanded")).toBe("true");
+    // The glyph folds it again, and the viewer's choice holds on this screen.
+    await act(async () => {
+      fireEvent.click(toggle);
+    });
+    expect(stage.dataset.phone).toBe("folded");
+  });
+
+  it("from 1680 px opens the phone beside the first view, and folds it on the still places (round 3)", async () => {
+    const view = await renderConsole({ path: "/judge", viewport: { width: 1920, height: 1080 } });
+    const stage = screen.getByTestId("W-JG-01.stage");
+    expect(stage.dataset.phone).toBe("open");
+    // "Use the phone" sits on the line under the device, outside the frame's screen.
+    const scrim = screen.getByTestId("W-JG-01.phoneScrim");
+    expect(scrim.textContent).toBe("Use the phone");
+    expect(screen.getByTestId("W-JG-01.frame").contains(scrim)).toBe(false);
+    await press("W-JG-01.markPaid");
+    await waitFor(() => expect(view.world.run.state).toBe("FUNDED"));
+    act(() => view.world.settle());
+    const slug = view.runtime.session.getState().session?.runSlug ?? "";
+    await view.navigate(`/runs/${slug}/split`);
+    await waitFor(() => expect(stage.dataset.phone).toBe("folded"));
+    // A frame's avatar opens that frame.
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("W-JG-01.tab.chair"));
+    });
+    expect(stage.dataset.phone).toBe("open");
+    expect(screen.getByTestId("W-JG-01.tab.chair").getAttribute("aria-selected")).toBe("true");
+  });
+
+  it("docks the phone from 1680 px, and its button hands it focus", async () => {
     await renderConsole({ path: "/judge", viewport: { width: 1920, height: 1080 } });
     expect(screen.getByTestId("W-JG-01.stage").dataset.layout).toBe("dock");
     const scrim = screen.getByTestId("W-JG-01.phoneScrim");
@@ -768,7 +917,7 @@ describe("Judge stage", () => {
   );
 
   it.each([
-    ["lowered into the ribbon", 1470, 956],
+    ["folded to its rail", 1366, 768],
     ["dimmed in the dock", 1920, 1080],
   ])(
     "a frame that focuses itself while the phone is %s hands focus to the screen's control",
@@ -785,11 +934,13 @@ describe("Judge stage", () => {
       const control = screenControl();
       expect(control).toBeTruthy();
       expect(document.activeElement).toBe(control);
+      // Script took focus back, not a key: it stays quiet (no ring) until the viewer presses one (round 3).
+      expect(control?.dataset.prefocused).toBe("");
     },
   );
 
   it("a frame focused from inside (Chromium fires only the page's blur) is handed back to the screen too", async () => {
-    await renderConsole({ path: "/judge", viewport: { width: 1470, height: 956 } });
+    await renderConsole({ path: "/judge", viewport: { width: 1366, height: 768 } });
     const frame = await screen.findByTestId("W-JG-01.frame.member");
     // Its document takes focus and no focus event reaches the <iframe>: only document.activeElement says so.
     act(() => frame.focus());
@@ -801,7 +952,9 @@ describe("Judge stage", () => {
     expect(document.activeElement).not.toBe(frame);
   });
 
-  it("Reset after a press PayPal queued (429) hands focus to the press in its commit, never to <body>", async () => {
+  // Round 4: Reset is an item in the chevron's menu. Choosing it closes the menu and hands focus back to the chevron
+  // (which the first view keeps) or on to the press: focus never falls to <body>.
+  it("Reset from the menu after a press PayPal queued (429) keeps focus on a live control, never on <body>", async () => {
     const world = createTestWorld();
     world.failNext("markPaid", "QUEUED");
     world.failNext("markPaid", "QUEUED");
@@ -809,26 +962,15 @@ describe("Judge stage", () => {
     await press("W-JG-01.markPaid");
     await screen.findByTestId("W-JG-01.error");
     await waitFor(() => expect(screen.getByTestId("W-JG-01.markPaid").dataset.state).toBe("rest"));
-    const reset = screen.getByTestId("W-JG-01.reset");
-    reset.focus();
-    const sampled = focusAcrossRemoval("W-JG-01.reset");
-    try {
-      // Enter on Reset: its click.
-      await act(async () => {
-        fireEvent.click(reset);
-      });
-      // While it resets, the button stays focusable (a disabled one would lose its focus to <body>).
-      await waitFor(() => expect(screen.queryByTestId("W-JG-01.reset")).toBeNull());
-      await sampled.frame();
-    } finally {
-      sampled.restore();
-    }
-    const face = screen.getByTestId("W-JG-01.markPaid.face");
-    expect(screen.getByTestId("W-JG-01.stage").dataset.state).toBe("ready");
-    expect(sampled.removals()).toBe(1);
-    expect(sampled.samples).toEqual([face, face]);
-    expect(sampled.settled).toEqual([face]);
-    expect(document.activeElement).toBe(face);
+    await clickStageMenuItem("W-JG-01.reset");
+    await waitFor(() => expect(screen.getByTestId("W-JG-01.stage").dataset.state).toBe("ready"));
+    await waitFor(() => expect(screen.queryByTestId("W-JG-01.runPill.menuPopup")).toBeNull());
+    // The chevron, or the press the screen hands focus to once the first view is back: a live control either way.
+    expect(document.activeElement).not.toBe(document.body);
+    expect([
+      screen.getByTestId("W-JG-01.runPill.menu"),
+      screen.getByTestId("W-JG-01.markPaid.face"),
+    ]).toContain(document.activeElement);
   });
 
   // A retry pressed twice (a double click, Enter twice) after a press PayPal queued: the retry's own answer is
@@ -878,9 +1020,7 @@ describe("Judge stage", () => {
         // Its own failure puts the slab back at rest, pressable, before any Reset.
         await waitFor(() => expect(slab().dataset.state).toBe("rest"));
         expect(screen.getByTestId("W-JG-01.markPaid.face").getAttribute("aria-disabled")).not.toBe("true");
-        await act(async () => {
-          fireEvent.click(screen.getByTestId("W-JG-01.reset"));
-        });
+        await clickStageMenuItem("W-JG-01.reset");
         await waitFor(() => expect(stage.dataset.state).toBe("ready"));
       } else {
         await waitFor(() => expect(stage.dataset.state).toBe("session-ended"));
@@ -894,30 +1034,23 @@ describe("Judge stage", () => {
     },
   );
 
-  it("Reset after a session that failed to start hands focus to the press, never to <body>", async () => {
+  it("Reset from the menu after a session that failed to start keeps focus on a live control, never on <body>", async () => {
     const world = createTestWorld();
     world.failNext("createJudgeSession", "RATE_LIMITED");
     await renderConsole({ path: "/judge", world });
     await press("W-JG-01.markPaid");
     await waitFor(() => expect(screen.getByTestId("W-JG-01.stage").dataset.state).toBe("start-failed"));
-    const reset = screen.getByTestId("W-JG-01.reset");
-    reset.focus();
-    const sampled = focusAcrossRemoval("W-JG-01.reset");
-    try {
-      await act(async () => {
-        fireEvent.click(reset);
-      });
-      await waitFor(() => expect(screen.queryByTestId("W-JG-01.reset")).toBeNull());
-      await sampled.frame();
-    } finally {
-      sampled.restore();
-    }
-    const face = screen.getByTestId("W-JG-01.markPaid.face");
-    expect(sampled.samples).toEqual([face, face]);
-    expect(document.activeElement).toBe(face);
+    await clickStageMenuItem("W-JG-01.reset");
+    await waitFor(() => expect(screen.getByTestId("W-JG-01.stage").dataset.state).not.toBe("start-failed"));
+    await waitFor(() => expect(screen.queryByTestId("W-JG-01.runPill.menuPopup")).toBeNull());
+    expect(document.activeElement).not.toBe(document.body);
+    expect([
+      screen.getByTestId("W-JG-01.runPill.menu"),
+      screen.getByTestId("W-JG-01.markPaid.face"),
+    ]).toContain(document.activeElement);
   });
 
-  it("while Reset runs, its button can still hold the keyboard (aria-disabled, never disabled), and a second press sends nothing", async () => {
+  it("while Reset runs, its menu item says so (aria-disabled, aria-busy), and a second choice sends nothing", async () => {
     const view = await renderConsole({ path: "/judge" });
     // fs-api takes its time over the Reset: the request is held until the test lets it go.
     const pending = view.adapter.pending as { resetSession: (sid: string) => Promise<void> };
@@ -932,14 +1065,10 @@ describe("Judge stage", () => {
     };
     await press("W-JG-01.markPaid");
     await waitFor(() => expect(screen.getByTestId("W-JG-01.stage").dataset.state).toBe("session"));
-    const reset = screen.getByTestId<HTMLButtonElement>("W-JG-01.reset");
-    reset.focus();
-    await act(async () => {
-      fireEvent.click(reset);
-    });
+    await clickStageMenuItem("W-JG-01.reset");
     await waitFor(() => expect(view.runtime.session.getState().status).toBe("resetting"));
-    // A disabled button loses its focus to <body> (a browser's focus fixup): this one stays focusable.
-    expect(reset.disabled).toBe(false);
+    // Opened again while it runs, the item says so and stays focusable (aria-disabled, never disabled).
+    const reset = await stageMenuItem("W-JG-01.reset");
     expect(reset.getAttribute("aria-disabled")).toBe("true");
     expect(reset.getAttribute("aria-busy")).toBe("true");
     await act(async () => {
@@ -949,7 +1078,9 @@ describe("Judge stage", () => {
     await act(async () => {
       release();
     });
-    await waitFor(() => expect(screen.queryByTestId("W-JG-01.reset")).toBeNull());
+    await waitFor(() => expect(view.runtime.session.getState().status).not.toBe("resetting"));
+    expect(await queryStageMenuItem("W-JG-01.reset")).toBeNull();
+    await closeStageMenu();
     expect(sent).toBe(1);
   });
 

@@ -4,18 +4,23 @@
 
 /* ---------------------------------------------------------------- bolted plates (also on the first view) */
 
-/* v2 (ADR-0016): a card (radius 14, a strong rule, e1) with two steel bolt heads in its top corners. The v1
-   steel-hatched edges are gone: hatch now means cash or unavailable, and a sealed card is neither. */
+/* A card on e1 (its ring is in the shadow: elevation is declared once, round 3). The v1 steel-hatched edges are
+   gone: hatch now means cash or unavailable, and a sealed card is neither. */
 .fsc-bolted-plate {
   position: relative;
   display: grid;
   gap: 8px;
-  padding: 18px 22px 16px;
-  border: 1px solid var(--fs-rule-strong);
+  padding: 20px 24px 16px;
   border-radius: var(--fs-radius-card);
   background: var(--fs-plate-2);
   box-shadow: var(--fs-shadow-e1);
   color: var(--fs-ink);
+}
+
+/* Round 2: no bolt heads or corner dots; the plate's rule and lock glyph say "bolted". */
+.fsc-bolted-plate__bolt,
+.fsc-rc__refusal-bolt {
+  display: none;
 }
 
 .fsc-bolted-plate__bolt {
@@ -78,66 +83,79 @@
 }
 
 .fsc-bolted-plate--compact {
-  padding: 14px 18px 12px;
-  gap: 6px;
+  padding: 16px 20px 12px;
+  gap: 4px;
 }
 
 /* ---------------------------------------------------------------- the screen */
 
-.fsc-rc {
+/* The screen sits on the one 12-column grid (round 4, grid.css): its title row, then the resolution's pages in six
+   columns and Schedule A, the plate and "Add a deduction" in the other six, top-aligned 32 px under it. Round 5:
+   the screen fills its panel and each column scrolls on its own (chrome SnapScroll), its foot fading while more lies
+   below and 32 px of room under its last line, so no page or card ever ends at the panel's edge. */
+.fsc-console__screen:has(> .fsc-rc) {
+  padding-bottom: var(--fs-console-end);
+}
+
+.fsc-rc.fsc-screen {
+  grid-template-rows: auto minmax(0, 1fr);
+  height: 100%;
+}
+
+.fsc-rc__paper,
+.fsc-rc__side {
   display: grid;
-  align-content: start;
-  gap: 28px;
-  max-width: 1280px;
+  min-height: 0;
 }
 
-.fsc-rc__head {
-  display: grid;
-  gap: 10px;
-  max-width: 72ch;
-}
-
-.fsc-rc__head h1 {
-  margin: 0;
-}
-
-.fsc-rc__lede {
-  color: var(--fs-ink-2);
+.fsc-rc__doc,
+.fsc-rc__scroll {
+  min-height: 0;
+  height: 100%;
 }
 
 .fsc-rc__muted {
-  color: var(--fs-ink-3);
+  color: var(--fs-ink-2);
 }
 
-.fsc-rc__body {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(380px, 500px);
-  align-items: start;
-  gap: 32px 56px;
+/* The title row's quiet control that folds the board's resolution away (round 5). */
+.fsc-rc__doc-toggle.fs-flat {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--fs-space-4);
+  min-height: 32px;
+  padding: 0 var(--fs-space-12) 0 var(--fs-space-8);
 }
 
-.fsc-rc__side {
-  position: sticky;
-  top: 0;
+/* The side's sections, 32 px apart, tight to the column's top. */
+.fsc-rc__side-body {
   display: grid;
   align-content: start;
-  gap: 28px;
+  gap: 32px;
+  min-width: 0;
+  padding-right: var(--fs-space-4);
 }
 
 /* ---------------------------------------------------------------- the pages (paper) */
 
+/* The pages fill their six columns (round 4: no band left empty between the paper and the schedule). */
 .fsc-rc-pages {
   display: grid;
-  gap: 28px;
-  padding: 4px 8px 12px 0;
-}
-
-.fsc-rc-page {
-  max-width: 600px;
+  gap: 32px;
+  padding: 4px 4px 12px 0;
 }
 
 .fsc-rc-page:nth-child(2) {
   transform: rotate(-0.35deg);
+}
+
+/* Round 7: the cited page stands alone and straight, the card's seal 24 px under it. */
+.fsc-rc-pages[data-cited] > .fsc-rc-page {
+  transform: none;
+}
+
+.fsc-rc__sealed {
+  padding: 12px 4px 4px 0;
 }
 
 .fsc-rc-page:first-child {
@@ -191,10 +209,25 @@
   max-width: 300px;
 }
 
-/* The reading band: a rule's clause, in pencil, the way Claude found it. */
+/* The reading band: a rule's clause, in pencil, the way Claude found it; a 1 px chalk line under the wash, as the
+   reading band marks a slip (never a side bar). */
+/* Round 8: a cited clause is marked the way a reader marks a passage: a 2 px indigo rule in the page's margin beside
+   it and the faintest indigo tint under its words (the grey block read as a text selection). The same mark shows
+   the clause a pointed rule was read from. */
 .fsc-rc-page__line[data-band] {
-  background: color-mix(in srgb, var(--fs-pencil) 34%, transparent);
-  box-shadow: inset 2px 0 0 var(--fs-paper-ink);
+  position: relative;
+  background: color-mix(in srgb, var(--fs-pod) 7%, transparent);
+}
+
+.fsc-rc-page__line[data-band]::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -14px;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--fs-pod);
 }
 
 .fsc-rc-page__folio {
@@ -207,7 +240,7 @@
 
 .fsc-rc__schedule {
   display: grid;
-  gap: 10px;
+  gap: 12px;
 }
 
 .fsc-rc__schedule-head {
@@ -231,14 +264,16 @@
   border-bottom: 1px solid var(--fs-rule);
 }
 
+/* A rule row (round 4): its id, four words or fewer, and the chevron that opens its clause; one line at 40 px. */
 .fsc-rc__rule {
   appearance: none;
   display: grid;
-  grid-template-columns: 28px minmax(0, 1fr);
-  align-items: baseline;
+  grid-template-columns: minmax(0, 1fr) 16px;
+  align-items: center;
   gap: 12px;
   width: 100%;
-  padding: 10px 10px 10px 4px;
+  min-height: 44px;
+  padding: 0 12px;
   border: 0;
   background: transparent;
   color: var(--fs-ink);
@@ -249,29 +284,62 @@
 
 .fsc-rc__rule:hover,
 .fsc-rc__rule[data-active] {
-  background: var(--fs-plate);
+  background: var(--fs-plate-2);
 }
 
-.fsc-rc__rule[aria-pressed="true"] {
-  box-shadow: inset 2px 0 0 var(--fs-ink);
+/* An open rule is a selection: the pod wash under its row and its clause (never a side bar), its chevron turned. */
+.fsc-rc__rule-item[data-open],
+.fsc-rc__rule[aria-expanded="true"] {
+  background: var(--fs-pod-wash);
 }
 
 .fsc-rc__rule-id {
   display: inline-flex;
   align-items: center;
+  color: var(--fs-ink-3);
+}
+
+.fsc-rc__rule-short > .fs-glyph {
+  flex: none;
   color: var(--fs-ink-2);
 }
 
-.fsc-rc__rule-id .fs-glyph {
-  color: var(--fs-steel-line);
+.fsc-rc__rule-short {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
+.fsc-rc__rule-mark {
+  color: var(--fs-ink-3);
+  transition: transform var(--fs-dur-tooltip) var(--fs-ease-out);
+}
+
+.fsc-rc__rule[aria-expanded="true"] .fsc-rc__rule-mark {
+  transform: rotate(180deg);
+}
+
+/* The whole clause, under its row, aligned with the row's words. */
+.fsc-rc__clause {
+  max-width: 60ch;
+  padding: 0 12px 12px;
+  color: var(--fs-ink-2);
+}
+
+.fsc-rc__clause[hidden] {
+  display: none;
+}
+
+/* The pointed rule's page as micro under the rules (round 5: no glyph; the stand-in is said in the id line). */
 .fsc-rc__footer {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   margin: 0;
-  color: var(--fs-pencil);
+  color: var(--fs-ink-3);
 }
 
 /* ---------------------------------------------------------------- MM-4: add a deduction */
@@ -288,14 +356,21 @@
   color: var(--fs-ink-2);
 }
 
+/* The secondary button hugs its label (round 4). */
+.fsc-rc__add > .fs-flat {
+  justify-self: start;
+}
+
 .fsc-rc__row {
   display: grid;
   gap: 16px;
 }
 
+/* Both labels on one line, both inputs top-aligned on the same row (round 4). */
 .fsc-rc__fields {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 120px;
+  align-items: start;
   gap: 12px;
 }
 
@@ -322,13 +397,8 @@
   border-color: var(--fs-ink-3);
 }
 
-.fsc-input:focus-visible {
-  outline: var(--fs-focus-width) solid var(--fs-pod);
-  outline-offset: var(--fs-focus-offset);
-}
-
 .fsc-input--figure {
-  font-stretch: 87.5%;
+  font-stretch: 100%;
   font-variant-numeric: tabular-nums lining-nums;
 }
 
@@ -338,13 +408,12 @@
   gap: 6px;
 }
 
-/* The refusal plate: bolted like the card it quotes, printed by the 409. */
+/* The refusal plate: a card on e1 like the card it quotes (no border: elevation once), printed by the 409. */
 .fsc-rc__refusal {
   position: relative;
   display: grid;
-  gap: 14px;
-  padding: 20px 22px 18px;
-  border: 1px solid var(--fs-rule-strong);
+  gap: 12px;
+  padding: 20px 24px;
   border-radius: var(--fs-radius-card);
   background: var(--fs-plate-2);
   box-shadow: var(--fs-shadow-e1);
@@ -367,44 +436,76 @@
   right: 8px;
 }
 
+/* The refusal is its title (round 3): "Refused · Schedule A is closed until 2026-B", steel and ink, never red. It
+   prints in as the 409 lands; its reason waits behind "Why". */
 .fsc-rc__refusal-word {
-  display: inline-flex;
-  align-items: center;
+  display: flex;
+  align-items: flex-start;
   gap: 8px;
   margin: 0;
-  color: var(--fs-ink-2);
+  color: var(--fs-ink);
 }
 
 .fsc-rc__refusal-word .fs-glyph {
+  margin-top: 3px;
   color: var(--fs-steel-line);
+}
+
+.fsc-rc__refusal-word[data-reveal="wipe"] {
+  animation: fs-wipe var(--fs-dur-print) linear both;
+}
+
+.fsc-rc__refusal-word[data-reveal="fade"] {
+  animation: fs-fade var(--fs-dur-reduced) var(--fs-ease-out) both;
+}
+
+.fsc-rc__why {
+  display: grid;
+  gap: 8px;
+}
+
+.fsc-rc__why > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  justify-self: start;
+  color: var(--fs-ink-2);
+  list-style: none;
+  cursor: pointer;
+}
+
+/* The disclosure's mark is the glyph set's chevron, never the browser's triangle. */
+.fsc-rc__why > summary::-webkit-details-marker {
+  display: none;
+}
+
+.fsc-rc__why-mark {
+  transition: transform var(--fs-dur-tooltip) var(--fs-ease-out);
+}
+
+.fsc-rc__why[open] .fsc-rc__why-mark {
+  transform: rotate(180deg);
 }
 
 .fsc-rc__refusal-text {
   margin: 0;
   max-width: 60ch;
-  color: var(--fs-ink);
-  font-size: 0.9375rem;
-  line-height: 1.375rem;
-}
-
-.fsc-rc__refusal-text[data-reveal="wipe"] {
-  animation: fs-wipe var(--fs-dur-print) linear both;
-}
-
-.fsc-rc__refusal-text[data-reveal="fade"] {
-  animation: fs-fade var(--fs-dur-reduced) var(--fs-ease-out) both;
+  color: var(--fs-ink-2);
+  font-size: 1rem;
+  line-height: 1.5rem;
 }
 
 .fsc-rc__refusal-action {
   padding-top: 4px;
 }
 
-/* A proposal is unhashed and not in force: no plate, a dashed frame, no bolts. */
+/* A proposal is unhashed and not in force: no plate, a hairline frame, no bolts (dashed means simulated only,
+   round 3; its "Not in force" chip says what it is). */
 .fsc-rc__proposal {
   display: grid;
   gap: 12px;
-  padding: 18px 20px;
-  border: 1px dashed var(--fs-ink-3);
+  padding: 20px;
+  border: 1px solid var(--fs-rule);
   border-radius: var(--fs-radius-card);
 }
 
@@ -428,13 +529,99 @@
   color: var(--fs-ink);
 }
 
-@media (max-width: 1199px) {
-  .fsc-rc__body {
+/* ---------------------------------------------------------------- refused, and the resolution folded (round 5) */
+
+/* Refused: the refusal leads the column, the attempt it refused under it, then the schedule and its seal. */
+.fsc-rc__side-body[data-refused] > .fsc-rc__add {
+  order: -1;
+  padding-top: 0;
+  border-top: 0;
+}
+
+.fsc-rc__add[data-state="refused"] > .fsc-rc__refusal {
+  order: -1;
+}
+
+.fsc-rc__side-body[data-refused] > .fsc-rc__schedule {
+  padding-top: 20px;
+  border-top: 1px solid var(--fs-rule);
+}
+
+/* Round 6, refused: the attempt is one struck row in ink-3 ("Iba pa (Other) · ₱150", then what locks it); the
+   schedule's list is the column's last element (no page number under it: the banded clause on the board's page shows
+   where it lives), and the seal's card waits with the resolution folded, so nothing ends half-faded at the foot. */
+.fsc-rc__refused-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin: 0;
+  color: var(--fs-ink-2);
+}
+
+/* Round 7: the attempt reads whole, in ink (no strike-through); what became of it follows in ink-2. */
+.fsc-rc__refused-what {
+  color: var(--fs-ink);
+}
+
+.fsc-rc__refused-why {
+  color: var(--fs-ink-2);
+}
+
+/* Round 8: the attempt is the refusal's second line; "· Not added" follows it on the same line. */
+.fsc-rc__refused-why::before {
+  content: "· ";
+}
+
+.fsc-rc__add[data-plate] > .fsc-rc__row {
+  display: none;
+}
+
+.fsc-rc__side-body[data-refused] .fsc-rc__footer > [aria-hidden] {
+  display: none;
+}
+
+/* The resolution folded away: the schedule takes the row in two columns, the rules and the seal on the left, adding
+   (and its refusal) on the right. */
+.fsc-rc--doc-closed .fsc-rc__side-body {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: var(--fs-console-gutter);
+}
+
+.fsc-rc--doc-closed .fsc-rc__side-body > .fsc-rc__schedule {
+  grid-column: 1;
+  grid-row: span 2;
+}
+
+.fsc-rc--doc-closed .fsc-rc__side-body > :not(.fsc-rc__schedule) {
+  grid-column: 2;
+}
+
+.fsc-rc--doc-closed .fsc-rc__side-body[data-refused] > .fsc-rc__schedule {
+  padding-top: 0;
+  border-top: 0;
+}
+
+/* A panel under 720 px stacks the schedule over the pages, and the screen scrolls as one. */
+@container fsc-screen (max-width: 719px) {
+  .fsc-rc.fsc-screen {
+    height: auto;
+  }
+
+  .fsc-rc__paper {
+    order: 1;
+  }
+
+  .fsc-rc .fsc-snap__scroller {
+    max-height: none;
+  }
+
+  .fsc-rc--doc-closed .fsc-rc__side-body {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .fsc-rc__side {
-    position: static;
-    grid-row: 1;
+  .fsc-rc--doc-closed .fsc-rc__side-body > * {
+    grid-column: 1;
+    grid-row: auto;
   }
 }

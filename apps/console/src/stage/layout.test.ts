@@ -3,7 +3,7 @@
 
 import { describe, expect, it } from "vitest";
 import { MAX_FOCAL_WAIT_MS, StageDirector } from "./director.js";
-import { phoneSizeFor, stageLayoutFor } from "./layout.js";
+import { phoneRestsFolded, phoneSizeFor, stageLayoutFor } from "./layout.js";
 
 describe("stage layout (S1.6)", () => {
   it.each([
@@ -11,20 +11,47 @@ describe("stage layout (S1.6)", () => {
     [1023, "phone-visit", "push-full", true],
     [1024, "tab", "push-full", true],
     [1280, "tab", "push", false],
-    [1470, "tab", "push", false],
-    [1600, "tab", "overlay", false],
-    [1679, "tab", "overlay", false],
+    [1366, "tab", "push", false],
+    [1439, "tab", "push", false],
+    // Round 3: the rail keeps its labels from 1280 px, the 1,470 laptop included.
+    [1440, "dock", "push", false],
+    [1470, "dock", "push", false],
+    [1600, "dock", "overlay", false],
+    [1679, "dock", "overlay", false],
     [1680, "dock", "overlay", false],
     [2560, "dock", "overlay", false],
   ] as const)("%i px: phone %s, drawers %s, rail folded %s", (width, phone, drawer, railCollapsed) => {
     expect(stageLayoutFor(width)).toEqual({ width, phone, drawer, railCollapsed });
   });
 
-  it("keeps the phone 360 px wide on the stage and fits its height to the window", () => {
+  it("keeps the phone 360 px wide on the stage (340 in the narrow dock) and fits its height to the window", () => {
+    // No ribbon under the stage (round 3): the phone takes the height it gave back, to its 780 px cap.
     expect(phoneSizeFor(stageLayoutFor(1920), 1080)).toEqual({ width: 360, height: 780 });
-    expect(phoneSizeFor(stageLayoutFor(1470), 956).width).toBe(360);
+    expect(phoneSizeFor(stageLayoutFor(1470), 956)).toEqual({ width: 340, height: 706 });
+    expect(phoneSizeFor(stageLayoutFor(1366), 768).width).toBe(360);
     expect(phoneSizeFor(stageLayoutFor(1280), 600).height).toBe(400);
-    expect(phoneSizeFor(stageLayoutFor(390), 844)).toEqual({ width: 338, height: 700 });
+    // The phone visit (round 4): the statement edge to edge with the bar (the page less its 8 px gutters) and down
+    // to the window's foot: the height the bar leaves, measured, or the bar's usual 88 px until it is measured.
+    expect(phoneSizeFor(stageLayoutFor(390), 844)).toEqual({ width: 374, height: 732 });
+    expect(phoneSizeFor(stageLayoutFor(390), 844, 740)).toEqual({ width: 374, height: 740 });
+    expect(phoneSizeFor(stageLayoutFor(390), 600, 300).height).toBe(480);
+  });
+});
+
+describe("the phone's fold (round 3)", () => {
+  it("folds to its rail on the still places and steps, and below 1680 px everywhere", () => {
+    const wide = stageLayoutFor(1920);
+    expect(phoneRestsFolded(wide, "season", "mark-paid")).toBe(false);
+    expect(phoneRestsFolded(wide, "approve", "approve")).toBe(false);
+    expect(phoneRestsFolded(wide, "run", "confirming")).toBe(false);
+    for (const place of ["rate-card", "reading", "split"] as const)
+      expect(phoneRestsFolded(wide, place, "holds"), place).toBe(true);
+    // The reading replays on the console: the phone has nothing new while it plays, wherever the judge is.
+    expect(phoneRestsFolded(wide, "season", "reading")).toBe(true);
+    expect(phoneRestsFolded(stageLayoutFor(1470), "season", "mark-paid")).toBe(true);
+    expect(phoneRestsFolded(stageLayoutFor(1280), "approve", "approve")).toBe(true);
+    // The phone visit is the phone.
+    expect(phoneRestsFolded(stageLayoutFor(390), "split", "holds")).toBe(false);
   });
 });
 

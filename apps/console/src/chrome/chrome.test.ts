@@ -28,15 +28,36 @@ describe("run pill (S1.6)", () => {
     expect(nextStep(firstView(snapshot), { ...CTX, pressing: true })).toMatchObject({
       id: "recording",
       actor: "paypal",
-      text: "Recording the payment in the simulated PayPal sandbox…",
+      text: "Recording the payment…",
     });
+  });
+
+  it("never reads Settled or Done while cash is still due: PayPal complete, review the cash handover", () => {
+    const settled = runTo((w) => {
+      w.markPaid();
+      w.enterByHand("64.80");
+      w.resolveAll();
+      w.sign("treasurer");
+      w.cosign();
+      w.payCash("M-031");
+    });
+    expect(settled.state).toBe("SETTLED");
+    const step = nextStep(settled, { ...CTX, cashMembers: snapshot.figures.cashMembers });
+    expect(step).toMatchObject({
+      id: "done",
+      actor: "person",
+      text: "Review cash handover",
+      stateWord: "PayPal complete · cash due",
+    });
+    expect(step.to).toBe(`/proof/${settled.runSlug}`);
+    expect(`${step.text} ${step.stateWord}`).not.toMatch(/\bSettled\b|\bDone\b/);
   });
   it("walks the judge's loop in order, each step with who acts next", () => {
     const first = nextStep(firstView(snapshot), { ...CTX, inSession: false });
     expect(first).toMatchObject({
       id: "mark-paid",
       actor: "person",
-      text: "Next: mark the invoice paid (simulated PayPal sandbox)",
+      text: "Next: mark the invoice paid",
     });
     const reading = runTo((w) => {
       w.markPaid();
@@ -47,7 +68,7 @@ describe("run pill (S1.6)", () => {
       w.enterByHand("64.80");
     });
     const step = nextStep(holds, CTX);
-    expect(step).toMatchObject({ id: "holds", screen: "W-TR-06", text: "Next: 3 holds need you" });
+    expect(step).toMatchObject({ id: "holds", screen: "W-TR-06", text: "Next: decide 3 holds" });
     expect(step.to).toBe(`/runs/${holds.runSlug}/split?hold=H1`);
     const cosign = runTo((w) => {
       w.markPaid();
@@ -74,7 +95,7 @@ describe("run pill (S1.6)", () => {
       w.enterByHand("64.80");
       w.resolve("H1");
     });
-    expect(nextStep(decided, { ...CTX, openHold: "H1" }).text).toBe("Next: 2 holds need you");
+    expect(nextStep(decided, { ...CTX, openHold: "H1" }).text).toBe("Next: decide 2 holds");
     expect(nextStep(reading, { ...CTX, openHold: null }).id).toBe("by-hand");
   });
 });
@@ -155,7 +176,16 @@ describe("honest labels (I8: nothing simulated is unlabelled)", () => {
     const sections = whatsReal(facts);
     const real = sections.find((s) => s.id === "real");
     expect(real?.items.join(" ")).not.toMatch(/PayPal/);
-    expect(sections.find((s) => s.id === "simulated-paypal")?.title).toBe("PayPal, simulated");
+    expect(sections.find((s) => s.id === "simulated-paypal")?.title).toBe("Simulated PayPal sandbox");
+    // Five rows, each one short line (UI gate round 2); the details stay behind "More".
+    expect(sections.map((s) => s.id)).toEqual([
+      "real",
+      "simulated-paypal",
+      "replayed",
+      "synthetic",
+      "not-built",
+    ]);
+    for (const s of sections) expect(s.line.split(" ").length).toBeLessThanOrEqual(10);
     expect(sections.some((s) => s.id === "real-paypal")).toBe(false);
     const sandbox = whatsReal({ ...facts, rail: "sandbox" });
     expect(sandbox.some((s) => s.id === "real-paypal")).toBe(true);

@@ -1,44 +1,59 @@
-/* W-TR-04 By hand: one field at a time. The slip's crop and the logbook strip are paper (the only shadows); the
-   field is a 48 px condensed entry whose hidden digit sits in a canary cell (a person must decide), and the
-   committed value prints in ink with the treasurer's stamp. Every value is a --fs-* token.
+/* W-TR-04 By hand: one field at a time, on the screen's 12-column grid (UI gate round 5: no dead bands). The title
+   row; the decision across all twelve columns at the top (the field, or once entered the equation, who entered it
+   and "Review 3 holds" right under it); then the two witnesses side by side, six columns each at one height down to
+   the panel's foot: the slip's crop, cut exactly to its 2 × 2 block of kilos, and the logbook strip, both paper
+   (the only shadows), each drawn whole and centred in its sheet. The field and the result use the one money face
+   (FS Sans at 500, tabular): her hidden digit sits in a canary cell (a person must decide), and the committed value
+   prints in ink beside the treasurer's stamp. Every value is a --fs-* token. */
 
-   The two witnesses fit the window: the crop over the logbook's lines 5 to 9 take the height the stage leaves
-   between the title and its ribbon, so the stained digit, logbook line 7, the field and the slab are all in view
-   at 1470 × 956 and at 1280 × 800 without a scroll. */
+.fsc-console__screen:has(> .fsc-hand) {
+  padding-bottom: var(--fs-console-end);
+}
 
-.fsc-hand {
-  /* Above the screen: the top bar (49; its old 110 with the pill row is kept as slack) and the screen's padding (28); the title block (62)
-     and its gap (20); below: the ribbon and the caption (107) and a breath (12). */
-  --fsc-hand-room: calc(100dvh - 339px);
+.fsc-hand.fsc-screen {
+  grid-template-rows: auto auto minmax(240px, 1fr);
+  height: 100%;
+}
+
+.fsc-hand__lead {
   display: grid;
   align-content: start;
-  gap: 20px;
-  max-width: 1240px;
+  gap: var(--fs-space-16);
+  min-width: 0;
 }
 
-.fsc-hand__head {
-  display: grid;
-  gap: 8px;
+/* Round 7: whose slip, then why it needs a person, on one line above the field or the sum. */
+.fsc-hand__context {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 16px;
+  margin-bottom: 8px;
 }
 
-.fsc-hand__head h1 {
+.fsc-hand__who {
   margin: 0;
+  color: var(--fs-ink-2);
 }
 
+.fsc-hand__who .fs-t-id {
+  color: var(--fs-ink-2);
+}
+
+/* One line and the stand-in's reading as a figure (spec §3.5; round 5: the stand-in is said in the id line). */
 .fsc-hand__prompt {
   display: flex;
-  align-items: flex-start;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
   max-width: 62ch;
   margin: 0;
   color: var(--fs-ink);
-  font-size: 0.9375rem;
-  line-height: 1.375rem;
+  font-size: 1rem;
+  line-height: 1.5rem;
 }
 
-.fsc-hand__prompt .fs-glyph {
-  flex: none;
-  margin-top: 3px;
+.fsc-hand__reading {
   color: var(--fs-pencil);
 }
 
@@ -48,36 +63,85 @@
 
 .fsc-hand__body {
   display: grid;
-  grid-template-columns: auto minmax(320px, 1fr);
-  align-items: start;
-  gap: 32px 48px;
+  min-width: 0;
 }
 
-/* The crop over the logbook strip, at the width whose stacked height fills the room: two captions and paddings
-   (80) plus the crop (1.776 : 1) and the strip (1.764 : 1), so height = 80 + 1.13 × width. */
+/* The two witnesses side by side (round 5): six columns each, both papers at one height, as tall as the panel down
+   to its foot allows and as wide as a column lets the wider sheet (the crop, 1.85 : 1) stand whole. Each paper
+   hugs its sheet at that height, so the two end level and nothing is cut. */
 .fsc-hand__evidence {
   display: grid;
-  gap: 16px;
-  width: clamp(300px, calc((var(--fsc-hand-room) - 80px) * 0.885), 560px);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  column-gap: var(--fs-console-gutter);
+  min-height: 0;
 }
 
 .fsc-hand__figure {
+  --fsc-hand-h: 400px;
   display: grid;
+  justify-items: start;
   gap: 8px;
+  min-width: 0;
   margin: 0;
+}
+
+.fsc-hand__figure > .fs-paper {
+  box-sizing: border-box;
+  width: fit-content;
+  max-width: 100%;
+  height: var(--fsc-hand-h);
+}
+
+.fsc-hand__figure .fs-paper__body {
+  height: 100%;
+}
+
+@container fsc-screen (min-width: 720px) {
+  .fsc-hand__evidence {
+    container-type: size;
+  }
+
+  .fsc-hand__figure {
+    --fsc-hand-h: min(calc(100cqh - 32px), calc((50cqw - 12px) / 1.95));
+  }
 }
 
 .fsc-hand__crop {
   padding: 10px;
 }
 
+/* The crop keeps its own proportions (its aspect ratio inline): its height is the paper's, its width follows. */
 .fsc-hand__crop-frame {
-  width: 100%;
+  width: auto;
+  height: 100%;
 }
 
 .fsc-hand__crop-frame .fsc-slip {
+  display: block;
   width: 100%;
   height: 100%;
+}
+
+/* Round 8: the slip's witness is the clerk's own photograph, cropped to this slip around its stained rows. The
+   picture is as wide as the slip (its width inline) and centred on the gross and net rows (its shift inline); the
+   frame takes the paper's box, so the two witnesses are one height. */
+.fsc-hand__photo {
+  position: relative;
+  width: auto;
+  height: 100%;
+  aspect-ratio: 1.76;
+  overflow: hidden;
+  background: var(--fs-plate-2);
+}
+
+.fsc-hand__photo > img {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  display: block;
+  max-width: none;
+  height: auto;
 }
 
 .fsc-hand__logbook {
@@ -117,6 +181,36 @@
   stroke-width: 1;
 }
 
+.fsc-hand__logbook .fsc-logbook {
+  width: auto;
+  height: 100%;
+}
+
+/* A narrow panel stacks the witnesses, at a readable width, and the screen scrolls as one. */
+@container fsc-screen (max-width: 719px) {
+  .fsc-hand.fsc-screen {
+    height: auto;
+  }
+
+  .fsc-hand__evidence {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: 24px;
+    max-width: 560px;
+  }
+
+  .fsc-hand__figure > .fs-paper {
+    width: 100%;
+    height: auto;
+  }
+
+  .fsc-hand__crop-frame,
+  .fsc-hand__photo,
+  .fsc-hand__logbook .fsc-logbook {
+    width: 100%;
+    height: auto;
+  }
+}
+
 /* The second witness's line, marked the way the reading band marks a slip. */
 .fsc-logbook__band {
   fill: color-mix(in srgb, var(--fs-pod) 12%, transparent);
@@ -127,15 +221,11 @@
 /* ---------------------------------------------------------------- the entry */
 
 .fsc-hand__entry {
-  position: sticky;
-  top: 0;
   display: grid;
   align-content: start;
+  justify-items: start;
   gap: 12px;
-}
-
-.fsc-hand__entry > .fsc-hand__prompt {
-  margin-bottom: 8px;
+  max-width: 760px;
 }
 
 .fsc-hand__label {
@@ -146,23 +236,24 @@
   justify-self: start;
 }
 
-/* The one field: 48 px condensed numerals; the hidden digit's cell is canary, because a person must decide. */
+/* The one field, on the hero step in tabular figures (round 3: no heavy condensed face, one number style); its amber
+   ring and the hidden digit's amber cell say a person must decide. */
 .fsc-hand__input {
-  width: 9ch;
-  min-height: 72px;
+  width: 7.5ch;
+  min-height: 80px;
   padding: 0 16px;
   border: 1.5px solid var(--fs-canary-border);
   border-radius: var(--fs-radius-control);
-  background: var(--fs-canary-wash);
+  background: var(--fs-plate);
   color: var(--fs-ink);
   caret-color: var(--fs-pod);
   font-family: var(--fs-font-ui);
-  font-stretch: 75%;
-  font-weight: 760;
-  font-size: 3rem;
+  font-stretch: 100%;
+  font-weight: 500;
+  font-size: 3.5rem;
   line-height: 1;
   font-variant-numeric: tabular-nums lining-nums;
-  letter-spacing: 0.01em;
+  letter-spacing: -0.02em;
 }
 
 .fsc-hand__input::selection {
@@ -170,13 +261,8 @@
   color: var(--fs-on-canary);
 }
 
-.fsc-hand__input:focus-visible {
-  outline: var(--fs-focus-width) solid var(--fs-pod);
-  outline-offset: var(--fs-focus-offset);
-}
-
+/* Waiting for the run: a solid hairline (dashed means simulated only). */
 .fsc-hand__input:disabled {
-  border-style: dashed;
   border-color: var(--fs-rule);
   background: var(--fs-plate);
   color: var(--fs-ink-3);
@@ -244,24 +330,38 @@
 
 .fsc-hand__committed {
   display: grid;
-  gap: 10px;
+  justify-items: start;
+  gap: 8px;
 }
 
 .fsc-hand__ink {
-  display: inline-flex;
-  align-items: center;
-  gap: 14px;
   margin: 0;
   color: var(--fs-ink);
+  white-space: nowrap;
+}
+
+/* The result, "64.80 − 0.30 = 64.50 kg", as one line on the hero step in tabular figures (the screen's one hero):
+   her entry and the net in ink, the slip's tare and the operators quieter. */
+.fsc-hand__sum.fs-money {
+  font-family: var(--fs-font-ui);
+  font-stretch: 100%;
+  font-weight: 500;
+  font-size: 3.5rem;
+  line-height: 3.75rem;
+  letter-spacing: -0.02em;
 }
 
 .fsc-hand__ink-value {
-  font-family: var(--fs-font-ui);
-  font-stretch: 75%;
-  font-weight: 760;
-  font-size: 3rem;
-  line-height: 1;
-  font-variant-numeric: tabular-nums lining-nums;
+  display: inline-block;
+  color: var(--fs-ink);
+}
+
+.fsc-hand__rest {
+  color: var(--fs-ink-3);
+}
+
+.fsc-hand__rest > .fsc-hand__net {
+  color: var(--fs-ink);
 }
 
 .fsc-hand__body[data-moment-phase="entered"] .fsc-hand__ink-value {
@@ -272,57 +372,163 @@
   animation: fs-fade var(--fs-dur-reduced) var(--fs-ease-out) both;
 }
 
+/* Whose ink: her stamp and "Entered by Analyn · logbook line 7" on one line under the equation. */
 .fsc-hand__by {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   margin: 0;
   color: var(--fs-ink-2);
 }
 
-.fsc-hand__net {
+.fsc-hand__committed > .fsc-hand__mismatch {
   margin: 0;
-  color: var(--fs-ink);
 }
 
+/* The next step, named for its work ("Review 3 holds"), right under the equation: the screen's one primary once
+   the value is in (round 5), an arrow forward. */
 .fsc-hand__next {
+  margin: 12px 0 0;
+}
+
+.fsc-hand__go .fs-slab__face {
+  text-decoration: none;
+}
+
+.fsc-hand__go-words {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
-  margin: 8px 0 0;
+  gap: var(--fs-space-8);
 }
 
-.fsc-hand__next-mark {
-  width: 8px;
-  height: 8px;
-  background: var(--fs-canary);
+.fsc-hand__arrow {
+  transform: scaleX(-1);
 }
 
 .fsc-hand__skipped {
   display: grid;
   justify-items: start;
   gap: 8px;
-  padding: 16px 18px;
-  border: 1px dashed var(--fs-ink-3);
+  padding: 16px 20px;
+  border: 1px solid var(--fs-rule-strong);
   border-radius: var(--fs-radius-card);
 }
 
-/* Under 1280 px the stage's bar takes a second row and the screen's padding narrows. */
-@media (max-width: 1279px) {
-  .fsc-hand {
-    --fsc-hand-room: calc(100dvh - 371px);
+/* The 1,280 px laptop (a panel from 720 to 1,039 px, and short): the decision on the left six columns, the two
+   witnesses stacked in the right six at one height, so both stand whole above the panel's foot. Last in the file, so
+   it overrides the base rules above. */
+@container fsc-screen (min-width: 720px) and (max-width: 1039px) {
+  .fsc-hand.fsc-screen {
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .fsc-hand > .fsc-hand__lead {
+    grid-column: 1 / span 6;
+  }
+
+  .fsc-hand > .fsc-hand__evidence {
+    grid-row: 2;
+    grid-column: 7 / span 6;
+    grid-template-columns: minmax(0, 1fr);
+    align-content: start;
+    row-gap: 16px;
+  }
+
+  .fsc-hand__figure {
+    --fsc-hand-h: min(calc((100cqh - 80px) / 2), calc((100cqw - 20px) / 1.95));
+  }
+
+  /* The equation keeps its one line in six columns: the field and the hero a step smaller (44 / 48). */
+  .fsc-hand__sum.fs-money,
+  .fsc-hand__input {
+    font-size: 2.75rem;
+    line-height: 3rem;
   }
 }
 
-@media (max-width: 1099px) {
-  .fsc-hand__body {
-    grid-template-columns: minmax(0, 1fr);
+/* Round 6, the wide panel (1,920): the two witnesses lead, under the title row, and the decision stands beneath them
+   on one row: the sum ("Gross − tare = net", who entered it) and, 48 px beside it, the screen's one primary, so
+   nothing floats between the title and the papers. */
+@container fsc-screen (min-width: 1040px) {
+  /* Round 7: top-aligned and grouped. The witnesses start 24 px under the title row, each paper as wide as its six
+     columns (the logbook ends on the grid's edge) at one height that the columns' width sets; the decision (the sum,
+     who entered it and the one primary) stands 32 px under them, high on the screen. What a tall window leaves is
+     the panel's foot, never a band between the parts. */
+  .fsc-hand.fsc-screen {
+    grid-template-rows: auto auto auto;
+    row-gap: var(--fs-space-24);
+    height: auto;
   }
 
-  .fsc-hand__evidence {
-    width: auto;
-    max-width: 560px;
+  .fsc-hand > .fsc-hand__evidence {
+    order: 1;
+    container-type: inline-size;
   }
 
-  .fsc-hand__entry {
-    position: static;
-    grid-row: 1;
+  .fsc-hand > .fsc-hand__lead {
+    order: 2;
+    margin-top: var(--fs-space-8);
+  }
+
+  .fsc-hand__figure {
+    /* Round 8: both papers take the ledger strip's proportions in six columns (its mat each side): five lines, or
+       seven on a tall window, where the papers stand about 580 px and the decision ends near the panel's foot.
+       Never taller than a short window leaves. */
+    --fsc-hand-h: min(calc((50cqw - 32px) / var(--fsc-hand-aspect, 1.76) + 20px), calc(100dvh - 500px));
+    justify-items: stretch;
+  }
+
+  .fsc-hand__figure > .fs-paper {
+    width: 100%;
+  }
+
+  /* The photograph fills its paper edge to edge inside the mat. */
+  .fsc-hand__photo {
+    width: 100%;
+    aspect-ratio: auto;
+  }
+
+  /* Round 8: once the value is in, whose slip and why it needed a person are one quiet line over the sum. */
+  .fsc-hand__entry:has(.fsc-hand__committed) .fsc-hand__context {
+    gap: 4px 8px;
+  }
+
+  .fsc-hand__entry:has(.fsc-hand__committed) .fsc-hand__prompt {
+    color: var(--fs-ink-2);
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+  }
+
+  .fsc-hand__entry:has(.fsc-hand__committed) .fsc-hand__prompt::before {
+    content: "·";
+  }
+
+  /* Each sheet stands whole and centred on its paper. */
+  .fsc-hand__figure .fs-paper__body {
+    display: grid;
+    place-items: center;
+  }
+
+  .fsc-hand__logbook {
+    transform: none;
+  }
+
+  .fsc-hand__committed {
+    display: grid;
+    grid-template-columns: max-content max-content;
+    justify-content: start;
+    align-items: center;
+    column-gap: var(--fs-space-48);
+  }
+
+  .fsc-hand__committed > * {
+    grid-column: 1;
+  }
+
+  .fsc-hand__committed > .fsc-hand__next {
+    grid-row: 1 / span 4;
+    grid-column: 2;
+    align-self: center;
+    margin: 0;
   }
 }

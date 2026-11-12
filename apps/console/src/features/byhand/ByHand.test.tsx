@@ -59,9 +59,21 @@ describe("W-TR-04 by hand", { timeout: 60_000 }, () => {
     const view = await renderConsole({ path: BY_HAND });
     const root = await screen.findByTestId("W-TR-04");
     expect(root.dataset.state).toBe("empty");
-    expect(screen.getByTestId("W-TR-04.prompt").textContent).toBe(
-      "Slip 0462, Arnel Sumampao. A water stain covers one digit of the gross weight. Seed stand-in, not a Claude recording: 6?.80 (placeholder score 0.40).",
-    );
+    // One line and the stand-in's reading; the slip's owner is the line above it.
+    expect(screen.getByTestId("W-TR-04.prompt").textContent).toBe("A stain hides one digit. 6?.80");
+    // Round 5, provenance once: no glyph inline; the stand-in is the title row's one id-line phrase, its canonical
+    // words its title and its hidden text.
+    expect(screen.getByTestId("W-TR-04.prompt").querySelector("[data-fs-glyph]")).toBeNull();
+    expect(screen.getByTestId("W-TR-04").querySelectorAll("[data-fs-glyph]")).toHaveLength(0);
+    const provenance = screen.getByTestId("W-TR-04").querySelector(".fsc-screen__provenance");
+    expect(provenance?.getAttribute("title")).toMatch(/Seed stand-in, not a Claude recording/);
+    expect(provenance?.textContent).toMatch(/^Synthetic co-op · replayed readings/);
+    expect(screen.getByTestId("W-TR-04.prompt").querySelector(".fs-honesty")).toBeNull();
+    expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("Slip 0462 by hand");
+    // The title row says the slip's state in one chip: a person must decide.
+    expect(screen.getByTestId("W-TR-04.state").textContent).toBe("Needs a person");
+    expect(screen.getByTestId("W-TR-04.state").dataset.tone).toBe("canary");
+    expect(document.querySelector(".fsc-hand__who")?.textContent).toBe("Arnel Sumampao · M-060");
     expect(screen.getByTestId<HTMLInputElement>("W-TR-04.input").value).toBe("6▢.80");
     expect(screen.getByTestId<HTMLInputElement>("W-TR-04.input").disabled).toBe(true);
     expect(screen.getByTestId("W-TR-04.commit").dataset.state).toBe("unavailable");
@@ -78,7 +90,7 @@ describe("W-TR-04 by hand", { timeout: 60_000 }, () => {
     const lines = [...logbook.querySelectorAll<SVGGElement>("[data-line]")].map((g) => g.dataset.line);
     expect(lines).toEqual(["5", "6", "7", "8", "9"]);
     expect(logbook.querySelector("[data-band]")?.getAttribute("data-line")).toBe("7");
-    expect(screen.getByText("Logbook page 14, lines 5 to 9: the second witness")).toBeTruthy();
+    expect(screen.getByText("logbook p. 14 · lines 5–9 · witness")).toBeTruthy();
     // The crop sits above the logbook; the prompt, the field and the slab beside them.
     const evidence = screen.getByTestId("W-TR-04.evidence");
     expect(evidence.contains(screen.getByTestId("W-TR-04.crop"))).toBe(true);
@@ -105,10 +117,12 @@ describe("W-TR-04 by hand", { timeout: 60_000 }, () => {
     await waitFor(() => expect(screen.getByTestId("W-TR-04").dataset.state).toBe("committed"));
     await waitFor(() => expect(momentPhase(view.container, "MM-2")).toBe("done"));
     expect(tracedPhases("MM-2")).toEqual(["by-hand", "entered", "done"]);
-    expect(screen.getByTestId("W-TR-04.provenance").textContent).toBe("Entered by Analyn");
-    expect(screen.getByTestId("W-TR-04.net").textContent).toBe(
-      "Net 64.50 kg. Matches logbook page 14, line 7.",
+    // The result as one line of kilos (round 3), her entry in ink, then who and the witness it agrees with.
+    expect(screen.getByTestId("W-TR-04.net").textContent).toBe("64.80 − 0.30 = 64.50 kg");
+    expect(screen.getByTestId("W-TR-04.provenance").textContent).toBe(
+      "Entered by Analyn · matches logbook line 7",
     );
+    expect(screen.queryByTestId("W-TR-04.check")).toBeNull();
     expect(screen.getByTestId("W-TR-04.stamp").textContent).toBe("AS");
     expect(view.world.fields().find((f) => f.field === "gross_kg")?.finalValue).toBe("64.80");
     await waitFor(() => expect(screen.getByTestId("W-JG-01.runPill").dataset.step).toBe("holds"));
@@ -170,9 +184,11 @@ describe("W-TR-04 by hand", { timeout: 60_000 }, () => {
     await waitFor(() => expect(screen.getByTestId("W-JG-01.runPill").dataset.step).toBe("holds"));
     await view.navigate(BY_HAND);
     await waitFor(() => expect(screen.getByTestId("W-TR-04").dataset.state).toBe("committed"));
-    const net = screen.getByTestId("W-TR-04.net").textContent ?? "";
-    expect(net).not.toMatch(/Matches logbook/);
-    expect(net).toMatch(/Logbook line 7 says 64\.50: they don't match\./);
+    expect(screen.getByTestId("W-TR-04.provenance").textContent).toBe("Entered by Analyn");
+    expect(screen.getByTestId("W-TR-04.committed").textContent).not.toMatch(/[Mm]atches logbook/);
+    expect(screen.getByTestId("W-TR-04.check").textContent).toBe(
+      "Logbook line 7 says 64.50: they don't match.",
+    );
   });
 
   it("with nothing to name the session's field (fs-api today), the slab says why and nothing is posted", async () => {
@@ -204,9 +220,7 @@ describe("W-TR-04 by hand", { timeout: 60_000 }, () => {
       fireEvent.keyDown(screen.getByTestId("W-TR-04.commit.face"), { key: "Enter" });
     });
     await waitFor(() => expect(screen.getByTestId("W-TR-04").dataset.state).toBe("committed"));
-    expect(screen.getByTestId("W-TR-04.provenance").textContent).toBe(
-      "Entered by Analyn, from logbook line 7",
-    );
+    expect(screen.getByTestId("W-TR-04.provenance").textContent).toBe("Entered by Analyn · logbook line 7");
   });
 
   it("a digit the logbook disagrees with is a person's question, and this console cannot take it: the split would not follow", async () => {
@@ -292,6 +306,10 @@ describe("W-TR-04 by hand: focus once the field is answered", { timeout: 60_000 
     for (const at of after) expect([ink, next]).toContain(at);
     expect(after.at(-1)).toBe(next);
     expect(document.activeElement).toBe(next);
+    // The next step is named for its work, right under the equation, the screen's one primary (round 5).
+    expect(next.textContent).toBe("Review 3 holds");
+    expect(next.classList.contains("fs-slab__face")).toBe(true);
+    expect(screen.getByTestId("W-TR-04.state").textContent).toBe("Entered");
   }
 
   it("Enter in the field: focus lands on the ink, then the Next link under it, never on <body>", async () => {

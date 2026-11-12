@@ -75,11 +75,13 @@ describe("web routes (register §4)", () => {
   });
 });
 
-it("offers a stage return only on the judge session's Proof route", async () => {
+it("offers a way back to the Fair Split console only on the judge session's Proof route", async () => {
   const view = await renderConsole({ path: webRoutes.proof(RUN) });
   await screen.findByTestId("W-PF-01");
-  expect(screen.queryByRole("link", { name: "Back to the stage" })).toBeNull();
+  expect(screen.queryByRole("link", { name: "Fair Split console" })).toBeNull();
   await view.startSession();
-  const back = await screen.findByRole("link", { name: "Back to the stage" });
+  const back = await screen.findByRole("link", { name: "Fair Split console" });
   expect(back.getAttribute("href")).toBe(webRoutes.judge());
+  // A line arrow leads it, hidden from a screen reader: the link's name is the product's name.
+  expect(back.querySelector('[data-glyph="ms:arrow-back"]')?.getAttribute("aria-hidden")).toBe("true");
 });

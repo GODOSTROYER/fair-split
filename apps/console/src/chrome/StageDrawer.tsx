@@ -3,6 +3,9 @@
 // follows the stage's width: it pushes the screen aside below 1600 px (full width below 1280) and overlays
 // it at 560 px from 1600 over the scrim. Plate-2 with a 1 px top highlight; Esc and Close end it. Outside
 // the stage (component tests) it renders in place.
+// Round 5 (no dead bands): a drawer either hugs its content (`hug`: it ends at its content's foot) or pins its action
+// to a sticky footer (`footer`), so a short drawer never shows an empty band; a compact success state drops the
+// blocking scrim (`scrim={false}`) and leaves the screen lit and live.
 
 import { Glyph } from "@fairsplit/ui-web";
 import { type ReactNode, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
@@ -30,9 +33,34 @@ export interface StageDrawerProps {
   readonly testId: string;
   /** Forces a mode (tests); defaults to the stage's layout. */
   readonly mode?: DrawerMode;
+  /**
+   * The drawer's action, pinned to a sticky footer (round 5: no dead band under a short drawer's content): the
+   * primary, and at most one secondary beside it at the same 48 px height.
+   */
+  readonly footer?: ReactNode;
+  /**
+   * Hug the content (round 5): the drawer ends at its content's foot (never past the stage's), so a short state
+   * (a resolved hold) is a compact card, not a 1,000 px panel with an empty band.
+   */
+  readonly hug?: boolean;
+  /**
+   * Lay the blocking scrim over the screen (default, from 1,600 px). A compact success state passes false: the
+   * screen stays lit and live beside it.
+   */
+  readonly scrim?: boolean;
 }
 
-export function StageDrawer({ label, meta, onClose, children, testId, mode }: StageDrawerProps) {
+export function StageDrawer({
+  label,
+  meta,
+  onClose,
+  children,
+  testId,
+  mode,
+  footer,
+  hug = false,
+  scrim = true,
+}: StageDrawerProps) {
   const stage = useOptionalStage();
   const target = useChromeSlotTarget("console.drawer");
   const resolved: DrawerMode = mode ?? stage?.layout.drawer ?? "overlay";
@@ -54,7 +82,7 @@ export function StageDrawer({ label, meta, onClose, children, testId, mode }: St
   // the screen under it is inert, so Tab never lands on a control the drawer hides (S1.12, WCAG 2.4.11). Pushing
   // it aside (1280-1599 px), the screen stays live beside it. Declared before the focus effect below: closing,
   // React runs this cleanup first, so the screen is live again by the time focus goes back to it.
-  const covers = Boolean(stage && target) && (resolved === "push-full" || resolved === "overlay");
+  const covers = Boolean(stage && target) && (resolved === "push-full" || (resolved === "overlay" && scrim));
   useLayoutEffect(() => {
     if (!covers) return;
     const main = document.getElementById("fsc-main");
@@ -62,6 +90,14 @@ export function StageDrawer({ label, meta, onClose, children, testId, mode }: St
     main.setAttribute("inert", "");
     return () => main.removeAttribute("inert");
   }, [covers]);
+
+  // Round 7: the stage knows a drawer stands beside the screen (it folds the console rail below 1440 px).
+  const noteDrawer = stage && target ? stage.noteDrawer : undefined;
+  useLayoutEffect(() => {
+    if (!noteDrawer) return;
+    noteDrawer(true);
+    return () => noteDrawer(false);
+  }, [noteDrawer]);
 
   // What opened the drawer (a grid row, a link), with its key, as the drawer first renders: before anything
   // inside it takes focus.
@@ -99,7 +135,7 @@ export function StageDrawer({ label, meta, onClose, children, testId, mode }: St
 
   const drawer = (
     <>
-      {resolved === "overlay" && (
+      {resolved === "overlay" && scrim && (
         <div
           className="fsc-drawer-scrim"
           // A press on the scrim never moves focus to <body> first (a browser's default for a surface that takes
@@ -117,6 +153,8 @@ export function StageDrawer({ label, meta, onClose, children, testId, mode }: St
         }}
         className="fsc-drawer"
         data-mode={resolved}
+        data-hug={hug ? "" : undefined}
+        data-scrim={scrim ? undefined : "none"}
         aria-labelledby={titleId}
         tabIndex={-1}
         data-testid={testId}
@@ -138,6 +176,11 @@ export function StageDrawer({ label, meta, onClose, children, testId, mode }: St
           </button>
         </header>
         <div className="fsc-drawer__body">{children}</div>
+        {footer && (
+          <footer className="fsc-drawer__foot" data-testid={`${testId}.foot`}>
+            {footer}
+          </footer>
+        )}
       </aside>
     </>
   );

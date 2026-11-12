@@ -29,30 +29,6 @@ export interface SlipPaperProps {
   readonly className?: string;
 }
 
-/** A soft, irregular water mark: a closed Catmull-Rom curve through seeded radii, with a tide line. */
-function stainPath(cx: number, cy: number, rx: number, ry: number, seed: number): string {
-  const n = 14;
-  let s = seed;
-  const rand = () => {
-    s = (s * 1103515245 + 12345) & 0x7fffffff;
-    return s / 0x7fffffff;
-  };
-  const pts = Array.from({ length: n }, (_, i) => {
-    const a = (i / n) * Math.PI * 2;
-    const k = 0.8 + rand() * 0.34;
-    return [cx + Math.cos(a) * rx * k, cy + Math.sin(a) * ry * k] as const;
-  });
-  const at = (i: number) => pts[(i + n) % n] as readonly [number, number];
-  let d = `M${at(0)[0].toFixed(2)} ${at(0)[1].toFixed(2)}`;
-  for (let i = 0; i < n; i++) {
-    const [p0, p1, p2, p3] = [at(i - 1), at(i), at(i + 1), at(i + 2)];
-    const c1 = [p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6];
-    const c2 = [p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6];
-    d += `C${c1[0]?.toFixed(2)} ${c1[1]?.toFixed(2)} ${c2[0]?.toFixed(2)} ${c2[1]?.toFixed(2)} ${p2[0].toFixed(2)} ${p2[1].toFixed(2)}`;
-  }
-  return `${d}Z`;
-}
-
 /** Moves every point of a run's path (only M and L commands) by (dx, dy). */
 function offsetPath(d: string, dx: number, dy: number): string {
   return d.replace(/([ML])(-?[\d.]+) (-?[\d.]+)/g, (_m, cmd: string, x: string, y: string) => {
@@ -66,6 +42,8 @@ interface ThumbPaths {
   readonly bars: string;
   readonly boxes: string;
   readonly hand: string;
+  /** The stain's mask over each hidden character (slip 0462), as one path of boxes. */
+  readonly stains: string;
 }
 
 const THUMBS = new Map<string, ThumbPaths>();
@@ -81,6 +59,7 @@ function thumbPaths(slip: SnapshotSlip): ThumbPaths {
   const bars = ["M10 10h84v6h-84z", "M10 22h52v8h-52z"];
   const boxes = ["M10 38H200", "M10 280H118", "M146 280H200"];
   const hand: string[] = [];
+  const stains: string[] = [];
   for (const box of SLIP_BOXES) {
     boxes.push(`M${box.x} ${box.y}h${box.w}v${box.h}h${-box.w}z`);
     bars.push(`M${box.x + 3} ${box.y + 3}h${Math.min(28, box.w - 6)}v3h${-Math.min(28, box.w - 6)}z`);
@@ -100,21 +79,20 @@ function thumbPaths(slip: SnapshotSlip): ThumbPaths {
                 .map((g) => g.d)
                 .join("");
         hand.push(offsetPath(d, x, y));
+        const masked = hidden === null ? undefined : run.glyphs[hidden];
+        if (masked)
+          stains.push(`M${x + masked.x - 2} ${y - 3}h${masked.w + 4}v${size + 6}h${-(masked.w + 4)}z`);
       });
   }
   hand.push(offsetPath(handRun(slip.clerkInitials, { size: 10, seed: `${slip.serial}:clerk` }).d, 156, 266));
   if (slip.signature === "SIGNED") hand.push("M18 276c8-10 14 4 22-3s10-8 16 0 12-6 19-1 9 5 16-2");
-  const out = { bars: bars.join(""), boxes: boxes.join(""), hand: hand.join("") };
+  const out = { bars: bars.join(""), boxes: boxes.join(""), hand: hand.join(""), stains: stains.join("") };
   THUMBS.set(key, out);
   return out;
 }
 
 function ThumbSlip({ slip, className }: { readonly slip: SnapshotSlip; readonly className?: string }) {
   const paths = thumbPaths(slip);
-  const stained = slip.artifacts.includes("WATER_STAIN");
-  const gross = SLIP_BOXES.find((b) => b.field === "gross_kg");
-  const stainX = gross ? gross.x + HAND_INSET.x + 14 : 100;
-  const stainSeed = Number.parseInt(slip.serial, 10) * 7919;
   return (
     <svg
       className={["fsc-slip", className].filter(Boolean).join(" ")}
@@ -130,8 +108,33 @@ function ThumbSlip({ slip, className }: { readonly slip: SnapshotSlip; readonly 
       <path className="fsc-slip__bar" d={paths.bars} />
       <path className="fsc-slip__box" d={paths.boxes} />
       <path className="fsc-slip__hand" d={paths.hand} />
-      {stained && <path d={stainPath(stainX, 145, 18, 30, stainSeed)} className="fsc-slip__stain-body" />}
+      {paths.stains && <path d={paths.stains} className="fsc-slip__stain-thumb" />}
     </svg>
+  );
+}
+
+/** The stain over one hidden character: a 45° hatch mask on a faint wash, the glyph's own box plus a margin. */
+function StainMask({ x, w, size, hatchId }: { x: number; w: number; size: number; hatchId: string }) {
+  const pad = 2;
+  return (
+    <g className="fsc-slip__stain" data-stain="" aria-hidden>
+      <rect
+        className="fsc-slip__stain-wash"
+        x={x - pad}
+        y={-pad - 1}
+        width={w + pad * 2}
+        height={size + pad * 2 + 2}
+        rx={1.5}
+      />
+      <rect
+        x={x - pad}
+        y={-pad - 1}
+        width={w + pad * 2}
+        height={size + pad * 2 + 2}
+        rx={1.5}
+        fill={`url(#${hatchId})`}
+      />
+    </g>
   );
 }
 
@@ -140,11 +143,13 @@ function BoxWriting({
   box,
   hiddenIndex,
   blurId,
+  hatchId,
 }: {
   readonly slip: SnapshotSlip;
   readonly box: SlipBox;
   readonly hiddenIndex: number | null;
   readonly blurId: string;
+  readonly hatchId: string;
 }) {
   const lines = boxText(slip, box.id).filter((l) => l.length > 0);
   const size = box.id === "13" ? 9 : HAND_SIZE;
@@ -157,6 +162,7 @@ function BoxWriting({
         if (hiddenIndex === null) {
           return <path key={line} className="fsc-slip__hand" d={run.d} transform={`translate(${x} ${y})`} />;
         }
+        const hidden = run.glyphs[hiddenIndex];
         return (
           <g key={line} transform={`translate(${x} ${y})`}>
             {run.glyphs.map((g, gi) => (
@@ -167,6 +173,7 @@ function BoxWriting({
                 filter={gi === hiddenIndex ? `url(#${blurId})` : undefined}
               />
             ))}
+            {hidden && <StainMask x={hidden.x} w={hidden.w} size={size} hatchId={hatchId} />}
           </g>
         );
       })}
@@ -188,12 +195,10 @@ export const SlipPaper = memo(function SlipPaper({
 function FullSlip({ slip, detail = "full", outline = null, crop = null, className }: SlipPaperProps) {
   const uid = useId().replace(/[^a-zA-Z0-9_-]/g, "");
   const blurId = `fsc-stain-blur-${uid}`;
+  const hatchId = `fsc-stain-hatch-${uid}`;
   const kind = copyKind(slip.copy);
   const stained = slip.artifacts.includes("WATER_STAIN");
   const full = detail === "full";
-  const gross = SLIP_BOXES.find((b) => b.field === "gross_kg");
-  const stainX = gross ? gross.x + HAND_INSET.x + 14 : 100;
-  const stainSeed = Number.parseInt(slip.serial, 10) * 7919;
   return (
     <svg
       className={["fsc-slip", className].filter(Boolean).join(" ")}
@@ -210,6 +215,16 @@ function FullSlip({ slip, detail = "full", outline = null, crop = null, classNam
           <filter id={blurId} x="-50%" y="-50%" width="200%" height="200%">
             <feGaussianBlur stdDeviation="1.6" />
           </filter>
+          {/* The stain: a 45° hatch over the hidden digit (UI gate round 3), not a grey blot. */}
+          <pattern
+            id={hatchId}
+            width={2.4}
+            height={2.4}
+            patternUnits="userSpaceOnUse"
+            patternTransform="rotate(45)"
+          >
+            <rect className="fsc-slip__stain-line" width={0.8} height={2.4} />
+          </pattern>
         </defs>
       )}
       <rect className="fsc-slip__sheet" width={SLIP_W} height={SLIP_H} />
@@ -259,7 +274,13 @@ function FullSlip({ slip, detail = "full", outline = null, crop = null, classNam
               height={3}
             />
           )}
-          <BoxWriting slip={slip} box={box} hiddenIndex={stainedIndex(slip, box.field)} blurId={blurId} />
+          <BoxWriting
+            slip={slip}
+            box={box}
+            hiddenIndex={stainedIndex(slip, box.field)}
+            blurId={blurId}
+            hatchId={hatchId}
+          />
         </g>
       ))}
       {/* Signatures: the member's mark and the clerk's initials. */}
@@ -302,12 +323,6 @@ function FullSlip({ slip, detail = "full", outline = null, crop = null, classNam
               transform={`translate(0 ${i * 11})`}
             />
           ))}
-        </g>
-      )}
-      {stained && (
-        <g className="fsc-slip__stain" aria-hidden>
-          <path d={stainPath(stainX, 145, 18, 30, stainSeed)} className="fsc-slip__stain-body" />
-          <path d={stainPath(stainX + 2, 147, 11, 19, stainSeed + 31)} className="fsc-slip__stain-bloom" />
         </g>
       )}
       {outline && <SlipOutline field={outline} />}

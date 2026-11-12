@@ -14,9 +14,10 @@ import { payoutReplayed } from "../../data/payout-replay.js";
 import { BRAND_COPY, BrandHeader, type BrandState, FUNDED } from "../../features/brand/BrandHeader.js";
 import { useBrandBundle } from "../../features/brand/useBrandProof.js";
 import { provenanceWords } from "../../features/proof/copy.js";
+import { PROOF_SEAL } from "../../features/proof/Hero.js";
 import type { MemberLabel } from "../../features/proof/Lines.js";
 import { returnedCashPaid } from "../../features/proof/model.js";
-import { ProofView, verifyAttr } from "../../features/proof/ProofView.js";
+import { isShowcase, ProofView, verifyAttr } from "../../features/proof/ProofView.js";
 import { isPosted, useProofPage } from "../../features/proof/useProof.js";
 import { useVerification } from "../../features/proof/useVerification.js";
 import type { BrandEntryProps } from "../contract.js";
@@ -60,11 +61,11 @@ export function Screen({ token }: BrandEntryProps) {
               Proof for the brand
             </h1>
             <PrintBed shape="plate" height={168} />
-            <PrintBed shape="seal" width={320} height={320} />
+            <PrintBed shape="seal" width={PROOF_SEAL} height={PROOF_SEAL} />
           </div>
         ) : state === "error" ? (
           <div className="pf-state" data-testid="W-BR-01.error">
-            <h1 className="pf-state__title" id="W-BR-01-title">
+            <h1 className="pf-state__title fs-t-title" id="W-BR-01-title">
               {read.access === "refused" ? BRAND_COPY.refused : BRAND_COPY.failed}
             </h1>
             <p className="pf-state__lede">{BRAND_COPY.refusedHint}</p>
@@ -91,6 +92,7 @@ export function Screen({ token }: BrandEntryProps) {
               rail={rail}
               payoutReplayed={payoutReplayed(page.runView, page.bundle)}
               provenance={page.provenance ? provenanceWords(page.provenance) : null}
+              showcase={isShowcase(page)}
             />
             <ProofView page={page} verification={verification} rail={rail} names={names} level="h2" />
           </>

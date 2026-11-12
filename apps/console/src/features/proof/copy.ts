@@ -16,6 +16,9 @@ import { type MessageKey, translate, type Values } from "@fairsplit/i18n";
 import type { PaypalRail } from "../../lib/env.js";
 import type { Verdict } from "./verify.js";
 
+/** The way back from a judge's own Proof to the console (UI gate round 3: never "the stage", which is jargon). */
+export const NAV_COPY = { console: "Fair Split console" } as const;
+
 /** The console's language is English (CONSOLE_LANG); Proof reads in it too. */
 export function t(key: MessageKey, values?: Values): string {
   return translate("en", key, values);
@@ -57,6 +60,38 @@ export const PLATE_TITLE: Readonly<Record<PlateName, MessageKey>> = {
   payoutItems: "W-PF-01.plate.items",
 };
 
+/** The payer, as the catalog's Proof sentences name it (the header never waits on the seed). */
+export const PAYER = "Lantern Bay";
+
+/**
+ * Proof's one provenance phrase, on the title row's id line (round 5: provenance once a screen; the console's
+ * `PROVENANCE`, chrome/copy.ts). The quiet indicator beside it already says "Simulated PayPal sandbox", so the phrase
+ * names the rest; its whole sentence is its title and its hidden text.
+ */
+export const PROOF_PROVENANCE = {
+  text: "Synthetic co-op",
+  title: "Synthetic co-op and people. Every PayPal value comes from the simulated PayPal sandbox.",
+} as const;
+
+/** The run's state, one chip on the title's row (round 5): never "Settled", "Done" or "Paid" while cash is due. */
+export const RUN_CHIP = {
+  replayed: "Replayed (labelled)",
+  confirming: () => t("W-JG-01.pill.confirming"),
+  decide: (n: number) => (n === 1 ? "1 needs a decision" : `${n} need a decision`),
+  cashDue: () => t("W-JG-01.pill.stateCashDue"),
+  complete: "PayPal complete · cash received",
+} as const;
+
+/** Each check in a few words, for the six rows under the verdict (unslop spec §3.12). */
+export const CHECK_SHORT: Readonly<Record<PlateName, string>> = {
+  paid: "Invoice ref carries the card hash",
+  ratified: "Card hash = published value",
+  read: "Photo hashes match",
+  computed: "Line hashes sum to the pool",
+  twoKeys: "2 signatures on the batch hash",
+  payoutItems: "Payout items = signed batch",
+};
+
 /** What each plate's check recomputes, in the order S1.8 lists them. */
 export const PLATE_CHECK: Readonly<Record<PlateName, MessageKey>> = {
   paid: "W-PF-01.check.reference",
@@ -94,29 +129,47 @@ export function verdictWord(verdict: Verdict): string {
   return pickLabel(PROOF_STATUS_LABELS[verdict], "en");
 }
 
-const NUMBER_WORDS = ["None", "One", "Two", "Three", "Four", "Five", "Six"] as const;
-
 export const VERIFY_COPY = {
   slab: () => t("W-PF-01.verify"),
   again: "Check again",
   srLabel:
     "Verify in your browser: recompute the hash chain, its signed checkpoint and six checks on this device",
-  idle: "Runs here, in this browser, against the keys Fair Split publishes. Nothing is sent anywhere.",
-  stale: "The record moved on since your last check. Check again to cover it.",
-  checking: "Checking the hash chain, its signed checkpoint and the six plates.",
-  matches: (n: number) => `${NUMBER_WORDS[n] ?? String(n)} of six match.`,
+  idle: "Runs in this browser. Nothing is sent.",
+  stale: "The record moved on. Check again.",
+  checking: "Checking the chain and six plates.",
+  /** The explicit result under the hero count (UI gate round 3): seen and heard the same way. */
+  /** Round 6: "6 integrity checks passed": a check result, never a payment's (the money card says what was paid). */
+  result: (n: number, of: number) =>
+    n === of ? `${of} integrity checks passed` : `${n} of ${of} integrity checks passed`,
   checkedAt: (time: string) => `Checked in this browser at ${time}, Davao time.`,
-  sample: (keys: readonly string[]) =>
-    `Signed with sample keys (${keys.join(", ")}), so it reads Sample, never Verified.`,
-  partial:
-    "Five of six match here. Plate 6 recomputes the batch hash over the payout receivers, which the public Proof withholds. The brand's view checks it in full.",
-  keysPublished: "Keys: /.well-known/fairsplit-keys.json, fetched apart from this record.",
-  keysSeed: "Keys: the seed's published sample keys, because this mock API serves no keys document.",
-  keysFailed: "The published keys didn't load, so nothing was checked.",
+  /** The words under the hero count before a result. */
+  count: {
+    idle: "not checked yet",
+    checking: "checking",
+    error: "not checked",
+  },
+  /** After the verdict's time (set in the id role): Davao is on Philippine time. */
+  atRest: " PHT · in this browser",
+  /** The sample-keys line: a neutral key glyph and these words after the verdict word ("Sample"), never a check. */
+  sampleRest: " keys · not PayPal-verified",
+  sampleTitle: "Signed with sample keys, so this Proof reads Sample, never Verified.",
+  /** The officers who signed, one row each (round 4): the list's name. */
+  signedBy: "Signed by",
+  /** A signer's key, as the row's title (round 5: no ids for people in view). */
+  keyTitle: (keyId: string) => `Key ${keyId}`,
+  /** Behind "IDs" when the keys are not samples: the keys that signed, whole. */
+  signingKeysRow: "Signing keys",
+  partial: "Plate 6 needs the receivers, which the public Proof withholds.",
+  /** Behind "IDs" (round 4: no file name in view): the sample keys in full, and where the keys came from. */
+  sampleKeysRow: "Sample keys",
+  keysRow: "Keys",
+  keysPublishedTitle: "Keys: /.well-known/fairsplit-keys.json, fetched apart from this record",
+  keysSeed: "Seed sample keys",
+  keysSeedTitle: "The seed's published sample keys: this mock API serves no keys document",
+  keysFailed: "The published keys didn't load. Nothing was checked.",
+  ids: "IDs",
   anchorsLead: (rail: PaypalRail) =>
-    rail === "simulator"
-      ? "Simulated PayPal sandbox identifiers (no PayPal dashboard):"
-      : "Match it on the configured PayPal rail (not simulated):",
+    rail === "simulator" ? "No PayPal dashboard" : "Match it on the configured PayPal rail (not simulated)",
   checkState: {
     idle: "Not checked yet",
     checking: () => t("W-PF-01.checking"),
@@ -145,23 +198,41 @@ export const STATE_COPY = {
   notPosted: "This run's Proof is published once both keys are signed and the batch is posted to PayPal.",
   noneHint: "A Proof appears for a run once its payout batch is posted.",
   showcase: "Open the season's Proof",
-  progress: (confirmed: number, total: number) =>
-    `Simulated PayPal sandbox: waiting, ${confirmed} of ${total} confirmed.`,
-  settled: (confirmed: number, total: number) =>
-    `${confirmed} of ${total} confirmed by PayPal (simulated sandbox).`,
+  progress: (confirmed: number, total: number) => `Waiting · ${confirmed} of ${total} confirmed`,
+  settled: (confirmed: number, total: number) => `${confirmed} of ${total} confirmed`,
   /** Items PayPal returned: their cash is due until the clerk attests it (paid only then). */
   returned: (returned: number, cashPaid: number) =>
     cashPaid >= returned
-      ? `${returned} returned to the co-op and paid in cash`
+      ? `${returned} returned, paid in cash`
       : cashPaid > 0
-        ? `${returned} returned to the co-op: ${cashPaid} paid in cash, ${returned - cashPaid} due at the bodega`
-        : `${returned} returned to the co-op, cash due at the bodega`,
+        ? `${returned} returned: ${cashPaid} paid in cash, ${returned - cashPaid} due`
+        : `${returned} returned, cash due`,
   /** The hero's live line while PayPal is still confirming: counts only, and the rail it ran on (I8). */
   liveProgress: (p: ProgressFacts, rail: PaypalRail) =>
     `Waiting for PayPal: ${p.confirmed} of ${p.total} PayPal payouts confirmed ${railWhere(rail)}.${parkedWords(p)}`,
   /** The hero's live line once PayPal has finished: "7 of 8 PayPal payouts confirmed in the simulated sandbox." */
   liveSettled: (p: ProgressFacts, rail: PaypalRail) =>
     `${p.confirmed} of ${p.total} PayPal payouts confirmed ${railWhere(rail)}.${parkedWords(p)}`,
+  /** The same line as the money card shows it: counts only, the card's tag names the rail. */
+  liveShort: (p: ProgressFacts, settled: boolean, cashDue = 0) =>
+    // Round 6: once PayPal has finished, what was paid and what is still owed, side by side: "7 confirmed on PayPal ·
+    // 57 cash due" (E-19: never "PayPal confirmed" bare; the card's tag and the bar name the simulated rail).
+    // Verification (the six checks) is never the payment's completion.
+    settled && cashDue > 0
+      ? [
+          `${p.confirmed} confirmed on PayPal`,
+          `${cashDue} cash due`,
+          p.parked > 0 ? `${p.parked} parked` : null,
+        ]
+          .filter(Boolean)
+          .join(" · ")
+      : [
+          `${settled ? "" : "Waiting · "}${p.confirmed} of ${p.total} PayPal payouts confirmed`,
+          p.returned > 0 ? `${p.returned} moved to cash` : null,
+          p.parked > 0 ? `${p.parked} parked` : null,
+        ]
+          .filter(Boolean)
+          .join(" · "),
   withheldTitle: "Proof withheld",
   withheldFigures: "The figures stay withheld until the record matches again.",
   loadFailed: "Proof didn't load.",
@@ -171,9 +242,7 @@ export const FIGURE_COPY = {
   heading: "Where the money went",
   explained: () => t("W-PF-01.metric.explained"),
   explainedValue: (count: number, total: number) => t("W-PF-01.metric.explainedValue", { count, total }),
-  explainedNote: "Each line carries its hash and the slips it comes from.",
   premium: "Premium allocated to members",
-  premiumNote: "No deductions (R0). Computed by the engine and hashed.",
   premiumBreach: (amount: string) => `${amount} reached premium, which R0 forbids.`,
   paid: "Paid, in three tiers",
   tierPaypal: (rail: PaypalRail) =>
@@ -185,33 +254,27 @@ export const FIGURE_COPY = {
   tierReserved: "Reserved, carried over",
   members: (n: number) => `${n} ${n === 1 ? "member" : "members"}`,
   attestedOf: (n: number, of: number) => `${n} of ${of}`,
-  attestedNote: "Each receipt is signed or thumbmarked at the bodega, with a witness.",
   dueNote: (cash: number, paypal: number) =>
-    paypal > 0
-      ? `${cash} in cash at the bodega, ${paypal} still with the simulated PayPal sandbox.`
-      : `${cash} in cash at the bodega.`,
+    paypal > 0 ? `${cash} cash · ${paypal} with the simulated PayPal sandbox` : `${cash} cash`,
   holds: () => t("W-PF-01.metric.holds"),
   holdsValue: (count: number) => `${count} caught`,
   holdsKept: (amount: string) => `${amount} kept for members`,
-  holdsNote: (duplicate: string, credit: string) =>
-    `A duplicate slip counted once (${duplicate}) and a fine no rule allows, returned (${credit}).`,
-  holdsUnknown: "This run's hold metrics are unavailable.",
-  rails: () => `${t("W-PF-01.metric.paypal")} (simulated sandbox)`,
+  holdsNote: (duplicate: string, credit: string) => `duplicate ${duplicate} · unruled fine ${credit}`,
+  holdsUnknown: "Hold metrics unavailable",
+  rails: () => t("W-PF-01.metric.paypal"),
   onPaypal: (count: number, total: number, share: string) =>
-    `${t("W-PF-01.metric.paypalValue", { count, total, share })} (simulated PayPal sandbox)`,
+    t("W-PF-01.metric.paypalValue", { count, total, share }),
   railsPaypal: (members: number, share: string) =>
     `${members} on PayPal (simulated sandbox) this season, ${share} of value`,
   railsCash: (members: number) => `${members} in cash at the bodega`,
   railsWord: "Cash",
   timing: () => t("W-PF-01.metric.time"),
   timingPending: "Still running",
-  timingNote: "From the record's own timestamps: invoice funded to the last payout notice.",
-  source: "Computed from this record; fs-api supplies this run's public hold metrics.",
 } as const;
 
 export const FEES_COPY = {
   heading: "Fees",
-  summary: "Simulated PayPal sandbox fees and who budgets for them",
+  summary: "who budgets for them",
   invoiceMarked: "Invoice: marked as paid in the Simulated PayPal sandbox, so the simulator charged no fee.",
   invoicePaid: "Invoice: the simulated PayPal sandbox fee is not reported in this record.",
   payouts: (rail: PaypalRail, fee: string, n: number) =>
@@ -227,7 +290,8 @@ export const FEES_COPY = {
 
 export const PLOT_COPY = {
   heading: "Where the cacao came from",
-  caption: () => t("W-PF-01.plots"),
+  caption: "positions abstract · plots shared with Lantern Bay only",
+  captionTitle: () => t("W-PF-01.plots"),
   table: "Members by verified kilos",
 } as const;
 
@@ -243,10 +307,21 @@ export const FOOTER_COPY = {
    */
   tagline: () => "Every dollar, traced to the slip it was weighed on.",
   privacy: "Members appear by ID only, never by name (Philippine Data Privacy Act, RA 10173).",
+  /** The one fine-print line beside Details: a legal note, kept in view. */
+  prototype: "A prototype with a synthetic co-op. No real farmer was paid.",
+  details: "Details",
+  rows: {
+    paypal: "PayPal",
+    record: "This record",
+    notices: "Notices",
+    recon: "Reconciliation",
+    money: "Money",
+    privacy: "Privacy",
+  },
 } as const;
 
 export const LINES_COPY = {
-  hint: "Press an amount to see where it comes from, down to the slip.",
+  hint: "tap an amount",
   caption: "Every member's line: verified kilos, rail, net amount and status",
   share: (kg: string, of: string) => `${kg} of the co-op's ${of} verified kilos`,
   bonusShare: (kg: string, of: string) => `${kg} of ${of} Grade 1`,
@@ -259,8 +334,7 @@ export const LINES_COPY = {
   netOf: "Net",
   traceOpen: (memberNo: string) => `Line ${memberNo} open, with its receipt and slips.`,
   slipOpen: (serial: string) => `Slip ${serial} open.`,
-  cropNote:
-    "Drawn from the slip's recorded boxes until its photo tile lands. Payable kilos are the money's source. With a zoom button focused, the arrow keys pan.",
+  cropNote: "Drawn from the slip's boxes · arrow keys pan",
   cropMissing: (serial: string) => `Slip ${serial} isn't in this browser's copy of the season.`,
   zoomIn: "Zoom in",
   zoomOut: "Zoom out",

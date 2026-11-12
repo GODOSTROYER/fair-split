@@ -1,11 +1,12 @@
-// The filmstrip (S1.7 W-TR-03), under the photo on the bench: photos A to L of the recorded run as contact
-// prints, each ticked once all four of its slips are read, the photo on the bench outlined. P01 to P54 sit
-// collapsed behind the strip's last tile, OD-4's hatched "archived photo" tile, and open beneath it with their
-// read dates. Each photo is a real link (`?photo=`), so it can open in a new tab.
+// The filmstrip (S1.7 W-TR-03), under the reading's table (round 5: the photo keeps the room's full height): photos
+// A to L of the recorded run as contact prints, each ticked once all four of its slips are read, a held dot on one
+// that waits for a person, the photo on the bench outlined. P01 to P54 sit collapsed behind the strip's last tile,
+// the "Earlier" tile, and open beneath it with their read dates. Each photo is a real link (`?photo=`), so it can
+// open in a new tab.
 
 import type { SnapshotPhoto } from "@fairsplit/contracts";
 import { webRoutes } from "@fairsplit/contracts";
-import { Glyph } from "@fairsplit/ui-web";
+import { Glyph, StateDot } from "@fairsplit/ui-web";
 import { useState } from "react";
 import { AppLink } from "../../chrome/AppLink.js";
 import { format } from "../../lib/format.js";
@@ -52,7 +53,7 @@ export function Filmstrip({ season, replay, earlier, active, testId }: Filmstrip
               <span className="fsc-film__label fs-t-caption" aria-hidden>
                 {photo.photoId}
                 {read && !pending && <Glyph name="ms:check" size={12} />}
-                {pending && <span className="fsc-film__pending" />}
+                {pending && <StateDot kind="held" className="fsc-film__pending" />}
               </span>
             </AppLink>
           </li>

@@ -53,15 +53,23 @@ async function readingRun(motion: "full" | "reduced" = "full", path = READING): 
 }
 
 describe("W-TR-03 reading room", { timeout: 60_000 }, () => {
-  it("states the stand-in provenance once by the beds and opens the real exhibit from above them", async () => {
+  it("states the stand-in provenance once, in the title row's id line, and opens the real exhibit from the title row", async () => {
     const r = await readingRun();
     act(() => r.stream.inject(rowsFor(["A"])));
     const side = screen.getByTestId("W-TR-03.side");
+    // Round 5, provenance once: the stand-in is the title row's one id-line phrase, beside Claude's real readings
+    // of the 10 hero slips (the title row's link), so the count never reads as Claude's; the rows keep its canonical
+    // words for assistive technology, and no glyph is drawn.
     expect(side.textContent?.match(/Seed stand-in, not a Claude recording/g)).toHaveLength(1);
-    const link = within(side).getByRole("link", { name: /Claude's real readings of 10 hero slips/ });
-    expect(
-      link.compareDocumentPosition(screen.getByTestId("W-TR-03.beds")) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
+    expect(screen.getByTestId("W-TR-03.footer").classList.contains("fs-sr")).toBe(true);
+    expect(screen.getByTestId("W-TR-03").querySelectorAll("[data-fs-glyph]")).toHaveLength(0);
+    expect(within(side).queryByRole("link", { name: /Claude's real readings/ })).toBeNull();
+    const head = screen.getByTestId("W-TR-03").querySelector(".fsc-screen__head");
+    if (!(head instanceof HTMLElement)) throw new Error("no title row");
+    expect(head.querySelector(".fsc-screen__provenance")?.textContent).toMatch(
+      /^Synthetic co-op · replayed readings/,
+    );
+    const link = within(head).getByRole("link", { name: /Claude's readings of 10 slips/ });
     fireEvent.click(link);
     expect(document.activeElement?.id).toBe("fsc-heroes-title");
     for (const row of side.querySelectorAll(".fsc-beds__row"))
@@ -81,9 +89,18 @@ describe("W-TR-03 reading room", { timeout: 60_000 }, () => {
     expect(screen.getByTestId("W-TR-03.status").textContent).toMatch(/waits on the desk/);
     expect(within(screen.getByTestId("W-TR-03.film")).getAllByRole("link")).toHaveLength(12);
     expect(screen.getByTestId("W-TR-03.beds.row.0425").dataset.state).toBe("waiting");
-    expect(screen.getByTestId("W-TR-03.footer").textContent).toMatch(
-      /^Seed stand-in, not a Claude recording\. Amounts are computed by the engine, never by the model\.$/,
-    );
+    // The stand-in's canonical phrase whole, for the rows' description (round 5: no glyph, no pill; the id line
+    // says it on screen), and the room's state in the title row's chip.
+    const mark = screen.getByTestId("W-TR-03.footer");
+    expect(mark.textContent).toBe("Seed stand-in, not a Claude recording");
+    expect(mark.getAttribute("title")).toBe("Seed stand-in, not a Claude recording");
+    expect(mark.querySelector(".fs-legend-glyph")).toBeNull();
+    expect(mark.dataset.kind).toBe("synthetic");
+    expect(screen.getByTestId("W-TR-03.state").textContent).toBe("Waits for payment");
+    // The one hero count: slips read in FS Sans (no dot-matrix), the words for screen readers.
+    const progress = screen.getByTestId("W-TR-03.film.progress");
+    expect(progress.querySelector(".fs-numeral")?.getAttribute("data-value")).toBe("0/48");
+    expect(progress.querySelector("svg")).toBeNull();
     await expectNoAxeViolations(r.container);
     r.unmount();
   });
@@ -102,7 +119,9 @@ describe("W-TR-03 reading room", { timeout: 60_000 }, () => {
     const row = screen.getByTestId("W-TR-03.beds.row.0425");
     expect(row.querySelector('[data-amount-state="pencil"]')?.textContent).toMatch(/^\d+\.\d{2}$/);
     expect(screen.getByTestId("W-TR-03.film.A").dataset.read).toBe("");
-    expect(screen.getByTestId("W-TR-03.film.progress").textContent).toBe("4 of 48 slips read");
+    expect(screen.getByTestId("W-TR-03.film.progress").querySelector(".fs-sr")?.textContent).toBe(
+      "4 of 48 slips read",
+    );
     expect(screen.getByTestId("W-TR-03.bench.band").dataset.serial).toBe("0428");
     await expectNoAxeViolations(r.container);
     r.unmount();
@@ -151,16 +170,21 @@ describe("W-TR-03 reading room", { timeout: 60_000 }, () => {
   );
 
   it.each(["full", "reduced"] as const)(
-    "prints a cloned run row by row in %s motion: the counter keeps up with the ribbon, the bench follows, photos tick",
+    "prints a cloned run row by row in %s motion: the counter keeps up with the toast, the bench follows, photos tick",
     async (motion) => {
       const r = await readingRun(motion);
       clearMomentTrace();
       const photoRows = (id: string) => replayRows(seedSnapshot()).filter((row) => row.photoId === id);
-      const progress = () => screen.getByTestId("W-TR-03.film.progress").textContent;
+      // The words a screen reader hears; the numeral beside them is hidden (round 3: FS Sans, no dot-matrix).
+      const progress = () => screen.getByTestId("W-TR-03.film.progress").querySelector(".fs-sr")?.textContent;
+      // Round 3: no ribbon; each new event is the one toast at the bottom left (the Log keeps them all).
       const ribbon = (serial: string) =>
-        waitFor(() =>
-          expect(screen.getByTestId("W-JG-01.ribbon.machine").textContent).toMatch(`Read slip ${serial}`),
-        );
+        waitFor(() => {
+          const toast = screen.getByTestId("W-JG-01.toast");
+          expect(toast.dataset.lane).toBe("machine");
+          // Round 6: the pill says the slip, never the member's id.
+          expect(toast.textContent).toMatch(`Reading slip ${serial}`);
+        });
       expect(progress()).toBe("0 of 48 slips read");
       // Photo B's rows one at a time: each prints as it arrives, never waiting for COMPUTED.
       const b = photoRows("B");
@@ -232,15 +256,25 @@ describe("W-TR-03 reading room", { timeout: 60_000 }, () => {
     r.unmount();
   });
 
-  it("sends slip 0462 to a person: a You cell, and Enter on its row opens W-TR-04", async () => {
+  it("sends slip 0462 to a person: an amber dot, a You cell, its step inline; Enter on its row opens W-TR-04", async () => {
     const r = await readingRun("reduced", `${READING}?photo=J`);
     act(() => r.stream.inject(rowsFor(["J"])));
     const you = await screen.findByTestId("W-TR-03.beds.you.0462");
+    // The row's one step, inline at its end: since round 8 a quiet link (the room's primary is the one button),
+    // its name still starting with its words.
     expect(you.getAttribute("href")).toBe("/season/2026-A/by-hand/0462");
-    expect(you.dataset.amountState).toBe("you");
-    expect(you.textContent).toMatch(/6\?\.50/);
+    expect(you.textContent).toBe("Enter by hand");
+    expect(you.getAttribute("aria-label")).toBe("Enter by hand, slip 0462");
+    expect(you.classList.contains("fs-link")).toBe(true);
+    expect(you.classList.contains("fs-flat")).toBe(false);
     expect(screen.getByTestId("W-TR-03.film.J").dataset.pending).toBe("");
     const row = screen.getByTestId("W-TR-03.beds.row.0462");
+    expect(row.dataset.needs).toBe("person");
+    expect(row.querySelector('[data-amount-state="you"]')?.textContent).toMatch(/6\?\.50/);
+    // The hold reads from its amber dot beside the step (round 3: no side bar); only that row carries it.
+    expect(row.querySelector('.fs-state-dot[data-kind="held"]')).not.toBeNull();
+    expect(screen.getByTestId("W-TR-03.beds.row.0453").querySelector(".fs-state-dot")).toBeNull();
+    expect(screen.getByTestId("W-TR-03.beds.row.0453").dataset.needs).toBeUndefined();
     await act(async () => {
       row.focus();
       fireEvent.keyDown(row, { key: "Enter" });
@@ -279,21 +313,25 @@ describe("W-TR-03 reading room", { timeout: 60_000 }, () => {
     r.unmount();
   });
 
-  it("lays the room out 58/42: the photo and its filmstrip on the left, the status, beds and keys on the right", async () => {
+  it("lays the room out: the photo at the room's full height on the left; the count, status, beds and filmstrip on the right", async () => {
     const r = await renderSeason({ path: `${READING}?photo=B` });
     await screen.findByTestId("W-TR-03");
     const desk = screen.getByTestId("W-TR-03.desk");
     const side = screen.getByTestId("W-TR-03.side");
     expect(desk.contains(screen.getByTestId("W-TR-03.bench"))).toBe(true);
-    expect(desk.contains(screen.getByTestId("W-TR-03.film"))).toBe(true);
-    expect(side.contains(screen.getByTestId("W-TR-03.film"))).toBe(false);
+    // Round 5 (no dead bands): the filmstrip and the "Earlier" tile sit under the table, in the right column.
+    expect(desk.contains(screen.getByTestId("W-TR-03.film"))).toBe(false);
+    expect(side.contains(screen.getByTestId("W-TR-03.film"))).toBe(true);
     expect(side.contains(screen.getByTestId("W-TR-03.status"))).toBe(true);
     expect(side.contains(screen.getByTestId("W-TR-03.beds"))).toBe(true);
-    // The filmstrip sits under the photo, in reading order too.
-    const bench = screen.getByTestId("W-TR-03.bench");
-    expect(bench.compareDocumentPosition(screen.getByTestId("W-TR-03.film"))).toBe(
-      Node.DOCUMENT_POSITION_FOLLOWING,
-    );
+    // The filmstrip follows the table, in reading order too.
+    expect(
+      screen.getByTestId("W-TR-03.beds").compareDocumentPosition(screen.getByTestId("W-TR-03.film")),
+    ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    // The room fills the screen; the recorded exhibit starts after it (never sliced at the panel's edge).
+    const room = desk.closest(".fsc-read__room");
+    expect(room).not.toBeNull();
+    expect(room?.contains(screen.getByTestId("W-TR-03.heroes"))).toBe(false);
     r.unmount();
   });
 
@@ -361,7 +399,7 @@ describe("W-TR-03 reading room", { timeout: 60_000 }, () => {
     await screen.findByTestId("W-TR-03");
     const replay = screen.getByTestId("W-TR-03.replay");
     expect(replay.dataset.state).toBe("idle");
-    expect(replay.textContent).toMatch(/Mock data: the mock API sends no rows/);
+    expect(replay.textContent).toMatch(/^Mock data: a replay of the seed stand-in, not a Claude recording\./);
     // A stand-in built from the seed, never "the recording": no model read it, so it shows no scores.
     expect(replay.textContent).toMatch(/seed stand-in, not a Claude recording/);
     // The button names what plays (I8): the seed's stand-in, never "the recorded reading".

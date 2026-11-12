@@ -1,48 +1,106 @@
-/* W-TR-07 Approve: one centred 640 px column with no cards (design §6 C7). The seal, the batch in pencil, why it
-   is safe, then the one d3 jade slab; two key slots beneath. Tablea tokens only; corners 0 or 2; only paper casts
-   a shadow; every duration from @fairsplit/motion's CSS variables. */
+/* W-TR-07 Approve (UI gate rounds 4 and 5, docs/DESIGN.md §3, §9 and §10): the one 12-column grid (theme/grid.css),
+   top-aligned 32 px under the title row, nothing centred in the stage's height. The moment's root spans the row and
+   lays its two cells on the same twelve columns: the batch in columns 1–7 as one composition (the seal, 180 px or 220
+   from a 1,600 px window; beside it "PayPal batch · 8 payouts" over the amount and the two named signers), then the
+   money bar, at 1,920 the eight PayPal recipients (round 5: the band under the bar holds who is paid), and Details;
+   the decision in columns 8–12, one neutral card that hugs its content (four checks, the one slab until a key signs,
+   the Chair's co-sign block after key 1). Below 720 px of panel the two stack. Tokens only; spacing on the 4 px
+   scale; radii from the one scale; one elevation each (a 1 px ring, no glow); one focus ring (ui-web), none declared
+   here. */
 
-.fsr-approve-screen {
-  justify-items: stretch;
+/* Dense flow (round 5): the money's row comes after the batch in reading order, and the decision card packs back
+   beside the batch (columns 8–12), so on the wide panel the money bar and the recipients take a row of their own
+   across all twelve columns and no column stands empty under the card. */
+.fsr-approve {
+  grid-auto-flow: row dense;
+  min-width: 0;
 }
 
-.fsr-approve {
+.fsr-approve > .fsr-banner {
+  width: 100%;
+  text-align: left;
+}
+
+/* The print beds stand where the seal and the amount will. */
+.fsr-approve__beds {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: var(--fs-space-24) var(--fs-space-32);
+}
+
+/* ------------------------------------------------------------------ the batch (columns 1–7) */
+
+/* The hero composition (the seal, the amount, the two signers), top-aligned. */
+.fsr-approve__batch {
+  container: fsr-approve-hero / inline-size;
+  display: grid;
+  align-content: start;
+  gap: var(--fs-space-24);
+  min-width: 0;
+}
+
+/* Where the money goes (round 5): the money bar, at 1,920 the recipients, then Details, 24 px apart. Its own grid row
+   under the batch and the decision card on the wide panel (all twelve columns), under the batch on the laptops. */
+.fsr-approve__money {
+  display: grid;
+  align-content: start;
+  gap: var(--fs-space-24);
+  min-width: 0;
+}
+
+/* One composition: the seal, and beside it the amount over the two signers. On a narrower column the signers run
+   the full width under the seal and the amount (so a key's ID stays on one line); on the narrowest, all three
+   stack. */
+.fsr-approve__hero {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: var(--fs-space-24) var(--fs-space-32);
+}
+
+.fsr-approve__side {
+  display: grid;
+  align-content: start;
+  gap: var(--fs-space-24);
+  min-width: 0;
+}
+
+.fsr-approve__seal-wrap {
   display: grid;
   justify-items: center;
-  gap: var(--fs-space-24);
-  width: min(var(--fs-console-approve), 100%);
-  margin-inline: auto;
-  padding-bottom: var(--fs-space-48);
-  text-align: center;
 }
 
-.fsr-approve--beds {
-  gap: var(--fs-space-16);
-}
+/* Seal and amount side by side, the signers on their own row under both. */
+@container fsr-approve-hero (max-width: 599px) {
+  .fsr-approve__hero {
+    align-items: center;
+    column-gap: var(--fs-space-24);
+  }
 
-/* A 13-inch laptop (956 px tall): the seal draws at 160 px and the column tightens, so the seal, the amount,
-   the rails, why it is safe and the slab all sit in the first view. */
-@media (max-height: 1000px) {
-  .fsr-approve {
-    gap: var(--fs-space-16);
+  .fsr-approve__side {
+    display: contents;
+  }
+
+  .fsr-signers {
+    grid-column: 1 / -1;
   }
 }
 
-/* While a moment raises the phone beside the screen (the Chair's co-sign), the column moves to the start, so the
-   seal and the Chair's frame read side by side. */
-.fsc-stage[data-layout="tab"][data-raised="moment"] .fsr-approve {
-  margin-inline: 0 auto;
+@container fsr-approve-hero (max-width: 419px) {
+  .fsr-approve__hero {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
-
-/* ------------------------------------------------------------------ the seal and its hashes */
-
 .fsr-approve__seal {
   display: grid;
   justify-items: center;
-  gap: var(--fs-space-8);
+  gap: var(--fs-space-12);
+  border-radius: var(--fs-radius-card);
 }
 
-/* The batch's own pattern in pencil, a quarter strength, under the Seal: each key engraves its rings in ink. */
+/* The batch's own pattern under the Seal: every ring at 1 px in neutral-400, unsigned. Each key fills its rings
+   in indigo over it (round 3), the same as the Chair's phone draws them. */
 .fsr-seal-stack {
   position: relative;
   display: block;
@@ -56,64 +114,225 @@
   position: absolute;
   inset: 0;
   overflow: visible;
-  stroke: var(--fs-pencil);
-  opacity: 0.25;
+  stroke: var(--fs-unsigned);
 }
 
+/* The ghost draws every ring's own pattern; the Seal on top adds only the signed rings, in ui-web's indigo. */
 .fsr-seal-stack .fs-seal__band {
   display: none;
 }
 
-.fsr-approve__keys-count {
+.fsr-approve__seal-caption {
   margin: 0;
-  color: var(--fs-ink);
-  font-size: 1rem;
-  line-height: 1.5rem;
+  /* Round 8: the hash is read against the Chair's phone: ink-2 (9.8:1), never a faint ink-3 line. */
+  color: var(--fs-ink-2);
+  text-align: center;
 }
 
-.fsr-approve__seal-caption {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: var(--fs-space-8) var(--fs-space-16);
-  color: var(--fs-ink);
-}
-.fsr-approve__batch-hash {
-  margin: 0;
-  color: var(--fs-ink);
-  font-size: 1rem;
-  line-height: 1.5rem;
-}
-.fsr-approve__batch-hash .fs-t-hash {
-  font-size: inherit;
-}
-.fsr-approve__full-hash {
-  max-width: 100%;
-  color: var(--fs-ink-2);
-}
-.fsr-approve__full-hash p {
-  overflow-wrap: anywhere;
-}
-.fsr-approve__record {
+/* Round 8: the seal's state in words, right under it: a hollow dot while no key signed, the signers' indigo dot once
+   one has. The label says who, so the half-inked drawing needs no reading. */
+.fsr-approve__seal-state {
   display: inline-flex;
   align-items: center;
-  flex-wrap: wrap;
-  justify-content: center;
+  gap: var(--fs-space-8);
+  margin: 0;
+  color: var(--fs-ink);
+  white-space: nowrap;
+}
+
+.fsr-approve__seal-state:not([data-keys="0"]) .fsr-approve__seal-dot {
+  background: var(--fs-pod);
+  box-shadow: none;
+}
+
+.fsr-approve__seal-state + .fsr-approve__seal-caption {
+  margin-top: calc(-1 * var(--fs-space-8));
+}
+
+.fsr-approve__amount {
+  display: grid;
+  justify-items: start;
   gap: var(--fs-space-8);
 }
-.fsr-approve__seal[data-keys="2"] .fsr-approve__keys-count {
+
+.fsr-approve__amount .fs-amount {
+  justify-items: start;
+}
+
+.fsr-approve__amount[data-animate] .fs-amount__solid {
+  transition: color var(--fs-dur-ink) var(--fs-ease-out);
+}
+
+.fsr-approve__hero-label {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--fs-space-8);
+  margin: 0;
   color: var(--fs-ink);
 }
 
-.fsr-seal--empty .fs-seal__band {
-  stroke-dasharray: 2 4;
+/* ------------------------------------------------------------------ the two signers */
+
+.fsr-signers {
+  display: grid;
+  gap: var(--fs-space-8);
+  min-width: 0;
+}
+
+.fsr-signers__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--fs-space-8);
+}
+
+.fsr-signers__title {
+  margin: 0;
+  color: var(--fs-ink);
+}
+
+/* ------------------------------------------------------------------ who the batch pays (round 5) */
+
+/* The right column (round 6): the decision card and, under it, who the batch pays, so the eight recipients are on
+   screen before anyone signs at every width. From 720 px of panel it holds columns 8–12 beside the batch, the money
+   bar and Details (three rows), top-aligned. */
+.fsr-approve__aside {
+  display: grid;
+  align-content: start;
+  gap: var(--fs-space-24);
+  min-width: 0;
+}
+
+@container fsc-screen (min-width: 720px) {
+  /* Round 8: the aside spans the batch's three rows and one flexible row after them, so what it is taller by goes
+     under the left column, never between the seal, the money bar and Details. */
+  .fsr-approve.fsc-screen {
+    grid-template-rows: auto auto auto minmax(0, 1fr);
+  }
+
+  .fsr-approve > .fsr-approve__aside {
+    grid-column: 8 / -1;
+    grid-row: 1 / span 4;
+  }
+}
+
+/* The PayPal recipients: the largest first reading down (as the Run's fan), each an 8 px state dot, the name and the
+   amount on one baseline, on 1 px rules. On the laptops one column of 32 px rows under the decision card. */
+.fsr-payees {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  column-gap: var(--fs-space-32);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fsr-payee {
+  display: grid;
+  grid-template-columns: 8px minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: var(--fs-space-8);
+  min-height: 32px;
+  border-bottom: 1px solid var(--fs-rule);
+}
+
+.fsr-payee:last-child {
+  border-bottom: 0;
+}
+
+/* Round 8: one recipient list at every width. The 1,920 stage keeps the laptops' layout (the decision card and,
+   under it, one dense column of recipients in columns 8–12; the seal, the signers, the money bar and Details in
+   columns 1–7): one component, one density. A tall window gives each row 40 px, the table's own row height. */
+@media (min-height: 1000px) {
+  .fsr-payee {
+    min-height: 40px;
+  }
+}
+
+.fsr-payee__name {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--fs-ink);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fsr-payee__amount {
+  color: var(--fs-ink);
+  white-space: nowrap;
+}
+
+/* To send or in flight: the amount waits in neutral beside its hollow dot, as the fan's do. */
+.fsr-payee[data-state="pending"] .fsr-payee__amount {
+  color: var(--fs-pending);
+}
+
+/* Details: the fees, what both keys sign, and the engine's provenance, one click away, under the money bar. */
+.fsr-approve__details {
+  width: 100%;
+  padding-top: var(--fs-space-12);
+  border-top: 1px solid var(--fs-rule);
+}
+
+.fsr-approve__summary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--fs-space-8);
+  border-radius: var(--fs-radius-cell);
+  color: var(--fs-ink-2);
+  list-style: none;
+  cursor: pointer;
+}
+
+.fsr-approve__summary::-webkit-details-marker {
+  display: none;
+}
+
+.fsr-approve__summary:hover {
+  color: var(--fs-ink);
+}
+
+.fsr-approve__summary .fs-glyph {
+  transition: transform var(--fs-dur-crossfade) var(--fs-ease-out);
+}
+
+.fsr-approve__details[open] .fsr-approve__summary .fs-glyph {
+  transform: rotate(180deg);
+}
+
+.fsr-approve__details-body {
+  display: grid;
+  gap: var(--fs-space-16);
+  padding-top: var(--fs-space-12);
+}
+
+.fsr-approve__fees {
+  margin: 0;
+  max-width: 64ch;
+  color: var(--fs-ink-2);
+}
+
+.fsr-approve__ledger {
+  display: grid;
+  gap: var(--fs-space-8);
+}
+
+.fsr-approve__ledger > h2 {
+  margin: 0;
+  color: var(--fs-ink);
+}
+
+.fsr-approve__provenance {
+  margin: 0;
+  color: var(--fs-ink-3);
 }
 
 .fsr-ledger {
   display: grid;
   gap: var(--fs-space-4);
-  margin: var(--fs-space-4) 0 0;
-  text-align: left;
+  margin: 0;
 }
 
 .fsr-ledger__row {
@@ -125,7 +344,6 @@
 
 .fsr-ledger dt {
   color: var(--fs-ink-3);
-  text-align: right;
 }
 
 .fsr-ledger dd {
@@ -138,105 +356,112 @@
   color: var(--fs-ink-3);
 }
 
-/* ------------------------------------------------------------------ the amount and the rails */
+/* ------------------------------------------------------------------ the decision (columns 8–12) */
 
-.fsr-approve__amount {
+/* One neutral card that hugs its content: the checks, the slab, the co-sign block. Flat: a 1 px rule is its only
+   edge (no glow, no wash: the slab's indigo face is the screen's one colour of action). */
+.fsr-approve__decide {
   display: grid;
-  justify-items: center;
-  gap: var(--fs-space-4);
+  align-content: start;
+  justify-items: start;
+  gap: var(--fs-space-20);
+  min-width: 0;
+  padding: var(--fs-space-24);
+  border: 1px solid var(--fs-rule);
+  border-radius: var(--fs-radius-card);
+  background: var(--fs-plate-2);
 }
 
-.fsr-approve__amount .fs-amount {
-  justify-items: center;
+.fsr-approve__decide > * {
+  max-width: 100%;
 }
 
-.fsr-approve__amount[data-animate] .fs-amount__solid {
-  transition: color var(--fs-dur-ink) var(--fs-ease-out);
+/* On the 1,280 and 1,470 layouts (five columns of a narrower panel) the card keeps each check on one line. */
+@container fsc-screen (max-width: 1039px) {
+  .fsr-approve__decide {
+    padding: var(--fs-space-20);
+  }
+
+  .fsr-approve__decide .fsr-check {
+    column-gap: var(--fs-space-8);
+  }
 }
 
-.fsr-approve__amount-note {
+.fsr-approve__decide > :is(.fsr-checks, .fsr-approve__blocked, .fsr-cosign, .fsc-command-notice) {
+  justify-self: stretch;
+}
+
+.fsr-checks {
+  display: grid;
   margin: 0;
-  color: var(--fs-ink-3);
+  padding: 0;
+  list-style: none;
 }
 
-.fsr-approve .fs-railbar {
-  width: 100%;
-  text-align: left;
-}
-
-/* The rail bar with the fees as its caption: what moves by PayPal, what goes to cash, and what PayPal charges. */
-.fsr-approve__rails {
+/* A check (round 5: the one vocabulary): the 16 px line ✓ (ui-web CheckMark), its word, the figure on the right. */
+.fsr-check {
   display: grid;
+  grid-template-columns: 16px minmax(0, 1fr) auto;
+  align-items: center;
   gap: var(--fs-space-8);
-  width: 100%;
-  margin: 0;
+  min-height: 36px;
+  border-bottom: 1px solid var(--fs-rule);
+  color: var(--fs-ink);
 }
 
-.fsr-approve__fees {
-  margin: 0;
+.fsr-check:last-child {
+  border-bottom: 0;
+}
+
+/* The mark's cell: the ✓, or the 8 px amber dot of a check still open (a person decides), centred in 16 px. */
+.fsr-check__mark {
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+}
+
+.fsr-check__label {
+  color: var(--fs-ink);
+}
+
+.fsr-check__value {
   color: var(--fs-ink-2);
-  text-align: left;
-}
-
-/* What both keys sign, for a person to compare by eye with the Chair's phone: after the decision, not before. */
-.fsr-approve__ledger {
-  display: grid;
-  justify-items: center;
-  gap: var(--fs-space-8);
-  width: 100%;
-  padding-top: var(--fs-space-16);
-  border-top: 1px solid var(--fs-rule);
-}
-
-.fsr-approve__ledger > h2,
-.fsr-approve__ledger > p {
-  margin: 0;
-}
-
-.fsr-approve__safe {
-  max-width: 56ch;
-  margin: 0;
+  white-space: nowrap;
 }
 
 .fsr-approve__blocked {
   display: grid;
-  justify-items: center;
   gap: var(--fs-space-8);
   margin: 0;
   color: var(--fs-ink-2);
 }
 
 .fsr-approve__blocked ul {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: var(--fs-space-8) var(--fs-space-24);
+  display: grid;
+  gap: var(--fs-space-8);
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
 .fsr-approve__blocked li {
-  display: inline-flex;
+  display: flex;
   align-items: baseline;
   gap: var(--fs-space-8);
 }
 
-/* A person decides: a canary square, never a hue on the words. */
+/* A person decides: the 8 px amber state dot, never a hue on the words. */
 .fsr-approve__blocked-mark {
   align-self: center;
-  width: 8px;
-  height: 8px;
-  background: var(--fs-canary);
 }
 
-/* ------------------------------------------------------------------ the slab */
-
+/* The one way to sign: the slab hugs its label, its caption and its one link to the other way under it. */
 .fsr-approve__slab {
   display: grid;
-  justify-items: center;
+  justify-items: start;
   gap: var(--fs-space-8);
-  width: 100%;
+  max-width: 100%;
 }
 
 .fsr-approve__slab .fs-slab {
@@ -251,59 +476,99 @@
   color: var(--fs-ink-2);
 }
 
+.fsr-approve__done {
+  display: grid;
+  gap: var(--fs-space-8);
+}
+
+.fsr-approve__done > p {
+  margin: 0;
+}
+
+.fsr-approve__posting {
+  color: var(--fs-ink-3);
+}
+
+.fsr-approve__posted {
+  color: var(--fs-ink);
+}
+
 /* ------------------------------------------------------------------ the two keys */
 
+/* One row per signer. Waiting: a hollow circle and "Waiting" in neutral. Signed: a solid 1 px row with an ink dot
+   and "Signed 19:03" in ink (fs-solid-row, round 3); never a dashed box, never jade. */
 .fsr-keys {
   display: grid;
-  gap: 0;
-  width: 100%;
+  gap: var(--fs-space-8);
   margin: 0;
   padding: 0;
   list-style: none;
-  border-top: 1px solid var(--fs-rule);
-  text-align: left;
 }
 
 .fsr-key {
   display: grid;
-  grid-template-columns: 28px minmax(0, 1fr) auto;
-  align-items: start;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  align-items: center;
   gap: var(--fs-space-12);
-  padding: var(--fs-space-12) 0;
-  border-bottom: 1px solid var(--fs-rule);
+  min-height: 48px;
+  padding: var(--fs-space-8);
+  border: 1px solid transparent;
+  border-bottom-color: var(--fs-rule);
+  border-radius: 0;
+}
+
+.fsr-key:last-child {
+  border-bottom-color: transparent;
+}
+
+/* Round 8: a signed row keeps the waiting row's shape (no card outline); its dot is the signers' indigo, the colour
+   the seal's rings fill with (ink dots are checks; jade is confirmed money). */
+.fsr-key.fs-solid-row,
+.fsr-key.fs-solid-row:last-child {
+  display: grid;
+  border-color: transparent;
+  border-bottom-color: var(--fs-rule);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.fsr-key.fs-solid-row:last-child {
+  border-bottom-color: transparent;
+}
+
+.fsr-key[data-state="signed"] .fs-state-dot {
+  background: var(--fs-pod);
+  box-shadow: none;
 }
 
 .fsr-key__slot {
   display: inline-grid;
   place-items: center;
-  width: 28px;
-  height: 28px;
-  border: 1px dashed var(--fs-ink-3);
+  width: 24px;
+  height: 24px;
   color: var(--fs-ink-3);
-}
-
-.fsr-key[data-state="signed"] .fsr-key__slot {
-  border: 0;
 }
 
 .fsr-key__text {
   display: grid;
-  gap: 2px;
+  gap: var(--fs-space-4);
   min-width: 0;
 }
 
-.fsr-key__why,
-.fsr-key__id,
-.fsr-key__note {
-  color: var(--fs-ink-3);
+.fsr-key__name {
+  color: var(--fs-ink);
 }
 
-.fsr-key__id {
+/* The signer's one line in words ("Key on this browser", "Co-signs batches over US$300"); its rule or how the key was
+   made is its title. */
+.fsr-key__why {
   color: var(--fs-ink-2);
 }
 
+/* Waiting is a pending state: neutral-500, never a colour. */
 .fsr-key__status {
-  color: var(--fs-ink-2);
+  color: var(--fs-pending);
   white-space: nowrap;
 }
 
@@ -311,14 +576,21 @@
   color: var(--fs-ink);
 }
 
+/* Ernesto on the batch: his row says "Reviewing" in ink-2 where "Waiting" stood (round 4). */
+.fsr-key__status[data-presence] {
+  color: var(--fs-ink-2);
+}
+
 .fsr-key[data-state="voided"] .fs-stamp {
   text-decoration: line-through;
   opacity: 0.6;
 }
+
 .fsr-key[data-state="voided"] .fsr-key__slot {
   position: relative;
   border: 0;
 }
+
 .fsr-key[data-state="voided"] .fsr-key__slot::after {
   content: "";
   position: absolute;
@@ -328,43 +600,29 @@
   transform: rotate(-30deg);
 }
 
-/* "Ernesto, reviewing hold 2 on his phone" glides in on MM-5 waiting-2. */
-.fsr-presence {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--fs-space-8);
-  margin: 0;
-  color: var(--fs-ink-2);
-  opacity: 0;
-  transform: translateY(calc(6px * var(--fs-motion, 1)));
-  transition:
-    opacity var(--fs-spring-glide-dur) var(--fs-spring-glide),
-    transform var(--fs-spring-glide-dur) var(--fs-spring-glide);
-}
+/* ------------------------------------------------------------------ the co-sign card (Judge Mode) */
 
-.fsr-presence[data-in] {
-  opacity: 1;
-  transform: none;
-}
-
-[data-motion="reduced"] .fsr-presence {
-  transform: none;
-  transition: opacity var(--fs-dur-reduced) var(--fs-ease-out);
-}
-
-.fsr-approve__done {
+.fsr-cosign {
   display: grid;
-  justify-items: center;
-  gap: var(--fs-space-8);
+  justify-items: start;
+  gap: var(--fs-space-12);
+  padding-top: var(--fs-space-16);
+  border-top: 1px solid var(--fs-rule);
 }
 
-.fsr-approve__done > p {
+.fsr-cosign h2,
+.fsr-cosign p {
   margin: 0;
 }
 
-.fsr-approve__posted {
-  max-width: 52ch;
-  color: var(--fs-ink-2);
+.fsr-cosign__code {
+  display: grid;
+  gap: var(--fs-space-4);
+}
+
+.fsr-cosign__digits {
+  color: var(--fs-ink);
+  letter-spacing: 0.02em;
 }
 
 /* ------------------------------------------------------------------ the dialog route's body */
@@ -406,38 +664,6 @@
   color: var(--fs-ink-2);
 }
 
-/* ------------------------------------------------------------------ the co-sign card (Judge Mode) */
-
-.fsr-cosign {
-  display: grid;
-  justify-items: center;
-  gap: var(--fs-space-8);
-  width: 100%;
-  padding: var(--fs-space-24);
-  background: var(--fs-plate);
-  box-shadow: inset 0 0 0 1px var(--fs-rule);
-}
-
-.fsr-cosign h2,
-.fsr-cosign p {
-  margin: 0;
-}
-
-.fsr-cosign__body {
-  color: var(--fs-ink-2);
-}
-
-.fsr-cosign__code {
-  display: grid;
-  justify-items: center;
-  gap: var(--fs-space-4);
-}
-
-.fsr-cosign__digits {
-  color: var(--fs-ink);
-  letter-spacing: 0.02em;
-}
-
 /* ------------------------------------------------------------------ banners in ink (a person's decision) */
 
 .fsr-banner--ink {
@@ -454,7 +680,8 @@
   color: var(--fs-ink);
 }
 
-.fsr-approve .fsr-banner {
-  width: 100%;
-  text-align: left;
+/* Under the slab's caption (round 6): whose key the press is, in ink-2. */
+.fsr-approve__first {
+  margin: 0;
+  color: var(--fs-ink-2);
 }

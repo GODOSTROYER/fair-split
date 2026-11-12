@@ -1,59 +1,87 @@
-// Split review's bench (S1.7 W-TR-05 header): the bodega's hanging-scale dial for mass balance; the pool, the
-// screen's money, in pencil (the engine's figure, nobody has signed) with its two parts, the balance check and the
-// engine's provenance beneath it; the open decisions as one sentence with the next one linked, and flat filter
-// chips with live counts. The dial swings only on a live decision (the needle spring, MM-3); replayed history sets
-// it in place. In reduced motion the needle cuts to its new value under a 200 ms crossfade instead of swinging.
-
-import { Glyph, MassBalanceDial, useMotionMode } from "@fairsplit/ui-web";
+// Split review's bench (S1.7 W-TR-05 header; unslop spec §3.6), one short band so the lines get the height: the
+// shrink tick ring with its reading as the screen's one hero numeral (FS Sans, round 3), "Shrink · limit 2.0%" as
+// micro (one term everywhere, round 5) and the state as a pill; then, round 6, the screen's money said once: one
+// sum, "Pool − deductions = member net", each term its word over its figure, the balance check at its end (no Pool
+// block, no "Next" column: the top bar's pill and the held rows carry the next decision). The filters run beneath
+// it as one segmented row. The dial swings only on a live decision (the needle spring, MM-3); replayed history sets
+// it in place. In reduced motion the needle cuts under a 200 ms fade.
+import { Glyph, MassBalanceDial, Numeral, useMotionMode } from "@fairsplit/ui-web";
 import type { ReactNode } from "react";
-import { AppLink } from "../../chrome/AppLink.js";
 import { DataTable, Mirrored } from "../../chrome/DataTable.js";
 import { format } from "../../lib/format.js";
-import { type MassBalanceView, SPLIT_FILTERS, type SplitFilter } from "./model.js";
+import { SHRINK, shrinkLabel } from "../../lib/plain.js";
+import { type MassBalanceView, SPLIT_FILTERS, type SplitFilter, type SplitTotals } from "./model.js";
 import { en, SPLIT } from "./shared/copy.js";
-
-export interface PoolsView {
-  readonly premiumCents: number;
-  readonly bonusCents: number;
-  readonly poolCents: number;
-  /** The pool's amount state: pencil until both keys turn the run to ink (S2.2.1). */
-  readonly amountState?: "pencil" | "ink";
-}
-
-export interface NextDecision {
-  readonly href: string;
-  readonly words: string;
-  readonly kind: "hold" | "by-hand" | "approve";
-}
 
 export interface SplitHeaderProps {
   readonly dial: MassBalanceView;
   /** Swing the needle: the dial changed because of a live decision. */
   readonly swing: boolean;
-  readonly pools: PoolsView;
-  readonly open: { readonly holds: number; readonly byHand: number };
-  readonly next: NextDecision | null;
+  /** The reading before the last decision moved it ("2.05%"), shown as micro "was 2.05%". */
+  readonly was?: string | null;
   readonly counts: Readonly<Record<SplitFilter, number>>;
   readonly filter: SplitFilter;
   readonly onFilter: (filter: SplitFilter) => void;
-  /** What the run says once every hold is decided (it differs before and after the two keys). */
-  readonly decidedWords?: string;
+  /** The rail filters count planned rails (before the batch posts) rather than payments. */
+  readonly railsPlanned?: boolean;
   /** The dial's own testId root ("W-TR-05.dial"); the drawer reuses the dial with its own. */
   readonly dialTestId?: string;
-  /** Beneath the pool: the balance check and the engine's provenance for every figure on the screen. */
-  readonly proof?: ReactNode;
+  /** Beside the dial: the screen's one money summary (pool − deductions = member net) and its balance check. */
+  readonly reconcile?: ReactNode;
   /** After the filters: the grid's "All columns" toggle. */
   readonly columns?: ReactNode;
 }
 
-const FILTER_KEY = {
-  all: "W-TR-05.filter.all",
-  held: "W-TR-05.filter.held",
-  byHand: "W-TR-05.filter.byHand",
-  paypal: "W-TR-05.filter.paypal",
-  cash: "W-TR-05.filter.cash",
-} as const;
-
+/**
+ * The grid's arithmetic in one line above it (UI gate round 3): pool − deductions (+ credits) = member net, the
+ * footer's "Member net total". Every figure is the engine's conservation proof; the balance check sits at its end.
+ */
+export function Reconcile({
+  totals,
+  check,
+  poolState = "ink",
+}: {
+  readonly totals: Pick<SplitTotals, "poolCents" | "deductionsCents" | "creditsCents" | "netCents">;
+  readonly check?: ReactNode;
+  /** The pool's amount state on the bench: pencil until both keys turn the run to ink (S2.2.1). */
+  readonly poolState?: "pencil" | "ink";
+}) {
+  const pool = format.money(totals.poolCents);
+  const deductions = format.amount(totals.deductionsCents);
+  const credits = totals.creditsCents > 0 ? format.amount(totals.creditsCents) : null;
+  const net = format.money(totals.netCents);
+  // Round 6: each term is its word over its figure (the bench's one money summary), so the line reads as a sum at
+  // every width: Pool − deductions (+ credits) = member net.
+  const term = (word: string, figure: string, o: { testId?: string; state?: "pencil" | "ink" } = {}) => (
+    <span className="fsr-recon__term">
+      <span className="fsr-recon__word fs-t-caption">{word}</span>
+      <span className="fsr-recon__figure fs-t-amount-l" data-testid={o.testId} data-amount-state={o.state}>
+        {figure}
+      </span>
+    </span>
+  );
+  return (
+    <div className="fsr-recon" data-testid="W-TR-05.reconcile">
+      <p className="fsr-recon__eq">
+        <span className="fs-sr">{SPLIT.reconcileSpoken(pool, deductions, credits, net)}</span>
+        <span className="fsr-recon__line" aria-hidden>
+          {term(en("W-TR-05.pool"), pool, { testId: "W-TR-05.pool", state: poolState })}
+          <span className="fsr-recon__op">−</span>
+          {term(SPLIT.reconcile.deductions, deductions)}
+          {credits && (
+            <>
+              <span className="fsr-recon__op">+</span>
+              {term(SPLIT.reconcile.credits, credits)}
+            </>
+          )}
+          <span className="fsr-recon__op">=</span>
+          {term(SPLIT.reconcile.net, net, { testId: "W-TR-05.reconcile.net" })}
+        </span>
+      </p>
+      {check}
+    </div>
+  );
+}
 export function dialLabel(dial: MassBalanceView): string {
   if (dial.status === "PENDING") return SPLIT.dialPending(dial.waitingFor ?? "");
   return dial.status === "INSIDE" ? SPLIT.dialInside : SPLIT.dialOutside;
@@ -96,7 +124,7 @@ export function Dial({
             display={dial.display}
             limit={dial.tolBp / 100}
             limitDisplay={en("W-TR-05.dialLimit", { limit: dial.limitDisplay })}
-            label={en("W-TR-05.dial")}
+            label={SHRINK}
             size={size}
             animateNeedle={swing}
             valueRole={valueRole}
@@ -106,7 +134,7 @@ export function Dial({
       }
       table={
         <DataTable
-          caption={en("W-TR-05.dial")}
+          caption={SHRINK}
           testId={`${testId}.table`}
           columns={[
             { key: "measure", label: "Measure" },
@@ -125,88 +153,149 @@ export function Dial({
   );
 }
 
+/**
+ * The dial's state as the spec's status pill: over the limit is a person's decision (a marigold dot in a white
+ * pill), inside is a checked fact (a check and the word, no pill), waiting names the slip it waits for.
+ */
+export function DialState({ dial, testId }: { readonly dial: MassBalanceView; readonly testId: string }) {
+  return (
+    <span className="fsr-dialstate fs-t-label" data-status={dial.status} data-testid={testId}>
+      {dial.status === "INSIDE" && <Glyph name="ms:check" size={14} />}
+      {/* Round 7: a breached limit is an exception, not a selection dot: a line warning mark (the set's 1.4 px
+          stroke) in ink before the words, in an ink outline. Never amber, never red (red is PayPal's no). */}
+      {dial.status === "OUTSIDE" && (
+        <svg
+          className="fs-glyph fsr-dialstate__warn"
+          width={14}
+          height={14}
+          viewBox="0 0 16 16"
+          aria-hidden
+          focusable="false"
+        >
+          <path
+            d="M8 2.6 14.2 13.2H1.8L8 2.6Z"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={1.4}
+            strokeLinejoin="round"
+          />
+          <path d="M8 6.6v3M8 11.3v.1" stroke="currentColor" strokeWidth={1.4} strokeLinecap="round" />
+        </svg>
+      )}
+      {dialLabel(dial)}
+    </span>
+  );
+}
+
+/** The reading as the screen's one hero numeral (FS Sans tabular figures), its unit and limit as micro beside it. */
+export function DialReading({
+  dial,
+  was,
+  size = "hero",
+  testId,
+}: {
+  readonly dial: MassBalanceView;
+  readonly was?: string | null;
+  /** The type step: the bench's hero, or the title step beside a smaller dial. */
+  readonly size?: "hero" | "title";
+  readonly testId?: string;
+}) {
+  if (dial.status === "PENDING") return null;
+  const value = dial.display.replace("%", "");
+  return (
+    <span className="fsr-reading" data-testid={testId}>
+      <span className="fsr-reading__value">
+        {/* The reading stays ink (amber is never text): over the limit, the needle and the limit tick say it. */}
+        <Numeral value={value} size={size} label={SPLIT.dialSpoken(value)} />
+        <span className="fsr-reading__unit" aria-hidden>
+          %
+        </span>
+      </span>
+      {/* One term for the dial everywhere (round 5): "Shrink · limit 2.0%", as Approve's checklist says it. */}
+      <span className="fsr-reading__micro fs-t-micro">
+        {shrinkLabel(dial.tolBp)}
+        {was && was !== dial.display ? ` · ${SPLIT.dialWas(was)}` : ""}
+      </span>
+    </span>
+  );
+}
+
 export function SplitHeader({
   dial,
   swing,
-  pools,
-  open,
-  next,
+  was = null,
   counts,
   filter,
   onFilter,
-  decidedWords = SPLIT.allDecided,
+  railsPlanned = false,
   dialTestId = "W-TR-05.dial",
-  proof,
+  reconcile,
   columns,
 }: SplitHeaderProps) {
-  const decided = open.holds === 0 && open.byHand === 0;
-  const money = pools.amountState ?? "pencil";
   return (
-    <section className="fsr-bench" aria-label="Pools, mass balance and filters" data-testid="W-TR-05.bench">
+    <section className="fsr-bench" aria-label="Pool, shrink and filters" data-testid="W-TR-05.bench">
       <div className="fsr-bench__dial">
-        <Dial dial={dial} swing={swing} size={168} testId={dialTestId} valueRole="amount-l" />
-        <p
-          className="fsr-bench__dial-note fs-t-caption"
-          data-status={dial.status}
-          data-testid="W-TR-05.dial.status"
-        >
-          {dialLabel(dial)}
-        </p>
+        <Dial dial={dial} swing={swing} size={112} testId={dialTestId} />
+        <div className="fsr-bench__reading">
+          {dial.status === "PENDING" && <p className="fsr-bench__label fs-t-label">{SHRINK}</p>}
+          <DialReading dial={dial} was={was} testId="W-TR-05.reading" />
+          <DialState dial={dial} testId="W-TR-05.dial.status" />
+        </div>
       </div>
+      {/* Round 6: the bench says the money once. The pool, what the rules deduct and the members' net are one sum
+          beside the dial, with the balance check at its end; the next decision is the top bar's pill and the held
+          rows' own buttons, so the bench names none. */}
       <div className="fsr-pools" data-testid="W-TR-05.pools">
-        <p className="fsr-pools__label fs-t-caption">{en("W-TR-05.pool")}</p>
-        <p className="fsr-pools__total fs-t-amount-l" data-amount-state={money} data-testid="W-TR-05.pool">
-          {format.money(pools.poolCents)}
-        </p>
-        <dl className="fsr-pools__parts">
-          <div className="fsr-pools__item">
-            <dt className="fs-t-caption">
-              {en("W-TR-01.pool.premium")}
-              <Glyph name="ms:lock" size={12} />
-            </dt>
-            <dd className="fs-t-figure" data-amount-state={money}>
-              {format.money(pools.premiumCents)}
-            </dd>
-          </div>
-          <div className="fsr-pools__item">
-            <dt className="fs-t-caption">{en("W-TR-01.pool.bonus")}</dt>
-            <dd className="fs-t-figure" data-amount-state={money}>
-              {format.money(pools.bonusCents)}
-            </dd>
-          </div>
-        </dl>
-        <p className="fsr-pools__note fs-t-caption">{en("W-TR-01.pool.premiumNote")}</p>
-        {proof}
+        {reconcile}
       </div>
-      <div className="fsr-bench__summary">
-        <h2 className="fs-t-title-2" data-testid="W-TR-05.summary">
-          {decided ? decidedWords : en("W-TR-05.summary", { holds: open.holds, byHand: open.byHand })}
-        </h2>
-        {next && (
-          <p className="fsr-next" data-kind={next.kind}>
-            <span className="fsr-next__mark" aria-hidden />
-            <AppLink href={next.href} className="fs-link fs-t-label" data-testid="W-TR-05.next">
-              {next.words}
-            </AppLink>
-          </p>
-        )}
+      <div className="fsr-bench__tools">
         <fieldset className="fsr-chips" data-testid="W-TR-05.filters">
           <legend className="fs-sr">{SPLIT.filters}</legend>
           {SPLIT_FILTERS.map((f) => (
-            <button
+            <FilterChip
               key={f}
-              type="button"
-              className="fsr-chip fs-t-label"
-              aria-pressed={filter === f}
-              onClick={() => onFilter(f)}
-              data-testid={`W-TR-05.filter.${f}`}
-            >
-              {en(FILTER_KEY[f], { count: counts[f] })}
-            </button>
+              filter={f}
+              count={counts[f]}
+              pressed={filter === f}
+              onFilter={onFilter}
+              planned={railsPlanned && (f === "paypal" || f === "cash")}
+            />
           ))}
         </fieldset>
         {columns}
       </div>
     </section>
+  );
+}
+
+function FilterChip({
+  filter,
+  count,
+  pressed,
+  onFilter,
+  planned,
+}: {
+  readonly filter: SplitFilter;
+  readonly count: number;
+  readonly pressed: boolean;
+  readonly onFilter: (filter: SplitFilter) => void;
+  readonly planned: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      className="fsr-chip fs-t-label"
+      data-filter={filter}
+      aria-pressed={pressed}
+      onClick={() => onFilter(filter)}
+      title={planned ? SPLIT.railPlannedTitle : undefined}
+      data-testid={`W-TR-05.filter.${filter}`}
+    >
+      {SPLIT.filter[filter]}{" "}
+      <span className="fsr-chip__count fs-t-micro">
+        {count}
+        {planned && <span className="fsr-chip__planned">{` ${SPLIT.railPlanned}`}</span>}
+      </span>
+    </button>
   );
 }

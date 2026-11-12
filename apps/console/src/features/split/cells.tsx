@@ -6,22 +6,37 @@ import { payoutStatus } from "../../data/payout-replay.js";
 
 import type { SnapshotSlip } from "@fairsplit/contracts";
 import type { StampView } from "@fairsplit/ui-web";
-import { ConfidenceRing, Glyph, type GlyphName, RuleChip } from "@fairsplit/ui-web";
+import { ConfidenceRing, Glyph, type GlyphName, RuleChip, ruleChipTitle } from "@fairsplit/ui-web";
 import type { CustomCellRendererProps } from "ag-grid-react";
 import type { ReactNode } from "react";
 import { Stamp } from "../../chrome/Stamp.js";
 import { format } from "../../lib/format.js";
 import { duplicateSerial, type HoldNoteRow } from "./HoldNote.js";
-import type { RowConfidence, RowSlip, SplitRow, SplitTotals } from "./model.js";
+import type { RowConfidence, SplitRow, SplitTotals } from "./model.js";
 import { en, SPLIT } from "./shared/copy.js";
 import { DigitSwap } from "./shared/DigitSwap.js";
-import { BALLPOINT, COPY_FILL, FORM_INK, SERIAL_RED } from "./shared/SlipPaper.js";
 
-/** A grid row: a member's line, the pinned totals, or the inline hold note under H1 (a full-width row). */
+/**
+ * A line's calculation, opened under it in a narrow grid (UI gate round 3): the columns a narrow container hides
+ * (premium, bonus, deductions, credit), as one full-width row. Every figure is the line's own.
+ */
+export interface DetailRow {
+  readonly kind: "detail";
+  /** The grid's row ID: the line's member number and ":detail". */
+  readonly memberNo: string;
+  readonly forMember: string;
+  readonly line: SplitRow;
+}
+
+/**
+ * A grid row: a member's line (opened or not, in a narrow grid), the pinned totals, the inline hold note under H1,
+ * or a line's opened calculation (both full-width rows).
+ */
 export type GridRow =
-  | ({ readonly kind: "line" } & SplitRow)
+  | ({ readonly kind: "line"; readonly expanded?: boolean } & SplitRow)
   | ({ readonly kind: "totals" } & SplitTotals & { readonly memberNo: "totals" })
-  | HoldNoteRow;
+  | HoldNoteRow
+  | DetailRow;
 
 export interface GridContext {
   /** Live events may animate; replayed history may not. */
@@ -33,8 +48,12 @@ export interface GridContext {
   readonly yieldLimit: string;
   /** The premium's per-kg pool rate for the tooltip, console only: "US$0.29523 a kg". */
   readonly premiumRate: string;
-  /** The seed's slip for a copy, so the slips cell crops the real sheet (its serial and Jessie's entries). */
+  /** The seed's slip for a copy (the H1 note compares the two sheets' fields). */
   readonly slip?: (serial: string, copy: SnapshotSlip["copy"]) => SnapshotSlip | undefined;
+  /** A narrow grid opens a line's hidden calculation under it (round 3): set by the grid. */
+  readonly toggleDetail?: (memberNo: string) => void;
+  /** A rule in a few words, from the card's own terms ("CBU 5% of bonus"): a deduction chip's title (round 5). */
+  readonly ruleText?: (ruleId: string) => string | undefined;
 }
 
 type Props = CustomCellRendererProps<GridRow, unknown, GridContext>;
@@ -94,25 +113,24 @@ function amountWash(row: SplitRow, ctx: GridContext) {
 // ------------------------------------------------------------------------------------------------ member
 
 export function MemberCell({ data }: Props) {
-  if (data?.kind === "note") return null;
+  if (data?.kind === "note" || data?.kind === "detail") return null;
   if (!data) return null;
   if (data.kind === "totals") {
+    // The footer says what its Net figure is (round 3): the members' net total, over its lines.
     return (
       <Cell className="fsr-cell--member">
-        <span className="fs-t-label">{SPLIT.totalsLines(data.lines)}</span>
+        <span className="fsr-member">
+          <span className="fsr-member__name fs-t-label">{SPLIT.totalsLabel}</span>
+          <span className="fsr-member__meta fs-t-micro">{SPLIT.totalsLines(data.lines)}</span>
+        </span>
       </Cell>
     );
   }
   return (
     <Cell className="fsr-cell--member" testId={`W-TR-05.row.${data.memberNo}`}>
       <span className="fsr-member">
-        <span className="fsr-member__name fs-t-label">{data.name}</span>
-        <span className="fsr-member__meta fs-t-caption">
-          <span>{data.memberNo}</span>
-          <span className="fsr-member__lang" title="Statement language">
-            {data.lang}
-          </span>
-        </span>
+        <span className="fsr-member__name fs-t-body">{data.name}</span>
+        <span className="fsr-member__meta fs-t-id">{data.memberNo}</span>
       </span>
     </Cell>
   );
@@ -121,74 +139,43 @@ export function MemberCell({ data }: Props) {
 // ------------------------------------------------------------------------------------------------ slips
 
 /**
- * A 24 × 18 crop of a slip's top corner, as the sheet is drawn everywhere else: the press's red serial and
- * Jessie's first entries in blue ballpoint on the copy's own paper. It is evidence, so it is paper.
+ * How a serial on this line twice reads (UI gate round 4): while its hold is open, "0457 ×2" in a 1 px outline with
+ * ink words (pink belongs to the D copy's own swatch, never a chip); once counted once, "0457 counted once" in
+ * neutral ink; once decided as two deliveries, "0457 ×2" in neutral ink.
  */
-function SlipCrop({ slip, index, sheet }: { slip: RowSlip; index: number; sheet: SnapshotSlip | undefined }) {
-  const values = sheet ? [sheet.boxes["1"], sheet.boxes["2"], sheet.boxes["3"]] : ["", "", ""];
-  const faint = slip.copy === "PINK_DUPLICATE";
-  return (
-    <svg
-      className="fsr-slips__crop"
-      viewBox="112 6 128 96"
-      width={24}
-      height={18}
-      aria-hidden="true"
-      focusable="false"
-      data-copy={slip.copy}
-      style={{ ["--i" as string]: String(index) }}
-    >
-      <rect x={0} y={0} width={240} height={300} fill={COPY_FILL[slip.copy]} />
-      <text x={226} y={30} textAnchor="end" fill={SERIAL_RED} opacity={faint ? 0.7 : 0.95} fontSize={22}>
-        {slip.serial}
-      </text>
-      <line x1={112} x2={226} y1={44} y2={44} stroke={FORM_INK} strokeWidth={1.5} opacity={0.6} />
-      {values.map((value, i) => (
-        <g key={`${i}-${value}`}>
-          <line
-            x1={112}
-            x2={226}
-            y1={65 + i * 22}
-            y2={65 + i * 22}
-            stroke={FORM_INK}
-            strokeWidth={1}
-            opacity={0.5}
-          />
-          <text x={118} y={62 + i * 22} fill={BALLPOINT} opacity={faint ? 0.62 : 0.94} fontSize={16}>
-            {value || "—"}
-          </text>
-        </g>
-      ))}
-    </svg>
-  );
+export function duplicateLook(
+  row: Pick<SplitRow, "slips" | "holds">,
+): { readonly serial: string; readonly state: "open" | "once" | "twice" } | null {
+  const serial = duplicateSerial(row.slips);
+  if (!serial) return null;
+  const hold = row.holds.find((h) => h.kind === "DUPLICATE_SLIP");
+  if (hold?.state === "RESOLVED" && hold.resolution === "COUNT_ONCE") return { serial, state: "once" };
+  if (hold?.state === "RESOLVED") return { serial, state: "twice" };
+  return { serial, state: "open" };
 }
 
-export function SlipsCell({ data, context }: Props) {
-  if (data?.kind === "note") return null;
+/**
+ * The slip count alone (UI gate round 3: no 30 px thumbnails, which read as noise at row height), and the duplicate
+ * badge only where a serial sits on the line twice.
+ */
+export function SlipsCell({ data }: Props) {
+  if (data?.kind === "note" || data?.kind === "detail") return null;
   if (!data || data.kind === "totals") return null;
-  const shown = data.slips.slice(0, 3);
-  // The carbon-copy chip: a serial on this line twice (the pink duplicate of H1), in the pink copy's own colour.
-  const dup = duplicateSerial(data.slips);
+  const dup = duplicateLook(data);
   return (
     <Cell className="fsr-cell--slips">
       <span className="fsr-slips">
-        <span className="fsr-slips__stack" aria-hidden style={{ ["--n" as string]: String(shown.length) }}>
-          {shown.map((s, i) => (
-            <SlipCrop
-              key={`${s.serial}-${s.copy}-${s.photoId}`}
-              slip={s}
-              index={i}
-              sheet={context?.slip?.(s.serial, s.copy)}
-            />
-          ))}
-        </span>
-        <span className="fs-t-figure" aria-hidden>
+        <span className="fsr-slips__count fs-t-figure" aria-hidden>
           {data.slips.length}
         </span>
         <span className="fs-sr">{SPLIT.slipCount(data.slips.length)}</span>
         {dup && (
-          <span className="fsr-dupchip fs-t-caption" data-testid={`W-TR-05.dup.${data.memberNo}`}>
-            {dup} ×2
+          <span
+            className="fsr-dupchip fs-t-caption"
+            data-state={dup.state}
+            data-testid={`W-TR-05.dup.${data.memberNo}`}
+          >
+            {dup.state === "once" ? SPLIT.countedOnce(dup.serial) : SPLIT.countedTwice(dup.serial)}
           </span>
         )}
       </span>
@@ -198,33 +185,23 @@ export function SlipsCell({ data, context }: Props) {
 
 // ------------------------------------------------------------------------------------------------ kilos
 
+/**
+ * Verified kilos as a number column, right-aligned (UI gate round 4: the per-tree micro-bars had no scale, so they
+ * went). A line over the per-tree limit says so in its hold's note under it (H2), never stacked in this cell.
+ */
 export function KgCell({ data, context }: Props) {
-  if (data?.kind === "note") return null;
+  if (data?.kind === "note" || data?.kind === "detail") return null;
   if (!data) return null;
   if (data.kind === "totals") return null;
-  const ratio = Math.max(0, Math.min(2, data.treeRatio));
   // Verified kilos are the engine's figure, like the money beside them: pencil until the two keys turn it to ink.
   return (
     <Cell className="fsr-cell--kg">
-      <span className="fsr-kg">
-        <span className="fsr-kg__value fs-t-figure" data-amount-state={data.partsState}>
-          {format.kgNumber(data.verifiedG)}
-        </span>
-        <span
-          className="fsr-kg__bar"
-          data-over={data.overYield ? "" : undefined}
-          title={`${data.kgPerTree} kg a tree from ${data.trees} registered trees; the limit is ${context.yieldLimit}`}
-          aria-hidden
-        >
-          <span className="fsr-kg__fill" style={{ width: `${Math.min(1, ratio) * 50}%` }} />
-          {ratio > 1 && <span className="fsr-kg__over" style={{ width: `${(ratio - 1) * 50}%` }} />}
-          <span className="fsr-kg__limit" />
-        </span>
-        {data.overYield && (
-          <span className="fsr-kg__note fs-t-caption">
-            {SPLIT.perTreeOver(data.kgPerTree, context.yieldLimit)}
-          </span>
-        )}
+      <span
+        className="fsr-kg__value fs-t-figure"
+        data-amount-state={data.partsState}
+        title={SPLIT.perTreeTitle(data.kgPerTree, data.trees, context.yieldLimit)}
+      >
+        {format.kgNumber(data.verifiedG)}
       </span>
     </Cell>
   );
@@ -276,7 +253,7 @@ function ConfidenceBody({
 }
 
 export function ConfidenceCell({ data, context }: Props) {
-  if (data?.kind === "note") return null;
+  if (data?.kind === "note" || data?.kind === "detail") return null;
   if (!data || data.kind === "totals") return null;
   return (
     <Cell className="fsr-cell--conf">
@@ -313,7 +290,7 @@ function Part({
 }
 
 export function PremiumCell({ data, context }: Props) {
-  if (data?.kind === "note") return null;
+  if (data?.kind === "note" || data?.kind === "detail") return null;
   if (!data) return null;
   if (data.kind === "totals") {
     return (
@@ -330,7 +307,7 @@ export function PremiumCell({ data, context }: Props) {
 }
 
 export function BonusCell({ data, context }: Props) {
-  if (data?.kind === "note") return null;
+  if (data?.kind === "note" || data?.kind === "detail") return null;
   if (!data) return null;
   if (data.kind === "totals") {
     return (
@@ -352,8 +329,9 @@ const CATEGORY_WORD: Readonly<Record<"CBU" | "LOAN" | "ADVANCE", string>> = {
   ADVANCE: "Advance",
 };
 
-export function KaltasCell({ data }: Props) {
-  if (data?.kind === "note") return null;
+/** A deduction chip reads "CBU −1.37" (round 5: no ids for people); its rule's id and words are its title. */
+export function KaltasCell({ data, context }: Props) {
+  if (data?.kind === "note" || data?.kind === "detail") return null;
   if (!data) return null;
   if (data.kind === "totals") {
     return (
@@ -367,21 +345,25 @@ export function KaltasCell({ data }: Props) {
   return (
     <Cell className="fsr-cell--kaltas">
       <span className="fsr-kaltas" data-amount-state={data.partsState}>
-        {data.deductions.map((d) => (
-          <RuleChip
-            key={`${d.ruleId}-${d.category}`}
-            name={CATEGORY_WORD[d.category]}
-            amount={format.amount(-d.amountCents)}
-            rule={d.ruleId}
-          />
-        ))}
+        {data.deductions.map((d) => {
+          const words = context?.ruleText?.(d.ruleId);
+          return (
+            <RuleChip
+              key={`${d.ruleId}-${d.category}`}
+              name={CATEGORY_WORD[d.category]}
+              amount={format.amount(-d.amountCents)}
+              rule={d.ruleId}
+              {...(words ? { ruleText: words } : {})}
+            />
+          );
+        })}
       </span>
     </Cell>
   );
 }
 
 export function CreditCell({ data }: Props) {
-  if (data?.kind === "note") return null;
+  if (data?.kind === "note" || data?.kind === "detail") return null;
   if (!data) return null;
   if (data.kind === "totals") {
     return (
@@ -417,7 +399,7 @@ export function CreditCell({ data }: Props) {
 }
 
 export function NetCell({ data, context }: Props) {
-  if (data?.kind === "note") return null;
+  if (data?.kind === "note" || data?.kind === "detail") return null;
   if (!data) return null;
   if (data.kind === "totals") {
     return (
@@ -449,10 +431,82 @@ export function NetCell({ data, context }: Props) {
   );
 }
 
+// ------------------------------------------------------------------------------------------------ a line's calculation
+
+/**
+ * A narrow grid's first column (round 3): opens the line's hidden calculation under it. The row's own click still
+ * opens the line or its hold; this button only shows the parts.
+ */
+export function ExpandCell({ data, context }: Props) {
+  if (data?.kind !== "line") return null;
+  const open = data.expanded === true;
+  return (
+    <Cell className="fsr-cell--expand">
+      <button
+        type="button"
+        className="fsr-expand"
+        aria-expanded={open}
+        aria-label={SPLIT.showParts(data.name)}
+        title={SPLIT.showParts(data.name)}
+        data-testid={`W-TR-05.expand.${data.memberNo}`}
+        onClick={(event) => {
+          event.stopPropagation();
+          context?.toggleDetail?.(data.memberNo);
+        }}
+      >
+        <Glyph name={open ? "ms:expand-less" : "ms:expand-more"} size={18} />
+      </button>
+    </Cell>
+  );
+}
+
+/** The opened calculation: premium + bonus − each ruled deduction (+ credit) = net, the line's own figures. */
+export function DetailView({ detail }: { readonly detail: DetailRow }) {
+  const r = detail.line;
+  return (
+    <dl className="fsr-detail fs-t-caption" data-testid={`W-TR-05.detail.${detail.forMember}`}>
+      <div className="fsr-detail__part">
+        <dt>{en("W-TR-05.col.premium")}</dt>
+        <dd className="fs-t-figure" data-amount-state={r.partsState}>
+          {CENTS(r.premiumCents)}
+        </dd>
+      </div>
+      <div className="fsr-detail__part">
+        <dt>{en("W-TR-05.col.bonus")}</dt>
+        <dd className="fs-t-figure" data-amount-state={r.partsState}>
+          +{CENTS(r.bonusCents)}
+        </dd>
+      </div>
+      {r.deductions.map((d) => (
+        <div key={`${d.ruleId}-${d.category}`} className="fsr-detail__part">
+          <dt title={ruleChipTitle(d.ruleId)}>{CATEGORY_WORD[d.category]}</dt>
+          <dd className="fs-t-figure" data-amount-state={r.partsState}>
+            {format.amount(-d.amountCents)}
+          </dd>
+        </div>
+      ))}
+      {r.creditsCents > 0 && (
+        <div className="fsr-detail__part">
+          <dt>{SPLIT.creditReturned}</dt>
+          <dd className="fs-t-figure" data-amount-state={r.partsState}>
+            +{CENTS(r.creditsCents)}
+          </dd>
+        </div>
+      )}
+      <div className="fsr-detail__part fsr-detail__part--net">
+        <dt>{SPLIT.netColumn}</dt>
+        <dd className="fs-t-figure" data-amount-state={r.amountState}>
+          {CENTS(r.netCents)}
+        </dd>
+      </div>
+    </dl>
+  );
+}
+
 // ------------------------------------------------------------------------------------------------ rail
 
 export function RailCell({ data, context }: Props) {
-  if (data?.kind === "note") return null;
+  if (data?.kind === "note" || data?.kind === "detail") return null;
   if (!data || data.kind === "totals") return null;
   const cash = data.rail === "CASH" || data.movedToCash;
   return (
@@ -505,10 +559,29 @@ function linePayout(row: SplitRow) {
   });
 }
 
+/**
+ * A line's status word as the grid shows it. A PayPal-derived word is short ("Paid"): the screen's one honesty tag
+ * covers the grid once the batch posts (unslop spec §2.2: one tag per container, never per row), and the label
+ * stays in the cell for screen readers (`statusLabel`). A replayed status keeps its whole replay words.
+ */
 export function statusWords(row: SplitRow): string {
+  // Slip 0462's line waits for a person's entry: "By hand" says it whole (round 5: no long tag clipped in the cell).
+  if (row.status.kind === "held" && byHandHold(row)) return SPLIT.byHandStatus;
   if (row.status.kind === "held") return SPLIT.held;
   if (row.status.kind === "reserved") return SPLIT.reserved;
-  return linePayout(row).statusWord;
+  return linePayout(row).word;
+}
+
+/** A line held for a field a person enters by hand (slip 0462): its hold's label is the slip's, not an H-tag. */
+function byHandHold(row: SplitRow): boolean {
+  return row.status.kind !== "line" && row.status.hold.kind === "LOW_CONFIDENCE";
+}
+
+/** The simulated rail's label a short PayPal word carries for screen readers, or null. */
+export function statusLabel(row: SplitRow): string | null {
+  if (row.status.kind !== "line") return null;
+  const payout = linePayout(row);
+  return payout.simulatedLabel && !payout.replayed ? ` (${payout.simulatedLabel})` : null;
 }
 
 /**
@@ -526,18 +599,21 @@ function statusLook(row: SplitRow): { readonly tone: GridTone; readonly glyph: G
 }
 
 export function StatusCell({ data, context }: Props) {
-  if (data?.kind === "note") return null;
+  if (data?.kind === "note" || data?.kind === "detail") return null;
   if (!data) return null;
   if (data.kind === "totals") {
     return (
       <Cell className="fsr-cell--status">
+        {/* The balance check prints once, in words, on the reconciliation line above the grid; the footer keeps
+            its glyph, the word for screen readers (round 3: say each fact once). */}
         <span
           className="fsr-status"
           data-tone={data.balanced ? "ink" : "red"}
           data-testid="W-TR-05.totals.balanced"
+          title={data.balanced ? SPLIT.balanced : SPLIT.unbalanced}
         >
           <Glyph name={data.balanced ? "ms:check" : "ms:help"} size={16} />
-          <span className="fs-t-label">{data.balanced ? SPLIT.balanced : SPLIT.unbalanced}</span>
+          <span className="fs-sr">{data.balanced ? SPLIT.balanced : SPLIT.unbalanced}</span>
         </span>
       </Cell>
     );
@@ -557,14 +633,20 @@ export function StatusCell({ data, context }: Props) {
         data-testid={`W-TR-05.status.${data.memberNo}`}
       >
         <Glyph name={look.glyph} size={16} />
-        <span className="fsr-status__text">
-          <span className={data.status.kind === "reserved" ? "fs-t-caption" : "fs-t-label"}>
+        <span
+          className="fsr-status__text"
+          title={data.status.kind === "reserved" ? SPLIT.reservedTitle : undefined}
+        >
+          {/* Round 6: a held line says it once on screen, the amber dot and its hold's tag ("H1", an amber outline);
+              the word ("Held", "Reserved") stays for assistive technology. */}
+          <span className={data.status.kind !== "line" && !byHandHold(data) ? "fs-sr" : "fs-t-label"}>
             {statusWords(data)}
+            {statusLabel(data) && <span className="fs-sr">{statusLabel(data)}</span>}
           </span>
-          {data.status.kind !== "line" && (
+          {data.status.kind !== "line" && !byHandHold(data) && (
             <>
               {" "}
-              <span className="fsr-status__hold fs-t-caption">{data.status.hold.label}</span>
+              <span className="fsr-status__hold fs-t-label">{data.status.hold.label}</span>
             </>
           )}
         </span>
