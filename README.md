@@ -1,17 +1,28 @@
 # Fair Split: audited co-op payroll on PayPal
 
-**Every peso, traced to the pencil mark.**
+**Every peso, traced to the pencil mark.** Co-op payroll every member can check: Claude is built to read
+handwritten slips, code computes the money, two officers sign, PayPal Payouts (simulated sandbox) pays those on
+PayPal; the rest get cash.
 
-**TODO (merger): the hosted Judge Mode URL (`/judge` on the Render host) goes here once it is deployed.**
+[![Licence: MIT](https://img.shields.io/badge/licence-MIT-blue)](LICENSE)
+[![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)](#architecture)
+[![Node 24](https://img.shields.io/badge/Node-24-5FA04E?logo=nodedotjs&logoColor=white)](#run-it-locally-on-windows)
+[![PayPal Agent Toolkit 1.11.0](https://img.shields.io/badge/PayPal%20Agent%20Toolkit-1.11.0-003087?logo=paypal&logoColor=white)](#paypal-integration-built-against-the-simulator)
+[![Claude: opus-5-5, sonnet-5-5, haiku-5-5](https://img.shields.io/badge/Claude-opus--5--5%20%C2%B7%20sonnet--5--5%20%C2%B7%20haiku--5--5-D97757)](#ai-system)
+[![PayPal rail: simulated](https://img.shields.io/badge/PayPal%20rail-simulated-lightgrey)](#what-is-real-replayed-and-simulated)
+[![Tests: 6,362 at the 1 Nov merge](https://img.shields.io/badge/tests-6%2C362%20at%20the%201%20Nov%20merge-brightgreen)](#tests)
 
-**Judge it in 60 seconds:** no login, no PayPal account, no key. Open `/judge` and press **Play it for me**; you sign
-the two keys. [The eight steps](#judge-it-in-60-seconds) · [The film](#the-film) ·
-[What's real](#whats-real-replayed-simulated-and-synthetic) · [Run it locally](#run-it-locally-on-windows)
+**[Live demo](https://fair-split.arnavbule.in/judge)** · **[Film (2:59)](https://youtu.be/4oq35smJnLQ)** · **[How to test (60 seconds)](#judge-it-in-60-seconds)**
 
-Fair Split is payroll for a farmers' co-op whose pay starts on handwritten weigh-slips. It protects the people
-being paid: every member can see, line by line, why her number is her number, whether she is paid through PayPal
-or in cash, and the buyer that funded the season can re-check every line in its own browser. The model reads
-paper; code computes; people approve; PayPal executes (in this build, our PayPal simulator).
+**Judge it in 60 seconds:** no login, no PayPal account, no key. Open
+[Judge Mode](https://fair-split.arnavbule.in/judge) and press **Play it for me**; you sign the two keys.
+
+[![The payout run in Judge Mode, with a member's statement on her phone](docs/readme/payout-run.png)](https://fair-split.arnavbule.in/judge)
+
+_The payout run in Judge Mode: 7 of 64 members paid through the simulated PayPal sandbox, 57 due cash at the
+bodega, and one member's statement on her phone._
+
+### What is real, replayed and simulated
 
 > **PayPal runs on a simulator, and the people are synthetic.** Every PayPal call in this repo goes to our own
 > contract-faithful simulator of PayPal's REST APIs, labelled "Simulated PayPal sandbox" wherever a PayPal value
@@ -21,6 +32,106 @@ paper; code computes; people approve; PayPal executes (in this build, our PayPal
 > (ADR-0002). The client code is PayPal's own Agent Toolkit 1.11.0 plus our typed Payouts tool, but it is untested
 > against PayPal's own sandbox. The co-op, its members, the buyer, the slips and the voices are synthetic; no real
 > farmer was paid and no real money moves.
+>
+> **Real:** your presses, the holds you resolve and the approvals you sign (Ed25519, in your browser); every
+> amount, computed by the engine in integer cents; Proof's checks on your device; R1's committed Claude responses
+> for the 10 hero slips. **Replayed:** the slip reading in Judge Mode, a labelled seed stand-in, not a Claude
+> recording. The full table is under [What's real](#whats-real-replayed-simulated-and-synthetic).
+
+**Contents:** [In 30 seconds](#in-30-seconds) · [Screenshots](#screenshots) · [For judges](#for-judges) ·
+[PayPal + AI at a glance](#paypal--ai-at-a-glance) · [How it works](#how-it-works) ·
+[The demo season](#the-demo-season) · [Judge it in 60 seconds](#judge-it-in-60-seconds) · [The film](#the-film) ·
+[The problem](#the-problem) · [What a farmer sees](#what-a-farmer-sees) ·
+[PayPal integration](#paypal-integration-built-against-the-simulator) · [AI system](#ai-system) ·
+[Eval](#eval-r1-the-only-real-claude-output) · [What's real](#whats-real-replayed-simulated-and-synthetic) ·
+[Prior art](#prior-art) · [Known limitations](#known-limitations) · [Run it locally](#run-it-locally-on-windows) ·
+[Verify it yourself](#verify-it-yourself) · [Tests](#tests) · [Architecture](#architecture) · [AG Grid](#ag-grid) ·
+[Synthetic data](#synthetic-data-prompts-and-hashes) · [What's next](#whats-next) ·
+[Repository and licence](#repository-and-licence)
+
+## In 30 seconds
+
+- **What it is.** Payroll for a farmers' co-op whose pay starts on handwritten weigh-slips.
+- **Who it is for.** The members being paid, who can each see, line by line, why her number is her number. And the
+  buyer that funded the season, which can re-check every line in its own browser.
+- **How it works.** The model reads paper; code computes; people approve; PayPal executes (in this build, our
+  PayPal simulator).
+- **What works today.** The judge loop runs end to end with no login: fund, read, hold, two keys, pay, Proof,
+  reset. In the demo season 7 of 64 members are paid through the simulated PayPal sandbox and 57 in cash, on the
+  same statement.
+- **What it is not yet.** PayPal runs only on our simulator and is untested against PayPal's own sandbox. No real
+  money moves, the co-op and its people are synthetic, and there is no pilot partner yet.
+
+## Screenshots
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/readme/split-holds.png" alt="The split review table with three holds open"><br><sub>Code computes all 64 lines and holds what it cannot justify.</sub></td>
+    <td width="50%"><img src="docs/readme/counted-once.png" alt="A resolved hold: slip 0457 counted once"><br><sub>A duplicate slip, counted once: US$17.94 goes back to 63 members.</sub></td>
+  </tr>
+  <tr>
+    <td width="50%"><img src="docs/readme/two-keys.png" alt="The approve screen, half signed, with the Chair's phone beside it"><br><sub>Two officers sign one batch hash; the Chair co-signs on a phone.</sub></td>
+    <td width="50%"><img src="docs/readme/proof.png" alt="The Proof page with six checks passed"><br><sub>Proof: six checks anyone can re-run in the browser.</sub></td>
+  </tr>
+</table>
+
+## For judges
+
+Each row maps one judging criterion to evidence you can open in this repo.
+
+| Criterion                    | What to check                                                                                                                                                                                                                                                                                                                                                                                             | Where                                                                                                                                                                                                                                                                  |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Technological Implementation | A deterministic engine, not the model, computes every amount in integer cents and holds what the rules cannot justify. Invoicing v2 runs through Agent Toolkit 1.11.0, Payouts v1 through our typed tool, and simulator-signed webhooks are self-verified, all on the simulated PayPal sandbox. 6,362 unit, property and embedded-Postgres tests across 23 packages at the 1 Nov merge of main (8fc978c). | `packages/domain/src/engine.ts`, `packages/domain/src/policy.ts`, `packages/paypal-toolkit`, `packages/paypal-payouts/src/service.ts`, `packages/paypal-core/src/webhook/verify.ts`, `packages/paypal-sim`, [Tests](#tests), [Verify it yourself](#verify-it-yourself) |
+| Design                       | The treasurer's console and the Judge stage, with the member's phone beside it. The split review is an AG Grid Community 36.2.0 grid, themed from our design tokens, with eleven custom cell renderers. Member statements are in English, Cebuano and Filipino, with audio where a verified clip exists.                                                                                                  | [Screenshots](#screenshots), [AG Grid](#ag-grid), `apps/console/src/features/split/SplitAgGrid.tsx`, `apps/console/src/features/split/cells.tsx`, `apps/mobile`, [`docs/DESIGN.md`](docs/DESIGN.md)                                                                    |
+| Potential Impact             | It protects the people being paid, not the payer. Members paid in cash and members paid through PayPal are on the same statement, and each amount can be traced to the slips behind it. The buyer can re-check every line, so a premium can be shown to reach the members. There is no pilot partner yet.                                                                                                 | [The problem](#the-problem), [What a farmer sees](#what-a-farmer-sees), [Known limitations](#known-limitations)                                                                                                                                                        |
+| Quality of the Idea          | It starts where co-op pay starts, on a handwritten weigh-slip. Fair Split reads each slip twice, holds what the ratified rate card cannot justify, and binds the officers to one batch hash. The prior-art table compares it with 12 nearby projects.                                                                                                                                                     | [Prior art](#prior-art), `packages/domain/src/ratecard.ts`, `packages/domain/src/approval.ts`                                                                                                                                                                          |
+| Presentation                 | A 2:59 film with chapters. A hosted demo with no login, where "Play it for me" drives every step except the two keys. A Proof page that re-checks the run in the browser. Every screen labels what is simulated, and a lint (E-19) checks this README's wording and figures.                                                                                                                              | [The film](#the-film), [Judge it in 60 seconds](#judge-it-in-60-seconds), `apps/console/src/features/proof/ProofView.tsx`, `packages/domain/src/verify-core.ts`, `packages/test-kit/test/e19/rules.ts`, [`docs/devpost.md`](docs/devpost.md)                           |
+
+## PayPal + AI at a glance
+
+Every PayPal row below runs on the simulated PayPal sandbox and is untested against PayPal's own sandbox.
+
+| PayPal API or AI model                               | What it does here                                                                                                           | Where the code is                                                     | How it ran                                                                                                                |
+| ---------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| Invoicing v2, through `@paypal/agent-toolkit` 1.11.0 | Bills the buyer: create, send, AUTO_CANCEL rule, record payment, GET. The run is funded only when a fresh GET reads it paid | `packages/paypal-toolkit`, `apps/api/src/money/`                      | Simulator                                                                                                                 |
+| Payouts v1, through our typed tool                   | One batch to the members who have PayPal; an UNCLAIMED item is cancelled before the member is paid in cash                  | `packages/paypal-payouts`                                             | Simulator                                                                                                                 |
+| Webhooks v1                                          | Simulator-signed notices, self-verified (CRC32 of the raw body plus RSA-SHA256), deduplicated by transmission id and stored | `packages/paypal-core/src/webhook`, `apps/api/src/paypal/webhooks.ts` | Simulator                                                                                                                 |
+| The simulator                                        | OAuth, Invoicing v2, Payouts v1 and Webhooks v1; every request and response validated against PayPal's published specs      | `packages/paypal-sim`, `apps/api/src/paypal/simulator.ts`             | In fs-api's process                                                                                                       |
+| claude-opus-5-5                                      | Slip reads A and B, a zoom re-read of one field, the rate-card reader                                                       | `packages/ai/src/read`, `packages/ai/src/ratecard`                    | Reads and zoom live in R1 (1 Nov 2026, the 10 hero slips) and in development; Judge Mode replays a labelled seed stand-in |
+| claude-sonnet-5-5                                    | The deduction classifier: each deduction gets a ratified rule ID or NO_MATCH, and code checks the amount                    | `packages/ai/src/classify`                                            | Built and unit-tested; not on the judge path                                                                              |
+| claude-haiku-5-5                                     | The injection screen: text on a slip is never an instruction                                                                | `packages/ai/src/read`                                                | Live in R1                                                                                                                |
+| Gemini 3.8 Flash TTS                                 | Member statement audio and the film's narration, labelled as a synthetic voice                                              | `media/audio/manifest.json`                                           | Offline                                                                                                                   |
+| OpenAI's image model (gpt-image-2) via Codex CLI     | The 14 synthetic images: 10 hero slips, 2 rate-card pages, the logbook page and one four-slip test photo                    | `media/manifest.json`, `media/prompts/history`                        | Offline                                                                                                                   |
+
+Every model call goes through one gateway, `ClaudeGateway` (`packages/ai/src/gateway`). Nothing the model writes
+becomes a number in a line, invoice, payout or statement. Details: [PayPal integration](#paypal-integration-built-against-the-simulator),
+[AI system](#ai-system), [AI tools used to build it](#ai-tools-used-to-build-it).
+
+## How it works
+
+```mermaid
+flowchart LR
+  S["Paper weigh-slips"] --> R["AI reads<br/>twice, code compares"]
+  R --> C["Code computes<br/>integer cents, hashed rate card"]
+  C --> A["People approve<br/>two Ed25519 signatures<br/>over one batch hash"]
+  A --> P["PayPal pays, simulated here<br/>invoice via Agent Toolkit<br/>payouts via typed tool<br/>signed webhooks"]
+  P --> O["Statement and Proof"]
+  R -.-> L[("Hash-chained ledger")]
+  C -.-> L
+  A -.-> L
+  P -.-> L
+  L -.-> O
+```
+
+The buyer's invoice funds the run before the first slip is read. Every step appends to the hash-chained ledger,
+which Proof checks in the browser. The full diagram is under [Architecture](#architecture).
+
+## The demo season
+
+Fair Split is payroll for a farmers' co-op whose pay starts on handwritten weigh-slips. It protects the people
+being paid: every member can see, line by line, why her number is her number, whether she is paid through PayPal
+or in cash, and the buyer that funded the season can re-check every line in its own browser. The model reads
+paper; code computes; people approve; PayPal executes (in this build, our PayPal simulator).
 
 **TODO (merger): add the "What a farmer sees" GIF here (S3: at most 8 MB, 15 fps, English captions).**
 
@@ -41,7 +152,11 @@ _Claude writes in pencil. People sign in ink. PayPal makes it carbon._
 No login, no PayPal account and no key. Use a window at least 1024 px wide (the console on the left, the member's
 phone beside it). "Play it for me" drives every step except the two keys; to run it on your own machine, see
 [Run it locally on Windows](#run-it-locally-on-windows).
-1. Open `/judge`, then press **Mark Lantern Bay's invoice paid (simulated PayPal sandbox)**. On the simulator the
+
+![The first view of Judge Mode: the invoice, the pool, twelve slip photos and the member's phone](docs/readme/season.png)
+
+_What Judge Mode opens on: one buyer invoice of US$4,333.50, 64 members, and 48 slips in 12 photos._
+1. Open [`/judge`](https://fair-split.arnavbule.in/judge), then press **Mark Lantern Bay's invoice paid (simulated PayPal sandbox)**. On the simulator the
    invoice is created and sent through Agent Toolkit 1.11.0, its AUTO_CANCEL rule is set, the payment is
    recorded, and a fresh GET reads it paid, so the run is funded.
 2. Watch 12 photos read: a replay of a labelled seed stand-in, not a Claude recording. Under the photos,
@@ -262,7 +377,7 @@ provenance comes from the rail.
 | Simulated | Every PayPal call, ID, status, webhook and fee: the simulated PayPal sandbox. Its IDs carry `SIM` ([Simulated run IDs](#simulated-run-ids)) and its debug IDs start with `sim-`. Also the phone's push banners, the biometric step (a demo key) and the clerk's scanner (sample slips).                                                                                                                        |
 | Seeded    | The invoice-send approval, and the 54 earlier photos' manifest entries with their seeded read dates (those photos are not imaged).                                                                                                                                                                                                                                                                             |
 | Synthetic | The co-op, its 64 members, its officers, Lantern Bay, 264 slips in 66 photos (only the 48 slips in photos A–L are imaged; the other 54 photos are manifest entries), the rate card, the logbook and every voice. The 10 hero slips were made by OpenAI's image model through Codex CLI; photos A–L are composed in code from them and code-drawn slips ([Synthetic data](#synthetic-data-prompts-and-hashes)). |
-| Not built | A hosted demo (not deployed yet), the APK, push notifications, the clerk's offline capture, real SMS, iOS, the audit agent, and production partner onboarding (PayPal must grant third-party permissions for Invoicing and Payouts).                                                                                                                                                                           |
+| Not built | The APK, push notifications, the clerk's offline capture, real SMS, iOS, the audit agent, and production partner onboarding (PayPal must grant third-party permissions for Invoicing and Payouts).                                                                                                                                                                                                             |
 
 ## Prior art
 
