@@ -30,15 +30,15 @@ export interface FsColours {
   jadeFlushBorder: string;
   /** Grid flash for a PayPal-driven change */
   jadeWash: string;
-  /** Marigold: a person must decide. Never an error, never a button */
+  /** A person must decide: indigo on Hayag (round 6: no amber), marigold on Gabii. Never an error */
   canary: string;
-  /** Text on a marigold face */
+  /** Text on a canary face */
   onCanary: string;
-  /** Marigold as text */
+  /** Words beside a hold: ink on Hayag (the dot carries the meaning; the hue is never text) */
   canaryText: string;
-  /** Background of a held row or a You cell */
+  /** Behind a held row or a You cell: no fill on Hayag (no cream); the dot and the outline carry it */
   canaryWash: string;
-  /** Border of marigold faces and the held row's 3 px bar */
+  /** A hold's outline and dot, a parked thread: the canary hue as a line */
   canaryBorder: string;
   /** Only PayPal DENIED, FAILED, BLOCKED, an unexpected RETURNED and ERRPYO codes */
   red: string;
@@ -64,7 +64,7 @@ export interface FsColours {
   copyYellow: string;
   /** Grid flash for an engine recompute */
   pencilWash: string;
-  /** Behind drawers and dialogs */
+  /** Behind drawers and dialogs: a neutral slate veil, so nothing under it turns khaki */
   scrim: string;
   /** 1 px inner top highlight on slab faces */
   highlight: string;
@@ -78,13 +78,13 @@ export interface FsColours {
   slabChalkBottom: string;
   /** The person's decision slab: its label, and a stamp's initials */
   slabChalkLabel: string;
-  /** Jade slab face: the only control that moves money */
+  /** The money slab's face: the same flat indigo primary as every decision (green is only confirmed money) */
   slabJadeFace: string;
-  /** Jade slab: its bottom lip */
+  /** The money slab's hold fill (its progress while held) */
   slabJadeRight: string;
-  /** Jade slab: the 1 px under-edge of its lip */
+  /** The money slab's under-edge (the slot stays; the slab is flat) */
   slabJadeBottom: string;
-  /** Jade slab label */
+  /** The money slab's label */
   slabJadeLabel: string;
   /** Words printed on evidence paper (the Synthetic sample tag); paper is light in both themes */
   paperInk: string;
@@ -96,6 +96,10 @@ export interface FsColours {
   podWash: string;
   /** The one earned glow: a 6 to 8 px ring on a Bayad na face, one beat after PayPal confirms */
   jadeHalo: string;
+  /** A member's statement: its words and figures (7:1 or better on its card) */
+  statementInk: string;
+  /** A member's statement: secondary words and metadata (7:1 or better; never ink-3) */
+  statementInk2: string;
 }
 
 export interface FsShadows {
@@ -166,15 +170,17 @@ export const tablea: FsTheme = {
     slabChalkRight: "#4630C9",
     slabChalkBottom: "#2E1E94",
     slabChalkLabel: "#FFFFFF",
-    slabJadeFace: "#3DE6AE",
-    slabJadeRight: "#26C48F",
-    slabJadeBottom: "#0F8A62",
-    slabJadeLabel: "#04170F",
+    slabJadeFace: "#5B43EA",
+    slabJadeRight: "#4630C9",
+    slabJadeBottom: "#2E1E94",
+    slabJadeLabel: "#FFFFFF",
     paperInk: "#0B1220",
     bezel: "#05070C",
     ruleStrong: "#3A4763",
     podWash: "#242748",
     jadeHalo: "rgba(61, 230, 174, 0.22)",
+    statementInk: "#F4F6FA",
+    statementInk2: "#C3C9D6",
   },
   shadowPaper: "0 1px 1px rgb(0 0 0 / 0.4), 0 14px 30px -12px rgb(0 0 0 / 0.65)",
   shadows: {
@@ -205,11 +211,11 @@ export const adlaw: FsTheme = {
     jadeText: "#06724F",
     jadeFlushBorder: "#0A9467",
     jadeWash: "#DEF8EF",
-    canary: "#FFA41B",
-    onCanary: "#0B1220",
-    canaryText: "#8A5300",
-    canaryWash: "#FFF2DF",
-    canaryBorder: "#B56A00",
+    canary: "#4A2FD6",
+    onCanary: "#FFFFFF",
+    canaryText: "#0B1220",
+    canaryWash: "#FFFFFF",
+    canaryBorder: "#4A2FD6",
     red: "#CF2A27",
     redFace: "#D42A26",
     onRedFace: "#FFFFFF",
@@ -222,22 +228,24 @@ export const adlaw: FsTheme = {
     copyPink: "#F4C9D4",
     copyYellow: "#F5E27A",
     pencilWash: "#EDEFF1",
-    scrim: "rgba(11, 18, 32, 0.32)",
+    scrim: "rgba(58, 68, 86, 0.4)",
     highlight: "rgba(255, 255, 255, 0.45)",
     drawerHighlight: "#FFFFFF",
     slabChalkFace: "#4A2FD6",
     slabChalkRight: "#3722B0",
     slabChalkBottom: "#29188A",
     slabChalkLabel: "#FFFFFF",
-    slabJadeFace: "#14CC90",
-    slabJadeRight: "#0A9467",
-    slabJadeBottom: "#06724F",
-    slabJadeLabel: "#0B1220",
+    slabJadeFace: "#4A2FD6",
+    slabJadeRight: "#3722B0",
+    slabJadeBottom: "#29188A",
+    slabJadeLabel: "#FFFFFF",
     paperInk: "#0B1220",
     bezel: "#141A24",
     ruleStrong: "#CBD2DC",
     podWash: "#F1EEFC",
     jadeHalo: "rgba(20, 204, 144, 0.16)",
+    statementInk: "#0B1220",
+    statementInk2: "#3A4456",
   },
   shadowPaper:
     "0 1px 1px rgb(11 18 32 / 0.08), 0 14px 28px -12px rgb(11 18 32 / 0.28), 0 0 0 1px rgb(11 18 32 / 0.05)",
@@ -262,6 +270,7 @@ export const space = {
   s8: 8,
   s12: 12,
   s16: 16,
+  s20: 20,
   s24: 24,
   s32: 32,
   s48: 48,
@@ -273,9 +282,9 @@ export const radii = {
   r0: 0,
   r2: 2,
   cell: 6,
-  control: 10,
-  card: 14,
-  panel: 22,
+  control: 12,
+  card: 16,
+  panel: 24,
   pill: 999,
 } as const;
 
@@ -291,94 +300,151 @@ export const fonts = {
   semiCondMedium: "FSSans-SemiCondMedium",
   regular: "FSSans-Regular",
   semiExpBold: "FSSans-SemiExpBold",
-  statement: "AtkinsonNext-Regular",
-  statementBold: "AtkinsonNext-Bold",
+} as const;
+
+/** The mono (hashes, IDs and timestamps only): the platform's own, so nothing to embed. */
+export const monoFamily = "monospace";
+
+/** The five size steps in sp (UI gate round 3): every role in `type` sits on one. */
+export const typeSteps = {
+  id: 13,
+  label: 15,
+  body: 17,
+  title: 24,
+  hero: 48,
 } as const;
 
 /** App sizes in sp. Only the hero amount caps font scaling (at 1.5×); everything else scales to 2.0. */
 export const type = {
-  display: {
-    fontFamily: "FSSans-SemiExpBold",
-    fontSize: 40,
-    lineHeight: 43,
-  },
-  amountHero: {
-    fontFamily: "FSSans-CondXBold",
+  hero: {
+    fontFamily: "FSSans-SemiCondMedium",
     fontSize: 48,
     lineHeight: 52,
     maxFontSizeMultiplier: 1.5,
+    tabular: true,
   },
-  amountL: {
-    fontFamily: "FSSans-CondXBold",
-    fontSize: 32,
-    lineHeight: 36,
-  },
-  title1: {
+  title: {
     fontFamily: "FSSans-SemiExpBold",
-    fontSize: 26,
+    fontSize: 24,
     lineHeight: 30,
+    tabular: true,
   },
-  title2: {
+  heading: {
     fontFamily: "FSSans-SemiExpBold",
-    fontSize: 21,
-    lineHeight: 26,
-  },
-  lede: {
-    fontFamily: "FSSans-Regular",
-    fontSize: 16,
-    lineHeight: 23,
+    fontSize: 17,
+    lineHeight: 24,
+    tabular: true,
   },
   body: {
     fontFamily: "FSSans-Regular",
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  figure: {
-    fontFamily: "FSSans-SemiCondMedium",
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 17,
+    lineHeight: 24,
     tabular: true,
   },
   label: {
-    fontFamily: "FSSans-Regular",
+    fontFamily: "FSSans-SemiCondMedium",
+    fontSize: 15,
+    lineHeight: 20,
+    tabular: true,
+  },
+  id: {
+    fontFamily: "monospace",
     fontSize: 13,
-    lineHeight: 16,
+    lineHeight: 18,
+  },
+  display: {
+    fontFamily: "FSSans-SemiExpBold",
+    fontSize: 24,
+    lineHeight: 30,
+    tabular: true,
+  },
+  amountHero: {
+    fontFamily: "FSSans-SemiCondMedium",
+    fontSize: 48,
+    lineHeight: 52,
+    maxFontSizeMultiplier: 1.5,
+    tabular: true,
+  },
+  amountL: {
+    fontFamily: "FSSans-SemiCondMedium",
+    fontSize: 24,
+    lineHeight: 30,
+    tabular: true,
+  },
+  title1: {
+    fontFamily: "FSSans-SemiExpBold",
+    fontSize: 24,
+    lineHeight: 30,
+    tabular: true,
+  },
+  title2: {
+    fontFamily: "FSSans-SemiExpBold",
+    fontSize: 17,
+    lineHeight: 24,
+    tabular: true,
+  },
+  lede: {
+    fontFamily: "FSSans-Regular",
+    fontSize: 17,
+    lineHeight: 24,
+    tabular: true,
+  },
+  figure: {
+    fontFamily: "FSSans-SemiCondMedium",
+    fontSize: 15,
+    lineHeight: 20,
+    tabular: true,
+  },
+  micro: {
+    fontFamily: "FSSans-Regular",
+    fontSize: 15,
+    lineHeight: 20,
+    tabular: true,
   },
   caption: {
     fontFamily: "FSSans-Regular",
-    fontSize: 12,
-    lineHeight: 16,
+    fontSize: 15,
+    lineHeight: 20,
+    tabular: true,
   },
   hash: {
-    fontFamily: "FSSans-SemiCondMedium",
+    fontFamily: "monospace",
     fontSize: 13,
-    lineHeight: 16,
-    tabular: true,
+    lineHeight: 18,
   },
   slab: {
     fontFamily: "FSSans-SemiExpBold",
     fontSize: 17,
     lineHeight: 20,
+    tabular: true,
   },
   stamp: {
     fontFamily: "FSSans-SemiExpBold",
-    fontSize: 10,
-    lineHeight: 10,
+    fontSize: 13,
+    lineHeight: 13,
   },
   statementLead: {
-    fontFamily: "AtkinsonNext-Regular",
-    fontSize: 22,
+    fontFamily: "FSSans-SemiExpBold",
+    fontSize: 24,
     lineHeight: 30,
+    tabular: true,
   },
   statementBody: {
-    fontFamily: "AtkinsonNext-Regular",
-    fontSize: 19,
-    lineHeight: 28,
+    fontFamily: "FSSans-Regular",
+    fontSize: 17,
+    lineHeight: 24,
+    tabular: true,
   },
   statementStatus: {
-    fontFamily: "AtkinsonNext-Bold",
-    fontSize: 18,
+    fontFamily: "FSSans-SemiExpBold",
+    fontSize: 17,
     lineHeight: 22,
+    tabular: true,
+  },
+  mark: {
+    fontFamily: "monospace",
+    fontSize: 13,
+    lineHeight: 18,
   },
 } as const;
 
@@ -389,6 +455,11 @@ export const layout = {
   target: 48,
   primary: 56,
   hero: 64,
+  seal: 180,
+  cosignSeal: 140,
+  statusChip: 32,
+  fade: 24,
+  end: 24,
 } as const;
 
 export const hatch = {

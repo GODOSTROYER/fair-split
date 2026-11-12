@@ -76,7 +76,7 @@ function JudgeStage() {
           </button>
           <span className="fs-chip" data-tone="neutral">
             <Glyph name="seal" size={16} />
-            <span className="fs-t-label">{en("W-JG-01.proofChip", { confirmed: 0, total: 8 })}</span>
+            <span className="fs-t-label">{en("W-JG-01.proofChip", { matched: 0, total: 6 })}</span>
           </span>
         </div>
       </header>

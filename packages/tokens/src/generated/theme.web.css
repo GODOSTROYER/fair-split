@@ -17,11 +17,11 @@
   --fs-jade-text: #06724f;
   --fs-jade-flush-border: #0a9467;
   --fs-jade-wash: #def8ef;
-  --fs-canary: #ffa41b;
-  --fs-on-canary: #0b1220;
-  --fs-canary-text: #8a5300;
-  --fs-canary-wash: #fff2df;
-  --fs-canary-border: #b56a00;
+  --fs-canary: #4a2fd6;
+  --fs-on-canary: #ffffff;
+  --fs-canary-text: #0b1220;
+  --fs-canary-wash: #ffffff;
+  --fs-canary-border: #4a2fd6;
   --fs-red: #cf2a27;
   --fs-red-face: #d42a26;
   --fs-on-red-face: #ffffff;
@@ -34,31 +34,31 @@
   --fs-copy-pink: #f4c9d4;
   --fs-copy-yellow: #f5e27a;
   --fs-pencil-wash: #edeff1;
-  --fs-scrim: rgb(11 18 32 / 0.32);
+  --fs-scrim: rgb(58 68 86 / 0.4);
   --fs-highlight: rgb(255 255 255 / 0.45);
   --fs-drawer-highlight: rgb(255 255 255 / 1);
   --fs-slab-chalk-face: #4a2fd6;
   --fs-slab-chalk-right: #3722b0;
   --fs-slab-chalk-bottom: #29188a;
   --fs-slab-chalk-label: #ffffff;
-  --fs-slab-jade-face: #14cc90;
-  --fs-slab-jade-right: #0a9467;
-  --fs-slab-jade-bottom: #06724f;
-  --fs-slab-jade-label: #0b1220;
+  --fs-slab-jade-face: #4a2fd6;
+  --fs-slab-jade-right: #3722b0;
+  --fs-slab-jade-bottom: #29188a;
+  --fs-slab-jade-label: #ffffff;
   --fs-paper-ink: #0b1220;
   --fs-bezel: #141a24;
   --fs-rule-strong: #cbd2dc;
   --fs-pod-wash: #f1eefc;
   --fs-jade-halo: rgb(20 204 144 / 0.16);
+  --fs-statement-ink: #0b1220;
+  --fs-statement-ink-2: #3a4456;
   --fs-shadow-paper:
     0 1px 1px rgb(11 18 32 / 0.08), 0 14px 28px -12px rgb(11 18 32 / 0.28), 0 0 0 1px rgb(11 18 32 / 0.05);
   --fs-shadow-e1: 0 1px 2px rgb(11 18 32 / 0.05), 0 0 0 1px rgb(11 18 32 / 0.04);
   --fs-shadow-e2: 0 1px 2px rgb(11 18 32 / 0.05), 0 12px 32px -12px rgb(11 18 32 / 0.16);
   --fs-shadow-e3: 0 2px 6px rgb(11 18 32 / 0.06), 0 28px 64px -20px rgb(11 18 32 / 0.3);
   --fs-shadow-halo: 0 0 0 6px rgb(20 204 144 / 0.16);
-  --fs-wash:
-    radial-gradient(52% 70% at 0% 0%, rgb(20 204 144 / 0.16), transparent 72%),
-    radial-gradient(42% 58% at 62% 0%, rgb(74 47 214 / 0.1), transparent 72%);
+  --fs-wash: none;
   --fs-drop-paper: drop-shadow(0 1px 1px rgb(11 18 32 / 0.18)) drop-shadow(0 8px 14px rgb(11 18 32 / 0.18));
   --fs-flash: var(--fs-pencil-wash);
 }
@@ -103,15 +103,17 @@
   --fs-slab-chalk-right: #4630c9;
   --fs-slab-chalk-bottom: #2e1e94;
   --fs-slab-chalk-label: #ffffff;
-  --fs-slab-jade-face: #3de6ae;
-  --fs-slab-jade-right: #26c48f;
-  --fs-slab-jade-bottom: #0f8a62;
-  --fs-slab-jade-label: #04170f;
+  --fs-slab-jade-face: #5b43ea;
+  --fs-slab-jade-right: #4630c9;
+  --fs-slab-jade-bottom: #2e1e94;
+  --fs-slab-jade-label: #ffffff;
   --fs-paper-ink: #0b1220;
   --fs-bezel: #05070c;
   --fs-rule-strong: #3a4763;
   --fs-pod-wash: #242748;
   --fs-jade-halo: rgb(61 230 174 / 0.22);
+  --fs-statement-ink: #f4f6fa;
+  --fs-statement-ink-2: #c3c9d6;
   --fs-shadow-paper: 0 1px 1px rgb(0 0 0 / 0.4), 0 14px 30px -12px rgb(0 0 0 / 0.65);
   --fs-shadow-e1:
     inset 0 1px 0 rgb(255 255 255 / 0.05), 0 1px 0 rgb(0 0 0 / 0.4), 0 10px 30px -14px rgb(0 0 0 / 0.7);
@@ -142,11 +144,11 @@
     --fs-jade-text: oklch(0.4892 0.1038 163.13);
     --fs-jade-flush-border: oklch(0.5904 0.126 162.79);
     --fs-jade-wash: oklch(0.9577 0.0296 172.88);
-    --fs-canary: oklch(0.7915 0.1672 68.93);
-    --fs-on-canary: oklch(0.1831 0.0309 263.38);
-    --fs-canary-text: oklch(0.494 0.1093 66.91);
-    --fs-canary-wash: oklch(0.9663 0.0287 77.55);
-    --fs-canary-border: oklch(0.5949 0.1347 63.83);
+    --fs-canary: oklch(0.4625 0.2354 279.25);
+    --fs-on-canary: oklch(1 0 0);
+    --fs-canary-text: oklch(0.1831 0.0309 263.38);
+    --fs-canary-wash: oklch(1 0 0);
+    --fs-canary-border: oklch(0.4625 0.2354 279.25);
     --fs-red: oklch(0.5562 0.2008 27.48);
     --fs-red-face: oklch(0.5652 0.2055 27.78);
     --fs-on-red-face: oklch(1 0 0);
@@ -159,22 +161,24 @@
     --fs-copy-pink: oklch(0.8761 0.0506 1.07);
     --fs-copy-yellow: oklch(0.9071 0.1267 99.17);
     --fs-pencil-wash: oklch(0.9512 0.0034 247.86);
-    --fs-scrim: oklch(0.1831 0.0309 263.38 / 0.32);
+    --fs-scrim: oklch(0.3852 0.0335 262.09 / 0.4);
     --fs-highlight: oklch(1 0 0 / 0.45);
     --fs-drawer-highlight: oklch(1 0 0);
     --fs-slab-chalk-face: oklch(0.4625 0.2354 279.25);
     --fs-slab-chalk-right: oklch(0.3932 0.2068 277.75);
     --fs-slab-chalk-bottom: oklch(0.3283 0.1733 277.69);
     --fs-slab-chalk-label: oklch(1 0 0);
-    --fs-slab-jade-face: oklch(0.7489 0.1591 162.96);
-    --fs-slab-jade-right: oklch(0.5904 0.126 162.79);
-    --fs-slab-jade-bottom: oklch(0.4892 0.1038 163.13);
-    --fs-slab-jade-label: oklch(0.1831 0.0309 263.38);
+    --fs-slab-jade-face: oklch(0.4625 0.2354 279.25);
+    --fs-slab-jade-right: oklch(0.3932 0.2068 277.75);
+    --fs-slab-jade-bottom: oklch(0.3283 0.1733 277.69);
+    --fs-slab-jade-label: oklch(1 0 0);
     --fs-paper-ink: oklch(0.1831 0.0309 263.38);
     --fs-bezel: oklch(0.2166 0.0218 260.51);
     --fs-rule-strong: oklch(0.8614 0.0158 257.2);
     --fs-pod-wash: oklch(0.9555 0.0189 295.86);
     --fs-jade-halo: oklch(0.7489 0.1591 162.96 / 0.16);
+    --fs-statement-ink: oklch(0.1831 0.0309 263.38);
+    --fs-statement-ink-2: oklch(0.3852 0.0335 262.09);
   }
 
   [data-theme="tablea"] {
@@ -216,28 +220,32 @@
     --fs-slab-chalk-right: oklch(0.4474 0.2205 279.17);
     --fs-slab-chalk-bottom: oklch(0.3507 0.1791 277.94);
     --fs-slab-chalk-label: oklch(1 0 0);
-    --fs-slab-jade-face: oklch(0.827 0.1574 165.68);
-    --fs-slab-jade-right: oklch(0.7301 0.147 164.24);
-    --fs-slab-jade-bottom: oklch(0.5622 0.1168 163.77);
-    --fs-slab-jade-label: oklch(0.185 0.0313 164.49);
+    --fs-slab-jade-face: oklch(0.5197 0.2367 280.8);
+    --fs-slab-jade-right: oklch(0.4474 0.2205 279.17);
+    --fs-slab-jade-bottom: oklch(0.3507 0.1791 277.94);
+    --fs-slab-jade-label: oklch(1 0 0);
     --fs-paper-ink: oklch(0.1831 0.0309 263.38);
     --fs-bezel: oklch(0.1284 0.0129 263.62);
     --fs-rule-strong: oklch(0.3989 0.0505 264.99);
     --fs-pod-wash: oklch(0.2876 0.0601 277.97);
     --fs-jade-halo: oklch(0.827 0.1574 165.68 / 0.22);
+    --fs-statement-ink: oklch(0.9728 0.0057 264.53);
+    --fs-statement-ink-2: oklch(0.8352 0.0193 265.96);
   }
 }
 
 :root {
   --fs-font-ui: "FS Sans", system-ui, sans-serif;
-  --fs-font-statement: "Atkinson Hyperlegible Next", "FS Sans", system-ui, sans-serif;
-  --fs-font-mark: "FS Stencil", "FS Sans", system-ui, sans-serif;
-  --fs-font-hollow: "FS Numerals Hollow", "FS Sans", system-ui, sans-serif;
+  --fs-font-mono: ui-monospace, "Cascadia Mono", "SF Mono", "Roboto Mono", Menlo, Consolas, monospace;
+  --fs-font-statement: "FS Sans", system-ui, sans-serif;
+  --fs-font-mark: ui-monospace, "Cascadia Mono", "SF Mono", "Roboto Mono", Menlo, Consolas, monospace;
+  --fs-font-hollow: "FS Sans", system-ui, sans-serif;
   --fs-space-2: 2px;
   --fs-space-4: 4px;
   --fs-space-8: 8px;
   --fs-space-12: 12px;
   --fs-space-16: 16px;
+  --fs-space-20: 20px;
   --fs-space-24: 24px;
   --fs-space-32: 32px;
   --fs-space-48: 48px;
@@ -246,9 +254,9 @@
   --fs-radius-0: 0;
   --fs-radius-2: 2px;
   --fs-radius-cell: 6px;
-  --fs-radius-control: 10px;
-  --fs-radius-card: 14px;
-  --fs-radius-panel: 22px;
+  --fs-radius-control: 12px;
+  --fs-radius-card: 16px;
+  --fs-radius-panel: 24px;
   --fs-radius-pill: 999px;
   --fs-depth-d1: 3px;
   --fs-depth-d2: 5px;
@@ -263,18 +271,31 @@
   --fs-z-flight: 70;
   --fs-console-columns: 12;
   --fs-console-gutter: 24px;
+  --fs-console-head-gap: 32px;
+  --fs-console-bar: 56px;
   --fs-console-rail: 220px;
   --fs-console-drawer: 560px;
   --fs-console-approve: 640px;
   --fs-console-row: 40px;
   --fs-console-header: 36px;
   --fs-console-dock: 420px;
+  --fs-console-phone-rail: 56px;
+  --fs-console-toast: 40px;
+  --fs-console-seal: 180px;
+  --fs-console-fade: 24px;
+  --fs-console-end: 32px;
+  --fs-console-peek: 4;
   --fs-app-gutter: 16px;
   --fs-app-rhythm: 8px;
   --fs-app-section: 24px;
   --fs-app-target: 48px;
   --fs-app-primary: 56px;
   --fs-app-hero: 64px;
+  --fs-app-seal: 180px;
+  --fs-app-cosign-seal: 140px;
+  --fs-app-status-chip: 32px;
+  --fs-app-fade: 24px;
+  --fs-app-end: 24px;
   --fs-proof-column: 680px;
   --fs-proof-measure: 72ch;
   --fs-proof-gutter: 16px;
@@ -283,13 +304,13 @@
   --fs-steel-gap: 4px;
   --fs-focus-width: 2px;
   --fs-focus-offset: 2px;
-  --fs-stamp-size: 20px;
+  --fs-stamp-size: 22px;
   --fs-hollow-stroke: 1.25px;
   --fs-noise-opacity: 0;
   --fs-evidence-ballpoint: #2b4ba0;
   --fs-evidence-serial: #b23a2e;
-  --fs-evidence-form: #5f5a54;
-  --fs-evidence-stain: #b79f73;
+  --fs-evidence-form: #5a6476;
+  --fs-evidence-stain: #a4aebc;
   --fs-dur-press: 90ms;
   --fs-dur-press-60: 60ms;
   --fs-dur-retract-200: 200ms;
@@ -319,6 +340,7 @@
   --fs-dur-micro-press: 110ms;
   --fs-dur-tooltip: 150ms;
   --fs-dur-popover: 200ms;
+  --fs-dur-swap: 150ms;
   --fs-dur-reduced: 150ms;
   --fs-dur-edges-fade: 120ms;
   --fs-dur-low-fade: 200ms;
@@ -603,168 +625,220 @@
   --fs-motion: 1;
 }
 
-.fs-t-display {
-  font-family: var(--fs-font-ui);
-  font-stretch: 112.5%;
-  font-weight: 690;
-  font-size: 2.5rem;
-  line-height: 2.6875rem;
-  letter-spacing: -0.028em;
-}
-
-.fs-t-amount-hero {
-  font-family: var(--fs-font-ui);
-  font-stretch: 75%;
-  font-weight: 800;
-  font-size: 4.5rem;
-  line-height: 4.5rem;
-  font-variant-numeric: lining-nums proportional-nums;
-}
-
-.fs-t-amount-l {
-  font-family: var(--fs-font-ui);
-  font-stretch: 75%;
-  font-weight: 760;
-  font-size: 2rem;
-  line-height: 2.25rem;
-  font-variant-numeric: lining-nums proportional-nums;
-}
-
-.fs-t-title-1 {
-  font-family: var(--fs-font-ui);
-  font-stretch: 112.5%;
-  font-weight: 680;
-  font-size: 1.625rem;
-  line-height: 1.875rem;
-  letter-spacing: -0.022em;
-}
-
-.fs-t-title-2 {
-  font-family: var(--fs-font-ui);
-  font-stretch: 112.5%;
-  font-weight: 680;
-  font-size: 1.3125rem;
-  line-height: 1.625rem;
-  letter-spacing: -0.018em;
-}
-
-.fs-t-lede {
+.fs-t-hero {
   font-family: var(--fs-font-ui);
   font-stretch: 100%;
-  font-weight: 450;
+  font-weight: 500;
+  font-size: 3.5rem;
+  line-height: 3.75rem;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.fs-t-title {
+  font-family: var(--fs-font-ui);
+  font-stretch: 100%;
+  font-weight: 600;
+  font-size: 1.5rem;
+  line-height: 1.875rem;
+  letter-spacing: -0.015em;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.fs-t-heading {
+  font-family: var(--fs-font-ui);
+  font-stretch: 100%;
+  font-weight: 600;
   font-size: 1rem;
-  line-height: 1.4375rem;
+  line-height: 1.5rem;
+  font-variant-numeric: tabular-nums lining-nums;
 }
 
 .fs-t-body {
   font-family: var(--fs-font-ui);
   font-stretch: 100%;
-  font-weight: 450;
-  font-size: 0.875rem;
-  line-height: 1.25rem;
-}
-
-.fs-t-figure {
-  font-family: var(--fs-font-ui);
-  font-stretch: 87.5%;
-  font-weight: 520;
-  font-size: 0.875rem;
-  line-height: 1.25rem;
+  font-weight: 430;
+  font-size: 1rem;
+  line-height: 1.5rem;
   font-variant-numeric: tabular-nums lining-nums;
-  font-feature-settings: "tnum" 1;
 }
 
 .fs-t-label {
   font-family: var(--fs-font-ui);
   font-stretch: 100%;
-  font-weight: 600;
-  font-size: 0.8125rem;
+  font-weight: 520;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.fs-t-id {
+  font-family: var(--fs-font-mono);
+  font-weight: 400;
+  font-size: 0.75rem;
   line-height: 1rem;
+}
+
+.fs-t-display {
+  font-family: var(--fs-font-ui);
+  font-stretch: 100%;
+  font-weight: 600;
+  font-size: 1.5rem;
+  line-height: 1.875rem;
+  letter-spacing: -0.015em;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.fs-t-amount-hero {
+  font-family: var(--fs-font-ui);
+  font-stretch: 100%;
+  font-weight: 500;
+  font-size: 3.5rem;
+  line-height: 3.75rem;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.fs-t-amount-l {
+  font-family: var(--fs-font-ui);
+  font-stretch: 100%;
+  font-weight: 500;
+  font-size: 1.5rem;
+  line-height: 1.875rem;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.fs-t-title-1 {
+  font-family: var(--fs-font-ui);
+  font-stretch: 100%;
+  font-weight: 600;
+  font-size: 1.5rem;
+  line-height: 1.875rem;
+  letter-spacing: -0.015em;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.fs-t-title-2 {
+  font-family: var(--fs-font-ui);
+  font-stretch: 100%;
+  font-weight: 600;
+  font-size: 1rem;
+  line-height: 1.5rem;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.fs-t-lede {
+  font-family: var(--fs-font-ui);
+  font-stretch: 100%;
+  font-weight: 430;
+  font-size: 1rem;
+  line-height: 1.5rem;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.fs-t-figure {
+  font-family: var(--fs-font-ui);
+  font-stretch: 100%;
+  font-weight: 500;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.fs-t-micro {
+  font-family: var(--fs-font-ui);
+  font-stretch: 100%;
+  font-weight: 430;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-variant-numeric: tabular-nums lining-nums;
 }
 
 .fs-t-caption {
   font-family: var(--fs-font-ui);
   font-stretch: 100%;
-  font-weight: 500;
+  font-weight: 430;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.fs-t-hash {
+  font-family: var(--fs-font-mono);
+  font-weight: 400;
   font-size: 0.75rem;
   line-height: 1rem;
 }
 
-.fs-t-hash {
-  font-family: var(--fs-font-ui);
-  font-stretch: 75%;
-  font-weight: 520;
-  font-size: 0.8125rem;
-  line-height: 1rem;
-  font-variant-numeric: tabular-nums lining-nums;
-  font-feature-settings: "tnum" 1;
-}
-
 .fs-t-slab {
   font-family: var(--fs-font-ui);
-  font-stretch: 112.5%;
-  font-weight: 700;
-  font-size: 1.0625rem;
+  font-stretch: 100%;
+  font-weight: 600;
+  font-size: 1rem;
   line-height: 1.25rem;
-  font-variant-numeric: lining-nums proportional-nums;
+  font-variant-numeric: tabular-nums lining-nums;
 }
 
 .fs-t-stamp {
   font-family: var(--fs-font-ui);
   font-stretch: 112.5%;
   font-weight: 700;
-  font-size: 0.625rem;
-  line-height: 0.625rem;
+  font-size: 0.75rem;
+  line-height: 0.75rem;
 }
 
 .fs-t-statement-lead {
-  font-family: var(--fs-font-statement);
+  font-family: var(--fs-font-ui);
   font-stretch: 100%;
-  font-weight: 400;
-  font-size: 1.375rem;
+  font-weight: 600;
+  font-size: 1.5rem;
   line-height: 1.875rem;
-}
-
-.fs-t-statement-body {
-  font-family: var(--fs-font-statement);
-  font-stretch: 100%;
-  font-weight: 400;
-  font-size: 1.1875rem;
-  line-height: 1.75rem;
-}
-
-.fs-t-statement-status {
-  font-family: var(--fs-font-statement);
-  font-stretch: 100%;
-  font-weight: 700;
-  font-size: 1.125rem;
-  line-height: 1.375rem;
-}
-
-.fs-t-mark {
-  font-family: var(--fs-font-mark);
-  font-stretch: 100%;
-  font-weight: 800;
-  font-size: 1.25rem;
-  line-height: 1.25rem;
-}
-
-/* Aligned columns: tabular figures (decision.md §7). */
-.fs-figures {
+  letter-spacing: -0.015em;
   font-variant-numeric: tabular-nums lining-nums;
 }
 
-/* Money reads as money: proportional lining figures, a plain zero and a plain one. */
-.fs-amount {
-  font-variant-numeric: lining-nums proportional-nums;
+.fs-t-statement-body {
+  font-family: var(--fs-font-ui);
+  font-stretch: 100%;
+  font-weight: 430;
+  font-size: 1rem;
+  line-height: 1.5rem;
+  font-variant-numeric: tabular-nums lining-nums;
 }
 
-/* The US$ prefix of a hero amount: half size, raised (the accessible name keeps the whole string). */
+.fs-t-statement-status {
+  font-family: var(--fs-font-ui);
+  font-stretch: 100%;
+  font-weight: 600;
+  font-size: 1rem;
+  line-height: 1.375rem;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.fs-t-mark {
+  font-family: var(--fs-font-mono);
+  font-weight: 400;
+  font-size: 0.75rem;
+  line-height: 1rem;
+}
+
+/* Every number is FS Sans in tabular lining figures: one money style (UI gate round 3). */
+.fs-figures,
+.fs-amount {
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+/* The US$ prefix of a money hero: small, raised to the figures' cap line, in ink-3, never bold and never
+   outlined (one standard prefix for every amount; the accessible name keeps the whole string). */
 .fs-cur {
   position: relative;
-  top: -0.74em;
-  margin-right: 0.04em;
-  font-size: 0.5em;
+  top: -0.98em;
+  margin-right: 0.08em;
+  color: var(--fs-ink-3);
+  font-size: 0.42em;
+  font-weight: 520;
+  letter-spacing: 0.02em;
 }
 
 /* Mona's straight-bar zero (ss08), kept for the G1 comparison with the default slashed zero. */

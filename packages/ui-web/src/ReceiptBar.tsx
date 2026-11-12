@@ -7,6 +7,7 @@ import type { MouseEvent, ReactNode } from "react";
 import { useT } from "./context.js";
 import type { ReceiptBarProps, SegmentId, StatementLineView } from "./contract.js";
 import { Glyph } from "./Glyph.js";
+import { ruleChipTitle } from "./marks.js";
 
 export interface WebReceiptBarProps extends ReceiptBarProps {
   readonly testId?: string;
@@ -122,9 +123,12 @@ export function ReceiptBar({ line, onSegment, testId, active, className }: WebRe
                 }
               >
                 {s.kind === "rule" ? (
-                  <span className="fs-rule-chip">
-                    <span>{s.value}</span>
-                    <span className="fs-rule-chip__id">{s.note}</span>
+                  // Round 5: no ids for people. The chip reads its amount; the rule's id is its title.
+                  <span
+                    className="fs-rule-chip"
+                    title={typeof s.note === "string" && s.note ? ruleChipTitle(s.note) : undefined}
+                  >
+                    {s.value}
                   </span>
                 ) : (
                   s.value

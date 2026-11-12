@@ -1,8 +1,9 @@
-// Money on screen (design §2.3, §2.5; ADR-0016). Amounts are FS Sans condensed with proportional lining figures
-// (a plain zero, a plain one), the "US$" prefix at half size and raised on the large roles; the accessible text
-// keeps the whole string. Approved but not yet in the member's hands, they are hollow outlines; they fill only when
-// PayPal (or the bodega) says so. A peso figure is always an estimate. The status capsule is a pill: dashed jade
-// in flight, flush jade with an ink check (and one beat of halo) once the simulated PayPal confirms (MM-1).
+// Money on screen (design §2.3, §2.5; ADR-0016; UI gate round 3). Every money hero is the one hero numeral: FS
+// Sans semi-condensed at 500, solid ink, tabular lining figures (one money style, the phone's too), the "US$"
+// prefix small and raised; the accessible text keeps the whole string. Approved but not yet in the member's hands, an
+// amount keeps its state ("hollow") for meaning, but is never drawn in outline: its pill says where the money is.
+// A peso figure is always an estimate. The status capsule is a pill: a steel ring in flight, flush jade with an ink
+// check (and one beat of halo) once the simulated PayPal confirms (MM-1).
 
 import type { ReactNode } from "react";
 
@@ -35,6 +36,48 @@ export function CurrencyFigure({ display }: { readonly display: string }): React
   );
 }
 
+export interface MoneyFigureProps {
+  /** "US$4,273.50", "4,273.50", "₱270,844". */
+  readonly display: string;
+  /**
+   * decimal: a money column aligns on its decimal point (round 3): tabular figures line the digits up, and the
+   * cents sit in a fixed slot so a missing decimal never shifts a row.
+   */
+  readonly align?: "decimal";
+  /** Small raised "US$" (a hero or a total); a column states its currency in the header and leaves this off. */
+  readonly raisedPrefix?: boolean;
+  readonly className?: string;
+  readonly testId?: string;
+}
+
+/**
+ * Money in the one money role (UI gate round 3): FS Sans, tabular lining figures, every amount on every screen,
+ * the by-hand entry included. The text content is the whole string ("US$64.45"), so a copy or a test reads it.
+ */
+export function MoneyFigure({ display, align, raisedPrefix = false, className, testId }: MoneyFigureProps) {
+  const [prefix, figure] = splitCurrency(display);
+  const point = align === "decimal" ? figure.lastIndexOf(".") : -1;
+  const whole = point >= 0 ? figure.slice(0, point) : figure;
+  const cents = point >= 0 ? figure.slice(point) : "";
+  return (
+    <span
+      className={["fs-money", className].filter(Boolean).join(" ")}
+      data-align={align}
+      data-testid={testId}
+    >
+      {prefix && (raisedPrefix ? <span className="fs-cur">{prefix}</span> : prefix)}
+      {align === "decimal" ? (
+        <>
+          {whole}
+          <span className="fs-money__cents">{cents}</span>
+        </>
+      ) : (
+        figure
+      )}
+    </span>
+  );
+}
+
 export interface AmountDisplayProps {
   readonly amount: MoneyView;
   /** "mga ₱4,028 (gibanabana)", already worded by the catalog. */
@@ -63,6 +106,8 @@ export function AmountDisplay({
   className,
 }: AmountDisplayProps) {
   const solidOpacity = solid ?? (hollow ? 0 : 1);
+  // The state stays for meaning (and for tests and the moments): hollow, filling, solid or pencil. The figure is
+  // drawn the same in each, solid ink in the one hero numeral (UI gate round 2); money lands, it never fills.
   const state = pencil ? "pencil" : solidOpacity >= 1 ? "solid" : solidOpacity <= 0 ? "hollow" : "filling";
   return (
     <div
@@ -75,7 +120,7 @@ export function AmountDisplay({
         <span className="fs-amount__hollow">
           <CurrencyFigure display={amount.display} />
         </span>
-        <span className="fs-amount__solid" style={{ opacity: solidOpacity }}>
+        <span className="fs-amount__solid">
           <CurrencyFigure display={amount.display} />
         </span>
       </p>

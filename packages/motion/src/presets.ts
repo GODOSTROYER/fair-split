@@ -139,6 +139,7 @@ export const TWEENS = {
   microPress: { ms: 110, ease: "out", use: "Press feedback (100–120 ms)" },
   tooltip: { ms: 150, ease: "out", use: "Tooltips" },
   popover: { ms: 200, ease: "out", use: "Popovers" },
+  swap: { ms: 150, ease: "out", use: "The Next pill trading its words for an event and back (round 5)" },
   reduced: { ms: 150, ease: "out", use: "Reduced motion: colour and opacity changes" },
   edgesFade: { ms: 120, ease: "out", use: "Reduced motion: slab edges fading" },
   lowFade: { ms: 200, ease: "out", use: "Low tier: a seal appearing complete" },
@@ -178,6 +179,8 @@ export const TIMING = {
   pairStagger: 120,
   /** Exits run 20% faster than entrances. */
   exitFactor: 0.8,
+  /** The stage's one toast (UI gate round 3): the newest live event shows this long, then the Log keeps it. */
+  toast: 3000,
 } as const;
 
 /** Concurrent flight limits (design §3, rule 6). */

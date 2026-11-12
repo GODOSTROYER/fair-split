@@ -47,7 +47,11 @@ describe("token contrast (WCAG 2.x)", () => {
       expect(has("hatch", "hatch", bg, 1.8)).toBe(true);
     }
     expect(has("non-text", "jade-flush-border", "plate", 3)).toBe(true);
-    expect(has("non-text", "canary-border", "plate", 3)).toBe(true);
+    // Round 2: the one amber always sits beside its word and glyph; it must still read on video.
+    expect(has("amber", "canary-border", "plate", 1.8)).toBe(true);
+    for (const fg of ["statement-ink", "statement-ink-2"])
+      for (const bg of ["ground", "plate", "plate-2"])
+        expect(has("statement", fg, bg, 7), `${fg}/${bg}`).toBe(true);
   });
 
   it("covers design direction v2's six rules in both themes (ADR-0016, decision.md §10)", () => {
@@ -62,7 +66,7 @@ describe("token contrast (WCAG 2.x)", () => {
     expect(has("wash", "jade-text", "jade-wash", 4.5)).toBe(true);
     expect(has("wash", "canary-text", "canary-wash", 4.5)).toBe(true);
     for (const bg of ["ground", "plate", "plate-2"]) expect(has("non-text", "steel-line", bg, 3)).toBe(true);
-    expect(has("non-text", "canary-border", "canary-wash", 3)).toBe(true);
+    expect(has("amber", "canary-border", "canary-wash", 1.8)).toBe(true);
     expect(has("non-text", "pod", "pod-wash", 3)).toBe(true);
   });
 
@@ -94,7 +98,9 @@ describe("token contrast (WCAG 2.x)", () => {
       }
     }
     expect(nearest(RESOLVED.adlaw.pod.hex)).toBeCloseTo(13.6, 1);
-    expect(nearest(RESOLVED.adlaw.canary.hex)).toBeCloseTo(7.4, 1);
+    // Round 6: Hayag's canary is the ballpoint indigo (no amber); Gabii keeps its marigold.
+    expect(nearest(RESOLVED.adlaw.canary.hex)).toBeCloseTo(13.6, 1);
+    expect(nearest(RESOLVED.tablea.canary.hex)).toBeCloseTo(7.4, 1);
     expect(nearest(RESOLVED.adlaw.jade.hex)).toBeCloseTo(20.6, 1);
   });
 

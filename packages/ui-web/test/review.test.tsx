@@ -45,14 +45,39 @@ const declared = (selector: string) =>
   rules.filter((r) => r.selector.replace(/\s+/g, " ") === selector).map((r) => r.decls);
 
 describe("the stylesheet after the review", () => {
-  it("prints a solid amount once: the hollow outline paints nothing once the solid layer shows", () => {
-    const solid = declared('.fs-amount[data-state="solid"] .fs-amount__hollow');
-    expect(solid.map((d) => d["-webkit-text-stroke-color"])).toContain("transparent");
-    // While the outline shows, the fill takes its tabular advances so it lands on the outline.
-    const filling = declared(
-      '.fs-amount:is([data-state="hollow"], [data-state="filling"]) .fs-amount__solid',
-    );
-    expect(filling.map((d) => d["font-variant-numeric"])).toContain("lining-nums tabular-nums");
+  it("prints every amount once, solid ink, never in outline (UI gate round 2: one hero numeral)", () => {
+    expect(declared(".fs-amount__hollow").map((d) => d.visibility)).toContain("hidden");
+    expect(declared(".fs-amount__solid").map((d) => d.color)).toContain("var(--fs-ink)");
+    for (const r of rules) {
+      expect(r.decls["-webkit-text-stroke"], r.selector).toBeUndefined();
+      expect(r.decls["font-family"] ?? "", r.selector).not.toContain("hollow");
+    }
+  });
+
+  it("one flat primary and one outline secondary: radius 12, 48 px, no lip, no glow, no bolts (round 2)", () => {
+    const face = declared(".fs-slab__face")[0];
+    expect(face?.["border-radius"]).toBe("var(--fs-radius-control)");
+    expect(face?.["min-height"]).toBe("48px");
+    expect(face?.["box-shadow"]).toBe("none");
+    expect(declared('.fs-slab[data-size="l"] .fs-slab__face')[0]?.["min-height"]).toBe("48px");
+    expect(declared(".fs-slab__edge--b").map((d) => d.display)).toContain("none");
+    expect(declared(".fs-slab__bolt").map((d) => d.display)).toContain("none");
+    const flat = declared(".fs-flat")[0];
+    expect(flat?.["border-radius"]).toBe("var(--fs-radius-control)");
+    expect(flat?.["box-shadow"]).toBe("none");
+    expect(declared('.fs-flat[data-size="l"]')[0]?.["min-height"]).toBe("48px");
+    // No coloured blur anywhere in the stylesheet: no shadow names a slab colour.
+    for (const r of rules)
+      expect(r.decls["box-shadow"] ?? "", r.selector).not.toMatch(/--glow|slab-(jade|chalk)/);
+  });
+
+  it("draws the honesty tag as one design: 20 px, dashed steel, ink-3 words, never bold", () => {
+    const tag = declared(".fs-honesty")[0];
+    expect(tag?.height).toBe("20px");
+    expect(tag?.border).toBe("1px dashed var(--fs-steel-line)");
+    expect(tag?.color).toBe("var(--fs-ink-3)");
+    expect(tag?.["font-weight"]).toBeUndefined();
+    expect(tag?.["white-space"]).toBe("nowrap");
   });
 
   it("keeps the pod focus ring on a committed jade slab and on the selected receipt segment (WCAG 2.4.7)", () => {
@@ -65,12 +90,36 @@ describe("the stylesheet after the review", () => {
         expect(d["outline-offset"], selector).toBeUndefined();
       }
     }
-    const dashed = declared('.fs-slab[data-tone="jade"][data-state="committed"] .fs-slab__face::after');
-    expect(dashed.map((d) => d.border)).toContain("1.5px dashed var(--fs-jade-flush-border)");
-    const ring = rules.find(
-      (r) => r.selector.includes(".fs-slab__face") && r.selector.endsWith(":focus-visible"),
-    );
-    expect(ring?.decls.outline).toBe("var(--fs-focus-width) solid var(--fs-pod)");
+    // Round 3: dashed means simulated only, and jade is only money the simulated PayPal confirmed, so a signed batch
+    // on its way is a solid neutral hairline.
+    const line = declared('.fs-slab[data-tone="jade"][data-state="committed"] .fs-slab__face::after');
+    expect(line.map((d) => d.border)).toContain("1px solid var(--fs-rule-strong)");
+    const ring = declared(":where(*):focus-visible")[0];
+    expect(ring?.outline).toBe("var(--fs-focus-width) solid var(--fs-pod)");
+    expect(ring?.["outline-offset"]).toBe("var(--fs-focus-offset)");
+  });
+
+  it("one focus ring (round 3): every focusable thing, on :focus-visible only, and no second ring anywhere", () => {
+    expect(declared(":where(*):focus:not(:focus-visible)")[0]?.outline).toBe("none");
+    for (const r of rules) {
+      if (r.selector === ":where(*):focus-visible") continue;
+      if (/:focus(-visible|-within)?\b/.test(r.selector)) {
+        expect(r.decls.outline ?? "none", r.selector).toMatch(/^none$|var\(--fs-pod\)/);
+        expect(r.decls["box-shadow"] ?? "", r.selector).not.toMatch(/--fs-pod/);
+      }
+    }
+  });
+
+  it("dashed lines mean simulated only (round 3): in flight, sent and the rail bar are solid", () => {
+    for (const r of rules) {
+      const border = `${r.decls.border ?? ""} ${r.decls.outline ?? ""}`;
+      if (!/dashed/.test(border)) continue;
+      // Round 5: the planned PayPal swatch is the simulated sandbox's money before it confirms, so it is dashed.
+      expect(r.selector, r.selector).toMatch(
+        /fs-honesty|fs-microtag|fs-dial|fs-seal|fs-you|fs-print|fs-swatch\[data-kind="planned"\]/,
+      );
+    }
+    expect(declared('.fs-chip[data-tone="flight"]')[0]?.border).toBe("1px solid var(--fs-rule-strong)");
   });
 
   it("plays the jade halo only on a live flip, never on a chip or capsule that mounted paid", () => {
@@ -79,9 +128,11 @@ describe("the stylesheet after the review", () => {
     for (const r of animated) expect(r.selector, r.selector).toContain("[data-flip]");
   });
 
-  it("tags synthetic samples on the yellow copy, with a small radius", () => {
+  it("marks synthetic paper with the legend glyph on a white chip, bottom left (round 3: no yellow sticker)", () => {
     const tag = declared(".fs-paper__tag")[0];
-    expect(tag?.background).toBe("var(--fs-copy-yellow)");
+    expect(tag?.background).toBe("color-mix(in srgb, var(--fs-plate) 90%, transparent)");
+    expect(tag?.bottom).toBe("8px");
+    expect(tag?.left).toBe("8px");
     expect(tag?.["border-radius"]).toBe("4px");
     expect(tag?.["box-shadow"]).toBeUndefined();
   });
@@ -166,5 +217,71 @@ describe("the dial's reading", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("the stylesheet after round 3 (docs/DESIGN.md)", () => {
+  it("jade is only money the simulated PayPal confirmed: a paid chip, capsule, dot or rail share", () => {
+    for (const r of rules) {
+      const jade = Object.values(r.decls).some((v) => /--fs-jade(?!-halo)/.test(v));
+      if (jade) expect(r.selector, r.selector).toMatch(/jade|paid|confirmed|capsule__flood/);
+    }
+  });
+
+  it("every number is set in tabular figures: nothing asks for proportional ones", () => {
+    for (const r of rules)
+      expect(r.decls["font-variant-numeric"] ?? "", r.selector).not.toMatch(/proportional/);
+    expect(declared(":root").some((d) => d["font-variant-numeric"] === "tabular-nums lining-nums")).toBe(
+      true,
+    );
+  });
+
+  it("themes the browser's own surfaces: selection, caret, native controls and scrollbars", () => {
+    expect(declared("::selection")[0]).toMatchObject({
+      background: "var(--fs-pod-wash)",
+      color: "var(--fs-ink)",
+    });
+    const root = declared(":root").find((d) => d["caret-color"]);
+    expect(root).toMatchObject({ "caret-color": "var(--fs-pod)", "accent-color": "var(--fs-pod)" });
+    expect(declared("*")[0]).toMatchObject({ "scrollbar-width": "thin" });
+  });
+
+  it("a surface is lifted by a border or by a shadow, never both", () => {
+    for (const r of rules) {
+      const shadow = /--fs-shadow-e\d/.test(r.decls["box-shadow"] ?? "");
+      const border = r.decls.border ?? "";
+      if (shadow) expect(border === "" || /^(0|none)$/.test(border), r.selector).toBe(true);
+    }
+  });
+
+  it("the seal: unsigned rings a 1 px neutral circle, every signed ring indigo (key 1 the inner half)", () => {
+    expect(declared(".fs-seal__band")[0]?.stroke).toBe("var(--fs-unsigned)");
+    expect(declared(".fs-seal__ring")[0]?.stroke).toBe("var(--fs-pod)");
+    for (const r of rules) {
+      if (/fs-seal__ring/.test(r.selector)) expect(r.decls.stroke ?? "", r.selector).not.toMatch(/--fs-ink/);
+    }
+  });
+
+  it("the dial reads in ink inside the limit and over it: no amber on the dial (round 6); indigo stays action", () => {
+    expect(declared(".fs-dial__needle")[0]?.stroke).toBe("var(--fs-ink)");
+    // Over the limit is the machine's reading, not a person's decision: the arc past the tick is ink, the needle and
+    // its hub keep their ink, and the old reading's ghost is neutral. Amber stays a hold's dot and tag.
+    expect(declared(".fs-dial[data-over] .fs-dial__needle")).toEqual([]);
+    expect(declared(".fs-dial[data-over] .fs-dial__hub")).toEqual([]);
+    expect(declared(".fs-dial__over")[0]?.stroke).toBe("var(--fs-ink-3)");
+    expect(declared(".fs-dial[data-over] .fs-dial__over")[0]?.stroke).toBe("var(--fs-ink)");
+    expect(declared(".fs-dial__ghost")[0]?.stroke).toBe("var(--fs-ink-3)");
+  });
+
+  it("numerals keep the text's width (round 6: one numeral face, no condensed cut on a figure)", () => {
+    const sheet = readFileSync(resolve(__dirname, "../src/styles.css"), "utf8").replace(
+      /\/\*[\s\S]*?\*\//g,
+      "",
+    );
+    expect(sheet).not.toMatch(/font-stretch:\s*87\.5%/);
+  });
+
+  it("no dot-matrix rules are left", () => {
+    for (const r of rules) expect(r.selector, r.selector).not.toMatch(/fs-dm\b|fs-dm__/);
   });
 });

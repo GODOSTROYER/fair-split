@@ -11,6 +11,7 @@ import {
   HoldCard,
   type HoldView,
   HonestyChip,
+  HonestyTag,
   isFinalHoldState,
   MassBalanceDial,
   MomentRoot,
@@ -224,7 +225,10 @@ describe("ReceiptBar", () => {
     expect(screen.getByTestId("rb.premium").getAttribute("aria-label")).toBe(
       "Premium, forty-three dollars and sixty-nine cents, walay kaltas",
     );
-    expect(screen.getByTestId("rb.rule:cbu").textContent).toContain("R1, BR 2026-04");
+    // Round 5: no ids for people. The chip reads its amount; the rule and its resolution are its title.
+    const rule = screen.getByTestId("rb.rule:cbu");
+    expect(rule.textContent).not.toContain("R1");
+    expect(rule.querySelector(".fs-rule-chip")?.getAttribute("title")).toBe("Rule R1, BR 2026-04");
   });
 });
 
@@ -261,7 +265,7 @@ describe("HoldCard", () => {
     render(wrap(<HoldCard hold={hold} gate="BLOCKS_APPROVAL" actions={actions()} testId="h1" />));
     const card = screen.getByTestId("h1");
     expect(card.dataset).toMatchObject({ state: "open", gate: "BLOCKS_APPROVAL" });
-    expect(screen.getByTestId("h1.gate").textContent).toBe("Blocks approval. Changes kilos.");
+    expect(screen.getByTestId("h1.gate").textContent).toBe("Blocks approval");
     expect(card.querySelector('[data-voice="seeded"] [data-state="pencil"]')?.textContent).toContain(
       "pink copy",
     );
@@ -390,7 +394,8 @@ describe("HoldCard", () => {
     fireEvent.pointerUp(face(), { button: 0, pointerId: 1 });
     expect(screen.getByTestId("h1.once").dataset).toMatchObject({ state: "committed", busy: "" });
     // The press lands flush on its lip (d2: 5 px straight down) a frame later.
-    await waitFor(() => expect(face().style.transform).toBe("translate(0px, 5px)"));
+    // The flat face shows a quarter of d2's 5 px travel (UI gate round 2).
+    await waitFor(() => expect(face().style.transform).toBe("translate(0px, 1.25px)"));
     // The screen shows the POST in flight, then the hold is still open: the 409 refused it.
     rerender(card("resolving"));
     await act(async () => refuse(new Error("409")));
@@ -421,7 +426,7 @@ describe("HoldCard", () => {
       ),
     );
     expect(screen.getByTestId("h1").textContent).toContain("Asked Ernesto");
-    expect(screen.getByTestId("h1.gate").textContent).toBe("Reserves this line only. Never redistributed.");
+    expect(screen.getByTestId("h1.gate").textContent).toBe("Reserves this line");
   });
 });
 
@@ -488,7 +493,7 @@ describe("status words and money", () => {
     expect(screen.getByTestId("inline").textContent).toBe("US$368.39");
   });
 
-  it("status pills: in flight is the dashed jade tone, confirmed is flush jade, cash is hatch, held is marigold", () => {
+  it("status pills: in flight is the neutral flight tone, confirmed is flush jade, cash is hatch, held is marigold", () => {
     render(
       wrap(
         <>
@@ -511,12 +516,15 @@ describe("status words and money", () => {
     expect(screen.getByTestId("chip").textContent).toBe("Sending");
   });
 
-  it("the honesty chip keeps its words and a flask glyph hidden from assistive technology", () => {
+  it("the honesty tag keeps its words and a dashed circle hidden from assistive technology", () => {
     render(wrap(<HonestyChip testId="hc">Simulated PayPal sandbox</HonestyChip>));
     const chip = screen.getByTestId("hc");
     expect(chip.textContent).toBe("Simulated PayPal sandbox");
     expect(chip.classList.contains("fs-honesty")).toBe(true);
+    expect(chip.classList.contains("fs-t-micro")).toBe(false);
     expect(chip.querySelector("svg")?.getAttribute("aria-hidden")).toBe("true");
+    expect(chip.querySelector("svg circle")?.getAttribute("stroke-dasharray")).toBe("2 1.6");
+    expect(HonestyTag).toBe(HonestyChip);
   });
 
   it("the paid capsule is flush jade; the sent capsule keeps its 5 px inset", () => {

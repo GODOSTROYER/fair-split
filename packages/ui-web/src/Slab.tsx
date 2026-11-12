@@ -1,7 +1,7 @@
-// Slab: a human commit (design §2.5, S2 §2.5, §2.7; ADR-0016). A radius-14 face with a 1 px inner top highlight
-// on a bottom lip whose depth equals the consequence: d1 3 px reversible, d2 5 px changes a line, d3 8 px moves
-// money or signs. The lip is the tone's `-right` shade with a 1 px `-bottom` under-edge and a soft drop in the
-// face's colour. Pressing moves the face down by its lip (t px), transform-only; the lip stays put underneath.
+// Slab: a human commit (design §2.5, S2 §2.5, §2.7; ADR-0016), drawn as the one flat primary button (UI gate
+// round 2): an indigo face, radius 12, 48 px, no lip and no glow. Depth still names the consequence (d1
+// reversible, d2 changes a line, d3 moves money or signs) and drives the press's travel, of which the flat face
+// shows a quarter; pressing darkens the face to its lip shade.
 //
 // Hold slabs (d3) arm on hold and act on release inside (S2 §2.7, WCAG 2.5.2): the face sinks in four ratchet
 // steps over 1,600 ms (1,200 on the Chair's phone), clunks flush and reads "Release to sign"; releasing inside
@@ -100,6 +100,8 @@ export type WebSlabProps = SlabProps<ReactNode> & WebSlabOptions;
 type PressSource = "key" | "virtual" | number;
 
 const STEP_TRAVEL = TIMING.holdStepTravel;
+/** How much of the travel the flat face shows: d3's 8 px reads as a 2 px press. */
+const FACE_TRAVEL = 0.25;
 
 /**
  * Whether a client point is over the slab: the face at rest plus its lip, d px below (and d px of grace to the
@@ -197,8 +199,9 @@ export function Slab(props: WebSlabProps) {
   const fill = useMotionValue(frame?.fill ?? 0);
   const edgeOpacity = useMotionValue(frame?.edgeOpacity ?? (frame?.state === "committed" ? 0 : 1));
   const [stepValue, setStepValue] = useState(frame?.step ?? 0);
-  // The face sinks straight down onto its lip; the lip itself never moves, so a flush face has covered it.
-  const faceTransform = useTransform(travel, (v) => `translate(0px, ${v}px)`);
+  // The face is flat (UI gate round 2): the travel keeps its depth's values (d1 3, d2 5, d3 8, the hold's four
+  // ratchet steps), and the face shows a quarter of it, a 1 to 2 px nudge with no lip under it.
+  const faceTransform = useTransform(travel, (v) => `translate(0px, ${v * FACE_TRAVEL}px)`);
   const fillTransform = useTransform(fill, (v) => `scaleX(${v})`);
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   /** A hold is in progress (pointer, touch, pen or Space down). */

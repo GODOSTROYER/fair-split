@@ -13,23 +13,25 @@ export interface InkStampProps {
   readonly testId?: string;
 }
 
-/** A 20 px indigo stamp (radius 6) with the person's initials in white; the time shows on hover or focus. */
+/**
+ * A 22 px indigo stamp (radius 6) with the person's initials in white; the time shows on hover. It is an image
+ * named in full ("Analyn R. Sumalinog, 10:31"): an <abbr> allows no name (axe aria-prohibited-attr), so some readers
+ * said only the initials.
+ */
 export function InkStamp({ stamp, testId }: InkStampProps) {
+  const full = `${stamp.name}, ${stamp.at}`;
   return (
-    <abbr
-      className="fs-stamp"
-      title={`${stamp.name}, ${stamp.at}`}
-      data-testid={testId}
-      aria-label={`${stamp.name}, ${stamp.at}`}
-    >
-      <span className="fs-t-stamp">{stamp.initials}</span>
-    </abbr>
+    <span className="fs-stamp" role="img" title={full} data-testid={testId} aria-label={full}>
+      <span className="fs-t-stamp" aria-hidden>
+        {stamp.initials}
+      </span>
+    </span>
   );
 }
 
 /**
  * How a status reads: a tone (which material is true now), a glyph and the register's word. "flight" is money on
- * its way: a dashed jade outline that floods to the flush jade face only when the simulated PayPal confirms.
+ * its way: a neutral outline, which turns to the flush jade face only when the simulated PayPal confirms.
  */
 export type ChipTone = "neutral" | "pencil" | "canary" | "flight" | "jade" | "hatch" | "red";
 
@@ -105,23 +107,36 @@ export interface HonestyChipProps {
   readonly children: ReactNode;
   readonly testId?: string;
   readonly className?: string;
+  /**
+   * The top bar's one quiet indicator (UI gate round 3): the dashed circle and the words, with no outline. Every
+   * other place uses MicroTag (PayPal money) or a LegendGlyph (anything else).
+   */
+  readonly quiet?: boolean;
 }
 
 /**
- * Every simulated or seeded thing carries this chip (I8): a dashed steel outline means "not real, or not yet"
- * (decision.md §4), a flask in ink-3, the words in ink-2, pill radius.
+ * The honesty tag (I8; unslop spec §2.2): a 20 px pill in a dashed steel outline (simulated), a 10 px dashed
+ * circle, the words at 12/16 in ink-3; `quiet`, the words at 14/20 with no outline. Round 3 keeps it for the top
+ * bar's one quiet indicator: a PayPal money value takes MicroTag, any other provenance a LegendGlyph. It counts
+ * against the screen's tag budget (TAG_BUDGET: three at most, honesty.tsx).
  */
-export function HonestyChip({ children, testId, className }: HonestyChipProps) {
+export function HonestyChip({ children, testId, className, quiet = false }: HonestyChipProps) {
   return (
-    <span className={["fs-honesty fs-t-caption", className].filter(Boolean).join(" ")} data-testid={testId}>
-      <svg className="fs-honesty__flask" width={14} height={14} viewBox="0 0 24 24" aria-hidden>
-        <path
-          d="M9 3h6M10 3v6.2L4.6 18.4A1.7 1.7 0 0 0 6.1 21h11.8a1.7 1.7 0 0 0 1.5-2.6L14 9.2V3M7.2 15h9.6"
+    <span
+      className={["fs-honesty", className].filter(Boolean).join(" ")}
+      data-testid={testId}
+      data-fs-tag={quiet ? "bar" : "tag"}
+      data-quiet={quiet ? "" : undefined}
+    >
+      <svg className="fs-honesty__glyph" width={10} height={10} viewBox="0 0 10 10" aria-hidden>
+        <circle
+          cx={5}
+          cy={5}
+          r={4}
           fill="none"
           stroke="currentColor"
-          strokeWidth={2}
-          strokeLinecap="round"
-          strokeLinejoin="round"
+          strokeWidth={1.25}
+          strokeDasharray="2 1.6"
         />
       </svg>
       <span>{children}</span>
@@ -129,17 +144,39 @@ export function HonestyChip({ children, testId, className }: HonestyChipProps) {
   );
 }
 
+/** The honesty tag under its design name; the same component as `HonestyChip`. */
+export const HonestyTag = HonestyChip;
+
 export interface RuleChipProps {
+  /** What is deducted, as people say it ("CBU"). */
   readonly name: string;
+  /** The amount, already signed and formatted ("−1.37"). */
   readonly amount: string;
+  /** The rule's id ("R1"): its title and its accessible name, never on the chip (round 5: no ids for people). */
   readonly rule: string;
+  /** The rule in a few words ("CBU 5% of bonus"), after the id in the title. */
+  readonly ruleText?: string;
 }
 
-/** Deductions use plate-2 with the rule ID written in text; they get no hue of their own. */
-export function RuleChip({ name, amount, rule }: RuleChipProps) {
+/** A rule chip's title: "Rule R1 · CBU 5% of bonus" (the rule's id lives here, never on the chip). */
+export function ruleChipTitle(rule: string, ruleText?: string): string {
+  return ruleText ? `Rule ${rule} · ${ruleText}` : `Rule ${rule}`;
+}
+
+/**
+ * A deduction reads "CBU −1.37" (round 5): plate-2, no hue of its own. The rule's id and words are its title and
+ * part of its accessible name, where a technical reader looks for them.
+ */
+export function RuleChip({ name, amount, rule, ruleText }: RuleChipProps) {
+  const title = ruleChipTitle(rule, ruleText);
   return (
-    <span className="fs-rule-chip fs-t-figure">
-      {name} {amount} <span className="fs-rule-chip__id">{rule}</span>
+    <span
+      className="fs-rule-chip fs-t-figure"
+      title={title}
+      role="img"
+      aria-label={`${name} ${amount}, ${title}`}
+    >
+      {name} {amount}
     </span>
   );
 }
@@ -189,15 +226,18 @@ export interface PaperProps {
   readonly className?: string;
 }
 
-/** Evidence: the only thing that casts a shadow, tagged "Synthetic sample" in its corner. */
+/**
+ * Evidence: the only thing that casts a shadow. Round 5 (provenance once a screen): no glyph in its corner; "Synthetic
+ * sample" stays in its accessible name and its title, and the screen's id line says it once for every slip on it.
+ */
 export function Paper({ alt, children, testId, className }: PaperProps) {
   const t = useT();
+  const name = `${alt}. ${t("paper.synthetic")}`;
   return (
-    <figure className={["fs-paper", className].filter(Boolean).join(" ")} data-testid={testId}>
-      <div role="img" aria-label={`${alt}. ${t("paper.synthetic")}`} className="fs-paper__body">
+    <figure className={["fs-paper", className].filter(Boolean).join(" ")} data-testid={testId} title={name}>
+      <div role="img" aria-label={name} className="fs-paper__body">
         {children}
       </div>
-      <figcaption className="fs-paper__tag fs-t-caption">{t("paper.synthetic")}</figcaption>
     </figure>
   );
 }

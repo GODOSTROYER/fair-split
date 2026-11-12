@@ -194,6 +194,10 @@ function ContrastMatrix({
 }
 
 const SPECIMENS: Readonly<Record<TypeRoleName, string>> = {
+  hero: "48/48",
+  title: "Invoice sent. Awaiting payment.",
+  heading: "Where every dollar went",
+  id: "FS-2026A-r37 · 3f1c 1ce6 · 19:04:27 PHT",
   display: "A cacao co-op pays 64 farmers from one brand invoice",
   "amount-hero": "US$368.39",
   "amount-l": "US$17.94",
@@ -201,6 +205,7 @@ const SPECIMENS: Readonly<Record<TypeRoleName, string>> = {
   "title-2": "Slip 0457 counted twice",
   body: "Counting both moves US$17.94 from 63 members to Nong Dioning and puts shrink at 2.05%.",
   figure: "148.0 kg   43.69   21.85   −1.09   64.45",
+  micro: "19:04:27 PHT · M-014 · was 2.05%",
   lede: "Code computes every amount. People settle three holds, two officers sign, PayPal pays.",
   label: "Count it once",
   caption: "Read by Claude (claude-opus-5-5), replay of a recorded run from 29 Oct.",
@@ -216,8 +221,7 @@ const SPECIMENS: Readonly<Record<TypeRoleName, string>> = {
 function TypeSpecimen({ role }: { readonly role: TypeRoleName }) {
   const r = TYPE_ROLES[role];
   const text = role === "hash" ? hashPrefix(RATE_CARD_SHA256, 4) : SPECIMENS[role];
-  const family =
-    r.family === "statement" ? "Atkinson Hyperlegible Next" : r.family === "mark" ? "FS Stencil" : "FS Sans";
+  const family = r.family === "mono" ? "the platform mono" : "FS Sans";
   return (
     <div className="tok-type" data-testid={`W-DP-01.type.${role}`}>
       <p className="tok-type__meta fs-t-caption">
@@ -340,7 +344,7 @@ export function TokensPage() {
 
       <Section
         title="Type"
-        brief="Mona Sans (as FS Sans) for the interface and every number, Atkinson Hyperlegible Next for statement prose, Big Shoulders Stencil for season and lot marks only. No monospace anywhere."
+        brief="One family and one mono (UI gate round 3): Mona Sans (as FS Sans) for every heading, label, body line, statement and number, numbers in tabular figures; the platform mono for hashes, IDs and timestamps only. Five steps: 12 (the mono), 14, 16, 24, 56."
         testId="W-DP-01.type"
       >
         <div className="tok-types">
@@ -352,19 +356,19 @@ export function TokensPage() {
 
       <Section
         title="The zero and the peso"
-        brief="Amounts read as money: proportional lining figures with a plain zero, and the US$ prefix at half size, raised. Tabular figures (Mona’s slashed zero) stay only for hashes and grid columns that align on the decimal. The peso sign comes from Noto Sans, joined to FS Sans for that glyph alone."
+        brief="Every number is tabular (one money style: Mona’s slashed zero, as the phone’s static cuts have it), with the US$ prefix at half size, raised. Hashes and IDs are the mono. The peso sign comes from Noto Sans, joined to FS Sans for that glyph alone."
         testId="W-DP-01.zero"
       >
         <div className="tok-zero">
           <div>
-            <p className="fs-t-caption tok-muted">Hashes and aligned columns: tabular, slashed zero</p>
+            <p className="fs-t-caption tok-muted">Hashes and IDs: the mono; amounts: tabular</p>
             <p className="fs-t-hash">
               {SEASON.invoiceNumber} {hashPrefix(RATE_CARD_SHA256, 4)} 0403 0457 1,600 ms
             </p>
             <p className="fs-t-amount-l fs-figures">US$4,333.50 ₱270,844</p>
           </div>
           <div>
-            <p className="fs-t-caption tok-muted">Amounts: proportional, US$ raised (the default)</p>
+            <p className="fs-t-caption tok-muted">Amounts: tabular, US$ raised (the default)</p>
             <p className="fs-t-amount-l">
               <span className="fs-cur">US$</span>4,333.50 ₱270,844
             </p>

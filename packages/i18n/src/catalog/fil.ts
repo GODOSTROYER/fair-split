@@ -66,7 +66,7 @@ export const fil = {
   "slab.holdUntilClick": "Pindutin nang matagal hanggang mag-click",
   "slab.release": "Bitawan para pumirma",
   "slab.nothingSigned": "Walang napirmahan.",
-  "slab.altRoute": "Hindi mapindot nang matagal? Pumirma sa ibang paraan",
+  "slab.altRoute": "Ibang paraan ng pagpirma",
   "slab.progress": "{percent}% napindot",
   "confirm.cancel": "Hindi muna",
 } as const satisfies Partial<Catalog>;
