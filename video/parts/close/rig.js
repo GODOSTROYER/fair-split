@@ -44,24 +44,26 @@ const CloseRig = (() => {
   const CAM = [
     { t: 0, x: 0, y: 0, s: 1 },
     { t: 2.35, x: 6, y: 0, s: 1.018 }, // 5,000+ automated tests
-    { t: 4.4, x: 2000, y: 0, s: 1, dip: 0.3 }, // glide
+    { t: 4.45, x: 2000, y: 0, s: 1, dip: 0.3 }, // glide (2.1 s: its peak stays under 36 px a frame, review v6 F17)
     { t: 5.45, x: 2006, y: 0, s: 1.012 }, // 3 kill switches
-    { t: 7.5, x: 4000, y: 0, s: 1, dip: 0.3 }, // glide to the handwritten weigh-slip
-    { t: 7.95, x: 4003, y: 0, s: 1.006 }, // "handwritten." lands beside the whole slip
-    { t: 9.6, x: 4343, y: 42.8, s: 2.5, log: true }, // push in about 2.5x on the Net row: 38.45 and its box
-    { t: 10.45, x: 4344.5, y: 43.2, s: 2.54, log: true }, // hold on the hand's box
+    // the exit glide is about a second (review v4 item 5): 794 px, so its peak stays under 36 px a frame; the slip
+    // waits just outside the frame's right edge while the 3 holds, and everything after it sits 1,200 px nearer
+    { t: 6.5, x: 2800, y: 0, s: 1, dip: 0.3 }, // glide to the handwritten weigh-slip
+    { t: 7.95, x: 2803, y: 0, s: 1.006 }, // "handwritten." lands beside the whole slip
+    { t: 9.6, x: 3143, y: 42.8, s: 2.5, log: true }, // push in about 2.5x on the Net row: 38.45 and its box
+    { t: 10.45, x: 3144.5, y: 43.2, s: 2.54, log: true }, // hold on the hand's box
     // the limits follow the recorded voice (ADR-0018): four objects in ten seconds, "generated." merged into
     // "synthetic." (review v4 item 3), the people and the slip images side by side on one station
-    { t: 12.45, x: 5444, y: -10, s: 1, log: true, sf: 0.6, dip: 0.15 }, // pull out (scale first), glide: simulated.
-    { t: 15.0, x: 5450, y: -10, s: 1.012 }, // "...simulated sandbox; no real farmer was paid."
-    { t: 16.3, x: 6693, y: -10, s: 1, dip: 0.3 }, // synthetic.: the 64 dots and the slip images
-    { t: 17.7, x: 6697, y: -10, s: 1.008 },
-    { t: 18.5, x: 6993, y: 40, s: 1.03 }, // replayed.: a short push to the slips as the reading lifts out of them
-    { t: 19.0, x: 6996, y: 40, s: 1.032 },
-    { t: 20.3, x: 8237, y: -10, s: 1, dip: 0.3 }, // synthesized.: the statement's voice
-    { t: 21.0, x: 8241, y: -10, s: 1.006 },
-    { t: 23.05, x: 10137, y: 0, s: 1, dip: 0.3 }, // glide into the overview: the trace, the end line, the name
-    { t: 32.0, x: 10145, y: 0, s: 1.025 },
+    { t: 12.45, x: 4244, y: -10, s: 1, log: true, sf: 0.6, dip: 0.15 }, // pull out (scale first), glide: simulated.
+    { t: 15.0, x: 4250, y: -10, s: 1.012 }, // "...simulated sandbox; no real farmer was paid."
+    { t: 16.3, x: 5493, y: -10, s: 1, dip: 0.3 }, // synthetic.: the 64 dots and the slip images
+    { t: 17.7, x: 5497, y: -10, s: 1.008 },
+    { t: 18.5, x: 5793, y: 40, s: 1.03 }, // replayed.: a short push to the slips as the reading lifts out of them
+    { t: 19.0, x: 5796, y: 40, s: 1.032 },
+    { t: 20.3, x: 7037, y: -10, s: 1, dip: 0.3 }, // synthesized.: the statement's voice
+    { t: 21.0, x: 7041, y: -10, s: 1.006 },
+    { t: 23.05, x: 8937, y: 0, s: 1, dip: 0.3 }, // glide into the overview: the trace, the end line, the name
+    { t: 32.0, x: 8945, y: 0, s: 1.025 },
   ];
   function camAt(tc) {
     if (tc <= CAM[0].t) return CAM[0];
@@ -90,11 +92,14 @@ const CloseRig = (() => {
   // an object in and out with the move, so none lingers at an edge (STYLE §4). `focus` blurs, greys and fades the
   // object's `.fx-base` image and keeps a sharp `.fx-sharp` copy inside a soft ellipse [cx, cy, rx, ry, inner %]
   // (object px): small text is blurred out of reading, the one figure that matters stays sharp.
+  // `ew` is the width that carries ink (object px), for the edge fade when it is narrower than the object's box.
   const WORLD = {
-    tests: { x: 0, y: -20, w: 1600, h: 400, sc: 1 },
-    kill: { x: 2000, y: -20, w: 1600, h: 400, sc: 1 },
+    // the figures: 5,000+ inside its tick ring (782 px across), 3 over its three switches
+    tests: { x: 0, y: -20, w: 1600, h: 400, sc: 1, ew: 782 },
+    // the 3 leaves with the exit glide, faded before it reaches the frame's edge (STYLE §4, review v4 items 5, 7)
+    kill: { x: 2000, y: -20, w: 1600, h: 400, sc: 1, ew: 420, vis: [0, 0, 5.85, 6.2] },
     slip: {
-      x: 4440,
+      x: 3240,
       y: 92,
       w: 600,
       h: 732,
@@ -104,21 +109,24 @@ const CloseRig = (() => {
       rx: 1.5,
       rot: -1.2,
       ph: 0.4,
-      vis: [0, 0, 11.2, 11.55],
+      // it comes in over the right edge as the exit glide carries it in (5.6-5.95), never cut off at full strength
+      vis: [5.6, 5.95, 11.2, 11.55],
       focus: {
         f: slipFocus,
         vf: slipEdges,
-        blur: 3.6,
+        blur: 4.6,
         fade: 0.6,
         keep: 0.3,
         sat: 0.5,
-        sharp: [289, 364.5, 98, 58, 42],
+        // the sharp band is the Net row alone (review v4 item 4): 38.45 (slip px 257-318 x 357-373) stays sharp,
+        // the row's own rules (347, 380) soften, and 0.30 above it and 6.8 below it are only in the blurred base
+        sharp: [288, 364.5, 92, 24, 55],
         vig: [300, 388, 430, 340],
       },
     },
     // simulated.: the payout, the peso card's "Paid US$64.45" at 36 px and more (the rest of the sum blurred)
     peso: {
-      x: 5484,
+      x: 4284,
       y: 110,
       w: 692,
       h: 192,
@@ -132,10 +140,10 @@ const CloseRig = (() => {
       focus: { blur: 7, fade: 0.35, sat: 1, sharp: [502, 62, 112, 56, 62] },
     },
     // synthetic.: the co-op's 64 members, the opening's dots gathered once more into a ring, beside the slip images
-    dots: { x: 6373, y: 90, w: 560, h: 560, sc: 1, ph: 2.9, vis: [15.0, 15.0, 17.8, 18.3] },
+    dots: { x: 5173, y: 90, w: 560, h: 560, sc: 1, ph: 2.9, vis: [15.0, 15.0, 17.8, 18.3] },
     // synthetic.: three slip images, made in code; replayed.: the reading lifts out of the front one
     fan: {
-      x: 7033,
+      x: 5833,
       y: 100,
       w: 820,
       h: 640,
@@ -148,7 +156,7 @@ const CloseRig = (() => {
       vis: [15.0, 15.0, 19.9, 20.3],
     },
     read: {
-      x: 6993,
+      x: 5793,
       y: 250,
       w: 960,
       h: 200,
@@ -161,11 +169,11 @@ const CloseRig = (() => {
       vis: [17.6, 17.6, 19.9, 20.3],
     },
     // synthesized.: the member's statement, said aloud; the glide into the overview carries it off the frame
-    wave: { x: 8407, y: 110, w: 1000, h: 280, sc: 1, vis: [19.0, 19.4] },
+    wave: { x: 7207, y: 110, w: 1000, h: 280, sc: 1, vis: [19.0, 19.4] },
     // the overview: slip -> phone on one gentle line, in the order the data flows (STYLE §4); the slip is blurred
     // out of reading and only her US$64.45 stays sharp on the phone
     oslip: {
-      x: 9837,
+      x: 8637,
       y: 20,
       w: 600,
       h: 732,
@@ -178,7 +186,7 @@ const CloseRig = (() => {
       focus: { blur: 4, fade: 0.08, sat: 0.5 },
     },
     phone: {
-      x: 10457,
+      x: 9257,
       y: -5,
       w: 355,
       h: 822.5,
@@ -320,9 +328,16 @@ const CloseRig = (() => {
       const vis = o.vis
         ? Math.min(prog(tc, o.vis[0], o.vis[1]), o.vis.length > 2 ? 1 - prog(tc, o.vis[2], o.vis[3]) : 1)
         : 1;
-      const live = inFrame && vis > 0.002;
+      // an object the camera carries over the frame's left or right edge fades with the move (STYLE §4, review v4
+      // item 7): its opacity falls as its inked width passes the 64 px margin, gone by the time 30% of it is past
+      // the line, so no glide shows a window cut off by the frame at full strength. A close-up wider than the frame
+      // is meant to overflow it and keeps its opacity.
+      const half = ((o.ew ?? o.w) * S) / 2;
+      const over = Math.max(0, 64 - (sx - half), sx + half - 1856);
+      const atEdge = half > 850 ? 1 : 1 - E.sio(clamp01(over / Math.max(180, 0.6 * half)));
+      const live = inFrame && vis * atEdge > 0.002;
       // windows that have left the frame are switched off, so none lingers at an edge (STYLE §4)
-      o.el.style.opacity = live ? vis.toFixed(3) : "0";
+      o.el.style.opacity = live ? (vis * atEdge).toFixed(3) : "0";
       if (!live) return;
       const st = o.st;
       o.el.style.transform = `translate(${sx.toFixed(2)}px, ${sy.toFixed(2)}px) scale(${S.toFixed(4)}) perspective(2200px) rotateY(${st.ry.toFixed(2)}deg) rotateX(${st.rx.toFixed(2)}deg) rotate(${st.rot.toFixed(2)}deg) translateY(${st.bob.toFixed(2)}px)`;
@@ -358,7 +373,7 @@ const CloseRig = (() => {
         L.el.style.transform = `translate(${px.toFixed(1)}px, ${py.toFixed(1)}px)`;
       }
       // the leaf shadows' parallax is slow enough that their 3200 px sheet still covers the frame at the end of
-      // the 11,100 px world line (zero at 143 s, so the joint with the run is unchanged)
+      // the 9,900 px world line (zero at 143 s, so the joint with the run is unchanged)
       const dx = -640 - cx * 0.3 + 26 * Math.sin(TAU * 0.09 * T) - c.x * 0.045;
       const dy = -360 - cy * 0.3 + 14 * Math.sin(TAU * 0.07 * T + 1) - c.y * 0.08;
       dapple.style.transform = `translate(${dx.toFixed(1)}px, ${dy.toFixed(1)}px)`;

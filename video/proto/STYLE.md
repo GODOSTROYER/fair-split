@@ -23,8 +23,9 @@ Canvas 1920 × 1080, 30 fps. Every pixel is computed from the time alone (one pa
   hard cut. The film has one: the reel's "refused." (55.1–56.8 s, `plan.mjs` `ACCENTS` kind `night`). On
   "Try to break it" the lights go out on the reel's own cut (Gabii navy and its glows over the field, every
   earlier window off), the word lands in night ink over the one lit window, the tag turns to its night form,
-  and the day comes back by a focus pull (blur to 16 px, the night lifting under it, sharp again two frames
-  before the bumper). It is the middle's one peak; do not add a second night.
+  and the day comes back by a focus pull (blur to 16 px, sharp again two frames before the bumper) while the night
+  lifts as an iris that opens from the lit window outwards, after the word has gone: the day field stays opaque
+  underneath, so luma only rises and no frame sits in an even mid-grey (review v4 item 2). It is the middle's one peak; do not add a second night.
 - **No dot grids, no new hues.** Depth comes from light, blur and parallax, not from a design-tool canvas.
 
 ## 2. Words on screen

@@ -1,0 +1,131 @@
+<!doctype html>
+<!-- Fair Split film v7, section 5: Before and now, film 102 to 112 s (SCENES C).
+     A split frame at full brightness on both sides. Before: the box of slips, the notebook, "Trust". Now: five
+     ticks, then "53.6 s" (facts.md section 5: first press to the payout request, in our demo). No duration is ever
+     stated for "before". The frame is built by compare() below; s6-architecture.html carries the same function
+     (copied verbatim between the COMPARE markers) so its first frame equals this section's last.
+     The slip box, notebook and ticks are SCENES A's objects (assets/objects). Structure and rules: CONTRACT.md. -->
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+  </head>
+  <body>
+    <template>
+      <style>
+        #root {
+          position: absolute;
+          inset: 0;
+          overflow: hidden;
+          background: #f7f8fb;
+        }
+      </style>
+
+      <div id="root" data-composition-id="s5-compare" data-width="1920" data-height="1080" data-duration="10"></div>
+
+      <script>
+        (() => {
+          /* COMPARE:START (keep identical in s5-compare.html and s6-architecture.html) */
+          const compare = (host, p) => {
+            const css = `
+.${p}-cmp{position:absolute;left:0;top:0;width:1920px;height:1080px;margin:0;will-change:transform}
+.${p}-cmp-k{position:absolute;margin:0;font-size:40px;font-weight:650;line-height:48px;letter-spacing:-0.015em;color:#5b6475;white-space:nowrap}
+.${p}-cmp-big{position:absolute;margin:0;font-size:132px;font-weight:680;line-height:1;letter-spacing:-0.035em;color:#0e1525;white-space:nowrap;font-variant-numeric:tabular-nums lining-nums}
+.${p}-cmp-big i{font-style:normal;font-weight:600;letter-spacing:0;margin-left:0.12em}
+.${p}-cmp-w{position:absolute;margin:0;font-size:52px;font-weight:620;line-height:60px;letter-spacing:-0.02em;color:#0e1525;white-space:nowrap}
+.${p}-cmp-note{position:absolute;margin:0;font-size:32px;font-weight:500;line-height:40px;color:#5b6475;white-space:nowrap}
+.${p}-cmp-rule{position:absolute;left:959px;top:150px;width:2px;height:780px;background:#d9dee7;transform-origin:50% 0}
+.${p}-cmp-obj{position:absolute;left:0;top:0}
+`;
+            if (!document.getElementById(`${p}-cmp-style`)) {
+              const style = document.createElement("style");
+              style.id = `${p}-cmp-style`;
+              style.textContent = css;
+              document.head.appendChild(style);
+            }
+            const el = (className, styles = {}, html = "") => {
+              const node = document.createElement("div");
+              node.className = className;
+              Object.assign(node.style, styles);
+              if (html) node.innerHTML = html;
+              return node;
+            };
+            const layer = el(`${p}-cmp`);
+            host.appendChild(layer);
+            const add = (node) => layer.appendChild(node);
+            const LEFT = 150;
+            const RIGHT = 1100;
+
+            // before
+            const before = add(el(`${p}-cmp-k`, { left: `${LEFT}px`, top: "150px" }, "Before"));
+            const boxHold = add(el(`${p}-cmp-obj`));
+            boxHold.appendChild(FSO.box({ w: 360, slips: 6, pink: 3, x: LEFT, y: 322 }));
+            const bookHold = add(el(`${p}-cmp-obj`));
+            bookHold.appendChild(
+              FSO.notebook({
+                w: 244,
+                x: LEFT + 420,
+                y: 294,
+                rows: [
+                  { name: 0.4, value: "38.45" },
+                  { name: 0.8, value: "21.90" },
+                  { name: 0.5, value: "64.50" },
+                  { name: 0.2, value: "17.06" },
+                  { name: 0.7, value: "42.10" },
+                ],
+              }),
+            );
+            const trust = add(el(`${p}-cmp-big`, { left: `${LEFT - 6}px`, top: "690px" }, "Trust"));
+
+            // now
+            const rule = add(el(`${p}-cmp-rule`));
+            const now = add(el(`${p}-cmp-k`, { left: `${RIGHT}px`, top: "150px" }, "Now"));
+            const steps = ["Read", "Computed", "Signed", "Paid", "Proven"].map((word, index) => {
+              const y = 238 + index * 76;
+              const mark = FSO.tick({ size: 50, weight: 5.5, color: word === "Paid" ? "#14cc90" : "#4a2fd6", x: RIGHT - 4, y: y + 5 });
+              layer.appendChild(mark);
+              const text = add(el(`${p}-cmp-w`, { left: `${RIGHT + 68}px`, top: `${y}px` }, word));
+              return { mark, text };
+            });
+            const time = add(el(`${p}-cmp-big`, { left: `${RIGHT - 6}px`, top: "690px" }, "53.6<i>s</i>"));
+            const note = add(el(`${p}-cmp-note`, { left: `${RIGHT}px`, top: "842px" }, "payment to payout, in our demo"));
+            return { layer, before, boxHold, bookHold, trust, rule, now, steps, time, note };
+          };
+          /* COMPARE:END */
+
+          const tl = gsap.timeline({ paused: true });
+          const root = document.querySelector('[data-composition-id="s5-compare"]');
+          const c = compare(root, "s5");
+          const E = FILM.ease;
+          const LAST = 9.3; // the finished frame holds still to the cut
+          const at = (text, nth = 1, offset = 0) => Math.min(FILM.at("s5", text, nth, offset), LAST);
+          const rise = (target, position, y = 24, duration = 0.6) =>
+            tl.fromTo(target, { opacity: 0, y }, { opacity: 1, y: 0, duration, ease: E }, Math.min(position, LAST));
+
+          /* "Before: a box of slips, and trust." */
+          rise(c.before, at("Before:"), 16, 0.5);
+          rise(c.boxHold, at("Before:", 1, 0.1), 32, 0.7); // with the heading, so "Before" never stands alone
+          rise(c.bookHold, at("slips", 1, 0.1), 32, 0.7);
+          rise(c.trust, at("trust", 1, -0.1), 28, 0.6);
+
+          /* "Now: one pay run that explains itself." */
+          tl.fromTo(c.rule, { scaleY: 0 }, { scaleY: 1, duration: 0.7, ease: E }, at("Now:", 1, -0.15));
+          rise(c.now, at("Now:"), 16, 0.5);
+          const first = at("one");
+          const pitch = Math.max(0.24, Math.min(0.38, (FILM.atEnd("s5", "itself") - FILM.at("s5", "one")) / 5));
+          c.steps.forEach((step, index) => {
+            const when = Math.min(first + index * pitch, LAST);
+            tl.fromTo(step.mark, { opacity: 0 }, { opacity: 1, duration: 0.01, ease: "none" }, when);
+            FSO.write(tl, step.mark, when, 0.32, { ease: "power2.out" });
+            tl.fromTo(step.text, { opacity: 0, x: -14 }, { opacity: 1, x: 0, duration: 0.5, ease: E }, when + 0.05);
+          });
+
+          /* "In our demo, under a minute." */
+          rise(c.note, at("In"), 12, 0.5);
+          rise(c.time, at("under", 1, -0.1), 28, 0.6);
+
+          window.__timelines["s5-compare"] = tl;
+        })();
+      </script>
+    </template>
+  </body>
+</html>

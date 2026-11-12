@@ -204,11 +204,18 @@
   height: 732px;
   overflow: visible;
 }
-.cf-hl rect {
+/* the hand's box round 38.45 (review v4 item 4): two strokes drawn from the figure's own top-left corner, one over the
+   top and down the right, one down the left and along the bottom, meeting at the far corner; padded inside the Net
+   row's rules, so no stroke ever reads as a line through 0.30 or 6.8 */
+.cf-hl path {
   fill: none;
   stroke: #4a2fd6;
   stroke-width: 4;
   stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1 2;
+  stroke-dashoffset: 1.05;
+  opacity: 0;
 }
 
 /* synthesized.: the member's statement said aloud, an ink wave out of a play disc (rig.js wavePaths) */

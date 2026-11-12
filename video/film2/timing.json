@@ -1,0 +1,80 @@
+{
+  "version": 1,
+  "duration": 179,
+  "canvas": {
+    "width": 1920,
+    "height": 1080
+  },
+  "fps": 30,
+  "outputScale": 2,
+  "sections": [
+    {
+      "id": "s1",
+      "composition": "s1-scenario",
+      "file": "compositions/s1-scenario.html",
+      "title": "Scenario",
+      "start": 0,
+      "duration": 17,
+      "owner": "SCENES A"
+    },
+    {
+      "id": "s2",
+      "composition": "s2-problem",
+      "file": "compositions/s2-problem.html",
+      "title": "Problem",
+      "start": 17,
+      "duration": 21,
+      "owner": "SCENES A"
+    },
+    {
+      "id": "s3",
+      "composition": "s3-solution",
+      "file": "compositions/s3-solution.html",
+      "title": "Solution and vision",
+      "start": 38,
+      "duration": 15.6,
+      "owner": "SCENES A"
+    },
+    {
+      "id": "s4",
+      "composition": "s4-demo",
+      "file": "compositions/s4-demo.html",
+      "title": "Working today",
+      "start": 53.6,
+      "duration": 48.4,
+      "owner": "SCENES B"
+    },
+    {
+      "id": "s5",
+      "composition": "s5-compare",
+      "file": "compositions/s5-compare.html",
+      "title": "Before and now",
+      "start": 102,
+      "duration": 10,
+      "owner": "SCENES C"
+    },
+    {
+      "id": "s6",
+      "composition": "s6-architecture",
+      "file": "compositions/s6-architecture.html",
+      "title": "Under the hood",
+      "start": 112,
+      "duration": 54,
+      "owner": "SCENES C"
+    },
+    {
+      "id": "s7",
+      "composition": "s7-close",
+      "file": "compositions/s7-close.html",
+      "title": "Close",
+      "start": 166,
+      "duration": 13,
+      "owner": "SCENES C"
+    }
+  ],
+  "audio": {
+    "narration": "audio/narration/<section id>.m4a",
+    "music": "audio/music-bed.wav",
+    "effects": "audio/sfx.wav"
+  }
+}

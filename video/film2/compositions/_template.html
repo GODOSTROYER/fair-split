@@ -1,0 +1,66 @@
+<!doctype html>
+<!-- Fair Split film v7: the shape of a section file (CONTRACT.md). Copy the pattern, not this file's ids.
+     Replace sN / sN-name with your section id and composition id from timing.json, and 17 with its duration.
+     Only what is inside <template> reaches the film: the <head> of this file is dropped. film.css, GSAP and
+     window.FILM come from index.html, so link nothing here. -->
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+  </head>
+  <body>
+    <template>
+      <style>
+        /* The root is styled by #root (HyperFrames scopes it to this section). Everything else: your own
+           sN- prefixed classes and ids, because all seven sections share one page. */
+        #root {
+          position: absolute;
+          inset: 0;
+          overflow: hidden;
+          background: #f7f8fb;
+        }
+        .sN-word {
+          position: absolute;
+          left: 120px;
+          top: 420px;
+        }
+        .sN-window {
+          left: 980px;
+          top: 240px;
+        }
+      </style>
+
+      <div id="root" data-composition-id="sN-name" data-width="1920" data-height="1080" data-duration="17">
+        <h1 id="sN-word" class="sN-word t-head">One invoice</h1>
+        <!-- a product window: FILM.mountStill() sizes it and adds the <img> -->
+        <div id="sN-window" class="window sN-window"></div>
+      </div>
+
+      <script>
+        (() => {
+          const tl = gsap.timeline({ paused: true });
+
+          // 1. Land a reveal on its word. FILM.at() is seconds from this section's start.
+          tl.fromTo(
+            "#sN-word",
+            { opacity: 0, y: 32 },
+            { opacity: 1, y: 0, duration: 0.6, ease: FILM.ease },
+            FILM.at("sN", "invoice"),
+          );
+
+          // 2. Show one element of a still, never above its native pixels, and outline a named box in it.
+          const shot = FILM.mountStill("#sN-window", "p01-invoice.card", { width: 760 });
+          tl.fromTo(
+            "#sN-window",
+            { opacity: 0, y: 40 },
+            { opacity: 1, y: 0, duration: 0.7, ease: FILM.ease },
+            FILM.at("sN", "pays"),
+          );
+          FILM.outline(tl, "#sN-window", shot.rect("amount"), FILM.at("sN", "one"));
+
+          // 3. Register last, under the composition id. The section holds its last frame to the end of its window.
+          window.__timelines["sN-name"] = tl;
+        })();
+      </script>
+    </template>
+  </body>
+</html>

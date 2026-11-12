@@ -129,13 +129,15 @@ window.FairSplitSlots = (() => {
     const colour = INK[a.colour] ?? "#0B1220";
     const at = a.at;
     if (a.kind === "pulse") {
-      // a button press: a ring that pulses twice, 0.8 s each, 0.1 s apart (STYLE §6)
+      // a button press: a ring that pulses twice, 0.8 s each, 0.1 s apart (STYLE §6); once where the recorded
+      // control changes under it a second later (review v6 F10)
       const ring = el("div", "pf-acc pf-acc--ring", win);
       place(ring, a.box);
-      ring.style.borderRadius = `${bh / 2}px`;
+      ring.style.borderRadius = `${Math.min(bh / 2, 24)}px`;
       ring.style.borderColor = colour;
+      const twice = (a.pulses ?? 2) > 1;
       return (T) => {
-        const k = T < at + 0.9 ? 0 : 1;
+        const k = twice && T >= at + 0.9 ? 1 : 0;
         const u = prog(T, at + 0.9 * k, at + 0.9 * k + 0.8);
         const on = T >= at && u < 1;
         ring.style.opacity = on ? (0.95 * (1 - E.p2o(u))).toFixed(3) : "0";
@@ -143,26 +145,20 @@ window.FairSplitSlots = (() => {
       };
     }
     if (a.kind === "hit") {
-      // money that arrived: the element lights jade, and one jade pulse runs out of it
+      // money that arrived: the element lights jade, and one jade ring, the element's own size, runs out of it
+      // (review v6 F10: the ring frames the element alone, never its neighbours)
       const lit = el("div", "pf-acc pf-acc--lit", win);
       place(lit, a.box);
-      const cx = bx + bw / 2;
-      const cy = by + bh / 2;
-      const svg = svgEl(
-        "svg",
-        { class: "pf-acc pf-acc--svg pf-acc--jade", viewBox: `${cx - 220} ${cy - 160} 440 320` },
-        win,
-      );
-      place(svg, [cx - 220, cy - 160, 440, 320]);
-      const ring = svgEl("ellipse", { cx, cy, fill: "none", stroke: INK.jade, "stroke-width": 4 }, svg);
+      const ring = el("div", "pf-acc pf-acc--ring pf-acc--jade", win);
+      place(ring, a.box);
+      ring.style.borderColor = INK.jade;
+      ring.style.borderRadius = `${Math.min(bh / 2, 20)}px`;
       return (T) => {
         const shown = E.p2o(prog(T, at, at + 0.25)) * (1 - E.p2i(prog(T, slot.kwOut, slot.kwOut + 0.3)));
         lit.style.opacity = shown.toFixed(3);
         const u = prog(T, at, at + 0.7);
-        const r = 18 + 92 * E.eo(u);
-        ring.setAttribute("rx", (r * 1.35).toFixed(1));
-        ring.setAttribute("ry", r.toFixed(1));
-        svg.style.opacity = T >= at && u < 1 ? (0.95 * (1 - u)).toFixed(3) : "0";
+        ring.style.opacity = T >= at && u < 1 ? (0.95 * (1 - u)).toFixed(3) : "0";
+        ring.style.transform = `scale(${(1 + 0.22 * E.eo(u)).toFixed(4)})`;
       };
     }
     if (a.kind === "fills") {
@@ -172,24 +168,40 @@ window.FairSplitSlots = (() => {
       const r = Math.min(bh / 2 - 6, (bw / n) * 0.3);
       const svg = svgEl("svg", { class: "pf-acc pf-acc--svg", viewBox: `0 0 ${bw} ${bh}` }, win);
       place(svg, a.box);
-      const items = Array.from({ length: n }, (_, k) => {
-        const cx = (bw / n) * (k + 0.5);
+      // with a capture, each fill sits on the item's own node in the recording (`items`, window pixels inside the
+      // box); the placeholder draws a row of seven
+      const spots = a.items
+        ? a.items.map(([x, y, w, h]) => ({
+            cx: x - bx + w / 2,
+            cy: y - by + h / 2,
+            r: Math.max(5, Math.min(w, h) / 2 + 3),
+          }))
+        : Array.from({ length: n }, (_, k) => ({ cx: (bw / n) * (k + 0.5), cy: bh / 2, r }));
+      const items = spots.map((spot, k) => {
         const ring = svgEl(
           "circle",
-          { cx, cy: bh / 2, r, fill: "none", stroke: "rgba(126,136,152,0.95)", "stroke-width": 3 },
+          {
+            cx: spot.cx,
+            cy: spot.cy,
+            r: spot.r,
+            fill: "none",
+            stroke: "rgba(126,136,152,0.95)",
+            "stroke-width": 3,
+          },
           svg,
         );
-        const fill = svgEl("circle", { cx, cy: bh / 2, r: r - 1.5, fill: INK.jade }, svg);
-        return { ring, fill, t: at + k * a.step };
+        const fill = svgEl("circle", { cx: spot.cx, cy: spot.cy, r: spot.r - 1.5, fill: INK.jade }, svg);
+        return { ring, fill, spot, t: at + k * a.step };
       });
       return (T) => {
         svg.style.opacity = E.p2o(prog(T, slot.kwIn + 0.3, slot.kwIn + 0.8)).toFixed(3);
         for (const item of items) {
           const u = E.p2o(prog(T, item.t, item.t + 0.25));
+          const { cx, cy } = item.spot;
           item.fill.style.opacity = u.toFixed(3);
           item.fill.setAttribute(
             "transform",
-            `translate(${item.fill.getAttribute("cx")} ${bh / 2}) scale(${(0.6 + 0.4 * u).toFixed(3)}) translate(${-item.fill.getAttribute("cx")} ${-bh / 2})`,
+            `translate(${cx} ${cy}) scale(${(0.6 + 0.4 * u).toFixed(3)}) translate(${-cx} ${-cy})`,
           );
           item.ring.setAttribute("stroke", u > 0.5 ? INK.jade : "rgba(126,136,152,0.95)");
         }
@@ -206,10 +218,127 @@ window.FairSplitSlots = (() => {
       );
       const L = 2 * (bw + bh) + 40;
       rect.setAttribute("stroke-dasharray", `${L} ${L + 40}`);
+      // a box that walks down a list (review v6 F9: each Proof check on its word): it glides to each step's
+      // recorded row (0.35 s), held a moment after the last
+      const steps = a.steps ?? [];
+      const end = steps.length ? steps.at(-1).at + (a.stepHold ?? 1.2) : slot.kwOut;
       return (T) => {
         const u = E.p2io(prog(T, at, at + 0.5));
         rect.setAttribute("stroke-dashoffset", (L * (1 - u) + 20 * (1 - u)).toFixed(1));
-        svg.style.opacity = T < at ? "0" : (1 - E.p2i(prog(T, slot.kwOut, slot.kwOut + 0.3))).toFixed(3);
+        svg.style.opacity = T < at ? "0" : (1 - E.p2i(prog(T, end, end + 0.3))).toFixed(3);
+        if (!steps.length) return;
+        let from = a.box;
+        let to = a.box;
+        let v = 0;
+        for (const step of steps) {
+          if (T < step.at) break;
+          from = to;
+          to = step.box;
+          v = E.p2io(prog(T, step.at, step.at + 0.35));
+        }
+        const [x, y, w, h] = from.map((p, i) => lerp(p, to[i], v));
+        svg.setAttribute("viewBox", `0 0 ${w + 20} ${h + 20}`);
+        place(svg, [x - 10, y - 10, w + 20, h + 20]);
+        rect.setAttribute("width", w.toFixed(1));
+        rect.setAttribute("height", h.toFixed(1));
+        if (T >= steps[0].at) {
+          rect.setAttribute("stroke-dasharray", "none");
+          rect.setAttribute("stroke-dashoffset", "0");
+        }
+      };
+    }
+    if (a.kind === "trace" && a.chips) {
+      // her net pay traced to her four slips (review v6 F4): each slip's thread enters the phone from its side and
+      // ends on that slip's own kg chip in the opened breakdown (never across a figure), two slips on each side as the
+      // chips sit two by two; then one jade ring, the size of US$64.45, pulses on her pay inside the screen
+      const sides = [-1, 1, -1, 1];
+      const SLIPS = [
+        { x: -150, y: 250, r: -5 },
+        { x: 480, y: 230, r: 5 },
+        { x: -210, y: 420, r: 4 },
+        { x: 470, y: 420, r: -4 },
+      ];
+      const cards = a.slips.map((serial, i) => {
+        const card = el("div", "pf-acc pf-acc--slip", win);
+        card.style.backgroundImage = `url("proto/assets/slip-${serial}.jpg")`;
+        place(card, [SLIPS[i].x - 55, SLIPS[i].y - 68, 110, 136]);
+        return card;
+      });
+      const svg = svgEl("svg", { class: "pf-acc pf-acc--svg pf-acc--glow", viewBox: "-400 0 1130 760" }, win);
+      place(svg, [-400, 0, 1130, 760]);
+      const defs = svgEl("defs", {}, svg);
+      const grad = svgEl("radialGradient", { id: `${win.id}-light` }, defs);
+      for (const [offset, c] of [
+        [0, "rgba(255,255,255,1)"],
+        [0.25, "rgba(255,255,255,0.9)"],
+        [0.5, "rgba(156,140,255,0.45)"],
+        [1, "rgba(156,140,255,0)"],
+      ])
+        svgEl("stop", { offset, "stop-color": c }, grad);
+      const threads = SLIPS.map((s, i) => {
+        const [cx, cy, cw, ch] = a.chips[i];
+        const end = { x: sides[i] < 0 ? cx - 3 : cx + cw + 3, y: cy + ch / 2 };
+        const start = { x: s.x + sides[i] * -52, y: s.y };
+        const pts = bezier(start, end);
+        const t0 = a.threads + 0.1 * i;
+        const line = svgEl(
+          "path",
+          { fill: "none", stroke: colour, "stroke-width": 4, "stroke-linecap": "round" },
+          svg,
+        );
+        const core = svgEl(
+          "path",
+          { fill: "none", stroke: "rgba(255,255,255,0.35)", "stroke-width": 1.3, "stroke-linecap": "round" },
+          svg,
+        );
+        const node0 = svgEl(
+          "circle",
+          { cx: start.x, cy: start.y, r: 5, fill: "#fff", stroke: colour, "stroke-width": 3 },
+          svg,
+        );
+        const node1 = svgEl(
+          "circle",
+          { cx: end.x, cy: end.y, r: 5, fill: "#fff", stroke: colour, "stroke-width": 3 },
+          svg,
+        );
+        const light = svgEl("circle", { r: 20, fill: `url(#${win.id}-light)` }, svg);
+        return { pts, t0, line, core, node0, node1, light };
+      });
+      const { landed } = a;
+      // the ring frames her pay alone, kept inside the phone's screen
+      const [rx, ry, rw, rh] = [Math.max(6, bx), Math.max(6, by), Math.min(bw, 318 - Math.max(6, bx)), bh];
+      const pulse = el("div", "pf-acc pf-acc--ring pf-acc--jade", win);
+      place(pulse, [rx, ry, rw, rh]);
+      pulse.style.borderColor = INK.jade;
+      pulse.style.borderRadius = `${Math.min(rh / 2, 14)}px`;
+      return (T) => {
+        const gone = 1 - E.p2i(prog(T, slot.kwOut, slot.kwOut + 0.3));
+        svg.style.opacity = gone.toFixed(3);
+        cards.forEach((card, i) => {
+          const u = E.p3o(prog(T, at - 0.35 + 0.08 * i, at + 0.35 + 0.08 * i));
+          card.style.opacity = (u * gone).toFixed(3);
+          card.style.transform = `translateY(${(30 * (1 - u)).toFixed(2)}px) rotate(${SLIPS[i].r}deg)`;
+          card.style.filter = u < 0.98 ? `blur(${(10 * (1 - u)).toFixed(2)}px)` : "none";
+        });
+        for (const th of threads) {
+          const u = E.p2io(prog(T, th.t0, th.t0 + 0.45));
+          const on = u > 0;
+          th.line.style.opacity = on ? "1" : "0";
+          th.core.style.opacity = on ? "1" : "0";
+          th.node0.style.opacity = on ? "1" : "0";
+          th.node1.style.opacity = u >= 1 ? "1" : "0";
+          if (on) {
+            const { d, head } = partial(th.pts, Math.max(u, 0.001));
+            th.line.setAttribute("d", d);
+            th.core.setAttribute("d", d);
+            th.light.setAttribute("cx", head.x.toFixed(1));
+            th.light.setAttribute("cy", head.y.toFixed(1));
+          }
+          th.light.style.opacity = u > 0 && u < 1 ? "1" : "0";
+        }
+        const u = prog(T, landed, landed + 0.7);
+        pulse.style.opacity = T >= landed && u < 1 ? (0.95 * (1 - u) * gone).toFixed(3) : "0";
+        pulse.style.transform = `scale(${(1 + 0.14 * E.eo(u)).toFixed(4)})`;
       };
     }
     if (a.kind === "trace") {
@@ -387,6 +516,31 @@ window.FairSplitSlots = (() => {
       const drawer = accentFor(win.el, win.slot);
       if (drawer) drawers.push(drawer);
     }
+    // a recorded clip's labels (cut-captures.mjs): its real-time multiplier while a wait plays sped (the fan-out's
+    // confirmations on the seven notes), and a micro-tag beside a recorded element (the simulated record-payment)
+    for (const win of wins) {
+      const { badge, chip } = win.slot;
+      if (badge) {
+        const node = el("span", "pf-speed", win.el);
+        node.textContent = badge.text;
+        drawers.push((T) => {
+          const u =
+            E.p2o(prog(T, badge.from - 0.2, badge.from)) *
+            (1 - E.p2i(prog(T, badge.to + 0.6, badge.to + 0.9)));
+          node.style.opacity = u.toFixed(3);
+        });
+      }
+      if (chip) {
+        const node = el("div", "pf-chip pf-chip--micro", win.el);
+        node.textContent = chip.text;
+        node.style.left = `${chip.box[0]}px`;
+        node.style.top = `${chip.box[1]}px`;
+        const from = win.slot.start + chip.from;
+        drawers.push((T) => {
+          node.style.opacity = E.p2o(prog(T, from, from + 0.4)).toFixed(3);
+        });
+      }
+    }
     // a label on a window itself (plan.mjs CHIPS): it floats, tilts and fades with its window
     for (const win of wins) {
       const chip = cfg.chips?.[win.slot.id];
@@ -445,9 +599,35 @@ window.FairSplitSlots = (() => {
       };
     }
     const mix = (from, to, u) => from.map((v, i) => Math.round(lerp(v, to[i], u)));
+    // The night lifts as an iris that opens from the lit window outwards (review v4 item 2): the day field stays
+    // fully opaque underneath and each pixel turns from navy to day inside one soft 220 px band that crosses the frame
+    // in the 0.22 s fade, so luma only rises and no frame sits in an even mid-grey. 1 = full night, 0 = day.
+    const FEATHER = 220;
     function nightAt(T) {
-      if (!night || T < night.a.at) return 0;
-      return 1 - E.sio(prog(T, night.a.fade[0], night.a.fade[1]));
+      if (!night || T < night.a.at || T >= night.a.fade[1]) return 0;
+      // the night closes in from the frame's edges onto the lit window (dipIn), then opens from it (fade)
+      const up = night.a.dipIn ? E.sio(prog(T, night.a.at, night.a.at + night.a.dipIn)) : 1;
+      return Math.min(up, 1 - E.sio(prog(T, night.a.fade[0], night.a.fade[1])));
+    }
+    /** The iris: its centre (the lit window on screen), its radius, and the night left at a point of the frame. */
+    function irisAt(T, cx, cy) {
+      const n = nightAt(T);
+      const reach =
+        Math.max(
+          Math.hypot(cx, cy),
+          Math.hypot(1920 - cx, cy),
+          Math.hypot(cx, 1080 - cy),
+          Math.hypot(1920 - cx, 1080 - cy),
+        ) + FEATHER;
+      const r = (1 - n) * reach;
+      return {
+        n,
+        cx,
+        cy,
+        r,
+        at: (x, y) =>
+          n <= 0 ? 0 : n >= 1 ? 1 : clamp01((Math.hypot(x - cx, y - cy) - (r - FEATHER)) / FEATHER),
+      };
     }
     function pullAt(T) {
       if (!night) return 0;
@@ -457,18 +637,27 @@ window.FairSplitSlots = (() => {
         ? 16 * E.p2o(prog(T, p0, night.a.peak))
         : 16 * (1 - E.p2o(prog(T, night.a.peak, p1)));
     }
-    function drawNight(n) {
-      night.layer.style.opacity = n.toFixed(3);
+    function drawNight(iris) {
+      const { n } = iris;
+      night.layer.style.opacity = n > 0 ? "1" : "0";
+      const mask =
+        n > 0 && n < 1
+          ? `radial-gradient(circle at ${iris.cx.toFixed(1)}px ${iris.cy.toFixed(1)}px, transparent ${Math.max(0, iris.r - FEATHER).toFixed(1)}px, #000 ${Math.max(1, iris.r).toFixed(1)}px)`
+          : "none";
+      night.layer.style.maskImage = mask;
+      night.layer.style.webkitMaskImage = mask;
       night.lit.style.opacity = n.toFixed(3);
       grain.style.opacity = (0.2 + 0.14 * n).toFixed(3);
-      // the word in night ink, back to day ink as the night lifts under the focus pull
-      night.kw.style.color = `rgb(${mix([11, 18, 32], [244, 246, 250], n).join(" ")})`;
-      // the honesty tag: navy at 72% by night, white at 90% by day (STYLE §7)
+      // the word in night ink until the iris reaches it (it has wiped out by then), never a half-faded grey
+      const kw = iris.at(150 + night.kw.offsetWidth / 2, 150 + night.kw.offsetHeight / 2);
+      night.kw.style.color = `rgb(${mix([11, 18, 32], [244, 246, 250], kw).join(" ")})`;
+      // the honesty tag: navy at 72% by night, white at 90% by day (STYLE §7), switched where the iris passes it
       if (night.tag) {
-        const [r, g, b] = mix([255, 255, 255], [16, 23, 42], n);
-        night.tag.style.background = `rgb(${r} ${g} ${b} / ${lerp(0.9, 0.72, n).toFixed(3)})`;
-        night.tag.style.color = `rgb(${mix([58, 68, 86], [195, 201, 214], n).join(" ")})`;
-        night.tag.style.borderColor = `rgb(${mix([126, 136, 152], [137, 150, 180], n).join(" ")})`;
+        const t = iris.at(1920 - 64 - night.tag.offsetWidth / 2, 960 + 32);
+        const [r, g, b] = mix([255, 255, 255], [16, 23, 42], t);
+        night.tag.style.background = `rgb(${r} ${g} ${b} / ${lerp(0.9, 0.72, t).toFixed(3)})`;
+        night.tag.style.color = `rgb(${mix([58, 68, 86], [195, 201, 214], t).join(" ")})`;
+        night.tag.style.borderColor = `rgb(${mix([126, 136, 152], [137, 150, 180], t).join(" ")})`;
       }
     }
 
@@ -499,18 +688,23 @@ window.FairSplitSlots = (() => {
       if (outroVeil) outroVeil.style.opacity = veil.toFixed(3);
       const veilBlur = 18 * clamp01(veil / 0.92);
       const focusAmt = clamp01((c.s - 0.62) / 0.3);
-      const nightAmt = nightAt(T);
-      if (night) drawNight(nightAmt);
+      if (night) drawNight(irisAt(T, 960 + (nightSlot.x - c.x) * c.s, 540 + (nightSlot.y - c.y) * c.s));
       const pull = pullAt(T);
-      const dark = night && T >= night.a.at && T < night.a.fade[1];
+      const dark = night && T >= night.a.at + (night.a.dipIn ?? 0) * 0.6 && T < night.a.fade[1];
 
       for (const { el: node, slot } of wins) {
         const from = slot.glideIn[0];
         const to = slot.glideOut[1];
         // the night insert's cut: only its own window stays lit
+        // the night insert's cut: the windows before it leave in its first 4 frames, before its word comes in
+        const lightsOut =
+          night && slot !== nightSlot && slot.start < nightSlot.start && T >= night.a.at
+            ? 1 - prog(T, night.a.at, night.a.at + 0.12)
+            : 1;
         if (
           T < from - 1e-6 ||
           T > to + 1e-6 ||
+          lightsOut <= 0 ||
           (dark && slot !== nightSlot && slot.start < nightSlot.start)
         ) {
           node.style.opacity = "0";
@@ -538,7 +732,16 @@ window.FairSplitSlots = (() => {
         let blur = clamp01((edge - 220) / 480) * 10 * focusAmt + veilBlur + pull;
         // the reel opens by a focus pull on its first window (blur 14 -> 0, 0.75 s)
         if (slot.first) blur += 14 * (1 - E.eo(prog(T, slot.start + 0.05, slot.start + 0.8)));
-        node.style.opacity = (fadeIn * fadeOut).toFixed(3);
+        // a window the camera carries over the frame's edge fades with the move (STYLE §4, review v4 item 7, as the
+        // close's rig does): its opacity falls as it passes the 64 px margin and it is gone before 30% of it is past
+        // the line, so no glide shows a window cut off by the frame at full strength (the phone at 109.5 s)
+        const hw = (geo.w * sc) / 2;
+        const hh = (geo.h * sc) / 2;
+        // (review v6 F13: gone once 15% of it is past the line, incoming and outgoing alike)
+        const overX = Math.max(0, 64 - (sx - hw), sx + hw - 1856) / Math.max(110, 0.3 * hw);
+        const overY = Math.max(0, 64 - (sy - hh), sy + hh - 1016) / Math.max(110, 0.3 * hh);
+        const atEdge = 1 - E.sio(clamp01(Math.max(overX, overY)));
+        node.style.opacity = (fadeIn * fadeOut * atEdge * lightsOut).toFixed(3);
         node.style.filter = blur > 0.15 ? `blur(${blur.toFixed(2)}px)` : "none";
         node.style.transform = `translate(${sx.toFixed(2)}px, ${sy.toFixed(2)}px) scale(${sc.toFixed(4)}) perspective(2200px) rotateY(${ry.toFixed(2)}deg) rotateX(2deg) rotate(${rot}deg) translateY(${bob.toFixed(2)}px)`;
       }

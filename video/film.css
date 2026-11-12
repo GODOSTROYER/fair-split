@@ -302,12 +302,23 @@ body > #root {
   position: absolute;
   right: 18px;
   top: 18px;
-  padding: 6px 14px;
+  padding: 6px 16px;
+  border: 2px dashed rgb(126 136 152 / 0.9);
   border-radius: 999px;
-  background: rgb(255 255 255 / 0.92);
+  background: rgb(255 255 255 / 0.94);
   font-weight: 600;
-  font-size: 24px;
+  font-size: 28px;
+  white-space: nowrap;
   color: var(--ink-2);
+}
+/* a micro-tag beside a recorded element (review v6 V6-05): the tag's style at 28 px, on the window */
+.pf-chip.pf-chip--micro {
+  padding: 6px 16px;
+  border-radius: 20px;
+  font-size: 28px;
+  line-height: 36px;
+  white-space: nowrap;
+  opacity: 0;
 }
 
 /* ---------------------------------------------------------------- words (STYLE §2) */

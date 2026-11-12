@@ -1,0 +1,15 @@
+# Fair Split film v7: third-party material and licences
+
+| What                                                              | Where                                                                                  | Licence and credit                                                                                                                 |
+| ----------------------------------------------------------------- | -------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| FS Sans (Mona Sans 2.027, modified: no slash in the tabular zero) | `assets/fonts/FSSans-VF-film.woff2`                                                    | SIL OFL 1.1. Copyright 2022 The Mona Sans Project Authors. Details: `assets/fonts/LICENCES.md`                                     |
+| The peso sign from Noto Sans 2.015                                | `assets/fonts/FSSansPeso.woff2`                                                        | SIL OFL 1.1. Details: `assets/fonts/LICENCES.md`                                                                                   |
+| Cascadia Mono (the mono captions)                                 | not bundled: the installed system font, through `local("Cascadia Mono")` in `film.css` | © Microsoft Corporation. Only rendered text is in the film; no font file is in the repository. Details: `assets/fonts/LICENCES.md` |
+| GSAP 3.15.0 (animation runtime, header kept)                      | `assets/vendor/gsap.min.js`                                                            | GreenSock standard no-charge licence, https://gsap.com/standard-license                                                            |
+| HyperFrames (the renderer, not bundled)                           | `npx hyperframes`                                                                      | Its own licence; nothing of it is in this folder                                                                                   |
+| Music: "Machina" and "Aurora" by Scott Buckley                    | `audio/music-bed.wav` (git-ignored)                                                    | CC BY 4.0, credited on the end card. Details: `audio/CREDITS.txt`                                                                  |
+| Narration: Gemini TTS, voice Charon                               | `audio/narration/`                                                                     | A synthetic voice, disclosed on the end card. Details: `audio/CREDITS.txt`                                                         |
+| Sound effects                                                     | `audio/sfx.wav` (git-ignored)                                                          | Barty-Bart kit only, CC0 1.0. Details: `audio/CREDITS.txt`                                                                         |
+
+Everything else on screen is the product itself (captured stills) or drawn for the film as live HTML and SVG.
+The end card's credits line is in `research/film-1111/script.md`.

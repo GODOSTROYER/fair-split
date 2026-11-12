@@ -1,0 +1,198 @@
+<!doctype html>
+<!-- Fair Split film v7, section 1: Scenario, film 0 to 17 s (SCENES A).
+     Where (a drawn map, a pin on Davao), who (64 dots, one co-op), what (a paper slip per delivery, a stack),
+     the money (one jade payment from the buyer). The last frame is section 2's first frame: both files build the
+     same stage from the same numbers (the STAGE block below is repeated in s2-problem.html). -->
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+  </head>
+  <body>
+    <template>
+      <style>
+        #root {
+          position: absolute;
+          inset: 0;
+          overflow: hidden;
+          background: #f7f8fb;
+        }
+        .s1-cap {
+          position: absolute;
+          left: 120px;
+          top: 84px;
+          white-space: nowrap;
+        }
+        .s1-cap-2 {
+          top: 192px;
+        }
+        .s1-svg {
+          position: absolute;
+          left: 0;
+          top: 0;
+          overflow: visible;
+        }
+      </style>
+
+      <div id="root" data-composition-id="s1-scenario" data-width="1920" data-height="1080" data-duration="17">
+        <svg id="s1-map" class="s1-svg" width="1920" height="1080" viewBox="0 0 1920 1080"><title>The Philippines, with Davao marked</title></svg>
+        <svg id="s1-coop" class="s1-svg" width="1920" height="1080" viewBox="0 0 1920 1080">
+          <title>The co-op</title>
+          <path id="s1-coop-line" d="M1380 500H1547A28 28 0 0 1 1575 528V862A28 28 0 0 1 1547 890H1213A28 28 0 0 1 1185 862V528A28 28 0 0 1 1213 500Z" pathLength="1" fill="none" stroke="#0e1525" stroke-width="2" />
+        </svg>
+        <h1 id="s1-cap-a" class="s1-cap t-head-s"><span id="s1-cap-a1">Davao,</span> <span id="s1-cap-a2" class="muted">Philippines</span></h1>
+        <h1 id="s1-cap-b" class="s1-cap t-head-s">64 cacao farmers</h1>
+        <h1 id="s1-cap-b2" class="s1-cap s1-cap-2 t-head-s">One co-op</h1>
+        <h1 id="s1-cap-c" class="s1-cap t-head-s">One slip per delivery</h1>
+        <h1 id="s1-cap-d" class="s1-cap t-head-s">One payment</h1>
+      </div>
+
+      <script>
+        (() => {
+          const tl = gsap.timeline({ paused: true });
+          const root = document.querySelector('[data-composition-id="s1-scenario"]');
+          const at = (text, nth, offset) => FILM.at("s1", text, nth ?? 1, offset ?? 0);
+          const E = FILM.ease;
+
+          /* ---- STAGE (the same numbers in s2-problem.html) ---- */
+          const COL = 1380; // the right column's centre: buyer, payment, farmers
+          const BUYER = { x: COL, y: 116, size: 40 };
+          const TOKEN = { x: COL, y: 320, h: 64 };
+          const FARM = { x: COL - 149, y: 546, gap: 40, r: 9 };
+          const SLIP = { x: 390, y: 540, w: 280 };
+          const STACK = 5;
+
+          /* ---- the map: the Philippines from its own coastline (lon, lat), simplified ---- */
+          const LAND = [
+            // Luzon
+            [[120.6, 18.5], [121.4, 18.45], [122.15, 18.5], [122.3, 17.6], [122.45, 17.0], [122.15, 16.3], [121.6, 15.7], [121.5, 15.0], [121.75, 14.3], [122.4, 14.1], [123.05, 14.1], [123.9, 13.75], [123.75, 13.2], [124.1, 12.65], [123.6, 12.9], [123.1, 13.35], [122.5, 13.75], [121.7, 13.9], [121.2, 13.65], [120.65, 13.85], [120.85, 14.45], [120.55, 14.6], [120.1, 14.9], [119.9, 15.6], [119.95, 16.3], [120.3, 16.15], [120.38, 16.8], [120.45, 17.6], [120.45, 18.1]],
+            // Mindoro
+            [[120.35, 13.45], [121.0, 13.5], [121.5, 13.1], [121.5, 12.6], [121.2, 12.2], [120.85, 12.6], [120.55, 13.1]],
+            // Palawan
+            [[119.5, 11.4], [119.45, 10.6], [118.8, 9.8], [118.0, 9.0], [117.25, 8.4], [117.5, 8.95], [118.3, 9.85], [118.95, 10.6], [119.25, 11.25]],
+            // Masbate
+            [[123.25, 12.45], [123.75, 12.3], [124.05, 11.9], [123.6, 11.95], [123.2, 12.05]],
+            // Samar
+            [[124.35, 12.5], [125.3, 12.55], [125.55, 12.0], [125.6, 11.4], [125.75, 11.05], [125.1, 11.25], [124.85, 11.8], [124.5, 12.15]],
+            // Panay
+            [[121.95, 11.9], [122.6, 11.55], [123.15, 11.45], [122.9, 10.9], [122.5, 10.65], [121.95, 10.45], [121.95, 11.2]],
+            // Leyte
+            [[124.35, 11.5], [125.0, 11.25], [125.1, 10.6], [125.2, 10.05], [124.85, 10.15], [124.7, 10.7], [124.4, 11.1]],
+            // Negros
+            [[123.0, 10.95], [123.45, 10.9], [123.3, 10.2], [123.15, 9.6], [123.25, 9.25], [122.95, 9.1], [122.45, 9.6], [122.6, 10.05], [122.85, 10.5]],
+            // Cebu
+            [[124.02, 11.25], [124.0, 10.6], [123.7, 9.95], [123.35, 9.45], [123.45, 10.0], [123.8, 10.9]],
+            // Bohol
+            [[123.82, 9.85], [124.1, 10.12], [124.5, 10.05], [124.55, 9.75], [124.25, 9.6], [123.9, 9.65]],
+            // Mindanao
+            [[125.5, 9.8], [126.0, 9.3], [126.3, 8.3], [126.6, 7.3], [126.25, 6.35], [126.0, 6.9], [125.75, 7.35], [125.45, 6.8], [125.6, 6.2], [125.52, 5.72], [125.32, 5.7], [125.15, 6.05], [124.6, 5.95], [124.05, 6.5], [124.2, 7.2], [123.85, 7.65], [123.4, 7.7], [123.2, 7.45], [122.75, 7.5], [122.3, 7.2], [122.05, 6.95], [122.05, 7.6], [122.5, 8.1], [123.1, 8.5], [123.6, 8.6], [123.85, 8.15], [124.3, 8.4], [124.75, 8.75], [125.2, 8.95], [125.5, 9.1]],
+          ];
+          const MAP = { x: COL - 276, y: 150, lon: 117.2, lat: 18.62, k: 60 };
+          const project = ([lon, lat]) => [MAP.x + (lon - MAP.lon) * MAP.k * 0.978, MAP.y + (MAP.lat - lat) * MAP.k];
+          const smooth = (points) => {
+            const n = points.length;
+            const p = (index) => points[(index + n) % n];
+            const f = (value) => Math.round(value * 10) / 10;
+            let d = `M${f(p(0)[0])} ${f(p(0)[1])}`;
+            for (let index = 0; index < n; index += 1) {
+              const a = p(index - 1);
+              const b = p(index);
+              const c = p(index + 1);
+              const e = p(index + 2);
+              const t = 0.17;
+              d += `C${f(b[0] + (c[0] - a[0]) * t)} ${f(b[1] + (c[1] - a[1]) * t)} ${f(c[0] - (e[0] - b[0]) * t)} ${f(c[1] - (e[1] - b[1]) * t)} ${f(c[0])} ${f(c[1])}`;
+            }
+            return `${d}Z`;
+          };
+          const mapSvg = document.getElementById("s1-map");
+          const islands = LAND.map((coast) => {
+            const island = FSO.svg("path", {
+              d: smooth(coast.map(project)),
+              pathLength: 1,
+              fill: "#ffffff",
+              "fill-opacity": 0,
+              stroke: "#0e1525",
+              "stroke-width": 2.5,
+              "stroke-linejoin": "round",
+              "stroke-linecap": "round",
+            });
+            mapSvg.appendChild(island);
+            return island;
+          });
+          const DAVAO = project([125.61, 7.12]);
+          const pin = FSO.put(root, FSO.pin({ x: DAVAO[0], y: DAVAO[1], size: 56 }));
+
+          /* ---- the stage ---- */
+          const farmers = FSO.put(root, FSO.farmers({ x: FARM.x, y: FARM.y, gap: FARM.gap, r: FARM.r }));
+          const stack = [];
+          for (let index = STACK; index >= 1; index -= 1)
+            stack.push(FSO.put(root, FSO.slip({ detail: "mini", w: SLIP.w, x: SLIP.x + index * 14, y: SLIP.y - index * 12, serial: String(403 + index * 16) })));
+          const hero = FSO.put(root, FSO.slip({ w: SLIP.w, x: SLIP.x, y: SLIP.y, serial: "0403", kg: "38.45" }));
+          const buyer = FSO.put(root, FSO.buyer({ x: BUYER.x, y: BUYER.y, size: BUYER.size, anchor: "center" }));
+          const token = FSO.put(root, FSO.token({ x: TOKEN.x, y: TOKEN.y, h: TOKEN.h, anchor: "center" }));
+
+          const show = (target, position, from = {}) =>
+            tl.fromTo(target, { opacity: 0, y: 28, ...from }, { opacity: 1, y: 0, x: 0, duration: 0.6, ease: E }, position);
+          const hide = (target, position) => tl.fromTo(target, { opacity: 1 }, { opacity: 0, duration: 0.25, ease: "power2.out", immediateRender: false }, position);
+
+          /* ---- 1. "Davao, in the Philippines." ---- */
+          FSO.write(tl, islands, 0.1, 1.2, { overlap: 1, ease: "power2.inOut" });
+          tl.fromTo(islands, { attr: { "fill-opacity": 0 } }, { attr: { "fill-opacity": 1 }, duration: 0.5, ease: "power2.out" }, 1.1);
+          tl.fromTo(pin, { opacity: 0, scale: 0.2, transformOrigin: "50% 100%" }, { opacity: 1, scale: 1, duration: 0.5, ease: E }, at("Davao"));
+          // "Davao," is on the ground from frame 0 (the film's poster frame); the pin lands on the word
+          show("#s1-cap-a2", at("Philippines"));
+
+          /* ---- 2. "Sixty-four farmers grow cacao for one co-op." ---- */
+          const tFarm = at("Sixty-four");
+          hide("#s1-cap-a", tFarm - 0.3);
+          tl.fromTo("#s1-map", { opacity: 1 }, { opacity: 0, duration: 0.4, ease: "power2.out" }, tFarm - 0.2);
+          tl.fromTo(pin, { opacity: 1 }, { opacity: 0, duration: 0.2, ease: "power2.out", immediateRender: false }, tFarm - 0.1);
+          farmers.fsoDots.forEach((dot, index) => {
+            const home = farmers.fsoAt(index);
+            const start = tFarm - 0.1 + ((index * 37) % 64) * 0.003;
+            tl.fromTo(dot, { opacity: 0 }, { opacity: 1, duration: 0.12, ease: "none" }, start);
+            tl.fromTo(
+              dot,
+              { x: DAVAO[0] - (FARM.x + home.x), y: DAVAO[1] - 16 - (FARM.y + home.y), scale: 0.5 },
+              { x: 0, y: 0, scale: 1, duration: 0.8, ease: E },
+              start,
+            );
+          });
+          show("#s1-cap-b", tFarm);
+          FSO.write(tl, [document.getElementById("s1-coop-line")], at("one"), 0.8, { ease: "power2.inOut" });
+          show("#s1-cap-b2", at("one"));
+
+          /* ---- 3. "Every delivery is weighed, and written on a paper slip." ---- */
+          const tSlip = at("Every");
+          hide("#s1-cap-b", tSlip - 0.25);
+          hide("#s1-cap-b2", tSlip - 0.25);
+          const one = farmers.fsoDots[26];
+          tl.fromTo(one, { backgroundColor: "#0e1525" }, { backgroundColor: "#4a2fd6", scale: 1.45, duration: 0.4, ease: E, immediateRender: false }, at("delivery"));
+          tl.fromTo(hero, { opacity: 0, x: -56 }, { opacity: 1, x: 0, duration: 0.65, ease: E }, at("weighed", 1, -0.15));
+          const pen = hero.fsoStrokes;
+          const kg = hero.fsoKg;
+          FSO.write(tl, pen.filter((stroke) => !kg.includes(stroke)).slice(0, 1), at("weighed", 1, 0.4), 0.35);
+          FSO.write(tl, kg, at("written"), 0.75);
+          FSO.write(tl, pen.slice(-1), at("slip", 1, 0.15), 0.3);
+          show("#s1-cap-c", at("weighed", 1, -0.1));
+          stack
+            .slice()
+            .reverse()
+            .forEach((slip, index) => {
+              tl.fromTo(slip, { opacity: 0, y: -40 }, { opacity: 1, y: 0, duration: 0.5, ease: E }, at("slip", 1, 0.45) + index * 0.11);
+            });
+          tl.to(one, { backgroundColor: "#0e1525", scale: 1, duration: 0.4, ease: "power2.out" }, at("Then", 1, -0.35));
+
+          /* ---- 4. "Then a chocolate maker overseas pays one premium, for the whole harvest." ---- */
+          hide("#s1-cap-c", at("Then", 1, -0.15));
+          tl.fromTo(buyer, { opacity: 0, y: -20 }, { opacity: 1, y: 0, duration: 0.6, ease: E }, at("chocolate"));
+          const tPay = at("pays");
+          tl.fromTo(token, { opacity: 0 }, { opacity: 1, duration: 0.2, ease: "none" }, tPay);
+          tl.fromTo(token, { y: BUYER.y + 70 - TOKEN.y, scale: 0.7 }, { y: 0, scale: 1, duration: 0.75, ease: E }, tPay);
+          show("#s1-cap-d", at("one", 2));
+
+          window.__timelines["s1-scenario"] = tl;
+        })();
+      </script>
+    </template>
+  </body>
+</html>

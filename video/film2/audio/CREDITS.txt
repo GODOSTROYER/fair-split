@@ -1,0 +1,46 @@
+Fair Split film v7: sound credits (for the end card, the YouTube and the Devpost descriptions)
+
+Music
+'Machina' by Scott Buckley - released under CC-BY 4.0. www.scottbuckley.com.au
+'Aurora' by Scott Buckley - released under CC-BY 4.0. www.scottbuckley.com.au
+(Both cut and faded for this film; nothing layered, retimed or re-pitched.
+ Licence: https://creativecommons.org/licenses/by/4.0/
+ Sources: https://www.scottbuckley.com.au/library/machina and https://www.scottbuckley.com.au/library/aurora
+ The MP3s are never committed: video/tools/fetch-music.mjs keeps them in a cache outside the repo with their sha256,
+ and tools/sound-music-bed.mjs writes audio/music-bed.wav, which is git-ignored.)
+
+Voices
+Narration: a synthetic voice, Gemini TTS (voice Charon), reading research/film-1111/script.md word for word.
+Pauses were lengthened or shortened inside existing pauses; the voice was never retimed.
+
+Sound effects (CC0 1.0, credit given voluntarily; via the Barty-Bart motion-graphics sound-effects kit)
+"Classic Click" by adh.dreaming: https://freesound.org/people/adh.dreaming/sounds/671105/
+"Cinematic Riser #3 subtle" by BeaconStudio: https://freesound.org/people/BeaconStudio/sounds/859482/
+"Freesound 810485 (a rustling whoosh)" by CVLTIV8R: https://freesound.org/people/CVLTIV8R/sounds/810485/
+"Freesound 393811 (a short swish)" by deleted_user_6479820: https://freesound.org/people/deleted_user_6479820/sounds/393811/
+"Oil Drum Soft Impact" by DeVern: https://freesound.org/people/DeVern/sounds/524817/
+"POP SFX Neutral" by ethernel0: https://freesound.org/people/ethernel0/sounds/776016/
+"quick woosh" by florianreichelt: https://freesound.org/people/florianreichelt/sounds/683101/
+"bong_001 (Interface Sounds)" by Kenney: https://kenney.nl/assets/interface-sounds
+"click_001 (Interface Sounds)" by Kenney: https://kenney.nl/assets/interface-sounds
+"confirmation_001 (Interface Sounds)" by Kenney: https://kenney.nl/assets/interface-sounds
+"confirmation_002 (Interface Sounds)" by Kenney: https://kenney.nl/assets/interface-sounds
+"drop_001 (Interface Sounds)" by Kenney: https://kenney.nl/assets/interface-sounds
+"drop_002 (Interface Sounds)" by Kenney: https://kenney.nl/assets/interface-sounds
+"drop_003 (Interface Sounds)" by Kenney: https://kenney.nl/assets/interface-sounds
+"glass_001 (Interface Sounds)" by Kenney: https://kenney.nl/assets/interface-sounds
+"glass_002 (Interface Sounds)" by Kenney: https://kenney.nl/assets/interface-sounds
+"pluck_001 (Interface Sounds)" by Kenney: https://kenney.nl/assets/interface-sounds
+"rollover2 (UI Audio)" by Kenney: https://kenney.nl/assets/ui-audio
+"scroll_001 (Interface Sounds)" by Kenney: https://kenney.nl/assets/interface-sounds
+"select_001 (Interface Sounds)" by Kenney: https://kenney.nl/assets/interface-sounds
+"Soft-Notifications - Bell - Ding-Dong" by LegitCheese: https://freesound.org/people/LegitCheese/sounds/571513/
+"swipe" by LilMati: https://freesound.org/people/LilMati/sounds/702773/
+"Click Tick" by malle99: https://freesound.org/people/malle99/sounds/384187/
+"soft_impact3" by peoplearehappy: https://freesound.org/people/peoplearehappy/sounds/841274/
+"Whoosh" by qubodup: https://freesound.org/people/qubodup/sounds/60013/
+"Pop-in SFX" by Sadiquecat: https://freesound.org/people/Sadiquecat/sounds/824189/
+"Freesound 745291 (a light tap)" by SamsterBirdies: https://freesound.org/people/SamsterBirdies/sounds/745291/
+"Click / Tick" by Squirrel_404: https://freesound.org/people/Squirrel_404/sounds/683048/
+(Cut and levelled only. Mixkit sounds are never used: their licence bars redistribution.
+ The cues, their levels and what each one marks are in audio/cue-sheet.txt.)

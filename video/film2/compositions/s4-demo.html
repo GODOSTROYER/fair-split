@@ -1,0 +1,545 @@
+<!doctype html>
+<!-- Fair Split film v7, section 4: Working today (SCENES B). Its window and every word time come from FILM.
+     Eight product steps, one narration line each (4a to 4h). One stage for all eight:
+       the step label at 120,84 (film.css .step), one line of big words at 120,150,
+       and one mono line naming how the step is built under it, and the product in the area x 120..1800, y 324..1000 (two phones run off the bottom edge).
+     Every product pixel is a still from stills/ (4x crops wherever a viewer must read); two states of the
+     product change by a crossfade in place. Nothing is retyped, dimmed or blurred.
+     First frame = section 3's last frame: the title "Working today" (t-head-s at 120,84) on the ground.
+     Last frame = the plain ground. -->
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+  </head>
+  <body>
+    <template>
+      <style>
+        #root {
+          position: absolute;
+          inset: 0;
+          overflow: hidden;
+          background: #f7f8fb;
+        }
+        .s4-title {
+          position: absolute;
+          left: 120px;
+          top: 84px;
+          white-space: nowrap;
+        }
+        /* the step label: number and word are stacks of eight, so the dots never move */
+        .s4-step {
+          opacity: 0;
+        }
+        .s4-step .step-n,
+        .s4-step .step-w {
+          position: relative;
+          height: 1em;
+        }
+        .s4-step .step-n {
+          width: 0.62em;
+        }
+        .s4-step .step-w {
+          width: 200px;
+        }
+        /* the eight dots sit at the right margin, so they never move as the word changes */
+        .s4-step {
+          width: 1680px;
+        }
+        .s4-step .step-dots {
+          margin-left: auto;
+        }
+        .s4-step .step-n span,
+        .s4-step .step-w span {
+          position: absolute;
+          left: 0;
+          top: 0;
+          opacity: 0;
+        }
+        /* the big words: one line, always here */
+        .s4-h {
+          position: absolute;
+          left: 120px;
+          top: 150px;
+          white-space: nowrap;
+        }
+        .s4-hs {
+          opacity: 0;
+        }
+        /* money that has arrived */
+        .s4-h.s4-money {
+          color: var(--jade-ink);
+        }
+        .s4-p {
+          display: inline-block;
+          opacity: 0;
+        }
+        /* the build line: mono, muted, under the headline on the same left edge */
+        .s4-t {
+          position: absolute;
+          left: 124px; /* the headline's ink starts 4 to 5 px in from 120; the mono line sits on that edge */
+          top: 262px;
+          white-space: nowrap;
+          opacity: 0;
+        }
+        /* a step's picture */
+        .s4-g {
+          position: absolute;
+          inset: 0;
+          opacity: 0;
+        }
+        .s4-o {
+          opacity: 0;
+        }
+        .s4-clip {
+          position: absolute;
+          overflow: hidden;
+        }
+        .s4-in {
+          position: absolute;
+        }
+        .s4-in > img {
+          position: absolute;
+          display: block;
+          max-width: none;
+        }
+        .s4-top {
+          opacity: 0;
+        }
+        /* a phone: the product's own phone frame, no card around it */
+        .s4-ph {
+          position: absolute;
+          overflow: hidden;
+        }
+        .s4-mv {
+          position: absolute;
+          left: 0;
+          top: 0;
+        }
+      </style>
+
+      <div id="root" data-composition-id="s4-demo" data-width="1920" data-height="1080" data-duration="48.4">
+        <!-- the hand-off from section 3 -->
+        <h1 id="s4-title" class="s4-title t-head-s">Working today</h1>
+
+        <div id="s4-step" class="step s4-step">
+          <span id="s4-step-n" class="step-n"></span>
+          <span id="s4-step-w" class="step-w"></span>
+          <span id="s4-step-dots" class="step-dots"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+        </div>
+
+        <!-- big words -->
+        <h1 id="s4-h1" class="s4-h s4-hs t-head-s">One invoice</h1>
+        <h1 id="s4-h2a" class="s4-h s4-hs t-head-s">Read twice</h1>
+        <h1 id="s4-h2b" class="s4-h t-head-s"><span id="s4-h2b1" class="s4-p">Unsure?</span> <span id="s4-h2b2" class="s4-p">A person decides.</span></h1>
+        <h1 id="s4-h3a" class="s4-h s4-hs t-head-s">Code, not AI</h1>
+        <h1 id="s4-h3b" class="s4-h s4-hs t-head-s">Unexplained? Held.</h1>
+        <h1 id="s4-h4a" class="s4-h s4-hs t-head-s">Counted twice</h1>
+        <h1 id="s4-h4b" class="s4-h s4-hs t-head-s">Counted once</h1>
+        <!-- film text quoting the product's own figure (the result strip below it is the evidence) -->
+        <h1 id="s4-h4c" class="s4-h s4-hs s4-money t-head-s">+US$17.94 back</h1>
+        <h1 id="s4-h5" class="s4-h t-head-s"><span id="s4-h51" class="s4-p">Two signatures.</span> <span id="s4-h52" class="s4-p">One batch.</span></h1>
+        <h1 id="s4-h6" class="s4-h s4-hs t-head-s">PayPal or cash</h1>
+        <h1 id="s4-h7a" class="s4-h t-head-s"><span id="s4-h7a1" class="s4-p">Her pay.</span> <span id="s4-h7a2" class="s4-p">Her language.</span></h1>
+        <h1 id="s4-h7b" class="s4-h s4-hs t-head-s">From peso to slip</h1>
+        <h1 id="s4-h8" class="s4-h t-head-s"><span id="s4-h81" class="s4-p">Every line,</span> <span id="s4-h82" class="s4-p">checked.</span></h1>
+
+        <!-- how each step is built: one quiet line under the headline, for the whole step -->
+        <p id="s4-t1" class="s4-t t-mono">Invoicing v2 · Agent Toolkit 1.11.0</p>
+        <p id="s4-t2" class="s4-t t-mono">claude-opus-5-5 × 2 · agreement scored in code</p>
+        <p id="s4-t3" class="s4-t t-mono">packages/domain · whole cents · money conserved</p>
+        <p id="s4-t4" class="s4-t t-mono">holds: duplicate slip · yield · unruled deduction</p>
+        <p id="s4-t5" class="s4-t t-mono">Ed25519 × 2 · one batch hash</p>
+        <p id="s4-t6" class="s4-t t-mono">Payouts v1 · outbox · sent exactly once</p>
+        <p id="s4-t7" class="s4-t t-mono">templates in en · ceb · fil · audio</p>
+        <p id="s4-t8" class="s4-t t-mono">hash-chained ledger · six checks in the browser</p>
+
+        <!-- 1 Fund -->
+        <div id="s4-g1" class="s4-g"><div id="s4-w1" class="window"></div></div>
+        <!-- 2 Read -->
+        <div id="s4-g2a" class="s4-g">
+          <div id="s4-w2s" class="window"></div>
+          <div id="s4-w2t" class="window"></div>
+        </div>
+        <div id="s4-g2b" class="s4-g">
+          <div id="s4-w2c" class="window"></div>
+          <div id="s4-w2i" class="window"></div>
+        </div>
+        <!-- 3 Compute -->
+        <div id="s4-g3" class="s4-g">
+          <div id="s4-w3g" class="window"></div>
+        </div>
+        <!-- 4 Check -->
+        <div id="s4-g4" class="s4-g">
+          <div id="s4-w4t" class="window"></div>
+          <div id="s4-w4r" class="window s4-o"></div>
+          <div id="s4-w4b" class="window s4-o"></div>
+        </div>
+        <!-- 5 Sign -->
+        <div id="s4-g5" class="s4-g">
+          <div id="s4-w5s" class="window"></div>
+          <div id="s4-w5k" class="window"></div>
+          <div id="s4-p5" class="s4-ph"></div>
+        </div>
+        <!-- 6 Pay -->
+        <div id="s4-g6a" class="s4-g"><div id="s4-w6f" class="window"></div></div>
+        <div id="s4-g6b" class="s4-g"><div id="s4-w6m" class="window"></div></div>
+        <!-- 7 Explain -->
+        <div id="s4-g7" class="s4-g">
+          <div id="s4-m7" class="s4-mv"><div id="s4-p7" class="s4-ph"></div></div>
+          <div id="s4-w7s" class="window s4-o"></div>
+          <div id="s4-w7t" class="window s4-o"></div>
+          <div id="s4-w7p" class="window s4-o"></div>
+        </div>
+        <!-- 8 Prove -->
+        <div id="s4-g8" class="s4-g">
+          <div id="s4-w8c" class="window"></div>
+          <div id="s4-w8v" class="window s4-o"></div>
+        </div>
+      </div>
+
+      <script>
+        (() => {
+          const tl = gsap.timeline({ paused: true });
+          const $ = (selector) => document.querySelector(selector);
+          const E = FILM.ease;
+          const at = (text, nth, offset) => FILM.at("s4", text, nth ?? 1, offset ?? 0);
+          const T = Object.fromEntries(["4a", "4b", "4c", "4d", "4e", "4f", "4g", "4h"].map((id) => [id, FILM.line(id).localStart]));
+          const INDIGO = "#4a2fd6";
+
+          /* ---- helpers ---- */
+          // Put a still (or a rectangle of it, in the still's own CSS px) into a window at x,y on the canvas.
+          // options: x, y, and k (display scale) or w (display width); crop { x, y, w, h }; pad (card margin).
+          // FILM.mountStill refuses a still above its native pixels.
+          const put = (selector, id, options) => {
+            const element = $(selector);
+            const record = FILM.still(id);
+            const crop = options.crop ?? { x: 0, y: 0, w: record.width, h: record.height };
+            const k = options.k ?? options.w / crop.w;
+            const pad = options.pad ?? 0;
+            // the still is clipped to its crop, so nothing outside the crop shows in the card's margin
+            const clip = document.createElement("div");
+            clip.className = "s4-clip";
+            clip.style.left = `${pad}px`;
+            clip.style.top = `${pad + (options.padTop ?? 0)}px`;
+            clip.style.width = `${crop.w * k}px`;
+            clip.style.height = `${crop.h * k}px`;
+            element.appendChild(clip);
+            const layer = (stillId, top, shift = { x: 0, y: 0 }) => {
+              const host = document.createElement("div");
+              host.className = top ? "s4-in s4-top" : "s4-in";
+              host.style.left = `${-(crop.x + shift.x) * k}px`;
+              host.style.top = `${-(crop.y + shift.y) * k}px`;
+              clip.appendChild(host);
+              FILM.mountStill(host, stillId, { width: FILM.still(stillId).width * k });
+              return host;
+            };
+            layer(id, false);
+            const w = crop.w * k + pad * 2;
+            const h = crop.h * k + pad * 2 + (options.padTop ?? 0);
+            element.style.left = `${options.x}px`;
+            element.style.top = `${options.y}px`;
+            element.style.width = `${w}px`;
+            element.style.height = `${h}px`;
+            if (options.radius) element.style.borderRadius = `${options.radius * k}px`;
+            if (options.ownEdge) element.style.border = "0"; // the crop ends on the product card's own border
+            return {
+              element,
+              x: options.x,
+              y: options.y,
+              w,
+              h,
+              k,
+              /** a second state of the same element, stacked on top and hidden: fade it in to change state.
+                  `shift` is where the element sits in that still, relative to where it sits in the first one. */
+              add: (stillId, shift) => layer(stillId, true, shift),
+              /** a named box (or { x, y, w, h } in the still's CSS px) in canvas px, grown by `grow` */
+              rect: (name, grow = 0) => {
+                const b = typeof name === "string" ? FILM.box(id, name) : name;
+                return {
+                  x: options.x + pad + (b.x - crop.x) * k - grow,
+                  y: options.y + pad + (options.padTop ?? 0) + (b.y - crop.y) * k - grow,
+                  w: b.w * k + grow * 2,
+                  h: b.h * k + grow * 2,
+                };
+              },
+            };
+          };
+          const rise = (target, position, o = {}) =>
+            tl.fromTo(target, { opacity: 0, y: o.y ?? 36 }, { opacity: 1, y: 0, duration: o.d ?? 0.6, ease: E, stagger: o.stagger ?? 0 }, position);
+          const fadeIn = (target, position, duration = 0.35) =>
+            tl.fromTo(target, { opacity: 0 }, { opacity: 1, duration, ease: "power2.out" }, position);
+          const out = (target, position, duration = 0.28) =>
+            tl.fromTo(target, { opacity: 1 }, { opacity: 0, duration, ease: "power2.out", immediateRender: false }, position);
+          // an outline stays hidden until it draws (an undrawn outline leaves a speck at its start point)
+          const mark = (parent, rect, position, options) => {
+            const svg = FILM.outline(tl, parent, rect, position, { grow: 0, ...options });
+            tl.fromTo(svg, { opacity: 0 }, { opacity: 1, duration: 0.02, ease: "none" }, position);
+            return svg;
+          };
+
+          /* ---- the step label ---- */
+          const STEPS = ["Fund", "Read", "Compute", "Check", "Sign", "Pay", "Explain", "Prove"];
+          const numbers = STEPS.map((word, index) => {
+            const span = document.createElement("span");
+            span.textContent = String(index + 1);
+            $("#s4-step-n").appendChild(span);
+            return span;
+          });
+          const names = STEPS.map((word) => {
+            const span = document.createElement("span");
+            span.textContent = word;
+            $("#s4-step-w").appendChild(span);
+            return span;
+          });
+          const dots = [...document.querySelectorAll("#s4-step-dots i")];
+          const label = (step, position) => {
+            const index = step - 1;
+            if (index > 0) out([numbers[index - 1], names[index - 1]], position - 0.1, 0.2);
+            fadeIn([numbers[index], names[index]], position + 0.1, 0.3);
+            tl.fromTo(
+              dots[index],
+              { backgroundColor: "#f7f8fb", borderColor: "#d9dee7" },
+              { backgroundColor: INDIGO, borderColor: INDIGO, duration: 0.3, ease: "power2.out" },
+              position + 0.1,
+            );
+          };
+          // a step's picture arrives in the silence before its line, and leaves just before the next one arrives
+          // (0.7 s of silence between lines: out in 0.22 s from 0.6 s before the next line, in from 0.4 s before it)
+          const arrive = (line) => T[line] - 0.4;
+          const exit = (targets, line) => out(targets, T[line] - 0.6, 0.22);
+          const TOP = 324; // the product's top edge, under the build line
+
+          /* ================= 1 Fund: "The buyer pays one PayPal invoice." ================= */
+          // The top of the invoice card at 2x: its title, "Lantern Bay pays", the amount, and the row under it, which is
+          // the pay button until the invoice is paid and the payment's record after. The same rectangle of the unpaid
+          // and of the paid card, so the invoice is paid in place on the word "pays". The rectangle is read
+          // from the stills' own boxes (the card, the amount, the button it stops above), so it survives a re-shoot.
+          const UNPAID = "01-season.invoice";
+          const PAID = "03-funded.invoice";
+          const card = FILM.box(UNPAID, "W-JG-01.invoice");
+          const amount = FILM.box(UNPAID, "W-JG-01.invoice.amount");
+          const payButton = FILM.box(UNPAID, "W-JG-01.markPaid");
+          const paidCard = FILM.box(PAID, "W-JG-01.invoice");
+          const HEAD = {
+            x: card.x + 2,
+            y: card.y + 2,
+            w: Math.min(card.w, paidCard.w) - 4,
+            // down to just under the row that holds the pay button, then (once paid) the payment's own record line
+            h: payButton.y + payButton.h + 26 - card.y - 2,
+          };
+          const invoice = put("#s4-w1", UNPAID, { x: 960 - HEAD.w, y: 662 - HEAD.h, k: 2, crop: HEAD, radius: 20 });
+          const invoicePaid = invoice.add(PAID, { x: paidCard.x - card.x, y: paidCard.y - card.y });
+          // the window starts with the section, so the title is never alone on screen (frame 0 is still the title only)
+          rise("#s4-g1", 0);
+          out("#s4-title", 0.1, 0.3);
+          tl.fromTo("#s4-step", { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.5, ease: E }, 0.3);
+          label(1, 0.3);
+          rise(["#s4-h1", "#s4-t1"], 0.36, { y: 28 });
+          fadeIn(invoicePaid, at("pays"), 0.3);
+          mark("#s4-g1", invoice.rect({ x: amount.x - 8, y: amount.y - 1, w: amount.w + 13, h: amount.h - 2 }), at("one"));
+          exit(["#s4-h1", "#s4-g1", "#s4-t1"], "4b");
+
+          /* ================= 2 Read: "Claude reads every slip, twice. If the readings disagree, a person decides." ================= */
+          const paper = put("#s4-w2s", "07a-claude-reads-0403.paper-source", { x: 405, y: TOP + 48, w: 484 });
+          // the table from its header down to the net kg row (the row's box); 331 wide leaves the Zoom column out (MEASURED)
+          const TABLE = "07b-claude-reads-0403-table.table";
+          const netRow = FILM.box(TABLE, "crop:net-row");
+          const TABLE_W = 331;
+          const table = put("#s4-w2t", TABLE, { x: 969, y: TOP, k: 1.65, crop: { x: 0, y: 0, w: TABLE_W, h: netRow.y + netRow.h + 1 } });
+          label(2, arrive("4b"));
+          rise("#s4-g2a", arrive("4b"));
+          rise(["#s4-h2a", "#s4-t2"], arrive("4b") + 0.05, { y: 28 });
+          // the slip's Net (kg) row is MEASURED on the photograph (it has no boxes)
+          mark("#s4-g2a", paper.rect({ x: 15.3, y: 170.6, w: 269.5, h: 17.2 }, 2), at("twice"));
+          mark("#s4-g2a", table.rect({ x: 6, y: netRow.y + 2, w: TABLE_W - 15, h: netRow.h - 4 }), at("twice", 1, 0.12));
+          // the stained digit, typed by a person
+          const tDecide = at("If the readings");
+          // MEASURED: the slip's left column, the two stained cells (Gross kg, Net kg): x 10..400, y 10..412 of the crop
+          const STAIN = { x: 10, y: 10, w: 390, h: 402 };
+          const stain = put("#s4-w2c", "10a-by-hand-empty.slip", { x: 326, y: 662 - (STAIN.h * 1.6) / 2, k: 1.6, crop: STAIN });
+          // the input beside it: first as the product leaves it (the digit it could not read is a blank), then typed
+          const typed = put("#s4-w2i", "10a-by-hand-empty.input", { x: 1022, y: 662 - FILM.still("10a-by-hand-empty.input").height, k: 2 });
+          const typedFilled = typed.add("10b-by-hand-filled.input");
+          out(["#s4-h2a", "#s4-g2a"], tDecide - 0.6, 0.25);
+          rise("#s4-g2b", tDecide - 0.42, { d: 0.55 });
+          rise("#s4-h2b1", tDecide - 0.38, { y: 28 });
+          rise("#s4-h2b2", at("a person"), { y: 28 });
+          fadeIn(typedFilled, at("a person"), 0.3);
+          mark("#s4-g2b", { x: typed.x - 6, y: typed.y - 6, w: typed.w + 12, h: typed.h + 12 }, at("person", 1, 0.4), { radius: 20 });
+          exit(["#s4-h2b", "#s4-g2b", "#s4-t2"], "4c");
+
+          /* ================= 3 Compute: "Code, not AI, works out every share, to the cent, and stops what it can't explain." ================= */
+          // One still for the whole step: the split before any hold is decided (nothing is resolved or "Balanced" yet).
+          // First the Net US$ column, then the three held members. Columns and rows are read from the still's boxes.
+          const HOLDS = "11-split-three-holds.grid";
+          const grid = put("#s4-w3g", HOLDS, { x: 185, y: TOP - 2, k: 1 });
+          const netTotal = FILM.box(HOLDS, "W-TR-05.totals.net");
+          label(3, arrive("4c"));
+          rise("#s4-g3", arrive("4c"));
+          rise(["#s4-h3a", "#s4-t3"], arrive("4c") + 0.05, { y: 28 });
+          const netColumn = mark(
+            "#s4-g3",
+            grid.rect({ x: netTotal.x - 17, y: 8, w: netTotal.w + 27, h: FILM.still(HOLDS).height - 16 }),
+            at("every share"),
+          );
+          const tStops = at("stops");
+          out([netColumn, "#s4-h3a"], tStops - 0.4, 0.25);
+          rise("#s4-h3b", tStops - 0.1, { y: 28 });
+          // each held member's hold mark ("● H1"): its row and the Status column from the boxes; its width is MEASURED
+          const STATUS_X = FILM.box(HOLDS, "W-TR-05.totals.balanced").x - 3;
+          ["M-007", "M-053", "M-018"].forEach((member, index) => {
+            const row = FILM.box(HOLDS, `W-TR-05.row.${member}`);
+            mark("#s4-g3", grid.rect({ x: STATUS_X, y: row.y + 9, w: 68, h: 28 }, 6), tStops + 0.1 + index * 0.14);
+          });
+          exit(["#s4-h3b", "#s4-g3", "#s4-t3"], "4d");
+
+          /* ================= 4 Check: "This slip was counted twice: once from its pink copy. Once fixed, almost eighteen
+             dollars goes back to sixty-three farmers." ================= */
+          // a column: the twin slips, the product's result strip (the evidence for the jade words), and last the
+          // reconcile strip of the finished split ("Balanced"), once the money is back
+          const TWIN = { k: 1.65, pad: 12, top: TOP, gap: 22 };
+          const twinStill = FILM.still("12-h1-open.twin-slips");
+          const twinW = twinStill.width * TWIN.k + TWIN.pad * 2;
+          const twinH = twinStill.height * TWIN.k + TWIN.pad * 2;
+          const twinX = Math.round((960 - twinW / 2) * 2) / 2;
+          const twin = put("#s4-w4t", "12-h1-open.twin-slips", { x: twinX, y: TWIN.top, k: TWIN.k, pad: TWIN.pad });
+          const result = put("#s4-w4r", "13-h1-resolved.result", { x: twinX, y: Math.round(TWIN.top + twinH + TWIN.gap), w: twinW });
+          put("#s4-w4b", "16-split-balanced.reconcile", { x: twinX, y: Math.round(result.y + result.h + TWIN.gap), w: twinW });
+          label(4, arrive("4d"));
+          rise("#s4-g4", arrive("4d"));
+          rise(["#s4-h4a", "#s4-t4"], arrive("4d") + 0.05, { y: 28 });
+          const pink = mark("#s4-g4", twin.rect("crop:twin-pink", 2), at("pink"));
+          const tFixed = at("Once fixed");
+          out([pink, "#s4-h4a"], tFixed - 0.1, 0.25);
+          fadeIn("#s4-h4b", tFixed, 0.3);
+          rise("#s4-w4r", tFixed, { y: 24, d: 0.5 });
+          // "almost eighteen dollars": the words become the product's figure, in the money jade
+          const tBack = at("almost eighteen");
+          out("#s4-h4b", tBack - 0.12, 0.2);
+          rise("#s4-h4c", tBack, { y: 28 });
+          mark("#s4-g4", { x: result.x - 6, y: result.y - 6, w: result.w + 12, h: result.h + 12 }, at("eighteen"), { radius: 20 });
+          rise("#s4-w4b", at("back to sixty-three"), { y: 24, d: 0.5 });
+          exit(["#s4-h4c", "#s4-g4", "#s4-t4"], "4e");
+
+          /* ================= 5 Sign: "Two officers sign the same batch: the treasurer at her desk, the chair on his phone." ================= */
+          // one row: who signed, her console's seal, his phone. The two batch hashes sit on one line (read from their
+          // boxes), so the eye compares them straight across. On the second signature the console's seal, the signer
+          // list and the phone all change to their signed state together.
+          const PHONE = { x: 2, y: 0, w: 376, h: 796 }; // MEASURED: the phone's frame inside its crop; corner radius 45
+          const SIGN = "19-chair-sign-screen.phone";
+          const SIGNED = "20c-chair-phone-signed.phone";
+          const PHONE_HASH = "W-JG-01.frame.chair>M-BD-02.hash";
+          const K5 = { phone: 1.45, seal: 1.3, keys: 1.6 };
+          const chair = put("#s4-p5", SIGN, { x: 1800 - PHONE.w * K5.phone, y: TOP, k: K5.phone, crop: PHONE, radius: 45 });
+          const chairSigned = chair.add(SIGNED);
+          const phoneHash = chair.rect(PHONE_HASH, 6);
+          const SEAL = "18a-key-1-signed.seal-block";
+          const KEYS = "18a-key-1-signed.keys";
+          const consoleHash = FILM.box(SEAL, "W-TR-07.batchHash");
+          const sealW = FILM.still(SEAL).width * K5.seal;
+          const sealH = FILM.still(SEAL).height * K5.seal;
+          const keysW = FILM.still(KEYS).width * K5.keys;
+          const keysH = FILM.still(KEYS).height * K5.keys;
+          const sealY = Math.round(phoneHash.y + phoneHash.h / 2 - (consoleHash.y + consoleHash.h / 2) * K5.seal);
+          const sealX = Math.round((120 + keysW + chair.x - sealW) / 2);
+          const keys = put("#s4-w5k", KEYS, { x: 120, y: Math.round(sealY + sealH / 2 - keysH / 2), k: K5.keys });
+          const keysBoth = keys.add("20a-approved-by-both.keys");
+          const seal = put("#s4-w5s", SEAL, { x: sealX, y: sealY, k: K5.seal });
+          const sealBoth = seal.add("20a-approved-by-both.seal-block");
+          label(5, arrive("4e"));
+          rise("#s4-g5", arrive("4e"));
+          rise(["#s4-h51", "#s4-t5"], arrive("4e") + 0.05, { y: 28 });
+          rise("#s4-h52", at("same"), { y: 28 });
+          mark("#s4-g5", seal.rect("W-TR-07.batchHash", 6), at("same"));
+          const phoneMark = mark("#s4-g5", phoneHash, at("same", 1, 0.12));
+          const tSigned = at("chair", 1, 0.1);
+          // The signed states set their words and figures in other places (the phone's amount and seal sit higher, the
+          // signer's line reads differently), so a crossfade would show them twice: the phone and the signer list
+          // change by a cut. The console's seal changes in place, so it may dissolve, briefly.
+          const cut = (target) => tl.fromTo(target, { opacity: 0 }, { opacity: 1, duration: 0.001, ease: "none" }, tSigned);
+          cut(chairSigned);
+          cut(keysBoth);
+          fadeIn(sealBoth, tSigned, 0.15);
+          // the signed screen sets the seal and the hash higher: the outline follows the hash.
+          // MEASURED on the stills: the hash sits 36.25 CSS px higher once signed. (20c's own seal and hash boxes
+          // are about 24 px above the pixels, so they are not used.)
+          const hashRise = -36.25 * K5.phone;
+          tl.fromTo(phoneMark, { y: 0 }, { y: hashRise, duration: 0.001, ease: "none" }, tSigned); // with the cut
+          exit(["#s4-h5", "#s4-g5", "#s4-t5"], "4f");
+
+          /* ================= 6 Pay: "PayPal pays the farmers who have an account. The rest get cash, on the same statement." ================= */
+          const FAN = "22b-fanout-settled.fan";
+          const fan = put("#s4-w6f", FAN, { x: 960 - FILM.still(FAN).width / 2 - 32, y: Math.round(662 - FILM.still(FAN).height / 2 - 32), k: 1, pad: 32 });
+          const MONEY = "27b-proof-6-of-6.money";
+          const moneyCard = FILM.box(MONEY, "W-PF-01.money"); // the card itself, inside the crop's margin
+          const money = put("#s4-w6m", MONEY, { x: 960 - (moneyCard.w * 1.9) / 2, y: TOP + 2, k: 1.9, crop: moneyCard, radius: 20, ownEdge: true });
+          label(6, arrive("4f"));
+          rise("#s4-g6a", arrive("4f"));
+          rise(["#s4-h6", "#s4-t6"], arrive("4f") + 0.05, { y: 28 });
+          // MEASURED: "7 ● PayPal" at the top left of the figure
+          mark("#s4-g6a", fan.rect({ x: 0, y: 4, w: 110, h: 52 }, 8), at("PayPal pays", 1, 0.1));
+          const tRest = at("The rest");
+          out("#s4-g6a", tRest - 0.4, 0.25);
+          rise("#s4-g6b", tRest - 0.25, { y: 24, d: 0.55 });
+          // MEASURED: the PayPal and the cash rows are 163..223 px down the card
+          mark("#s4-g6b", money.rect({ x: moneyCard.x + 16, y: moneyCard.y + 163, w: moneyCard.w - 32, h: 60 }), at("cash", 1, 0.1));
+          exit(["#s4-h6", "#s4-g6b", "#s4-t6"], "4g");
+
+          /* ================= 7 Explain: "Nang Celing reads her pay in her own language, or listens. One tap shows the slip
+             behind each peso." ================= */
+          const PHONE7 = { x: 656, y: TOP, k: 1.6, shift: -456 };
+          const member = put("#s4-p7", "23b-member-paid-en.phone", { x: PHONE7.x, y: PHONE7.y, k: PHONE7.k, crop: PHONE, radius: 45 });
+          const memberCebuano = member.add("23a-member-bayad-na-ceb.phone");
+          put("#s4-w7s", "26-listen.sentence", { x: 968, y: 494, k: 2 });
+          // MEASURED: the equation card without its cut side borders (x 4..326)
+          const trace = put("#s4-w7t", "24-tap-a-peso.trace", { x: 968, y: 430, k: 2, crop: { x: 4, y: 0, w: 322, h: 118 }, pad: 6 });
+          // MEASURED: the slip from its Member No. row down to the Net kg row's own border (y 96..185 of the crop).
+          // The date row is left out: this card's date differs from the photographed slip 0403 in step 2.
+          put("#s4-w7p", "25a-slip-0403-on-her-phone.slip-to-net", { x: 968, y: 706, k: 2, crop: { x: 0, y: 96, w: 328, h: 89 }, padTop: 14 });
+          label(7, arrive("4g"));
+          rise("#s4-g7", arrive("4g"));
+          rise(["#s4-h7a1", "#s4-t7"], arrive("4g") + 0.05, { y: 28 });
+          rise("#s4-h7a2", at("her own language"), { y: 28 });
+          fadeIn(memberCebuano, at("her own language", 1, 0.02), 0.35);
+          const tongue = mark("#s4-m7", member.rect("W-JG-01.frame.member>M-MB-01.lang", 4), at("language", 1, -0.05), { radius: 40 });
+          const tListen = at("or listens");
+          out(tongue, tListen - 0.42, 0.2);
+          tl.fromTo("#s4-m7", { x: 0 }, { x: PHONE7.shift, duration: 0.7, ease: E }, tListen - 0.37);
+          rise("#s4-w7s", tListen + 0.08, { y: 28, d: 0.5 });
+          const listen = mark("#s4-m7", member.rect(FILM.box("23a-member-bayad-na-ceb.phone", "W-JG-01.frame.member>M-MB-01.paminawa"), 8), tListen + 0.38, { radius: 46 });
+          const tTap = at("One tap");
+          out([listen, "#s4-w7s", "#s4-h7a"], tTap - 0.25, 0.22);
+          rise("#s4-h7b", tTap, { y: 28 });
+          rise("#s4-w7t", tTap, { y: 28, d: 0.5 });
+          mark("#s4-g7", trace.rect("W-JG-01.frame.member>M-MB-01.slip.0403", 4), at("tap", 1, 0.2), { radius: 14 });
+          rise("#s4-w7p", at("slip behind"), { y: 28, d: 0.5 });
+          exit(["#s4-h7b", "#s4-g7", "#s4-t7"], "4h");
+
+          /* ================= 8 Prove: "And the buyer checks every line, in her own browser." ================= */
+          const checks = put("#s4-w8c", "27a-proof-idle.checks", { x: 120, y: 534, w: 1680 });
+          const checksMatch = checks.add("27b-proof-6-of-6.checks");
+          const VERDICT = "27b-proof-6-of-6.verdict";
+          const verdict = put("#s4-w8v", VERDICT, { x: 160, y: TOP, w: 1600 });
+          label(8, arrive("4h"));
+          rise("#s4-g8", arrive("4h"));
+          rise(["#s4-h81", "#s4-t8"], arrive("4h") + 0.05, { y: 28 });
+          fadeIn(checksMatch, at("checks"), 0.35);
+          rise("#s4-h82", at("checks"), { y: 28 });
+          const tBrowser = at("in her own browser");
+          out("#s4-w8c", tBrowser - 0.44, 0.22);
+          rise("#s4-w8v", tBrowser - 0.2, { y: 24, d: 0.55 });
+          // the "... PHT · in this browser" line sits between the result line and the signers (boxes); its width is MEASURED
+          const passed = FILM.box(VERDICT, "W-PF-01.verdict.result");
+          const signers = FILM.box(VERDICT, "W-PF-01.verdict.stamps");
+          const browserLine = { x: passed.x - 4, y: (passed.y + passed.h + signers.y) / 2 - 9.5, w: 205, h: 23 };
+          mark("#s4-g8", verdict.rect(browserLine, 3), at("browser", 1, 0.1));
+
+          /* ---- hold the Proof result, then clear to the plain ground (the next section opens on it) ---- */
+          out(["#s4-step", "#s4-h8", "#s4-t8", "#s4-g8"], FILM.section("s4").duration - 0.4, 0.35);
+
+          window.__timelines["s4-demo"] = tl;
+        })();
+      </script>
+    </template>
+  </body>
+</html>

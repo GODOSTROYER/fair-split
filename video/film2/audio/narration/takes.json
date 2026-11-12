@@ -1,0 +1,213 @@
+{
+  "voice": "Charon",
+  "model": "gemini-3.8-flash-tts",
+  "style": "calm, warm and credible narrator of a short product film, speaking to a viewer who has never heard of the project; clear, quietly confident, unhurried, never rushed; <the section's pace>",
+  "note": "Film v7 (11 Nov 2026). One Gemini TTS request per section; sections 4 and 6 were retaken in parts at their line breaks (`use`) because the single takes sped up as they went (free tier, the repo's KeyPool and synthesize(), counted on the shared ledger). The words are research/film-1111/script.md, word for word; `paragraphs` are sent joined by a blank line (the demo's eight lines, the four rules). `pauses` are worked out by tools/sound-narration.mjs from the take itself (silence inserted into or cut out of an existing pause; the voice is never retimed) and recorded in audio/narration/manifest.json.",
+  "target": {
+    "lufs": -16,
+    "truePeak": -1.5,
+    "rate": 48000
+  },
+  "air": {
+    "start": 0.4,
+    "end": 0.6
+  },
+  "duration": 179,
+  "retimed": "Retimed for the longer section 6 (11 Nov, evening; the film is 179.0 s). Sections 1 and 2 are untouched (run the tool with --keep=s1,s2). Sections 3, 4, 5 and 7 are the same takes placed in new windows: `frozen` (nothing is fitted), with the approved build's pauses given in `set`; section 4 has 0.7 s between its lines and section 7 is tightened to about 11.3 s. Section 6 is new words, recorded in three parts at its line breaks.",
+  "extra": {
+    "s2_tail": {
+      "section": "s2",
+      "text": "Farmers can't check their share. The buyer can't prove the money arrived."
+    }
+  },
+  "changes": "Director's wording changes (11 Nov, after the first build): section 2's last sentence, line 4d ('Once fixed, ...') and line 4f ('PayPal pays the farmers ...'). Only those were re-recorded (s2_tail, s4_3-3, s4_5-5); the rest of each section is the take already in use, cut in the middle of the pause on either side (`say`), and `pins` keep section 4's line starts where the scenes already time to them.",
+  "sections": {
+    "s1": {
+      "window": [0, 17],
+      "pace": "steady and unhurried, about 135 words a minute; a short pause at every full stop; say Davao as dah-VOW, cacao as kuh-KOW, and co-op as KOH-op in two clear syllables",
+      "paragraphs": [
+        "Davao, in the Philippines. Sixty-four farmers grow cacao for one co-op. Every delivery is weighed, and written on a paper slip. Then a chocolate maker overseas pays one premium, for the whole harvest."
+      ]
+    },
+    "s2": {
+      "window": [17, 38],
+      "pace": "plain and a little grave, steady, about 130 words a minute; a clear pause at every full stop",
+      "fit": {
+        "endAirExtra": 0.15
+      },
+      "use": [
+        {
+          "unit": "s2",
+          "take": 1,
+          "say": "One payment. Sixty-four farmers. The split is done by hand, from a box of slips. A carbon copy gets counted twice. A fine appears that no rule allows. Farmers can't check their share."
+        },
+        {
+          "unit": "s2_tail",
+          "take": 1,
+          "say": "The buyer can't prove the money arrived."
+        }
+      ],
+      "paragraphs": [
+        "One payment. Sixty-four farmers. The split is done by hand, from a box of slips. A carbon copy gets counted twice. A fine appears that no rule allows. Farmers can't check their share. The buyer can't prove the money arrived."
+      ]
+    },
+    "s3": {
+      "window": [38, 53.6],
+      "pace": "brighter and confident, about 135 words a minute; say 'Fair Split' as a name; a short pause at every full stop and after 'The vision'; say co-op as KOH-op in two clear syllables",
+      "paragraphs": [
+        "Fair Split turns a season of paper into pay anyone can check. The vision: every co-op, every farmer, paid fairly, by PayPal or in cash, with proof for the buyer. Here's what works today."
+      ],
+      "fit": {
+        "frozen": true,
+        "airEnd": 0.15,
+        "set": {
+          "check.": 1.1,
+          "buyer.": 1.1
+        }
+      }
+    },
+    "s4": {
+      "window": [53.6, 102],
+      "pace": "even, clear and unhurried, about 130 words a minute, the same calm pace from the first word to the last, never speeding up; each paragraph is one step of a demo: a short pause at every full stop and a longer pause, about half a second, between paragraphs; say 'Nang Celing' as nahng seh-LING and peso as PAY-so; in 'what it can't explain' stress the word can't and sound its final t clearly",
+      "lines": ["4a", "4b", "4c", "4d", "4e", "4f", "4g", "4h"],
+      "use": [
+        {
+          "unit": "s4_0-1",
+          "take": 1
+        },
+        {
+          "unit": "s4_2-3",
+          "take": 2,
+          "say": "Code, not AI, works out every share, to the cent, and stops what it can't explain."
+        },
+        {
+          "unit": "s4_3-3",
+          "take": 2
+        },
+        {
+          "unit": "s4_4-5",
+          "take": 1,
+          "say": "Two officers sign the same batch: the treasurer at her desk, the chair on his phone."
+        },
+        {
+          "unit": "s4_5-5",
+          "take": 1
+        },
+        {
+          "unit": "s4_6-7",
+          "take": 1
+        }
+      ],
+      "fit": {
+        "frozen": true,
+        "paraMin": 0.7,
+        "set": {
+          "twice.": 1.1,
+          "copy.": 1.26,
+          "account.": 0.48,
+          "listens.": 1.1
+        }
+      },
+      "paragraphs": [
+        "The buyer pays one PayPal invoice.",
+        "Claude reads every slip, twice. If the readings disagree, a person decides.",
+        "Code, not AI, works out every share, to the cent, and stops what it can't explain.",
+        "This slip was counted twice: once from its pink copy. Once fixed, almost eighteen dollars goes back to sixty-three farmers.",
+        "Two officers sign the same batch: the treasurer at her desk, the chair on his phone.",
+        "PayPal pays the farmers who have an account. The rest get cash, on the same statement.",
+        "Nang Celing reads her pay in her own language, or listens. One tap shows the slip behind each peso.",
+        "And the buyer checks every line, in her own browser."
+      ]
+    },
+    "s5": {
+      "window": [102, 112],
+      "pace": "steady, about 130 words a minute; a short pause after 'Before' and after 'Now', and at every full stop",
+      "paragraphs": [
+        "Before: a box of slips, and trust. Now: one pay run that explains itself. In our demo, under a minute."
+      ],
+      "fit": {
+        "frozen": true,
+        "airStart": 0.3,
+        "airEnd": 0.2,
+        "set": {
+          "trust.": 0.73,
+          "itself.": 0.72
+        }
+      }
+    },
+    "s6": {
+      "window": [112, 166],
+      "pace": "steady and exact, about 135 words a minute, the same calm pace from the first word to the last, never speeding up; a short pause at every full stop and a longer pause, about half a second, between paragraphs; say AI as the letters A, I",
+      "lines": ["simple", "stages", "first", "second", "third", "fourth", "under"],
+      "use": [
+        {
+          "unit": "s6_0-2",
+          "take": 3,
+          "say": "Under the hood, it starts simple: paper in, pay out."
+        },
+        {
+          "unit": "s6_1-1",
+          "take": 1
+        },
+        {
+          "unit": "s6_0-2",
+          "take": 3,
+          "say": "First, AI reads. Claude reads each slip twice, and code compares the readings."
+        },
+        {
+          "unit": "s6_3-4",
+          "take": 2
+        },
+        {
+          "unit": "s6_5-6",
+          "take": 1
+        }
+      ],
+      "fit": {
+        "endBy": 160.6,
+        "endAirExtra": 0,
+        "sentenceMax": 0,
+        "sentenceKeep": 2,
+        "set": {
+          "out.": 0.6,
+          "between.": 0.9,
+          "readings.": 0.9,
+          "season.": 0.9,
+          "signatures.": 0.9,
+          "webhooks.": 0.9
+        }
+      },
+      "earlier": "The first build's section 6 ('four rules', 74 words; unit s6, take 1) is no longer used.",
+      "paragraphs": [
+        "Under the hood, it starts simple: paper in, pay out.",
+        "Four stages sit between.",
+        "First, AI reads. Claude reads each slip twice, and code compares the readings.",
+        "Second, code computes: every share in whole cents, under a rate card hashed before the season.",
+        "Third, people approve. Two officers sign one fingerprint of the batch, and the server recomputes it before paying. One changed cent voids both signatures.",
+        "Fourth, PayPal pays: the invoice through PayPal's Agent Toolkit, payouts through our own typed tool, saved first, sent exactly once, confirmed by signed webhooks.",
+        "Underneath, every step is chained into one ledger."
+      ],
+      "cut": "Director's cut of ten words (11 Nov, night): 'each with one job' and 'If they disagree, a person decides.' are gone so the section keeps the voice's natural pauses. Only 'Four stages sit between.' was re-recorded (s6_1-1); the lines either side are the take already in use, cut in the middle of a pause."
+    },
+    "s7": {
+      "window": [166, 179],
+      "pace": "plain and honest for the first sentence, about 130 words a minute; then slower and warm; say MVP as the letters M, V, P and co-op as KOH-op; 'Fair Split' is a name; a clear pause before the last 'Fair Split', and let 'Every peso, traced' land",
+      "fit": {
+        "frozen": true,
+        "airStart": 0.3,
+        "set": {
+          "MVP:": 0.35,
+          "synthetic.": 0.42,
+          "real.": 0.75,
+          "Split.": 0.6,
+          "peso,": 0.3
+        }
+      },
+      "paragraphs": [
+        "Fair Split is a hackathon MVP: PayPal runs on our simulator, and the co-op is synthetic. The vision is real.",
+        "Fair Split.",
+        "Every peso, traced."
+      ]
+    }
+  }
+}

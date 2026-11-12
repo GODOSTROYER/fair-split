@@ -1,0 +1,595 @@
+<!doctype html>
+<!-- Fair Split film v7, section 7: Close, film 158 to 175 s (SCENES C).
+     The film's one disclosure: the end card's paragraph (exact text: research/film-1111/script.md), spoken and
+     shown here and nowhere else. Then "The vision is real." with the three vision lines, and on the music's final
+     hit the wordmark, "Every peso, traced." and the credits line. Holds to 175.0.
+     The first frame is section 6's last: the finished diagram, drawn by the same diagram() function (copied
+     verbatim between the DIAGRAM markers), which then clears to the ground. The wordmark is SCENES A's object.
+     Structure and rules: CONTRACT.md. -->
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+  </head>
+  <body>
+    <template>
+      <style>
+        #root {
+          position: absolute;
+          inset: 0;
+          overflow: hidden;
+          background: #f7f8fb;
+        }
+        .s7-note {
+          position: absolute;
+          left: 120px;
+          top: 610px;
+          width: 1250px;
+          margin: 0;
+          font-size: 30px;
+          font-weight: 450;
+          line-height: 46px;
+          letter-spacing: 0;
+          color: #0e1525;
+        }
+        .s7-vision {
+          position: absolute;
+          left: 120px;
+          top: 150px;
+          margin: 0;
+        }
+        .s7-vision-head {
+          margin: 0;
+          font-size: 84px;
+          font-weight: 680;
+          line-height: 92px;
+          letter-spacing: -0.03em;
+          color: #0e1525;
+          white-space: nowrap;
+        }
+        .s7-vision-line {
+          margin: 0;
+          font-size: 38px;
+          font-weight: 520;
+          line-height: 54px;
+          letter-spacing: -0.01em;
+          color: #5b6475;
+          white-space: nowrap;
+        }
+        .s7-mvp {
+          position: absolute;
+          left: 120px;
+          top: 150px;
+        }
+        .s7-vision-lines {
+          margin-top: 26px;
+        }
+        .s7-mark {
+          position: absolute;
+          left: 0;
+          top: 0;
+        }
+        .s7-tag {
+          position: absolute;
+          left: 116.5px; /* its E starts at x 121.5, the end card's one left edge */
+          top: 404px;
+          margin: 0;
+          font-size: 56px;
+          font-weight: 600;
+          line-height: 64px;
+          letter-spacing: -0.02em;
+          color: #0e1525;
+          white-space: nowrap;
+        }
+        /* a word that must not break across lines */
+        .s7-keep {
+          white-space: nowrap;
+        }
+        .s7-credits {
+          position: absolute;
+          left: 119px; /* its M starts at x 121.5 */
+          top: 950px;
+          margin: 0;
+          font-size: 24px;
+          font-weight: 450;
+          line-height: 32px;
+          color: #5b6475;
+          white-space: nowrap;
+        }
+      </style>
+
+      <div id="root" data-composition-id="s7-close" data-width="1920" data-height="1080" data-duration="13">
+        <p id="s7-note" class="s7-note">
+          PayPal steps run on our own simulator of PayPal's APIs; no real money moved. The <span class="s7-keep">co-op</span>, its
+          people and its slips are synthetic. Slip reading in the demo replays a prepared reading; Claude's own
+          readings are of ten sample slips. Voices: Gemini TTS. Cebuano is machine-translated.
+        </p>
+        <p id="s7-mvp" class="s7-vision-head s7-mvp">A hackathon MVP</p>
+        <div id="s7-vision" class="s7-vision">
+          <p id="s7-vision-head" class="s7-vision-head">The vision is real.</p>
+          <div class="s7-vision-lines">
+            <p class="s7-vision-line">Every co-op.</p>
+            <p class="s7-vision-line">Every farmer. PayPal or cash.</p>
+            <p class="s7-vision-line">Proof for every buyer.</p>
+          </div>
+        </div>
+        <div id="s7-mark" class="s7-mark"></div>
+        <p id="s7-tag" class="s7-tag">Every peso, traced.</p>
+        <p id="s7-credits" class="s7-credits">Music: "Machina" and "Aurora" by Scott Buckley (CC BY 4.0), scottbuckley.com.au</p>
+      </div>
+
+      <script>
+        (() => {
+          /* DIAGRAM:START (keep identical in s6-architecture.html and s7-close.html) */
+          const diagram = (host, p) => {
+            const NS = "http://www.w3.org/2000/svg";
+            const INK = "#0e1525";
+            const MUTED = "#5b6475";
+            const FAINT = "#c3cad6";
+            const HAIR = "#d9dee7";
+            const INDIGO = "#4a2fd6";
+            const GROUND = "#f7f8fb";
+            // the grid: four 444 columns, 16 apart, inside 48 px margins
+            const PX = [48, 508, 968, 1428];
+            const PW = 444;
+            const PY = 222;
+            const PH = 570;
+            const LY = 162; // the lane: paper in, pay out
+            const LEDGER_Y = 806;
+            const LEDGER_H = 110;
+            const BASE_Y = 928;
+            const BASE_H = 90;
+            const SW = 1824; // strip width
+            // lane stops: the slip, what leaves each stage (centred on the gaps), the request, the payment
+            const G = { slip: 75, data: 500, pay: 960, seal: 1420, sent: 1608, paid: 1800 };
+
+            const css = `
+.${p}-abs{position:absolute;left:0;top:0;margin:0;will-change:transform}
+.${p}-world{position:absolute;left:0;top:0;width:1920px;height:1080px;transform-origin:0 0}
+.${p}-world p,.${p}-world div{font-variant-numeric:lining-nums}
+.${p}-title{position:absolute;left:48px;top:36px;margin:0;font-size:34px;font-weight:650;line-height:40px;letter-spacing:-0.02em;color:${INK};white-space:nowrap}
+.${p}-more{position:absolute;right:48px;top:44px;margin:0;font-size:20px;font-weight:500;line-height:28px;color:${MUTED};white-space:nowrap}
+.${p}-more b{font-family:var(--font-mono);font-weight:400;font-size:19px}
+.${p}-line{position:absolute;height:2px;transform-origin:0 50%}
+.${p}-cap{position:absolute;width:200px;margin:0;text-align:center;font-size:22px;font-weight:520;line-height:28px;color:${MUTED};white-space:nowrap}
+.${p}-big{position:absolute;margin:0;font-size:56px;font-weight:680;line-height:64px;letter-spacing:-0.03em;color:${INK};white-space:nowrap}
+.${p}-node{position:absolute;left:0;top:0;width:0;height:0}
+.${p}-node svg{position:absolute;display:block;overflow:visible}
+.${p}-chip{position:absolute;left:-38px;top:-28px;width:76px;height:56px;background:#ffffff;border:1px solid ${HAIR};border-radius:10px}
+.${p}-chip b{position:absolute;left:0;top:0;right:0;bottom:0;display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-size:26px;font-weight:400;line-height:1;color:${INK}}
+.${p}-card{position:absolute}
+.${p}-card-bg{position:absolute;left:0;top:0;right:0;bottom:0;background:#ffffff;border:1px solid ${HAIR};border-radius:14px}
+.${p}-head{position:absolute;left:20px;top:13px;margin:0;display:flex;align-items:baseline;gap:12px;font-size:30px;font-weight:680;line-height:36px;letter-spacing:-0.025em;color:${INK};white-space:nowrap}
+.${p}-n{display:inline-block;color:${INDIGO}}
+.${p}-L,.${p}-Ls,.${p}-M,.${p}-N,.${p}-B,.${p}-L2,.${p}-M2{position:absolute;margin:0;white-space:nowrap}
+.${p}-L{font-size:15px;font-weight:600;line-height:20px;letter-spacing:-0.005em;color:${INK}}
+.${p}-Ls{font-size:15px;font-weight:500;line-height:20px;color:${MUTED}}
+.${p}-N{font-size:15px;font-weight:600;line-height:20px;color:${INK}}
+.${p}-B{font-size:19px;font-weight:650;line-height:24px;letter-spacing:-0.01em;color:${INK}}
+.${p}-M{font-family:var(--font-mono);font-size:11.6px;font-weight:400;line-height:16px;word-spacing:-0.2em;color:${MUTED}}
+.${p}-L2{font-size:26px;font-weight:650;line-height:32px;letter-spacing:-0.015em;color:${INK}}
+.${p}-M2{font-family:var(--font-mono);font-size:20px;font-weight:400;line-height:26px;word-spacing:-0.2em;color:${MUTED}}
+.${p}-box{position:absolute;background:${GROUND};border:1px solid ${HAIR};border-radius:8px}
+.${p}-hr{position:absolute;height:1px;background:${HAIR}}
+.${p}-vr{position:absolute;width:1px;background:${HAIR}}
+.${p}-strip{position:absolute;left:48px;width:${SW}px}
+.${p}-strip-bg{position:absolute;left:0;top:0;right:0;bottom:0;background:#ffffff;border:1px solid ${HAIR};border-radius:14px}
+.${p}-base-bg{position:absolute;left:0;top:0;right:0;bottom:0;border:1px solid ${FAINT};border-radius:14px}
+.${p}-hold{position:absolute}
+`;
+            if (!document.getElementById(`${p}-diagram-style`)) {
+              const style = document.createElement("style");
+              style.id = `${p}-diagram-style`;
+              style.textContent = css;
+              document.head.appendChild(style);
+            }
+
+            const px = (value) => `${value}px`;
+            const el = (className, styles = {}, html = "") => {
+              const node = document.createElement("div");
+              node.className = className;
+              Object.assign(node.style, styles);
+              if (html) node.innerHTML = html;
+              return node;
+            };
+            const svg = (tag, attrs = {}, kids = []) => {
+              const node = document.createElementNS(NS, tag);
+              for (const [key, value] of Object.entries(attrs)) node.setAttribute(key, String(value));
+              for (const kid of kids) if (kid) node.appendChild(kid);
+              return node;
+            };
+            const layer = el(`${p}-abs`, { width: "1920px", height: "1080px" });
+            host.appendChild(layer);
+            const world = el(`${p}-world`);
+            layer.appendChild(world);
+            const add = (node, parent = world) => parent.appendChild(node);
+
+            // parts: named groups of elements the timeline reveals together, in order
+            const parts = {};
+            const part = (name, ...nodes) => {
+              parts[name] ||= [];
+              parts[name].push(...nodes.flat().filter(Boolean));
+              return nodes[0];
+            };
+            /** Text in a parent, by its top-left; { right: x } aligns its right edge to x, { mid: x } centres it. */
+            const T = (parent, kind, x, y, text, o = {}) => {
+              const node = el(`${p}-${kind}`, { top: px(y) }, text);
+              if (o.right) node.style.right = px((o.pw ?? PW) - x);
+              else if (o.mid) Object.assign(node.style, { left: px(x - 160), width: "320px", textAlign: "center" });
+              else node.style.left = px(x);
+              if (o.color) node.style.color = o.color;
+              return add(node, parent);
+            };
+            const box = (parent, x, y, w, h) => add(el(`${p}-box`, { left: px(x), top: px(y), width: px(w), height: px(h) }), parent);
+            const rule = (parent, x, y, w) => add(el(`${p}-hr`, { left: px(x), top: px(y), width: px(w) }), parent);
+            const sheet = (parent, w, h) => add(svg("svg", { width: w, height: h, viewBox: `0 0 ${w} ${h}`, style: "position:absolute;left:0;top:0;overflow:visible" }), parent);
+            /** A stroke that can draw itself on (the timeline animates its dash offset). */
+            const stroke = (parent, d, o = {}) => {
+              const node = svg("path", { d, pathLength: 1, "stroke-dasharray": "1 1", fill: "none", stroke: o.color ?? FAINT, "stroke-width": o.w ?? 1.5, "stroke-linecap": "round", "stroke-linejoin": "round" });
+              node.setAttribute("data-draw", "1");
+              return add(node, parent);
+            };
+            const shape = (parent, tag, attrs) => add(svg(tag, attrs), parent);
+            const head = (parent, x, y, dir = "down", color = FAINT) => {
+              const d = dir === "down" ? `M${x - 4} ${y - 5}L${x} ${y}L${x + 4} ${y - 5}` : `M${x - 5} ${y - 4}L${x} ${y}L${x - 5} ${y + 4}`;
+              return shape(parent, "path", { d, fill: "none", stroke: color, "stroke-width": 1.5, "stroke-linecap": "round", "stroke-linejoin": "round" });
+            };
+
+            // the batch seal, as the product draws it under 96 px: the inner ring is the treasurer's key, the
+            // outer ring the Chair's (packages/seal). Fixed parameters: a picture of a seal, not a digest.
+            const ringPath = (radius, band, lobes, turns, turn) => {
+              const mid = ((band[0] + band[1]) / 200) * radius;
+              const amp = ((band[1] - band[0]) / 200) * radius;
+              const steps = lobes * 40;
+              let d = "";
+              for (let index = 0; index <= steps; index += 1) {
+                const t = (index / steps) * Math.PI * 2 * turns;
+                const r = mid + amp * Math.cos((lobes / turns) * t + turn);
+                d += `${index ? "L" : "M"}${(r * Math.cos(t)).toFixed(2)} ${(r * Math.sin(t)).toFixed(2)}`;
+              }
+              return `${d}Z`;
+            };
+            /** Two rings around (cx, cy) in an svg; other: a different batch (one cent changed), so another pattern. */
+            const sealIn = (parent, cx, cy, size, o = {}) => {
+              const r = size / 2;
+              const spec = o.other ? [[5, 2, 2.1], [9, 4, 0.3]] : [[7, 2, 0.4], [11, 3, 1.1]];
+              const ring = (band, [lobes, turns, turn]) => {
+                const node = svg("path", { d: ringPath(r, band, lobes, turns, turn), pathLength: 1, "stroke-dasharray": "1 1", fill: "none", stroke: o.color ?? INDIGO, "stroke-width": o.w ?? 1.5, "stroke-linejoin": "round", transform: `translate(${cx} ${cy})` });
+                node.setAttribute("data-draw", "1");
+                return add(node, parent);
+              };
+              return [ring([30, 62], spec[0]), ring([70, 98], spec[1])];
+            };
+
+            const title = add(el(`${p}-title`, {}, "Under the hood"), layer);
+            const more = add(el(`${p}-more`, {}, "Full architecture page: <b>docs/architecture</b> in the repo"), layer);
+
+            /* ---------------------------------------------------------------- the lane: paper in, pay out ---- */
+            const line = (from, to, colour) => add(el(`${p}-line`, { left: px(from), top: px(LY - 1), width: px(to - from), background: colour }));
+            const laneBase = line(G.slip, G.paid, FAINT);
+            const seg = [line(G.slip, G.data, INDIGO), line(G.data, G.pay, INDIGO), line(G.pay, G.seal, INDIGO), line(G.seal, G.sent, INDIGO), line(G.sent, G.paid, INDIGO)];
+            const node = (x) => add(el(`${p}-node`, { left: px(x), top: px(LY) }));
+            const cap = (x, text) => add(el(`${p}-cap`, { left: px(x - 100), top: px(LY - 74) }, text));
+            // the slip (SCENES A's object) in a box that scales from its left edge
+            const slipBox = (hidden) => {
+              const holder = add(el(`${p}-hold`, { left: "48px", top: px(LY - 34), width: "54px", height: "68px" }));
+              holder.appendChild(FSO.slip({ detail: "mini", flat: true, w: 54, serial: "0403" }));
+              if (hidden) holder.style.opacity = "0";
+              return holder;
+            };
+            const slip = slipBox(false);
+            const slipGo = slipBox(true);
+            const chip = (x, inner, hidden) => {
+              const holder = node(x);
+              const body = el(`${p}-chip`);
+              body.appendChild(inner);
+              holder.appendChild(body);
+              if (hidden) holder.style.opacity = "0";
+              return holder;
+            };
+            const dataMark = () => {
+              const b = document.createElement("b");
+              b.textContent = "{ }";
+              return b;
+            };
+            const payMark = () =>
+              svg("svg", { width: 76, height: 56, viewBox: "0 0 76 56", style: "left:0;top:0" }, [
+                ...[16, 28, 40].flatMap((y, index) => [
+                  svg("rect", { x: 13, y: y - 2, width: [22, 17, 25][index], height: 4, rx: 2, fill: FAINT }),
+                  svg("rect", { x: 63 - [16, 20, 14][index], y: y - 2, width: [16, 20, 14][index], height: 4, rx: 2, fill: INK }),
+                ]),
+              ]);
+            const data = chip(G.data, dataMark());
+            const dataGo = chip(G.data, dataMark(), true);
+            const pay = chip(G.pay, payMark());
+            const payGo = chip(G.pay, payMark(), true);
+            const sealAt = (x) => {
+              const holder = node(x);
+              const art = svg("svg", { width: 76, height: 76, viewBox: "-38 -38 76 76", style: "left:-38px;top:-38px" }, [svg("circle", { cx: 0, cy: 0, r: 41, fill: GROUND })]);
+              holder.appendChild(art);
+              holder.rings = sealIn(art, 0, 0, 76);
+              return holder;
+            };
+            // the request waiting for its seal: an empty ring
+            const slot = node(G.sent);
+            slot.appendChild(
+              svg("svg", { width: 82, height: 82, viewBox: "-41 -41 82 82", style: "left:-41px;top:-41px" }, [
+                svg("circle", { cx: 0, cy: 0, r: 41, fill: GROUND }),
+                svg("circle", { cx: 0, cy: 0, r: 37, fill: "none", stroke: FAINT, "stroke-width": 2 }),
+              ]),
+            );
+            const seal = sealAt(G.seal);
+            const sealGo = sealAt(G.sent); // the seal that travelled with the request, at rest
+            // "what they signed is what is sent": the match mark on the request's seal
+            const match = node(G.sent + 30);
+            match.style.top = px(LY + 28);
+            const matchTick = svg("path", { d: "M-6 0.5L-2 4.5L6.5 -4.5", pathLength: 1, "stroke-dasharray": "1 1", fill: "none", stroke: "#ffffff", "stroke-width": 2.6, "stroke-linecap": "round", "stroke-linejoin": "round" });
+            match.appendChild(
+              svg("svg", { width: 28, height: 28, viewBox: "-14 -14 28 28", style: "left:-14px;top:-14px" }, [
+                svg("circle", { cx: 0, cy: 0, r: 14, fill: GROUND }),
+                svg("circle", { cx: 0, cy: 0, r: 11.5, fill: INDIGO }),
+                matchTick,
+              ]),
+            );
+            // the payment: SCENES A's token, one member's pay (M-014). An outline until the money lands, then jade.
+            const payBox = (outline) => {
+              const holder = add(el(`${p}-hold`, { left: px(G.paid - 72), top: px(LY - 22), width: "144px", height: "44px" }));
+              const token = FSO.token({ amount: "US$64.45", h: 44, anchor: "center", x: 72, y: 22 });
+              if (outline) {
+                Object.assign(token.fsoIn.style, { background: GROUND, color: MUTED, outline: `2px solid ${FAINT}`, outlineOffset: "-2px" });
+                holder.style.opacity = "0";
+              }
+              holder.appendChild(token);
+              return holder;
+            };
+            const paidOutline = payBox(true);
+            const paid = payBox(false);
+            const caps = { slip: cap(G.slip, "slip"), data: cap(G.data, "data"), pay: cap(G.pay, "pay lines"), seal: cap(G.seal, "signed"), sent: cap(G.sent, "sent"), paid: cap(G.paid, "paid") };
+            // the opening words, larger than anything else: they leave when the stages arrive
+            const paperIn = add(el(`${p}-big`, { left: "48px", top: px(LY + 86), opacity: "0" }, "Paper in"));
+            const payOut = add(el(`${p}-big`, { right: "48px", top: px(LY + 86), opacity: "0" }, "Pay out"));
+
+            /* --------------------------------------------------------------------------- the four stages ---- */
+            const NAMES = ["AI reads", "Code computes", "People approve", "PayPal pays"];
+            const stages = NAMES.map((name, index) => {
+              const card = add(el(`${p}-card`, { left: px(PX[index]), top: px(PY), width: px(PW), height: px(PH) }));
+              const bg = add(el(`${p}-card-bg`), card);
+              const header = add(el(`${p}-head`), card);
+              const n = document.createElement("span");
+              n.className = `${p}-n`;
+              n.textContent = String(index + 1);
+              const h = document.createElement("span");
+              h.textContent = name;
+              header.append(n, h);
+              const top = rule(card, 20, 60, PW - 40);
+              const art = sheet(card, PW, PH);
+              // done: ticked when the showcase slip has passed through
+              const done = FSO.tick({ size: 30, weight: 5.5, color: INDIGO, x: PW - 20 - 30, y: 16 });
+              // as FSO.write leaves it
+              done.fsoStrokes.forEach((mark) => {
+                mark.setAttribute("stroke-dasharray", "1 1");
+              });
+              card.appendChild(done);
+              return { card, bg, n, h, top, art, done };
+            });
+
+            /* 1. AI reads: two readings, compared in code, a threshold, a person (PR #1 "Reading a weigh-slip") */
+            {
+              const { card: c, art: a } = stages[0];
+              const photo = FSO.slip({ detail: "full", flat: true, w: 84, serial: "0403", kg: "38.45", x: 180, y: 74 });
+              c.appendChild(photo);
+              part("p1.slip", photo, T(c, "M", 276, 112, "slip 0403"), T(c, "M", 276, 128, "one photo, read twice"));
+              part("p1.readA", stroke(a, "M222 179V192H116V204"), head(a, 116, 205), box(c, 20, 206, 192, 58), T(c, "L", 32, 214, "Read A"), T(c, "N", 200, 214, "38.45 kg", { right: true }), T(c, "M", 32, 238, "claude-opus-5-5"));
+              part("p1.readB", stroke(a, "M222 192H328V204"), head(a, 328, 205), box(c, 232, 206, 192, 58), T(c, "L", 244, 214, "Read B"), T(c, "N", 412, 214, "38.45 kg", { right: true }), T(c, "M", 244, 238, "claude-opus-5-5"));
+              part("p1.cmp", stroke(a, "M116 264V278H222V290"), stroke(a, "M328 264V278H222"), head(a, 222, 291), box(c, 92, 292, 260, 42), T(c, "L", 106, 303, "Code compares"), T(c, "M", 340, 306, "agreement()", { right: true }));
+              // the 0 to 1 scale, with the auto-accept line at 0.85
+              const X0 = 20;
+              const XW = 404;
+              const at = (score) => X0 + score * XW;
+              part(
+                "p1.scale",
+                stroke(a, "M222 336V348"),
+                head(a, 222, 349),
+                shape(a, "rect", { x: X0, y: 379, width: XW, height: 6, rx: 3, fill: HAIR }),
+                shape(a, "rect", { x: at(0.85), y: 379, width: X0 + XW - at(0.85), height: 6, rx: 3, fill: INK }),
+                shape(a, "path", { d: `M${at(0.85)} 371V393`, stroke: INDIGO, "stroke-width": 2, "stroke-linecap": "round", fill: "none" }),
+                T(c, "M", 424, 394, "auto-accept ≥ 0.85", { right: true }),
+                shape(a, "circle", { cx: at(0.97), cy: 382, r: 6.5, fill: "#ffffff", stroke: INK, "stroke-width": 2 }),
+                T(c, "M", 424, 354, "0.97 · A = B, clear", { right: true }),
+              );
+              part("p1.low", shape(a, "circle", { cx: at(0.4), cy: 382, r: 6.5, fill: "#ffffff", stroke: INDIGO, "stroke-width": 2 }), T(c, "M", at(0.4), 354, "0.40 · reads disagree", { mid: true }));
+              // a person: the film's indigo
+              const who = svg("svg", { width: 20, height: 20, viewBox: "0 0 20 20", style: "position:absolute;left:12px;top:9px" }, [
+                svg("circle", { cx: 10, cy: 6, r: 4, fill: INDIGO }),
+                svg("path", { d: "M2.5 19C2.5 13.5 6 11.5 10 11.5C14 11.5 17.5 13.5 17.5 19Z", fill: INDIGO }),
+              ]);
+              const chipBox = box(c, 20, 418, 178, 38);
+              chipBox.appendChild(who);
+              part("p1.person", stroke(a, `M${at(0.4)} 392V414`, { color: INDIGO }), head(a, at(0.4), 416, "down", INDIGO), chipBox, T(c, "L", 60, 427, "A person decides"), T(c, "M", 20, 464, "below 0.85: one zoom re-read, then a person"));
+              part("p1.notes", rule(c, 20, 490, PW - 40), T(c, "L", 20, 498, "Screens for hidden instructions"), T(c, "M", 424, 502, "claude-haiku-5-5", { right: true }));
+              part("p1.notes", T(c, "L", 20, 521, "No amount fields in its schema"), T(c, "M", 424, 525, "invariant I1", { right: true }));
+              part("p1.notes", T(c, "M", 20, 545, "packages/ai · ClaudeGateway"));
+            }
+
+            /* 2. Code computes: whole cents, conserved; the rate card sealed first (PR #1 "Money flow", facts 7.2) */
+            {
+              const { card: c, art: a } = stages[1];
+              part("p2.kg", box(c, 20, 80, 150, 44), T(c, "B", 95, 90, "148.0 kg", { mid: true }), T(c, "M", 20, 128, "M-014 · her four slips"));
+              part("p2.cents", stroke(a, "M176 102H256"), head(a, 258, 102, "right"), T(c, "M", 217, 82, "× rate card", { mid: true }), box(c, 264, 80, 160, 44), T(c, "B", 344, 90, "US$64.45", { mid: true }), T(c, "M", 424, 128, "6,445 cents", { right: true }));
+              part("p2.cents", T(c, "M", 20, 152, "premium 43.69 + bonus 21.85 − CBU 1.09"), T(c, "M", 20, 170, "packages/domain · largest-remainder shares"));
+              part("p2.sum", rule(c, 20, 196, PW - 40), T(c, "L", 20, 206, "Every cent adds up"), T(c, "M", 424, 210, "invariant I3", { right: true }));
+              const rows = [
+                ["", "4,333.50", "one invoice", 234],
+                ["=", "341.74", "PayPal · 7 members", 266],
+                ["+", "3,876.43", "cash · 57 members", 290],
+                ["+", "55.33", "kept by the co-op, net of credits", 314],
+                ["+", "60.00", "disbursement cost", 338],
+              ];
+              rows.forEach(([sign, amount, label, y], index) => {
+                part("p2.sum", T(c, "N", 20, y, sign), T(c, "N", 140, y, amount, { right: true }), T(c, index ? "Ls" : "L", 156, y, label));
+                if (index === 0) part("p2.sum", rule(c, 20, 260, 120));
+              });
+              part("p2.sum", T(c, "M", 20, 364, "inv.i3.conservation · fast-check property test"));
+              const doc = svg("svg", { width: 30, height: 38, viewBox: "0 0 30 38", style: "position:absolute;left:20px;top:404px" }, [
+                svg("path", { d: "M1 1H20L29 10V37H1Z", fill: "#ffffff", stroke: INK, "stroke-width": 1.5, "stroke-linejoin": "round" }),
+                svg("path", { d: "M20 1V10H29", fill: "none", stroke: INK, "stroke-width": 1.5, "stroke-linejoin": "round" }),
+                svg("path", { d: "M7 18H23M7 24H23M7 30H17", fill: "none", stroke: FAINT, "stroke-width": 1.5, "stroke-linecap": "round" }),
+              ]);
+              c.appendChild(doc);
+              part("p2.card", rule(c, 20, 392, PW - 40), doc, T(c, "L", 62, 402, "Rate card, sealed first"), T(c, "M", 62, 424, "BR 2026-04 · canonical JSON → SHA-256"));
+              part(
+                "p2.seal",
+                stroke(a, "M68 458H424", { color: FAINT }),
+                shape(a, "circle", { cx: 68, cy: 458, r: 5, fill: INDIGO }),
+                T(c, "M", 62, 466, "14 Mar · ratified"),
+                shape(a, "circle", { cx: 268, cy: 458, r: 5, fill: "#ffffff", stroke: INK, "stroke-width": 1.5 }),
+                T(c, "M", 262, 466, "2 Apr · first slip, 0301"),
+              );
+              part("p2.refuse", T(c, "M", 62, 488, "an edit → 409 RATE_CARD_RATIFIED · invariant I2"));
+              part("p2.holds", rule(c, 20, 514, PW - 40), T(c, "L", 20, 522, "Holds what it can't justify"), T(c, "M", 20, 545, "duplicate slip · impossible yield · unruled fine"));
+            }
+
+            /* 3. People approve: two keys, one digest, recomputed before the POST (PR #1 "Two keys, one hash") */
+            {
+              const { card: c, art: a } = stages[2];
+              part("p3.payload", T(c, "L", 20, 74, "What they sign"), T(c, "M", 424, 78, "8 items · US$368.39", { right: true }), box(c, 20, 98, 404, 52), T(c, "M", 32, 108, "{ …, rateCardSha256, batchSha256, linesDigest,"), T(c, "M", 32, 126, "&nbsp; totalCents, nonce, exp }"));
+              const big = sealIn(a, 368, 212, 100);
+              const pen = (y) => stroke(a, `M22 ${y + 14}C26 ${y + 1} 31 ${y + 1} 32 ${y + 12}C33 ${y + 19} 38 ${y + 18} 40 ${y + 8}C42 ${y} 47 ${y + 4} 45 ${y + 12}C44 ${y + 19} 50 ${y + 16} 54 ${y + 10}C58 ${y + 5} 62 ${y + 8} 65 ${y + 12}C70 ${y + 16} 78 ${y + 12} 86 ${y + 9}`, { color: INDIGO, w: 1.6 });
+              part("p3.sig1", pen(168), T(c, "L", 104, 166, "Treasurer"), T(c, "M", 104, 188, "Ed25519 · key 1"), big[0]);
+              part("p3.sig2", pen(216), T(c, "L", 104, 214, "Chair"), T(c, "M", 104, 236, "Ed25519 · key 2 · over US$300"), big[1]);
+              part("p3.finger", T(c, "L", 20, 274, "One fingerprint of the batch"), T(c, "M", 368, 278, "batchSha256", { mid: true }));
+              part("p3.server", rule(c, 20, 304, PW - 40), T(c, "L", 20, 314, "The server recomputes it"), T(c, "M", 20, 336, "PayoutsService.executeApproved()"));
+              [
+                ["re-reads the locked lines from the database", 360],
+                ["recomputes both digests", 382],
+                ["checks both signatures", 404],
+              ].forEach(([text, y], index) => {
+                part(`p3.check${index}`, stroke(a, `M22 ${y + 10}L26.5 ${y + 14.5}L34 ${y + 5}`, { color: INK, w: 2 }), T(c, "Ls", 44, y, text, { color: INK }));
+              });
+              const signedA = sealIn(a, 38, 452, 36);
+              const again = sealIn(a, 96, 452, 36);
+              part("p3.match", signedA, T(c, "B", 67, 440, "=", { mid: true }), again, T(c, "L", 132, 434, "Same digest: the batch is sent"), T(c, "M", 132, 456, "re-hashed just before the POST"));
+              const signedB = sealIn(a, 38, 522, 36);
+              const moved = sealIn(a, 96, 522, 36, { other: true, color: INK });
+              part("p3.voidA", rule(c, 20, 484, PW - 40), signedB, T(c, "B", 67, 510, "≠", { mid: true }), moved);
+              part("p3.voidB", T(c, "L", 132, 504, "One cent changed: nothing sent"), T(c, "M", 132, 526, "both approvals void · invariants I4, I6"));
+            }
+
+            /* 4. PayPal pays: the request path (PR #1 "Request path", "Invoicing, Payouts and webhooks") */
+            {
+              const { card: c, art: a } = stages[3];
+              part("p4.inv", T(c, "L", 20, 74, "Invoice"), T(c, "M", 424, 78, "Invoicing v2 · Agent Toolkit 1.11.0", { right: true }));
+              part("p4.pay", T(c, "L", 20, 102, "Payouts"), T(c, "M", 424, 106, "Payouts v1 · our typed tool", { right: true }));
+              // three lifelines, and five messages between them: who tells whom, in order
+              const LIFE = { db: 62, api: 222, pp: 382 };
+              const ROWS = [180, 246, 312, 378, 444];
+              // a lifeline is drawn only where no words cross it, so the words need no backing
+              const lifeline = (x, name, w, end, labels, monos) => {
+                const blocks = [...labels.map((row) => [ROWS[row], ROWS[row] + 20]), ...monos.map((row) => [ROWS[row] + 35, ROWS[row] + 51])].sort((one, two) => one[0] - two[0]);
+                let d = "";
+                let from = 168;
+                for (const [top, bottom] of [...blocks, [end, end]]) {
+                  if (top - 3 - from > 4) d += `M${x} ${from}V${top - 3}`;
+                  from = bottom + 3;
+                }
+                part("p4.life", box(c, x - w / 2, 142, w, 26), T(c, "L", x, 145, name, { mid: true }));
+                part("p4.life", shape(a, "path", { d, fill: "none", stroke: FAINT, "stroke-width": 1.5, "stroke-dasharray": "2 5", "stroke-linecap": "round" }));
+              };
+              part("p4.life", rule(c, 20, 132, PW - 40));
+              lifeline(LIFE.db, "Postgres", 88, 508, [0, 3, 4], [0, 3, 4]);
+              lifeline(LIFE.api, "fs-api", 68, 508, [], [0, 1, 2, 3]);
+              lifeline(LIFE.pp, "PayPal", 74, 372, [1, 2], [1, 2]);
+              const say = (name, y, from, to, label, mono, side) => {
+                const tip = to > from ? to - 3 : to + 3;
+                part(name, stroke(a, `M${from} ${y + 27}H${tip}`, { color: INK, w: 1.8 }), shape(a, "path", { d: to > from ? `M${tip - 6} ${y + 22}L${tip} ${y + 27}L${tip - 6} ${y + 32}` : `M${tip + 6} ${y + 22}L${tip} ${y + 27}L${tip + 6} ${y + 32}`, fill: "none", stroke: INK, "stroke-width": 1.8, "stroke-linecap": "round", "stroke-linejoin": "round" }));
+                const words = side === "left" ? [T(c, "L", 20, y, label), T(c, "M", 20, y + 35, mono)] : [T(c, "L", 424, y, label, { right: true }), T(c, "M", 424, y + 35, mono, { right: true })];
+                part(name, words);
+              };
+              say("p4.s1", ROWS[0], LIFE.api, LIFE.db, "Saved first", "state change + outbox row · one transaction", "left");
+              say("p4.s2", ROWS[1], LIFE.api, LIFE.pp, "Sent exactly once", "PayPal-Request-Id = sha256(sender_batch_id)", "right");
+              say("p4.s3", ROWS[2], LIFE.pp, LIFE.api, "Signed webhook back", "CRC32 + RSA-SHA256 · deduplicated", "right");
+              say("p4.s4", ROWS[3], LIFE.api, LIFE.db, "Status only moves forward", "PENDING 10 → UNCLAIMED 30 → SUCCESS 60", "left");
+              say("p4.s5", ROWS[4], LIFE.db, LIFE.api, "Every screen updates", "Postgres NOTIFY → SSE", "left");
+              part("p4.cash", rule(c, 20, 518, PW - 40), T(c, "M", 20, 531, "7 members by PayPal · 57 in cash, on the same statement"));
+            }
+
+            /* --------------------------------------------------- underneath: one ledger (PR #1 "Ledger & Proof") ---- */
+            const drops = PX.map((x) => add(el(`${p}-line`, { left: px(x + PW / 2 - 1), top: px(PY + PH), width: "2px", height: px(LEDGER_Y - PY - PH), background: FAINT, transformOrigin: "50% 0" })));
+            const ledger = add(el(`${p}-strip`, { top: px(LEDGER_Y), height: px(LEDGER_H) }));
+            const ledgerBg = add(el(`${p}-strip-bg`), ledger);
+            const ledgerArt = sheet(ledger, SW, LEDGER_H);
+            const SO = { pw: SW };
+            part("led.head", T(ledger, "L2", 24, 13, "One ledger"), T(ledger, "M2", 186, 17, "entry hash = sha256(previous hash, sequence, fact)"));
+            part("led.rule", add(el(`${p}-vr`, { left: "812px", top: "14px", height: "32px" }), ledger), T(ledger, "M2", 838, 17, "append-only: no UPDATE, no DELETE"));
+            part("led.proof", add(el(`${p}-vr`, { left: "1262px", top: "14px", height: "32px" }), ledger), T(ledger, "L2", 1288, 13, "Proof"), T(ledger, "M2", 1372, 17, "six checks, re-run in the browser"));
+            const KINDS = ["invoice.funded", "rows.accepted", "approval.signed", "approval.signed", "payout.submitting", "webhook.applied"];
+            const links = KINDS.map((kind, index) => {
+              const x = 24 + index * 296;
+              const from = x - 46;
+              const bar = index ? stroke(ledgerArt, `M${from} 77H${x - 8}`, { color: INK, w: 2 }) : null;
+              const block = shape(ledgerArt, "rect", { x, y: 66, width: 22, height: 22, rx: 5.5, fill: "#ffffff", stroke: INK, "stroke-width": 2 });
+              const name = T(ledger, "M2", x + 34, 64, kind, SO);
+              return { bar, block, name };
+            });
+
+            /* --------------------------------------------------------------------- what it all stands on ---- */
+            const base = add(el(`${p}-strip`, { top: px(BASE_Y), height: px(BASE_H) }));
+            add(el(`${p}-base-bg`), base);
+            T(base, "L2", 24, 12, "One TypeScript service");
+            T(base, "M2", 24, 48, "fs-api · Hono · Node 24 · API · SSE · webhooks · outbox dispatcher");
+            T(base, "L2", 880, 12, "One database");
+            T(base, "M2", 880, 48, "fs-db · Postgres 18");
+            T(base, "L2", 1240, 12, "5,000+ automated tests");
+            T(base, "M2", 1240, 48, "23 packages · one dependency rule");
+
+            return {
+              layer, world, title, more, laneBase, seg, slip, slipGo, data, dataGo, pay, payGo, seal, sealGo, slot, match, matchTick, paid, paidOutline, caps, paperIn, payOut,
+              stages, parts, drops, ledger, ledgerBg, links, base, G, PX, PW, PY, PH, LY,
+            };
+          };
+          /* DIAGRAM:END */
+
+          const tl = gsap.timeline({ paused: true });
+          const root = document.querySelector('[data-composition-id="s7-close"]');
+          const E = FILM.ease;
+          const at = (text, nth = 1, offset = 0) => FILM.at("s7", text, nth, offset);
+
+          /* 0. the first frame is section 6's last: the finished diagram, which clears to the ground */
+          const d = diagram(root, "s7");
+          tl.fromTo(d.layer, { opacity: 1 }, { opacity: 0, duration: 0.4, ease: "power2.in" }, 0.04);
+
+          /* 1. "Fair Split is a hackathon MVP: PayPal runs on our simulator, and the co-op is synthetic." */
+          // one card: the headline top-left on the words "a hackathon MVP", the paragraph directly beneath it
+          const NOTE_UP = -336; // the paragraph sits under the headline (top 274) until the vision arrives, then settles to 610
+          const mvpAt = at("Fair", 1, 0.1); // 158.6: as soon as the diagram has cleared, so the ground is never blank under the voice
+          tl.fromTo("#s7-mvp", { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.6, ease: E }, mvpAt);
+          tl.fromTo("#s7-note", { opacity: 0, y: NOTE_UP + 20 }, { opacity: 1, y: NOTE_UP, duration: 0.7, ease: E }, mvpAt + 0.2);
+
+          /* 2. "The vision is real." */
+          const visionAt = at("vision", 1, -0.1);
+          // the headline changes; the paragraph settles to its end-card position in the same single move
+          tl.to("#s7-mvp", { opacity: 0, duration: 0.25, ease: "power2.in" }, visionAt - 0.3);
+          tl.to("#s7-note", { y: 0, duration: 0.7, ease: E }, visionAt - 0.3);
+          tl.fromTo("#s7-vision-head", { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.6, ease: E }, visionAt);
+          gsap.utils.toArray(".s7-vision-line").forEach((line, index) => {
+            tl.fromTo(line, { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.5, ease: E }, visionAt + 0.45 + index * 0.3);
+          });
+
+          /* 3. "Fair Split." on the music's final hit; "Every peso, traced."; the credits */
+          const hit = FILM.mark("fairSplitFinal", "s7").localStart;
+          tl.to("#s7-vision", { opacity: 0, duration: 0.3, ease: "power2.in" }, hit - 0.4);
+          // one left edge for the end card: the F's stem and the line start where the text beneath starts (x 121.5)
+          const mark = FSO.wordmark({ size: 170, n: 12, x: 121.5 - 170 * FSO.WORDMARK_BEARING, y: 150 });
+          document.getElementById("s7-mark").appendChild(mark);
+          tl.fromTo(mark.fsoText, { opacity: 0, y: 26 }, { opacity: 1, y: 0, duration: 0.5, ease: E }, hit - 0.04);
+          mark.fsoSegs.forEach((seg, index) => {
+            tl.fromTo(seg, { opacity: 0, x: -18 }, { opacity: 1, x: 0, duration: 0.4, ease: E }, hit + 0.06 + index * 0.035);
+          });
+          tl.fromTo("#s7-tag", { opacity: 0, y: 18 }, { opacity: 1, y: 0, duration: 0.6, ease: E }, at("Every"));
+          tl.fromTo("#s7-credits", { opacity: 0 }, { opacity: 1, duration: 0.6, ease: "power2.out" }, at("traced", 1, 0.2));
+
+          window.__timelines["s7-close"] = tl;
+        })();
+      </script>
+    </template>
+  </body>
+</html>

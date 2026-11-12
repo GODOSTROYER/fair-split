@@ -1,0 +1,6 @@
+# WAV masters, the music bed, the premix and work files are rebuilt by tools/sound-*.mjs, never committed
+# (third-party music: Scott Buckley, CC BY 4.0, credited in audio/CREDITS.txt and on the end card)
+*.wav
+*.mp3
+work/
+music/

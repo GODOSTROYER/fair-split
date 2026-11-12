@@ -1,0 +1,936 @@
+{
+  "v": 2,
+  "synthetic": true,
+  "notice": "Synthetic narration: Gemini TTS (voice Charon) reading research/film-1111/script.md word for word. Disclosed on the end card as 'Voices: Gemini TTS'.",
+  "voice": "Charon",
+  "model": "gemini-3.8-flash-tts",
+  "style": "calm, warm and credible narrator of a short product film, speaking to a viewer who has never heard of the project; clear, quietly confident, unhurried, never rushed; <the section's pace>",
+  "target": {
+    "lufs": -16,
+    "truePeak": -1.5,
+    "rate": 48000
+  },
+  "requests": 25,
+  "sections": [
+    {
+      "section": "s1",
+      "file": "s1.m4a",
+      "sha256": "8fb5507a82c54b99eed758c4536ac4987ca4815d9bfde7d67cd5cdc937cbdf33",
+      "use": [
+        {
+          "unit": "s1",
+          "take": 1
+        }
+      ],
+      "clip": [0, 17],
+      "speech": [0.5, 15.65],
+      "words": 33,
+      "wpm": 130.7,
+      "rawWpm": 136.2,
+      "air": [0.4, 1.1],
+      "airToWords": [0.5, 1.35],
+      "loudness": {
+        "lufs": -16.2,
+        "truePeak": -2.2
+      },
+      "pace": "steady and unhurried, about 135 words a minute; a short pause at every full stop; say Davao as dah-VOW, cacao as kuh-KOW, and co-op as KOH-op in two clear syllables",
+      "pauses": [
+        {
+          "after": "Philippines.",
+          "kind": "sentence",
+          "at": 2.165,
+          "was": 0.65,
+          "now": 1.07
+        },
+        {
+          "after": "co-op.",
+          "kind": "sentence",
+          "at": 5.955,
+          "was": 0.97,
+          "now": 1.1
+        },
+        {
+          "after": "slip.",
+          "kind": "sentence",
+          "at": 9.66,
+          "was": 1.04,
+          "now": 1.1
+        },
+        {
+          "after": "premium,",
+          "kind": "comma",
+          "at": 13.485,
+          "was": 0.43,
+          "now": 0.43
+        }
+      ],
+      "alignment": {
+        "source": "local transcript (openai-whisper small, word timestamps), offline",
+        "characterErrorRate": 0,
+        "heard": "Davao in the Philippines, 64 farmers grow cacao for one co -op. Every delivery is weighed and written on a paper slip. Then a chocolate maker overseas pays one premium for the whole harvest.",
+        "questioned": []
+      }
+    },
+    {
+      "section": "s2",
+      "file": "s2.m4a",
+      "sha256": "07f36c1d85bcabbe42fe193afb7acfa1c9364426026ef8919a05cdb4f6df39fd",
+      "use": [
+        {
+          "unit": "s2",
+          "take": 1,
+          "say": "One payment. Sixty-four farmers. The split is done by hand, from a box of slips. A carbon copy gets counted twice. A fine appears that no rule allows. Farmers can't check their share."
+        },
+        {
+          "unit": "s2_tail",
+          "take": 1,
+          "say": "The buyer can't prove the money arrived."
+        }
+      ],
+      "clip": [17, 38],
+      "speech": [17.5, 36.94],
+      "words": 40,
+      "wpm": 123.5,
+      "rawWpm": 143.5,
+      "air": [0.4, 0.81],
+      "airToWords": [0.5, 1.06],
+      "loudness": {
+        "lufs": -16.1,
+        "truePeak": -2.3
+      },
+      "pace": "plain and a little grave, steady, about 130 words a minute; a clear pause at every full stop",
+      "pauses": [
+        {
+          "after": "payment.",
+          "kind": "sentence",
+          "at": 1.26,
+          "was": 0.52,
+          "now": 1.1
+        },
+        {
+          "after": "farmers.",
+          "kind": "sentence",
+          "at": 3.04,
+          "was": 0.54,
+          "now": 1.1
+        },
+        {
+          "after": "hand,",
+          "kind": "comma",
+          "at": 5.035,
+          "was": 0.29,
+          "now": 0.29
+        },
+        {
+          "after": "slips.",
+          "kind": "sentence",
+          "at": 6.66,
+          "was": 0.66,
+          "now": 1.1
+        },
+        {
+          "after": "twice.",
+          "kind": "sentence",
+          "at": 9.305,
+          "was": 0.63,
+          "now": 1.1
+        },
+        {
+          "after": "allows.",
+          "kind": "sentence",
+          "at": 12.33,
+          "was": 0.86,
+          "now": 1.1
+        },
+        {
+          "after": "share.",
+          "kind": "sentence",
+          "at": 14.54,
+          "was": 0.68,
+          "now": 1.1
+        }
+      ],
+      "alignment": {
+        "source": "local transcript (openai-whisper small, word timestamps), offline",
+        "characterErrorRate": 0,
+        "heard": "One payment 64 farmers the split is done by hand from a box of slips a Carbon copy gets counted twice a fine appears that no rule allows Farmers can't check their share The buyer can't prove the money arrived.",
+        "questioned": [
+          {
+            "k": 2,
+            "w": "Sixty-four",
+            "heard": "64",
+            "probability": 0.3,
+            "same": true
+          },
+          {
+            "k": 16,
+            "w": "carbon",
+            "heard": "Carbon",
+            "probability": 0.275,
+            "same": true
+          }
+        ]
+      }
+    },
+    {
+      "section": "s3",
+      "file": "s3.m4a",
+      "sha256": "e509b2d7d26d23c87d3c221094ed7697673e7026d4c9ee7a20f27091b589f290",
+      "use": [
+        {
+          "unit": "s3",
+          "take": 1
+        }
+      ],
+      "clip": [38, 53.6],
+      "speech": [38.5, 53.19],
+      "words": 34,
+      "wpm": 138.9,
+      "rawWpm": 145.7,
+      "air": [0.4, 0.16],
+      "airToWords": [0.5, 0.41],
+      "loudness": {
+        "lufs": -16.1,
+        "truePeak": -2.3
+      },
+      "pace": "brighter and confident, about 135 words a minute; say 'Fair Split' as a name; a short pause at every full stop and after 'The vision'; say co-op as KOH-op in two clear syllables",
+      "pauses": [
+        {
+          "after": "Split",
+          "kind": "none",
+          "at": 0.89,
+          "was": 0.16,
+          "now": 0.16
+        },
+        {
+          "after": "check.",
+          "kind": "sentence",
+          "at": 4.49,
+          "was": 0.7,
+          "now": 1.1
+        },
+        {
+          "after": "vision:",
+          "kind": "colon",
+          "at": 5.655,
+          "was": 0.69,
+          "now": 0.69
+        },
+        {
+          "after": "co-op,",
+          "kind": "comma",
+          "at": 6.955,
+          "was": 0.37,
+          "now": 0.37
+        },
+        {
+          "after": "farmer,",
+          "kind": "comma",
+          "at": 8.08,
+          "was": 0.24,
+          "now": 0.24
+        },
+        {
+          "after": "fairly,",
+          "kind": "comma",
+          "at": 9.27,
+          "was": 0.5,
+          "now": 0.5
+        },
+        {
+          "after": "cash,",
+          "kind": "comma",
+          "at": 11.2,
+          "was": 0.44,
+          "now": 0.44
+        },
+        {
+          "after": "buyer.",
+          "kind": "sentence",
+          "at": 12.915,
+          "was": 0.81,
+          "now": 1.1
+        }
+      ],
+      "alignment": {
+        "source": "local transcript (openai-whisper small, word timestamps), offline",
+        "characterErrorRate": 0,
+        "heard": "FairSplit turns a season of paper into pay anyone can check. The Vision. Every co -op, every farmer paid fairly, by PayPal or in cash, with proof for the buyer. Here's what works today.",
+        "questioned": [
+          {
+            "k": 13,
+            "w": "vision:",
+            "heard": "Vision.",
+            "probability": 0.426,
+            "same": true
+          }
+        ]
+      }
+    },
+    {
+      "section": "s4",
+      "file": "s4.m4a",
+      "sha256": "f6089a010725729fbbb86f27bb320dbe5e3ba498f39f06adaebdff00a655e16d",
+      "use": [
+        {
+          "unit": "s4_0-1",
+          "take": 1
+        },
+        {
+          "unit": "s4_2-3",
+          "take": 2,
+          "say": "Code, not AI, works out every share, to the cent, and stops what it can't explain."
+        },
+        {
+          "unit": "s4_3-3",
+          "take": 2
+        },
+        {
+          "unit": "s4_4-5",
+          "take": 1,
+          "say": "Two officers sign the same batch: the treasurer at her desk, the chair on his phone."
+        },
+        {
+          "unit": "s4_5-5",
+          "take": 1
+        },
+        {
+          "unit": "s4_6-7",
+          "take": 1
+        }
+      ],
+      "clip": [53.6, 102],
+      "speech": [54.1, 100.84],
+      "words": 115,
+      "wpm": 147.6,
+      "rawWpm": 147.5,
+      "air": [0.4, 0.91],
+      "airToWords": [0.5, 1.16],
+      "loudness": {
+        "lufs": -16.1,
+        "truePeak": -2.1
+      },
+      "pace": "even, clear and unhurried, about 130 words a minute, the same calm pace from the first word to the last, never speeding up; each paragraph is one step of a demo: a short pause at every full stop and a longer pause, about half a second, between paragraphs; say 'Nang Celing' as nahng seh-LING and peso as PAY-so; in 'what it can't explain' stress the word can't and sound its final t clearly",
+      "pauses": [
+        {
+          "after": "invoice.",
+          "kind": "para",
+          "at": 3.095,
+          "was": 1.17,
+          "now": 0.7
+        },
+        {
+          "after": "slip,",
+          "kind": "comma",
+          "at": 4.88,
+          "was": 0.08,
+          "now": 0.08
+        },
+        {
+          "after": "slip,",
+          "kind": "comma",
+          "at": 5.095,
+          "was": 0.31,
+          "now": 0.31
+        },
+        {
+          "after": "twice.",
+          "kind": "sentence",
+          "at": 5.93,
+          "was": 0.6,
+          "now": 1.1
+        },
+        {
+          "after": "disagree,",
+          "kind": "comma",
+          "at": 7.545,
+          "was": 0.35,
+          "now": 0.35
+        },
+        {
+          "after": "decides.",
+          "kind": "para",
+          "at": 8.86,
+          "was": 0.54,
+          "now": 0.7
+        },
+        {
+          "after": "AI,",
+          "kind": "comma",
+          "at": 10.625,
+          "was": 0.21,
+          "now": 0.21
+        },
+        {
+          "after": "share,",
+          "kind": "comma",
+          "at": 12.145,
+          "was": 0.27,
+          "now": 0.27
+        },
+        {
+          "after": "cent,",
+          "kind": "comma",
+          "at": 13.16,
+          "was": 0.46,
+          "now": 0.46
+        },
+        {
+          "after": "explain.",
+          "kind": "para",
+          "at": 15.325,
+          "was": 0.89,
+          "now": 0.7
+        },
+        {
+          "after": "twice:",
+          "kind": "colon",
+          "at": 17.535,
+          "was": 0.45,
+          "now": 0.45
+        },
+        {
+          "after": "copy.",
+          "kind": "sentence",
+          "at": 19.49,
+          "was": 0.8,
+          "now": 1.26
+        },
+        {
+          "after": "fixed,",
+          "kind": "comma",
+          "at": 20.595,
+          "was": 0.15,
+          "now": 0.15
+        },
+        {
+          "after": "farmers.",
+          "kind": "para",
+          "at": 23.99,
+          "was": 0.54,
+          "now": 0.7
+        },
+        {
+          "after": "batch:",
+          "kind": "colon",
+          "at": 26.525,
+          "was": 0.53,
+          "now": 0.53
+        },
+        {
+          "after": "desk,",
+          "kind": "comma",
+          "at": 28.38,
+          "was": 0.22,
+          "now": 0.22
+        },
+        {
+          "after": "phone.",
+          "kind": "para",
+          "at": 29.84,
+          "was": 0.82,
+          "now": 0.7
+        },
+        {
+          "after": "account.",
+          "kind": "sentence",
+          "at": 32.81,
+          "was": 0.76,
+          "now": 0.48
+        },
+        {
+          "after": "cash,",
+          "kind": "comma",
+          "at": 34.49,
+          "was": 0.6,
+          "now": 0.6
+        },
+        {
+          "after": "statement.",
+          "kind": "para",
+          "at": 35.9,
+          "was": 0.54,
+          "now": 0.7
+        },
+        {
+          "after": "language,",
+          "kind": "comma",
+          "at": 38.845,
+          "was": 0.41,
+          "now": 0.41
+        },
+        {
+          "after": "listens.",
+          "kind": "sentence",
+          "at": 40.225,
+          "was": 1.17,
+          "now": 1.1
+        },
+        {
+          "after": "peso.",
+          "kind": "para",
+          "at": 43.715,
+          "was": 1.05,
+          "now": 0.7
+        },
+        {
+          "after": "line,",
+          "kind": "comma",
+          "at": 46.035,
+          "was": 0.53,
+          "now": 0.53
+        }
+      ],
+      "alignment": {
+        "source": "local transcript (openai-whisper small, word timestamps), offline",
+        "characterErrorRate": 0.004,
+        "heard": "The buyer pays one PayPal invoice. Claude reads every slip twice. If the readings disagree, a person decides. Code not AI works out every share to the scent and stops what it can't explain This slip was counted twice, once from its pink copy. Once fixed, almost $18 goes back to 63 farmers. Two officers sign the same batch. The treasurer at her desk, the chair on his phone. Paypal pays the farmers who have an account. The rest get cash on the same statement. Nang Seling reads her pay in her own language, or listens. One tap shows the slip behind each peso, and the buyer checks every line in her own browser.",
+        "questioned": [
+          {
+            "k": 19,
+            "w": "not",
+            "heard": "not",
+            "probability": 0.141,
+            "same": true
+          },
+          {
+            "k": 27,
+            "w": "cent,",
+            "heard": "scent",
+            "probability": 0.495,
+            "same": false
+          },
+          {
+            "k": 82,
+            "w": "on",
+            "heard": "on",
+            "probability": 0.33,
+            "same": true
+          },
+          {
+            "k": 87,
+            "w": "Celing",
+            "heard": "Seling",
+            "probability": 0.528,
+            "same": false
+          }
+        ]
+      }
+    },
+    {
+      "section": "s5",
+      "file": "s5.m4a",
+      "sha256": "71e1ae54892a447fdbd519b64a6769318ebc09cf975a5512cd8a833ce7ae2c4c",
+      "use": [
+        {
+          "unit": "s5",
+          "take": 1
+        }
+      ],
+      "clip": [102, 112],
+      "speech": [102.4, 111.55],
+      "words": 20,
+      "wpm": 131.1,
+      "rawWpm": 132.6,
+      "air": [0.3, 0.2],
+      "airToWords": [0.4, 0.45],
+      "loudness": {
+        "lufs": -16.2,
+        "truePeak": -2
+      },
+      "pace": "steady, about 130 words a minute; a short pause after 'Before' and after 'Now', and at every full stop",
+      "pauses": [
+        {
+          "after": "Before:",
+          "kind": "colon",
+          "at": 1.135,
+          "was": 0.35,
+          "now": 0.35
+        },
+        {
+          "after": "trust.",
+          "kind": "sentence",
+          "at": 3.74,
+          "was": 0.68,
+          "now": 0.73
+        },
+        {
+          "after": "Now:",
+          "kind": "colon",
+          "at": 4.765,
+          "was": 0.57,
+          "now": 0.57
+        },
+        {
+          "after": "itself.",
+          "kind": "sentence",
+          "at": 7.545,
+          "was": 0.67,
+          "now": 0.72
+        },
+        {
+          "after": "demo,",
+          "kind": "comma",
+          "at": 8.635,
+          "was": 0.41,
+          "now": 0.41
+        }
+      ],
+      "alignment": {
+        "source": "local transcript (openai-whisper small, word timestamps), offline",
+        "characterErrorRate": 0,
+        "heard": "before a box of slips and trust. Now, one pay run that explains itself in our demo under a minute.",
+        "questioned": [
+          {
+            "k": 14,
+            "w": "In",
+            "heard": "in",
+            "probability": 0.414,
+            "same": true
+          }
+        ]
+      }
+    },
+    {
+      "section": "s6",
+      "file": "s6.m4a",
+      "sha256": "3366aab75573434923784658f2a6d32af2e6fdcbe4aad47fa6913bef1aff6b45",
+      "use": [
+        {
+          "unit": "s6_0-2",
+          "take": 3,
+          "say": "Under the hood, it starts simple: paper in, pay out."
+        },
+        {
+          "unit": "s6_1-1",
+          "take": 1
+        },
+        {
+          "unit": "s6_0-2",
+          "take": 3,
+          "say": "First, AI reads. Claude reads each slip twice, and code compares the readings."
+        },
+        {
+          "unit": "s6_3-4",
+          "take": 2
+        },
+        {
+          "unit": "s6_5-6",
+          "take": 1
+        }
+      ],
+      "clip": [112, 166],
+      "speech": [112.5, 160.6],
+      "words": 99,
+      "wpm": 123.5,
+      "rawWpm": 121.8,
+      "air": [0.4, 5.15],
+      "airToWords": [0.5, 5.4],
+      "loudness": {
+        "lufs": -16.1,
+        "truePeak": -2.2
+      },
+      "pace": "steady and exact, about 135 words a minute, the same calm pace from the first word to the last, never speeding up; a short pause at every full stop and a longer pause, about half a second, between paragraphs; say AI as the letters A, I",
+      "pauses": [
+        {
+          "after": "hood,",
+          "kind": "comma",
+          "at": 1.04,
+          "was": 0.28,
+          "now": 0.243
+        },
+        {
+          "after": "simple:",
+          "kind": "colon",
+          "at": 2.265,
+          "was": 0.55,
+          "now": 0.469
+        },
+        {
+          "after": "in,",
+          "kind": "comma",
+          "at": 3.285,
+          "was": 0.37,
+          "now": 0.315
+        },
+        {
+          "after": "out.",
+          "kind": "para",
+          "at": 4.27,
+          "was": 0.74,
+          "now": 0.6
+        },
+        {
+          "after": "between.",
+          "kind": "para",
+          "at": 6.735,
+          "was": 0.73,
+          "now": 0.9
+        },
+        {
+          "after": "First,",
+          "kind": "comma",
+          "at": 7.635,
+          "was": 0.33,
+          "now": 0.283
+        },
+        {
+          "after": "reads.",
+          "kind": "sentence",
+          "at": 9.02,
+          "was": 0.64,
+          "now": 0.567
+        },
+        {
+          "after": "twice,",
+          "kind": "comma",
+          "at": 11.21,
+          "was": 0.28,
+          "now": 0.243
+        },
+        {
+          "after": "readings.",
+          "kind": "para",
+          "at": 13.005,
+          "was": 0.51,
+          "now": 0.9
+        },
+        {
+          "after": "Second,",
+          "kind": "comma",
+          "at": 13.945,
+          "was": 0.29,
+          "now": 0.251
+        },
+        {
+          "after": "computes:",
+          "kind": "colon",
+          "at": 15.38,
+          "was": 0.48,
+          "now": 0.413
+        },
+        {
+          "after": "cents,",
+          "kind": "comma",
+          "at": 17.52,
+          "was": 0.36,
+          "now": 0.307
+        },
+        {
+          "after": "season.",
+          "kind": "para",
+          "at": 20.7,
+          "was": 0.92,
+          "now": 0.9
+        },
+        {
+          "after": "Third,",
+          "kind": "comma",
+          "at": 21.81,
+          "was": 0.4,
+          "now": 0.339
+        },
+        {
+          "after": "approve.",
+          "kind": "sentence",
+          "at": 22.955,
+          "was": 0.59,
+          "now": 0.551
+        },
+        {
+          "after": "batch,",
+          "kind": "comma",
+          "at": 26.39,
+          "was": 0.34,
+          "now": 0.291
+        },
+        {
+          "after": "paying.",
+          "kind": "sentence",
+          "at": 29.065,
+          "was": 0.71,
+          "now": 0.623
+        },
+        {
+          "after": "signatures.",
+          "kind": "para",
+          "at": 32.33,
+          "was": 0.8,
+          "now": 0.9
+        },
+        {
+          "after": "Fourth,",
+          "kind": "comma",
+          "at": 33.4,
+          "was": 0.36,
+          "now": 0.307
+        },
+        {
+          "after": "pays:",
+          "kind": "colon",
+          "at": 34.935,
+          "was": 0.63,
+          "now": 0.532
+        },
+        {
+          "after": "Toolkit,",
+          "kind": "comma",
+          "at": 37.63,
+          "was": 0.66,
+          "now": 0.546
+        },
+        {
+          "after": "tool,",
+          "kind": "comma",
+          "at": 40.205,
+          "was": 0.55,
+          "now": 0.459
+        },
+        {
+          "after": "first,",
+          "kind": "comma",
+          "at": 41.535,
+          "was": 0.41,
+          "now": 0.347
+        },
+        {
+          "after": "once,",
+          "kind": "comma",
+          "at": 43.195,
+          "was": 0.49,
+          "now": 0.411
+        },
+        {
+          "after": "webhooks.",
+          "kind": "para",
+          "at": 45.595,
+          "was": 0.79,
+          "now": 0.9
+        },
+        {
+          "after": "Underneath,",
+          "kind": "comma",
+          "at": 46.685,
+          "was": 0.39,
+          "now": 0.331
+        }
+      ],
+      "alignment": {
+        "source": "local transcript (openai-whisper small, word timestamps), offline",
+        "characterErrorRate": 0,
+        "heard": "Under the hood, it starts simple. Paper in, pay out. Four stages sit between. First, AI reads. Claude reads each slip twice, and code compares the readings. Second, code computes every share in whole cents under a rate card hashed before the season. Third, people approve. Two officers sign one fingerprint of the batch, and the server recomputes it before paying. One changed cent voids both signatures. Fourth, PayPal pays. The invoice through PayPal's agent toolkit payouts through our own typed tool, saved first, sent exactly once, confirmed by signed webhooks. Underneath, every step is chained into one ledger.",
+        "questioned": [
+          {
+            "k": 28,
+            "w": "code",
+            "heard": "code",
+            "probability": 0.448,
+            "same": true
+          },
+          {
+            "k": 30,
+            "w": "every",
+            "heard": "every",
+            "probability": 0.125,
+            "same": true
+          },
+          {
+            "k": 34,
+            "w": "cents,",
+            "heard": "cents",
+            "probability": 0.433,
+            "same": true
+          }
+        ]
+      }
+    },
+    {
+      "section": "s7",
+      "file": "s7.m4a",
+      "sha256": "ae449f209d2005885461d5b3f96534ece176d9da08b2c2e297487f9b5899a571",
+      "use": [
+        {
+          "unit": "s7",
+          "take": 1
+        }
+      ],
+      "clip": [166, 179],
+      "speech": [166.4, 177.72],
+      "words": 25,
+      "wpm": 132.5,
+      "rawWpm": 114.9,
+      "air": [0.3, 1.03],
+      "airToWords": [0.4, 1.28],
+      "loudness": {
+        "lufs": -16.2,
+        "truePeak": -2.3
+      },
+      "pace": "plain and honest for the first sentence, about 130 words a minute; then slower and warm; say MVP as the letters M, V, P and co-op as KOH-op; 'Fair Split' is a name; a clear pause before the last 'Fair Split', and let 'Every peso, traced' land",
+      "pauses": [
+        {
+          "after": "Split",
+          "kind": "none",
+          "at": 0.92,
+          "was": 0.12,
+          "now": 0.12
+        },
+        {
+          "after": "MVP:",
+          "kind": "colon",
+          "at": 2.755,
+          "was": 0.57,
+          "now": 0.35
+        },
+        {
+          "after": "synthetic.",
+          "kind": "sentence",
+          "at": 6.87,
+          "was": 0.84,
+          "now": 0.42
+        },
+        {
+          "after": "real.",
+          "kind": "para",
+          "at": 9.64,
+          "was": 1.56,
+          "now": 0.75
+        },
+        {
+          "after": "Split.",
+          "kind": "para",
+          "at": 11.34,
+          "was": 0.8,
+          "now": 0.6
+        },
+        {
+          "after": "peso,",
+          "kind": "comma",
+          "at": 12.71,
+          "was": 0.38,
+          "now": 0.3
+        }
+      ],
+      "alignment": {
+        "source": "local transcript (openai-whisper small, word timestamps), offline",
+        "characterErrorRate": 0,
+        "heard": "FairSplit is a hackathon MVP. Paypal runs on our simulator and the co -op is synthetic. The vision is real. FairSplit. Every peso traced.",
+        "questioned": [
+          {
+            "k": 6,
+            "w": "PayPal",
+            "heard": "Paypal",
+            "probability": 0.477,
+            "same": true
+          },
+          {
+            "k": 23,
+            "w": "peso,",
+            "heard": "peso",
+            "probability": 0.392,
+            "same": true
+          }
+        ]
+      }
+    }
+  ]
+}

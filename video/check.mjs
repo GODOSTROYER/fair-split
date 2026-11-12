@@ -8,6 +8,7 @@ import {
   BRACKETS,
   CAPTION,
   CLOSE_START,
+  clipSpan,
   eventTime,
   KEYWORDS,
   MEMBER_CLIP,
@@ -18,6 +19,7 @@ import {
   SIM,
   simSpan,
   slotTag,
+  TAKE,
   WINDOWS,
   windowKind,
 } from "./plan.mjs";
@@ -346,17 +348,27 @@ for (const slot of slots) {
   assert(scene.includes(open), `${slot.id}: window missing or mistimed`);
   const win = scene.slice(scene.indexOf(open), scene.indexOf("</div></div>", scene.indexOf(open)));
   const recorded = existsSync(`${root}/${slot.file}`);
-  if (recorded)
+  if (recorded) {
+    // the capture plays over the window's whole time on screen (plan.mjs clipSpan), and is long enough for it
+    const span = clipSpan(slot, segment);
     assert(
       win.includes(
-        `src="${slot.file}" muted playsinline data-has-audio="false" data-start="${local}" data-duration="${slot.duration}" data-media-start="${slot.mediaStart}" data-playback-rate="${slot.playbackRate}"`,
+        `src="${slot.file}" muted playsinline data-has-audio="false" data-start="${span.start}" data-duration="${span.length}" data-media-start="${span.mediaStart}" data-playback-rate="${slot.playbackRate}"`,
       ),
       `${slot.id}: capture missing or mistimed`,
     );
-  else
+    const take = TAKE?.slots?.[slot.id];
+    assert(take, `${slot.id}: a capture with no take geometry (run video/tools/cut-captures.mjs)`);
+    assert(
+      take.seconds + 1e-3 >= slot.mediaStart + span.covers,
+      `${slot.id}: the capture is ${take.seconds} s, shorter than its ${span.covers} s on screen`,
+    );
+  } else
     assert(
       visible(win).includes("capture pending:") && win.includes(`>${esc(slot.id)}</p>`),
-      `${slot.id}: no "capture pending: ${slot.id}" window`,
+      win.includes(`src="${slot.file}"`)
+        ? `${slot.id}: the composition plays ${slot.file}, which this checkout does not have (git-ignored): record it (node video/tools/recapture.mjs) or rebuild with the placeholders (node video/build.mjs)`
+        : `${slot.id}: no "capture pending: ${slot.id}" window`,
     );
   // One keyword: one word and a period.
   assert(/^[\p{L}-]+\.$/u.test(KEYWORDS[slot.id] ?? ""), `${slot.id}: keyword must be one word`);

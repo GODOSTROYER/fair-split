@@ -1,0 +1,222 @@
+WEBVTT
+
+1
+00:00:00.500 --> 00:00:02.010
+Davao, in the Philippines.
+
+2
+00:00:03.130 --> 00:00:06.360
+Sixty-four farmers grow
+cacao for one co-op.
+
+3
+00:00:07.210 --> 00:00:10.140
+Every delivery is weighed,
+and written on a paper slip.
+
+4
+00:00:11.010 --> 00:00:15.900
+Then a chocolate maker overseas pays
+one premium, for the whole harvest.
+
+5
+00:00:17.500 --> 00:00:18.500
+One payment.
+
+6
+00:00:19.320 --> 00:00:20.590
+Sixty-four farmers.
+
+7
+00:00:21.670 --> 00:00:24.940
+The split is done by hand,
+from a box of slips.
+
+8
+00:00:25.790 --> 00:00:27.850
+A carbon copy gets counted twice.
+
+9
+00:00:28.890 --> 00:00:31.240
+A fine appears that no rule allows.
+
+10
+00:00:32.270 --> 00:00:33.880
+Farmers can't check their share.
+
+11
+00:00:34.810 --> 00:00:37.190
+The buyer can't prove the money arrived.
+
+12
+00:00:38.500 --> 00:00:42.610
+Fair Split turns a season of
+paper into pay anyone can check.
+
+13
+00:00:43.540 --> 00:00:47.850
+The vision: every co-op,
+every farmer, paid fairly,
+
+14
+00:00:48.180 --> 00:00:51.330
+by PayPal or in cash,
+with proof for the buyer.
+
+15
+00:00:52.270 --> 00:00:53.440
+Here's what works today.
+
+16
+00:00:54.100 --> 00:00:56.360
+The buyer pays one PayPal invoice.
+
+17
+00:00:57.000 --> 00:00:58.970
+Claude reads every slip, twice.
+
+18
+00:01:00.050 --> 00:01:02.410
+If the readings disagree,
+a person decides.
+
+19
+00:01:03.110 --> 00:01:09.000
+Code, not AI, works out every share, to
+the cent, and stops what it can't explain.
+
+20
+00:01:09.560 --> 00:01:13.040
+This slip was counted twice:
+once from its pink copy.
+
+21
+00:01:14.140 --> 00:01:17.960
+Once fixed, almost eighteen dollars
+goes back to sixty-three farmers.
+
+22
+00:01:18.670 --> 00:01:20.760
+Two officers sign the same batch:
+
+23
+00:01:21.230 --> 00:01:24.080
+the treasurer at her desk,
+the chair on his phone.
+
+24
+00:01:24.540 --> 00:01:26.850
+PayPal pays the farmers
+who have an account.
+
+25
+00:01:27.200 --> 00:01:29.790
+The rest get cash, on the same statement.
+
+26
+00:01:30.340 --> 00:01:33.830
+Nang Celing reads her pay in
+her own language, or listens.
+
+27
+00:01:34.910 --> 00:01:37.380
+One tap shows the slip behind each peso.
+
+28
+00:01:37.990 --> 00:01:41.090
+And the buyer checks every
+line, in her own browser.
+
+29
+00:01:42.400 --> 00:01:45.500
+Before: a box of slips, and trust.
+
+30
+00:01:46.240 --> 00:01:49.450
+Now: one pay run that explains itself.
+
+31
+00:01:50.090 --> 00:01:51.800
+In our demo, under a minute.
+
+32
+00:01:52.500 --> 00:01:56.247
+Under the hood, it starts
+simple: paper in, pay out.
+
+33
+00:01:56.637 --> 00:01:58.397
+Four stages sit between.
+
+34
+00:01:59.267 --> 00:02:00.856
+First, AI reads.
+
+35
+00:02:01.387 --> 00:02:04.846
+Claude reads each slip twice,
+and code compares the readings.
+
+36
+00:02:05.661 --> 00:02:09.755
+Second, code computes:
+every share in whole cents,
+
+37
+00:02:09.942 --> 00:02:12.662
+under a rate card hashed
+before the season.
+
+38
+00:02:13.382 --> 00:02:14.961
+Third, people approve.
+
+39
+00:02:15.573 --> 00:02:18.483
+Two officers sign one
+fingerprint of the batch,
+
+40
+00:02:18.634 --> 00:02:20.914
+and the server recomputes
+it before paying.
+
+41
+00:02:21.407 --> 00:02:24.007
+One changed cent voids both signatures.
+
+42
+00:02:24.957 --> 00:02:30.363
+Fourth, PayPal pays: the invoice through
+PayPal's Agent Toolkit, payouts through
+
+43
+00:02:30.403 --> 00:02:33.121
+our own typed tool, saved first,
+
+44
+00:02:33.408 --> 00:02:37.039
+sent exactly once,
+confirmed by signed webhooks.
+
+45
+00:02:37.689 --> 00:02:40.850
+Underneath, every step is
+chained into one ledger.
+
+46
+00:02:46.400 --> 00:02:48.630
+Fair Split is a hackathon MVP:
+
+47
+00:02:48.980 --> 00:02:52.450
+PayPal runs on our simulator,
+and the co-op is synthetic.
+
+48
+00:02:52.810 --> 00:02:55.900
+The vision is real. Fair Split.
+
+49
+00:02:56.250 --> 00:02:57.970
+Every peso, traced.
