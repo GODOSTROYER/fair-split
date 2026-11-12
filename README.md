@@ -72,7 +72,7 @@ an earlier simulated run, and every screen labels them as a replay.
 
 ## The film
 
-**TODO (owner): the YouTube URL of the film goes here.**
+The film is linked from the project's Devpost page.
 
 "Fair Split: audited co-op payroll on PayPal" is film v8, 2:59 long
 ([ADR-0022](docs/adr/0022-film-v8-one-disclosure.md)). It runs: scenario, problem, solution and vision, working
