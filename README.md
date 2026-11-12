@@ -5,7 +5,7 @@
 **TODO (merger): the hosted Judge Mode URL (`/judge` on the Render host) goes here once it is deployed.**
 
 **Judge it in 60 seconds:** no login, no PayPal account, no key. Open `/judge` and press **Play it for me**; you sign
-the two keys. [The eight steps](#judge-it-in-60-seconds) ·
+the two keys. [The eight steps](#judge-it-in-60-seconds) · [The film](#the-film) ·
 [What's real](#whats-real-replayed-simulated-and-synthetic) · [Run it locally](#run-it-locally-on-windows)
 
 Fair Split is payroll for a farmers' co-op whose pay starts on handwritten weigh-slips. It protects the people
@@ -69,6 +69,32 @@ Payouts tool re-hashes the batch from the database, sends nothing and voids both
 
 Payout runs are limited per hour. If the hour's quota of payout runs is spent, the payout steps replay
 an earlier simulated run, and every screen labels them as a replay.
+
+## The film
+
+The film is linked from the project's Devpost page.
+
+"Fair Split: audited co-op payroll on PayPal" is film v8, 2:59 long
+([ADR-0022](docs/adr/0022-film-v8-one-disclosure.md)). It runs: scenario, problem, solution and vision, working
+demo, before and now, under the hood, close.
+
+| Time  | Chapter                   |
+| ----- | ------------------------- |
+| 00:00 | A cacao co-op in Davao    |
+| 00:17 | The problem               |
+| 00:38 | Fair Split and the vision |
+| 00:54 | Working today             |
+| 01:42 | Before and now            |
+| 01:52 | Under the hood            |
+| 02:46 | Where it stands           |
+
+How it was made:
+- **Sound.** Music: Scott Buckley, "Machina" and "Aurora" (CC BY 4.0, scottbuckley.com.au). Narration: Gemini TTS,
+  a synthetic voice. Captions are optional, not burned into the picture.
+- **Render.** HyperFrames 0.9.33, from 2x stills of the product.
+- **Disclosure.** Said once, at the end of the film and in its description: PayPal steps run on our own simulator
+  of PayPal's APIs; no real money moved; the co-op, its people and slips are synthetic. The product's own screens
+  keep their "Simulated PayPal sandbox" labels.
 
 ## The problem
 
@@ -432,7 +458,7 @@ flowchart LR
 | `packages/api-client`                                 | The typed HTTP and SSE client derived from the command table, plus msw handlers backed by the seed                                                 |
 | `packages/test-kit`                                   | Shared test helpers and E-19, the lint that checks public copy and every money or kilo figure against IC-03                                        |
 | `packages/{tokens,motion,seal,i18n,ui-web,ui-native}` | Design tokens, motion presets, the batch seal, the en/ceb/fil catalogs and the web and native primitives                                           |
-| `media`, `e2e`, `video`                               | Synthetic media and its tooling, the Playwright harness, the film script                                                                           |
+| `media`, `e2e`, `video`                               | Synthetic media and its tooling, the Playwright harness, the film and its script                                                                   |
 
 The dependency rule, enforced by dependency-cruiser (`corepack pnpm deps:check`):
 

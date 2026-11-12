@@ -34,3 +34,36 @@ any product phase.
 
 Use the resulting headed window with F3's approved screen recording workflow. The test does not
 start a recorder, play narration, create a final film or call external media services.
+
+## The stills take (`corepack pnpm exec playwright test -c e2e/film/stills.config.ts`)
+
+`film/stills.spec.ts` (film v7) drives one real judge run on its own private stack, headless, and shoots a still of
+every product state the film shows: one full frame at 3840 × 2160 (1920 × 1080 CSS, device scale 2) and tight crops
+of the named elements at scale 2 and again at scale 4 (`FILM_HI_SCALE`), raster by raster, never enlarged. The stills
+and `stills.json` (each file, its CSS size and scale, the CSS-pixel boxes of the product's test ids, and any
+disclosure word still inside a frame) land in `video/film2/stills/` (ignored); a labelled contact sheet is written to
+`research/film-1111/stills-sheet.png` beside the worktrees. `stills-kit.ts` holds the method.
+- The film says "simulated" once, at its end, so the product's own marks of that kind, the scrims and the toast are
+  hidden in the stills only (a constructed style sheet the page and the phone frames adopt). Nothing ships.
+- Nothing is shot while PayPal's events are in flight: after key 2 and after "Pay in cash" the take leaves the page
+  until fs-api says the run moved on, and before key 2 it waits (up to 4 min) for a machine under 70 % load. A
+  session whose Proof does not read 6 of 6 is dropped and a fresh one is run (`FILM_STILLS_RETRIES`, default 2); only
+  a whole take with Proof at 6 of 6 replaces the film's stills. `FILM_STILLS_KEEP_MISMATCH=1` shoots the rest of such
+  a session into `e2e/film-out/stills-take/` to look at.
+- One thing is shot between key 2 and the follow-up: the Chair's phone in its signed state (`20c-chair-phone-signed`),
+  as a single scale-4 raster of the phone alone a second after the key, long before fs-api reads the batch. A retry
+  session does not shoot it again, so it can cost one session at most; `FILM_STILLS_SIGNED=0` leaves it out.
+- The contact sheet and the source crops alone, from the stills already on disk (no stack, no session):
+  `$env:E2E_BASE_URL = "http://127.0.0.1:9"; corepack pnpm exec playwright test -c e2e/film/stills.config.ts -g "contact sheet"`.
+
+## The slots take (`FILM_TAKE=slots corepack pnpm e2e:film`)
+
+`film/slots.spec.ts` records the film's capture slots from one real judge run on the same private stack, segment by
+segment, with Chromium's screencast at 1920 × 1080 (`e2e/film-out/slots/`: JPEG frames, every action as a mark, every
+visible test id's box around it). `video/tools/cut-captures.mjs` cuts each slot's clip out of it, and
+`node video/tools/recapture.mjs` runs the take, the cut, the film's build, check, render and mix in one command.
+Film mode shows no desktop pointer: the ink arrow is hidden, a press on a phone frame draws a touch dot held while the
+finger holds, and the console's presses are marked by the film's own accents. Analyn types slip 0462's stained digit
+from the keyboard and commits it with Enter. A 1 px keeper in the page's corner (outside every crop) damages the page
+every other frame so the screencast records each change inside a phone frame. Nothing is accelerated or staged here;
+a sped wait is labelled by the film with its real multiplier.
