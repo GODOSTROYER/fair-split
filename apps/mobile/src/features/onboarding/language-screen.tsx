@@ -1,6 +1,6 @@
 /**
  * M-ON-01 first run, language (design A0): the first screen anyone sees, so it carries the product's own materials.
- * The lockup with the season and lot stencilled as on the co-op's jute sacks; the question in all three languages
+ * The lockup with the season and lot as ids; the question in all three languages
  * at once (nobody has chosen one yet); and the three languages as three sheets of paper on the tablea desk, each
  * written and heard in its own language (the phone's own voice, labelled, I8), the chosen one stamped in ink. The
  * honest "not yet" for Hiligaynon, Waray and Bikol is written on the desk itself.
@@ -10,6 +10,7 @@ import { StyleSheet, View } from "react-native";
 import { LANGS } from "../../_shims/contracts";
 import { season } from "../../_shims/seed";
 import { space } from "../../_shims/tokens.native";
+import { seasonLabel } from "../../lib/display";
 import { HREF } from "../../services/session";
 import { useApp } from "../../state/app";
 import { useFs } from "../../theme/theme";
@@ -18,7 +19,7 @@ import { Glyph } from "../../ui/glyph";
 import { Button } from "../../ui/primitives";
 import { Txt } from "../../ui/text";
 import { t as inLang } from "./messages";
-import { ChoicePlate, COLUMN, Desk, DeskNote, StencilMark, StepFooter, useSample } from "./parts";
+import { ChoicePlate, COLUMN, Desk, DeskNote, IdMark, StepFooter, useSample } from "./parts";
 import { useT } from "./use-t";
 
 export function LanguageScreen() {
@@ -46,20 +47,16 @@ export function LanguageScreen() {
       <View style={styles.lockup} testID="M-ON-01.lockup">
         <Txt kind="title2">{tr("app.name")}</Txt>
         <View style={styles.marks}>
-          <StencilMark
-            text={season.code}
-            label={tr("M-ON-01.size.season", { season: season.code })}
-            size={28}
-            color={t.color.ink}
-            ground={t.color.ground}
+          <IdMark
+            text={seasonLabel(season.code)}
+            label={tr("M-ON-01.size.season", { season: seasonLabel(season.code) })}
+            color={t.color.ink2}
             testID="M-ON-01.mark.season"
           />
-          <StencilMark
+          <IdMark
             text={season.lot}
             label={tr("M-ON-01.mark.lot", { lot: season.lot })}
-            size={16}
             color={t.color.ink2}
-            ground={t.color.ground}
             testID="M-ON-01.mark.lot"
           />
         </View>

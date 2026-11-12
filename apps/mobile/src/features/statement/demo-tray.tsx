@@ -80,8 +80,9 @@ const styles = StyleSheet.create({
     gap: space.s8,
     padding: space.s12,
     borderWidth: 1,
+    // Dashed: the demo tray drives simulated data (the one place besides the honesty glyphs a dash belongs).
     borderStyle: "dashed",
-    borderRadius: radius.plate,
+    borderRadius: radius.card,
   },
   head: { flexDirection: "row", alignItems: "center", gap: space.s8 },
   row: { flexDirection: "row", flexWrap: "wrap", gap: space.s8 },

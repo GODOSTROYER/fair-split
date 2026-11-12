@@ -253,15 +253,16 @@ export function changedCue(before: RequestStatus | null, now: RequestStatus): Fe
 /**
  * Where the console's summary of a resolved hold goes. fs-api sends it in English only (IC-08 `CosignHold.summary`),
  * with figures formatted for English; until it sends a localisable template, it is never set as the Chair's own
- * words: in English it is his line, otherwise a labelled English note, shown when he opens the hold (or always in a
- * judge frame that asked for English glosses).
+ * words: in English it is his line, otherwise a labelled English note, shown when he opens the hold. UI gate round 5
+ * (one language a line): a judge frame that asked for English glosses no longer opens every note; `gloss` is kept for
+ * callers and changes nothing.
  */
 export function holdNote(
   lang: Lang,
   opts: { gloss: boolean; expanded: boolean },
 ): "line" | "note" | "hidden" {
   if (lang === "en") return "line";
-  return opts.gloss || opts.expanded ? "note" : "hidden";
+  return opts.expanded ? "note" : "hidden";
 }
 
 /** The two officers' keys on the seal: key 1 owns rings 0–2, key 2 rings 3–4. */
@@ -292,6 +293,12 @@ export function hashRows(hex: string, perRow = 4): string[] {
 
 /** Presence is shown while it is fresh (≤1 Hz upstream; a minute of silence means the treasurer has left). */
 export const PRESENCE_FRESH_MS = 60_000;
+
+/**
+ * How long the frames' simulated push stays before it folds away, as a phone's heads-up notification does (UI gate
+ * round 4: the request it announced then rests whole above the sticky button), ms.
+ */
+export const PUSH_SHOWN_MS = 5000;
 
 export interface Presence {
   persona: string;

@@ -66,9 +66,10 @@ UI code may import only `contracts` of WS-CORE's packages (register §6), so the
   byte; `domain-core.parity.test.ts` compares it with packages/domain and recomputes the seed's hashes.
 - `seed-run.json` is the seed snapshot's run r37 (items and all 64 member lines), copied by `node scripts/seed-run.mjs`
   and checked by `scripts/seed-run.test.mjs`; rerun the script whenever WS-CORE regenerates the snapshot.
-- `fonts.ts` names WS-DS's native cuts in `assets/fonts/native` (FS Sans CondXBold 75/800 for amounts, SemiCondMedium
-  87.5/500 for figures, Regular 100/400, SemiExpBold 112.5/700 for slabs and titles, and Atkinson Next for statement
-  prose). Each file's name is its family: the expo-font plugin embeds them in native builds (`app.config.ts`) and the
+- `fonts.ts` names WS-DS's native cuts in `assets/fonts/native` (UI gate round 3, one family + mono: FS Sans
+  SemiCondMedium 87.5/500 for the hero, figures and labels, Regular 100/400 for body and statement prose, SemiExpBold
+  112.5/700 for titles and headings; hashes and IDs use the platform's mono, no file). Each file's name is its family:
+  the expo-font plugin embeds them in native builds (`app.config.ts`) and the
   web export loads the same files (`font-sources.web.ts`, reached through `metro.config.js`). The cuts carry the
   slashed tabular zero and their own ₱; `fonts.test.ts` holds the names and files to WS-DS's build report.
 

@@ -111,16 +111,6 @@ export function firstLanguage(
   return languageFromLocale(locale);
 }
 
-/**
- * A season or lot mark as stencilled on the jute sacks (design §1, signature 7): each character, and whether a
- * bridge cuts it. Only glyphs with a closed counter need a bridge to hold together as a stencil.
- */
-const BRIDGED = new Set("04689ABDOPQR");
-
-export function stencilGlyphs(text: string): { id: string; char: string; bridged: boolean }[] {
-  return [...text.toUpperCase()].map((char, i) => ({ id: `${i}${char}`, char, bridged: BRIDGED.has(char) }));
-}
-
 /** The QR facsimile's grid: 25 cells a side, with a 7-cell finder square (and its 1-cell margin) in three corners. */
 export const QR_CELLS = 25;
 

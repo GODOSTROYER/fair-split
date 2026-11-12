@@ -8,37 +8,137 @@
 import * as Device from "expo-device";
 import { createContext, type ReactNode, useContext, useEffect, useMemo, useState } from "react";
 import { AccessibilityInfo, Platform, type TextStyle } from "react-native";
-import { FIGURE_VARIANT, fontFamily } from "../_shims/fonts";
-import { type FsTokens, type ThemeName, themes } from "../_shims/tokens.native";
+import {
+  FIGURE_VARIANT,
+  fontFamily,
+  LABEL_WEB,
+  MONO_IOS,
+  MONO_NATIVE,
+  MONO_WEB,
+  TITLE_WEB,
+} from "../_shims/fonts";
+import { type FsTokens, type ThemeName, themes, typeSteps } from "../_shims/tokens.native";
 import { bootQuery } from "../platform/query";
 
-const MONEY: TextStyle["fontVariant"] = [...FIGURE_VARIANT];
-/** Amounts read as money: proportional lining figures (ADR-0016); aligned figures and hashes stay tabular. */
-const AMOUNT: TextStyle["fontVariant"] = ["lining-nums", "proportional-nums"];
+/** Every FS Sans role sets tabular lining figures (UI gate round 3: one money style, columns that line up). */
+const TABULAR: TextStyle["fontVariant"] = [...FIGURE_VARIANT];
+
+/** The one mono, for hashes, IDs and timestamps only: the platform's own (docs/DESIGN.md §1, `monoFamily`). */
+export const MONO_FAMILY = Platform.select({ web: MONO_WEB, ios: MONO_IOS, default: MONO_NATIVE });
 
 /**
- * App type roles (design §2.3). Console roles are 14/20; the app leads with legibility for members on budget
- * phones in daylight, so UI body is 16/22 and statement prose is never below 18 (19/28).
+ * The phone's five size steps in sp (docs/DESIGN.md §1, the generated tokens' `typeSteps`): hero 48, title 24, heading and
+ * body 17, label 15, id 13. Weight carries the rest: 400 reading, 500 labels and numerals, 600 titles and headings.
+ * One step over the console's 12/14/16 below the title, for members on budget phones in daylight; a member's
+ * statement is body (17, never below 16) in statement ink (7:1).
+ */
+export const TYPE_STEPS = typeSteps;
+
+/**
+ * Titles, headings and button labels (UI gate round 4): 600 at width 100, the console's own. The web frames set them
+ * in the console's variable FS Sans (`TITLE_WEB`); native keeps the 700 cut until WS-DS cuts the static 600.
+ */
+const STRONG: TextStyle = Platform.select({
+  web: { fontFamily: TITLE_WEB, fontWeight: "600" },
+  default: { fontFamily: fontFamily.strong },
+});
+/** A person's initials: the same face at 700 (docs/DESIGN.md §1 `stamp`). */
+const STAMP_FACE: TextStyle = Platform.select({
+  web: { fontFamily: TITLE_WEB, fontWeight: "700" },
+  default: { fontFamily: fontFamily.strong },
+});
+
+const HERO = {
+  fontFamily: fontFamily.figure,
+  fontSize: TYPE_STEPS.hero,
+  lineHeight: 52,
+  fontVariant: TABULAR,
+};
+const TITLE: TextStyle = {
+  ...STRONG,
+  fontSize: TYPE_STEPS.title,
+  lineHeight: 30,
+  letterSpacing: Platform.OS === "web" ? -0.36 : 0,
+  fontVariant: TABULAR,
+};
+const TITLE_FIGURE = {
+  fontFamily: fontFamily.figure,
+  fontSize: TYPE_STEPS.title,
+  lineHeight: 30,
+  fontVariant: TABULAR,
+};
+const HEADING: TextStyle = {
+  ...STRONG,
+  fontSize: TYPE_STEPS.body,
+  lineHeight: 24,
+  fontVariant: TABULAR,
+};
+const BODY = { fontFamily: fontFamily.ui, fontSize: TYPE_STEPS.body, lineHeight: 24, fontVariant: TABULAR };
+/**
+ * Labels, tab labels, section heads and links (UI gate round 5): width 100 at 520, the console's label cut, never the
+ * condensed one. The web frames set them in the console's variable FS Sans at 520; native sets them in the width-100
+ * Regular until WS-DS's font build cuts the static 520 (`FSSans-Medium`), so a native label is never condensed either.
+ */
+const LABEL_FACE: TextStyle = Platform.select({
+  web: { fontFamily: LABEL_WEB, fontWeight: "520" as TextStyle["fontWeight"] },
+  default: { fontFamily: fontFamily.ui },
+});
+const LABEL: TextStyle = {
+  ...LABEL_FACE,
+  fontSize: TYPE_STEPS.label,
+  lineHeight: 20,
+  fontVariant: TABULAR,
+};
+/** Numerals on the label step (a figure in a row): the figure cut, 87.5/500, like the console's `figure` role. */
+const FIGURE = {
+  fontFamily: fontFamily.figure,
+  fontSize: TYPE_STEPS.label,
+  lineHeight: 20,
+  fontVariant: TABULAR,
+};
+/** Secondary words and short data joined by " · " (the console's `caption` and `micro`, 14/20 at 430). */
+const SECONDARY = {
+  fontFamily: fontFamily.ui,
+  fontSize: TYPE_STEPS.label,
+  lineHeight: 20,
+  fontVariant: TABULAR,
+};
+const ID = { fontFamily: MONO_FAMILY, fontSize: TYPE_STEPS.id, lineHeight: 18 };
+
+/**
+ * App type roles on the five steps. The old role names stay as aliases, so a screen keeps its words and gains the
+ * system: `amount*` are numerals on the hero and title steps, `title1` is a screen title, `title2` and `bodyStrong` a
+ * heading, the `statement*` roles are FS Sans on the body and title steps, `figure*` and `label` the label step,
+ * `caption` and `micro` secondary words, `hash` the mono, `stamp` initials.
  */
 export const typeScale = {
-  amountHero: { fontFamily: fontFamily.amount, fontSize: 48, lineHeight: 52, fontVariant: AMOUNT },
-  amountL: { fontFamily: fontFamily.amount, fontSize: 32, lineHeight: 36, fontVariant: AMOUNT },
-  amountM: { fontFamily: fontFamily.amount, fontSize: 22, lineHeight: 26, fontVariant: AMOUNT },
-  title1: { fontFamily: fontFamily.strong, fontSize: 28, lineHeight: 34 },
-  title2: { fontFamily: fontFamily.strong, fontSize: 20, lineHeight: 26 },
-  body: { fontFamily: fontFamily.ui, fontSize: 16, lineHeight: 22 },
-  bodyStrong: { fontFamily: fontFamily.strong, fontSize: 16, lineHeight: 22 },
-  figure: { fontFamily: fontFamily.figure, fontSize: 16, lineHeight: 22, fontVariant: MONEY },
-  figureS: { fontFamily: fontFamily.figure, fontSize: 14, lineHeight: 20, fontVariant: MONEY },
-  label: { fontFamily: fontFamily.figure, fontSize: 14, lineHeight: 18 },
-  caption: { fontFamily: fontFamily.ui, fontSize: 12, lineHeight: 16 },
-  hash: { fontFamily: fontFamily.figure, fontSize: 13, lineHeight: 18, fontVariant: MONEY },
-  slab: { fontFamily: fontFamily.strong, fontSize: 17, lineHeight: 20 },
-  statementLead: { fontFamily: fontFamily.statement, fontSize: 22, lineHeight: 30 },
-  statementBody: { fontFamily: fontFamily.statement, fontSize: 19, lineHeight: 28 },
-  statementStrong: { fontFamily: fontFamily.statementBold, fontSize: 19, lineHeight: 28 },
+  // Money is never bold: the figure cut (87.5/500) set large, its size and the small raised "US$" do the work.
+  amountHero: HERO,
+  amountL: TITLE_FIGURE,
+  amountM: TITLE_FIGURE,
+  title1: TITLE,
+  title2: HEADING,
+  body: BODY,
+  bodyStrong: HEADING,
+  figure: FIGURE,
+  figureS: FIGURE,
+  label: LABEL,
+  caption: SECONDARY,
+  micro: SECONDARY,
+  /** Hashes, IDs and timestamps: the mono, never words and never money. */
+  hash: ID,
+  /** A button's label (the slab, the flat buttons). */
+  slab: { ...STRONG, fontSize: TYPE_STEPS.body, lineHeight: 20, fontVariant: TABULAR },
+  /** A person's initials inside an ink stamp. */
+  stamp: { ...STAMP_FACE, fontSize: TYPE_STEPS.id, lineHeight: TYPE_STEPS.id },
+  /** Paminawa's read-along prose: the title step in the reading weight (a transcript is read, not scanned). */
+  statementLead: { ...TITLE, fontFamily: fontFamily.ui, fontWeight: "400", letterSpacing: 0 },
+  statementBody: BODY,
+  statementStrong: HEADING,
   /** "Bayad na" and "Gisusi pa" inside their pills (ADR-0016). */
-  statementStatus: { fontFamily: fontFamily.statementBold, fontSize: 18, lineHeight: 22 },
+  statementStatus: HEADING,
+  /** The member's name as the statement's factual header (a header, not a greeting). */
+  statementName: TITLE,
 } satisfies Record<string, TextStyle>;
 
 export type TypeRole = keyof typeof typeScale;

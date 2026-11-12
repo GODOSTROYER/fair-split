@@ -14,6 +14,13 @@ import { defineMessages, type MessageArgs, type MessageKey, same, translateIn } 
 export const messages = defineMessages({
   /* ------------------------------------------------------------ M-MB-01 Bayad: header and language */
   "M-MB-01.season": same("Season {code}"),
+  /**
+   * Round 2: the statement's factual header line, data joined by " · ". Round 5: her number and the season only
+   * ("M-014 · 2026-A"), one line on every phone; the co-op's name stays on her slips' paper (the zoom).
+   */
+  "M-MB-01.headMeta": same("{no} · {season}"),
+  /** Round 2: a PayPal line's peso estimate, the estimate's own figure; the spoken label keeps "about … (estimate)". */
+  "M-MB-01.about": same("≈ {peso}"),
   "M-MB-01.glossOn": { ceb: "Ipakita ang English", fil: "Ipakita ang English", en: "Show English" },
   "M-MB-01.glossHint": {
     ceb: "English ilalom sa matag sentence",
@@ -27,6 +34,12 @@ export const messages = defineMessages({
     ceb: "Gilauman nga petsa sa bayad: {date}",
     fil: "Inaasahang petsa ng bayad: {date}",
     en: "Expected pay date: {date}",
+  },
+  /** Round 3: the same words as the label of a one-line fact; the date sits beside them as a figure. */
+  "M-MB-01.expectedLabel": {
+    ceb: "Gilauman nga petsa sa bayad",
+    fil: "Inaasahang petsa ng bayad",
+    en: "Expected pay date",
   },
   "M-MB-01.checking": {
     ceb: "Gisusi pa ang inyong linya. Walay kantidad hangtod mahuman ang pagsusi.",
@@ -143,13 +156,18 @@ export const messages = defineMessages({
     en: "Fine on slip {slip} with no rule",
   },
   "M-MB-01.net": { ceb: "Inyong bayad", fil: "Inyong bayad", en: "Your pay" },
-  "M-MB-01.ruleRef": same("{card}, Schedule A"),
+  /** Round 2: never a raw rate-card id on her phone; the rule chip beside it names the rule. */
+  "M-MB-01.ruleRef": same("Schedule A"),
   "M-MB-01.minus": { ceb: "minus {amount}", fil: "bawas {amount}", en: "minus {amount}" },
   "M-MB-01.fees": {
     ceb: "PayPal: {paypal} kung ilisan sa peso. GCash: {gcash} kung ibalhin. Dili kini kaltas sa co-op.",
     fil: "PayPal: {paypal} kapag pinalitan sa piso. GCash: {gcash} kapag inilipat. Hindi ito kaltas ng co-op.",
     en: "PayPal: {paypal} to change it to pesos. GCash: {gcash} to move it there. Not a co-op deduction.",
   },
+  /** Round 2: the fees row folded to its two published rates; the sentence opens with the row. */
+  "M-MB-01.feesShort": same("PayPal {paypal} · GCash {gcash}"),
+  /** Round 7: the folded fees row says what it is (the cost of moving her money), then its two rates. */
+  "M-MB-01.feesLabel": { ceb: "Bayad sa padala", fil: "Bayad sa padala", en: "Transfer fees" },
   "M-MB-01.tapHint": {
     ceb: "Tuplia aron makita kung asa kini gikan",
     fil: "Pindutin para makita kung saan ito galing",
@@ -181,9 +199,10 @@ export const messages = defineMessages({
     en: "The {written} deduction on slip {slip} is not on the rate card the Board approved, so it comes back to you.",
   },
   "M-MB-01.traceNet": {
-    ceb: "Gisusi niini nga telepono: eksakto ang suma hangtod sa sentimo.",
-    fil: "Sinuri ng teleponong ito: eksakto ang suma hanggang sentimo.",
-    en: "Checked on this phone: it adds up to the cent.",
+    // Round 8: a short label under the equation, not a second sentence (the equation and the slips say the rest).
+    ceb: "Eksakto hangtod sa sentimo",
+    fil: "Eksakto hanggang sentimo",
+    en: "Checked to the cent",
   },
   "M-MB-01.traceNetOff": {
     ceb: "Dili tugma ang suma niini nga linya. Si Treasurer {name} ang mosusi.",
@@ -210,6 +229,7 @@ export const messages = defineMessages({
     fil: "Inaprubahan nina {a} at {b}",
     en: "Approved by {a} and {b}",
   },
+  "M-MB-01.historyApprovedPlain": { ceb: "Giaprobahan na", fil: "Inaprubahan na po", en: "Approved" },
   "M-MB-01.historySent": { ceb: "Gipadala", fil: "Ipinadala", en: "Sent" },
   "M-MB-01.historyPaid": { ceb: "Bayad na", fil: "Bayad na po", en: "Paid" },
   "M-MB-01.historyUnclaimed": {
@@ -224,15 +244,21 @@ export const messages = defineMessages({
   },
   "M-MB-01.historyReceived": { ceb: "Nadawat", fil: "Natanggap na po", en: "Received" },
   "M-MB-01.historyHeld": { ceb: "Gisusi pa", fil: "Sinusuri pa po", en: "Still checking" },
-  "M-MB-01.rateCard": {
-    ceb: "Rate card {hash}, giaprobahan sa Board sa {date}",
-    fil: "Rate card {hash}, inaprubahan ng Board noong {date}",
-    en: "Rate card {hash}, approved by the Board on {date}",
+  /**
+   * Round 5: the rate card in two short lines beside the seal, so neither ends on an orphan word: its id, then who
+   * approved it and when.
+   */
+  "M-MB-01.rateCardId": same("Rate card {hash}"),
+  "M-MB-01.rateCardBoard": {
+    ceb: "Giaprobahan sa Board, {date}",
+    fil: "Inaprubahan ng Board, {date}",
+    en: "Approved by the Board, {date}",
   },
+  /** Round 5: beside the seal, so "the batch's seal" is the picture; the words say who signed it, on one line. */
   "M-MB-01.sealCaption": {
-    ceb: "Selyo sa batch nga gipirmahan ni {a} ug {b}",
-    fil: "Selyo ng batch na pinirmahan nina {a} at {b}",
-    en: "Batch seal signed by {a} and {b}",
+    ceb: "Gipirmahan ni {a} ug {b}",
+    fil: "Pinirmahan nina {a} at {b}",
+    en: "Signed by {a} and {b}",
   },
 
   /* ------------------------------------------------------------ Pangutana block (always last) */

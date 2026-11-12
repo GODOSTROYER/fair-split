@@ -9,11 +9,13 @@ import type { StatementDTO } from "../../_shims/api-client";
 import type { Lang } from "../../_shims/contracts";
 import { radius, space } from "../../_shims/tokens.native";
 import { slipFigures, slipTotal } from "../../lib/figures";
+import { MARK_KIND } from "../../lib/honesty";
 import { audioPlan, MONEY_SLOTS } from "../../lib/statement";
 import { useApp } from "../../state/app";
 import { useFs } from "../../theme/theme";
-import { Screen } from "../../ui/chrome";
+import { Screen, SnapRow } from "../../ui/chrome";
 import { Glyph } from "../../ui/glyph";
+import { QuietMarks } from "../../ui/honesty";
 import { MomentMarker, useMoment } from "../../ui/moment";
 import { Sheet } from "../../ui/overlay";
 import { Banner, Button, Rule } from "../../ui/primitives";
@@ -101,15 +103,17 @@ function Slips({ dto, lang }: { dto: StatementDTO; lang: Lang }) {
   return (
     <View style={styles.fill}>
       <Screen testID="M-MB-02" state={state} contentStyle={COLUMN}>
-        <View style={styles.titles}>
+        <SnapRow style={styles.titles}>
           <Txt kind="title1" accessibilityRole="header">
             {tr("M-MB-02.title")}
           </Txt>
           <Txt kind="body" color="ink2">
             {tr("M-MB-02.subtitle")}
           </Txt>
-        </View>
-        <LangBar testID="M-MB-02" glossable={false} />
+        </SnapRow>
+        <SnapRow>
+          <LangBar testID="M-MB-02" glossable={false} />
+        </SnapRow>
         <OfflineBar lastCopyAt={st.cachedAt} visible={offline} testID="M-MB-02.offline" />
 
         {dto.slips.length === 0 ? (
@@ -129,7 +133,8 @@ function Slips({ dto, lang }: { dto: StatementDTO; lang: Lang }) {
             {dto.slips.map((s, i) => {
               const f = slipFigures(s, lang);
               return (
-                <View key={s.serial}>
+                // Round 4: each slip is one snap row, whole above the tab bar or not at all.
+                <SnapRow key={s.serial}>
                   {i > 0 ? <Rule /> : null}
                   <Pressable
                     ref={(r) => {
@@ -147,29 +152,40 @@ function Slips({ dto, lang }: { dto: StatementDTO; lang: Lang }) {
                     </View>
                     <View style={styles.rowText} importantForAccessibility="no-hide-descendants">
                       <Txt kind="bodyStrong">{tr("M-MB-02.slip", { serial: s.serial })}</Txt>
-                      <Txt kind="caption" color="ink2">
-                        {f.date}
-                      </Txt>
-                      {demo && f.provisional ? (
-                        <Txt kind="caption" color="ink3">
-                          {tr("M-MB-02.provisional")}
+                      {/* Round 3: a demo's sample kilos are named once, never a sentence on every slip. Round 5
+                          (provenance once): the screen's own mark says it, so the slip keeps the words for assistive
+                          technology and its hook, with nothing drawn beside the date. */}
+                      <View style={styles.dateRow}>
+                        <Txt kind="caption" color="ink2">
+                          {f.date}
                         </Txt>
-                      ) : null}
+                        {demo && f.provisional ? (
+                          <QuietMarks
+                            marks={[
+                              {
+                                kind: MARK_KIND.seedStandIn,
+                                label: tr("M-MB-02.provisional"),
+                                testID: `M-MB-02.provisional.${s.serial}`,
+                              },
+                            ]}
+                          />
+                        ) : null}
+                      </View>
                     </View>
                     <Txt kind="figure" importantForAccessibility="no">
                       {f.kg}
                     </Txt>
                     <Glyph name="chevron" size={20} color={t.color.ink3} />
                   </Pressable>
-                </View>
+                </SnapRow>
               );
             })}
-            <View style={[styles.total, { borderTopColor: t.color.ink }]} testID="M-MB-02.total">
+            <SnapRow style={[styles.total, { borderTopColor: t.color.ink }]} testID="M-MB-02.total">
               <Txt kind="bodyStrong" style={styles.fill}>
                 {tr("M-MB-02.total")}
               </Txt>
               <Txt kind="amountM">{total.kg}</Txt>
-            </View>
+            </SnapRow>
           </View>
         )}
 
@@ -193,11 +209,11 @@ function Slips({ dto, lang }: { dto: StatementDTO; lang: Lang }) {
           />
         ) : null}
         {dto.slips.some((s) => !s.cropUrl) ? (
-          <Txt kind="caption" color="ink3">
+          <Txt kind="caption" color="statementInk2">
             {tr("M-MB-02.photoPending")}
           </Txt>
         ) : null}
-        <Txt kind="caption" color="ink3">
+        <Txt kind="caption" color="statementInk2">
           {tr("common.syntheticData")}
         </Txt>
       </Screen>
@@ -244,9 +260,10 @@ function Slips({ dto, lang }: { dto: StatementDTO; lang: Lang }) {
 const styles = StyleSheet.create({
   fill: { flex: 1 },
   titles: { gap: space.s4 },
-  list: { borderRadius: radius.none },
+  list: { borderRadius: radius.card, overflow: "hidden" },
   row: { flexDirection: "row", alignItems: "center", gap: space.s12, padding: space.s12, minHeight: 80 },
   rowText: { flex: 1, gap: space.s2 },
+  dateRow: { flexDirection: "row", alignItems: "center", gap: space.s8 },
   total: { flexDirection: "row", alignItems: "center", padding: space.s12, borderTopWidth: 2 },
   start: { alignSelf: "flex-start" },
 });

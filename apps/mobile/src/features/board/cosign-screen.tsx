@@ -5,24 +5,36 @@
  * binds besides the payouts; key 1 and the treasurer's presence; the payouts; and the flat "Ipabalik kang Analyn",
  * which needs a reason. The thumb zone holds the way to the sign sheet (M-BD-02). Nothing here signs, and nothing is
  * ever queued: offline, it says so and waits. A batch, lines or payload the phone refuses clacks once (MM-5 mismatch).
+ *
+ * UI gate round 2 (unslop spec §3.9): one language on the screen. Only the one line that says why him keeps its
+ * English gloss (and the notes in the status banner); the header, the count, the key lines and the seal's captions
+ * do not. The honesty tag sits under the amount it covers; the seal's captions are mono lines.
+ *
+ * UI gate round 4 (docs/DESIGN.md §9): the heading says "2026-A" on one line; the seal card holds the 140 px seal,
+ * the console's short hash and what to do with them, and ends at least 16 px above the sticky button (the simulated
+ * push folds away after a few seconds, as a heads-up notification does); every block is a snap row.
+ *
+ * UI gate round 5 (docs/DESIGN.md §10): one language a line. Why him is one Cebuano line under the count, with no
+ * English line under it, and so is the treasurer's presence; only a note that blocks him keeps its gloss.
  */
 import { router, useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Platform, StyleSheet, TextInput, useWindowDimensions, View, type ViewInstance } from "react-native";
 import { format } from "../../_shims/domain";
-import { fontFamily } from "../../_shims/fonts";
 import { people } from "../../_shims/seed";
-import { radius, space, target } from "../../_shims/tokens.native";
+import { layout, radius, space, target } from "../../_shims/tokens.native";
+import { seasonLabel } from "../../lib/display";
 import { railLabel } from "../../lib/payout-status";
 import { feedback } from "../../platform/feedback";
 import { signHref } from "../../services/session";
 import { useApp } from "../../state/app";
-import { useFs } from "../../theme/theme";
+import { typeScale, useFs } from "../../theme/theme";
 import { focusFirst } from "../../ui/a11y";
-import { Screen } from "../../ui/chrome";
+import { EdgeFade, Screen, SnapRow, useFooterEnd } from "../../ui/chrome";
+import { MicroTag } from "../../ui/honesty";
 import { LanguagePicker } from "../../ui/language-picker";
 import { Sheet } from "../../ui/overlay";
-import { Banner, Button, HonestyPill, InkStamp, SectionTitle } from "../../ui/primitives";
+import { Banner, Button, InkStamp, SectionTitle } from "../../ui/primitives";
 import { SealView } from "../../ui/seal-view";
 import { figures, Sentence } from "../../ui/sentence";
 import { EmptyState, Skeleton } from "../../ui/states";
@@ -31,11 +43,11 @@ import { useCosign } from "./cosign-context";
 import { changedCue, presenceView, type RequestStatus, whyKey } from "./cosign-model";
 import {
   Gloss,
-  HashRows,
   HoldRow,
   PayoutRows,
   PresenceLine,
   PushNote,
+  ShortHash,
   SignedAmount,
   SimulatedPush,
   useCompact,
@@ -49,10 +61,10 @@ export function CosignScreen() {
   const c = useCosign();
   const { api, lang } = useApp();
   const { t } = useFs();
+  const footerEnd = useFooterEnd();
   const tr = useT();
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const compact = useCompact();
-  const gloss = useGloss();
   const [openHold, setOpenHold] = useState<string | null>(null);
   const [sendBackOpen, setSendBackOpen] = useState(false);
   const top = useRef<ViewInstance>(null);
@@ -155,7 +167,14 @@ export function CosignScreen() {
     ? { n: lines.count, cash: lines.cash.count, amount: format.usd(lines.cash.cents) }
     : null;
   const signed = c.status === "signed";
-  const sealSize = Math.min(208, width - 2 * space.s16 - 2 * space.s24);
+  // Round 4: 140 on the co-sign card (the console's 180 elsewhere), so the card ends at least 16 px above its sticky
+  // button and no ring is cut; smaller only when the phone is narrower than the seal and its plate.
+  // Round 7: on a tall screen with nothing above it but the request, the seal takes part of the height the card
+  // would leave empty above the sticky button (to 190 px, the card still ending well clear of the button); a
+  // shorter screen, or one with holds to read, keeps 140.
+  const roomy = dto.holds.length === 0 && !compact;
+  const sealTall = roomy ? Math.max(layout.cosignSeal, Math.min(190, height - 590)) : layout.cosignSeal;
+  const sealSize = Math.min(sealTall, width - 2 * space.s16 - 2 * space.s24);
   const showPush = Platform.OS === "web" && signable;
 
   const action = signable ? (
@@ -182,54 +201,78 @@ export function CosignScreen() {
   // The thumb zone holds the one way forward; with large text it joins the scroll instead (S1.12 reflow).
   const footer =
     action && !compact ? (
-      <View style={[styles.footer, { backgroundColor: t.color.ground, borderTopColor: t.color.rule }]}>
+      <View
+        style={[
+          styles.footer,
+          // Round 5: the footer's last line ends 24 px above the bezel.
+          { backgroundColor: t.color.ground, borderTopColor: t.color.rule, paddingBottom: footerEnd },
+        ]}
+      >
+        <EdgeFade color={t.color.ground} />
         {action}
       </View>
     ) : null;
 
   return (
     <Screen testID="M-BD-01" state={c.status} footer={footer} contentStyle={styles.content}>
-      {dto.rail === "simulated" ? (
-        <HonestyPill testID="M-BD-01.rail">{railLabel(dto.rail, "simulated_rail", lang).chip}</HonestyPill>
-      ) : null}
-      {showPush ? <SimulatedPush dto={dto} /> : null}
+      {showPush ? <SimulatedPush dto={dto} gap={space.s24} /> : null}
       <StatusBanner />
 
       <View ref={top} style={styles.lead} accessible={false}>
-        <Txt kind="title2" accessibilityRole="header">
-          {tr("M-BD-01.heading", { season: dto.seasonCode })}
-        </Txt>
-        <Gloss text={gloss("M-BD-01.heading", { season: dto.seasonCode })} />
-        <SignedAmount
-          text={amount}
-          srLabel={format.amountSpoken(dto.totalCents)}
-          ink={signed}
-          live={c.engrave}
-          testID="M-BD-01.amount"
-        />
-        <Txt kind="body" color="ink2">
-          {tr("M-BD-01.count", { n: dto.itemCount })}
-        </Txt>
-        <Gloss text={gloss("M-BD-01.count", { n: dto.itemCount })} />
-        <Sentence segments={figures(tr(whyKey(dto), { threshold }))} testID="M-BD-01.why" />
-        <Gloss text={gloss(whyKey(dto), { threshold })} testID="M-BD-01.why.gloss" />
+        <SnapRow>
+          <Txt kind="title1" accessibilityRole="header">
+            {tr("M-BD-01.heading", { season: seasonLabel(dto.seasonCode) })}
+          </Txt>
+        </SnapRow>
+        <SnapRow>
+          <SignedAmount
+            text={amount}
+            srLabel={format.amountSpoken(dto.totalCents)}
+            ink={signed}
+            live={c.engrave}
+            testID="M-BD-01.amount"
+          />
+        </SnapRow>
+        <SnapRow style={styles.countRow}>
+          <Txt kind="body" color="ink2">
+            {tr("M-BD-01.count", { n: dto.itemCount })}
+          </Txt>
+          {/* Round 3: the one micro-tag beside the PayPal amount it covers. */}
+          {dto.rail === "simulated" ? (
+            <MicroTag testID="M-BD-01.rail" label={railLabel(dto.rail, "simulated_rail", lang).chip} />
+          ) : null}
+        </SnapRow>
+        {/* Round 5 (one language a line): why him, in his language only, on one line under the count; the
+            stage's English gloss stays with the notes that block him. */}
+        <SnapRow>
+          <Sentence
+            kind="caption"
+            color="ink2"
+            segments={figures(tr(whyKey(dto), { threshold }))}
+            testID="M-BD-01.why"
+          />
+        </SnapRow>
       </View>
 
       {dto.holds.length > 0 ? (
         <View style={styles.section} testID="M-BD-01.holds">
-          <SectionTitle>{tr("M-BD-01.holds", { n: dto.holds.length })}</SectionTitle>
-          {dto.holds.map((h) => (
-            <HoldRow
-              key={h.id}
-              hold={h}
-              expanded={openHold === h.id}
-              onToggle={() => setOpenHold((o) => (o === h.id ? null : h.id))}
-            />
+          {dto.holds.map((h, i) => (
+            <SnapRow key={h.id} style={styles.section}>
+              {/* The heading rests with the first hold, never alone above the button (round 4). */}
+              {i === 0 ? <SectionTitle>{tr("M-BD-01.holds", { n: dto.holds.length })}</SectionTitle> : null}
+              <HoldRow
+                hold={h}
+                expanded={openHold === h.id}
+                onToggle={() => setOpenHold((o) => (o === h.id ? null : h.id))}
+              />
+            </SnapRow>
           ))}
         </View>
       ) : null}
 
-      <View style={[styles.plate, { backgroundColor: t.color.plate }]} testID="M-BD-01.seal-plate">
+      {/* Round 4: the seal card holds the seal, its hash and what to do with it (the console's short form), so it
+          ends at least 16 px above the sticky button; what the phone worked out follows it as two quiet lines. */}
+      <SnapRow style={[styles.plate, { backgroundColor: t.color.plate }]} testID="M-BD-01.seal-plate">
         {ownHash ? (
           <>
             <SealView
@@ -239,34 +282,33 @@ export function CosignScreen() {
               engrave={c.engrave}
               testID="M-BD-01.seal"
             />
-            <HashRows hex={ownHash} testID="M-BD-01.hash" />
-            <Txt kind="label" color="ink2" align="center">
-              {tr("M-BD-01.seal")}
-            </Txt>
-            <Txt kind="caption" color="ink2" align="center" testID="M-BD-01.computed">
-              {tr("M-BD-01.computed", { n: recomputed?.itemCount ?? dto.items.length })}
-            </Txt>
-            <Gloss
-              text={gloss("M-BD-01.computed", { n: recomputed?.itemCount ?? dto.items.length })}
-              align="center"
-            />
-            {linesArgs ? (
-              <>
-                <Txt kind="caption" color="ink2" align="center" testID="M-BD-01.lines">
-                  {tr("M-BD-01.lines", linesArgs)}
-                </Txt>
-                <Gloss text={gloss("M-BD-01.lines", linesArgs)} align="center" />
-              </>
-            ) : null}
+            <View style={styles.hash}>
+              <ShortHash hex={ownHash} testID="M-BD-01.hash" />
+              <Txt kind="caption" color="ink2" align="center">
+                {tr("M-BD-01.seal")}
+              </Txt>
+            </View>
           </>
         ) : (
           <Txt kind="body" color="ink2">
             {tr("M-BD-01.hashMismatch", { name: treasurer })}
           </Txt>
         )}
-      </View>
+      </SnapRow>
+      {ownHash ? (
+        <SnapRow style={styles.worked}>
+          <Txt kind="micro" color="ink2" testID="M-BD-01.computed">
+            {tr("M-BD-01.computed", { n: recomputed?.itemCount ?? dto.items.length })}
+          </Txt>
+          {linesArgs ? (
+            <Txt kind="micro" color="ink2" testID="M-BD-01.lines">
+              {tr("M-BD-01.lines", linesArgs)}
+            </Txt>
+          ) : null}
+        </SnapRow>
+      ) : null}
 
-      <View style={styles.section} testID="M-BD-01.keys">
+      <SnapRow style={styles.section} testID="M-BD-01.keys">
         <View style={styles.keyLine} testID="M-BD-01.key1">
           {c.key1 ? <InkStamp initials={people.treasurer.initials} label={people.treasurer.name} /> : null}
           <View style={styles.flexShrink}>
@@ -275,7 +317,6 @@ export function CosignScreen() {
                 ? tr("M-BD-01.key1", { name: treasurer })
                 : tr("M-BD-01.waitingKey1", { name: treasurer })}
             </Txt>
-            <Gloss text={gloss(c.key1 ? "M-BD-01.key1" : "M-BD-01.waitingKey1", { name: treasurer })} />
           </View>
         </View>
         {signed ? (
@@ -288,14 +329,14 @@ export function CosignScreen() {
         ) : c.presence && signable ? (
           <PresenceLine name={treasurer} />
         ) : null}
-      </View>
+      </SnapRow>
 
       {compact ? action : null}
 
-      <View style={styles.section}>
+      <SnapRow style={styles.section}>
         <SectionTitle>{tr("M-BD-01.items")}</SectionTitle>
         <PayoutRows items={dto.items} totalCents={dto.totalCents} state={signed ? "ink" : "pencil"} />
-      </View>
+      </SnapRow>
 
       {signable ? (
         <Button
@@ -309,12 +350,10 @@ export function CosignScreen() {
         />
       ) : null}
 
+      {/* Round 3: no raw ids on the phone. The batch is the seal and its hash above; only the expiry stays. */}
       <View style={styles.meta}>
-        <Txt kind="caption" color="ink3" selectable>
-          {tr("M-BD-01.batch", { batch: dto.senderBatchId })}
-        </Txt>
         {signable ? (
-          <Txt kind="caption" color="ink3" testID="M-BD-01.expires">
+          <Txt kind="micro" color="ink2" testID="M-BD-01.expires">
             {tr("M-BD-01.expires", {
               time: `${format.dayMonth(dto.expiresAt, lang)} ${format.time(dto.expiresAt)}`,
             })}
@@ -324,10 +363,10 @@ export function CosignScreen() {
 
       <PushNote />
 
-      <View style={styles.section}>
+      <SnapRow style={styles.section}>
         <SectionTitle>{tr("M-BD-01.language")}</SectionTitle>
         <LanguagePicker testID="M-BD-01.lang" />
-      </View>
+      </SnapRow>
 
       <SendBackSheet visible={sendBackOpen} onClose={() => setSendBackOpen(false)} />
     </Screen>
@@ -495,14 +534,18 @@ const styles = StyleSheet.create({
   content: { maxWidth: 560, width: "100%", alignSelf: "center" },
   loading: { gap: space.s24 },
   lead: { gap: space.s8 },
+  countRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: space.s8 },
   section: { gap: space.s4 },
+  /** The seal card: radius card, 16 around the seal and its two lines (round 4: it ends above the button). */
   plate: {
     alignItems: "center",
     gap: space.s12,
-    paddingVertical: space.s24,
+    paddingVertical: space.s16,
     paddingHorizontal: space.s16,
-    borderRadius: radius.panel,
+    borderRadius: radius.card,
   },
+  hash: { gap: space.s2, alignItems: "center" },
+  worked: { gap: space.s4 },
   keyLine: { flexDirection: "row", alignItems: "center", gap: space.s8, minHeight: 28 },
   flat: { alignSelf: "flex-start" },
   flexShrink: { flexShrink: 1 },
@@ -518,9 +561,7 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderRadius: radius.control,
     padding: space.s12,
-    fontSize: 16,
-    lineHeight: 22,
-    fontFamily: fontFamily.ui,
+    ...typeScale.body,
   },
   sheetActions: {
     flexDirection: "row",

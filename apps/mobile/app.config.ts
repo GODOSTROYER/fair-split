@@ -6,21 +6,17 @@ import type { ConfigContext, ExpoConfig } from "expo/config";
  * - `EXPO_WEB_BASE` sets `experiments.baseUrl` for the web export only (C-11: served at `/app`). It is never set for
  *   native builds, because the base URL is inlined into every platform bundle. `pnpm --filter @fairsplit/mobile build`
  *   sets it to `/app` (scripts/export-web.mjs).
- * - Fonts are WS-DS's native cuts (assets/fonts/native: FS Sans CondXBold, SemiCondMedium, Regular, SemiExpBold and
- *   Atkinson Next Regular, Bold; design §2.3), embedded at build time by the expo-font plugin, which names each family
- *   after its file (src/_shims/fonts.ts uses the same names). The web export loads the same files at runtime.
+ * - Fonts are WS-DS's native cuts (assets/fonts/native: FS Sans SemiCondMedium, Regular and SemiExpBold; design §2.3,
+ *   UI gate round 3's one family + mono), embedded at build time by the expo-font plugin, which names each family
+ *   after its file (src/_shims/fonts.ts uses the same names). The web export loads the same files at runtime. The mono
+ *   for hashes and IDs is the platform's own, so nothing else is embedded.
  */
 const webBase = process.env.EXPO_WEB_BASE?.trim();
 
 /** Relative to this project's root, as the expo-font plugin resolves them. */
-const fontFiles = [
-  "FSSans-CondXBold",
-  "FSSans-SemiCondMedium",
-  "FSSans-Regular",
-  "FSSans-SemiExpBold",
-  "AtkinsonNext-Regular",
-  "AtkinsonNext-Bold",
-].map((family) => `../../assets/fonts/native/${family}.ttf`);
+const fontFiles = ["FSSans-SemiCondMedium", "FSSans-Regular", "FSSans-SemiExpBold"].map(
+  (family) => `../../assets/fonts/native/${family}.ttf`,
+);
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,

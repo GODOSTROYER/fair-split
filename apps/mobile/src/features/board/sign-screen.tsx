@@ -4,31 +4,42 @@
  * quarter), release inside, then the fingerprint or device PIN, then an Ed25519 signature over the JCS payload with
  * `fs-ernesto-a1`. A judge's browser signs with a labelled demo key. "Can't hold?" and TalkBack take the dialog.
  * When the key is in, rings 3–4 engrave, the seal lands, and the amount turns from pencil to ink.
+ *
+ * UI gate round 2 (unslop spec §3.9): one language on the screen (no English stacked under the header, the caption
+ * or the result; a note that blocks him keeps its gloss), the hash and "compare" as one mono line, the honesty tag
+ * under the amount it covers, the demo key as its tag, and "Can't hold?" as a quiet link.
+ *
+ * UI gate round 5 (docs/DESIGN.md §10): the demo key's English note is behind its dashed mark at the caption's end
+ * (`KeyNote`, opened by a tap), never a line under the Cebuano; the signed line carries no key id (the id is spoken
+ * and behind the mark); the thumb zone ends 24 px above the bezel.
  */
 import { router, useFocusEffect } from "expo-router";
-import { useCallback } from "react";
+import { type ReactNode, useCallback, useState } from "react";
 import { Pressable, StyleSheet, useWindowDimensions, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { format } from "../../_shims/domain";
 import { people } from "../../_shims/seed";
-import { radius, space, target } from "../../_shims/tokens.native";
+import { layout, radius, space, target } from "../../_shims/tokens.native";
+import { seasonLabel } from "../../lib/display";
+import { MARK_KIND } from "../../lib/honesty";
 import { railLabel } from "../../lib/payout-status";
 import { deviceKeyId } from "../../lib/signing";
 import { pirmaHref } from "../../services/session";
 import { useApp } from "../../state/app";
 import { useFs } from "../../theme/theme";
-import { Screen } from "../../ui/chrome";
+import { EdgeFade, Screen, useFooterEnd } from "../../ui/chrome";
 import { Glyph } from "../../ui/glyph";
+import { LegendGlyph, MicroTag } from "../../ui/honesty";
 import { MomentMarker } from "../../ui/moment";
 import { HOLD_MS } from "../../ui/motion";
-import { Banner, Button, HonestyPill, InkStamp } from "../../ui/primitives";
+import { Banner, Button, InkStamp } from "../../ui/primitives";
 import { SealView } from "../../ui/seal-view";
 import { Slab } from "../../ui/slab";
 import { Skeleton } from "../../ui/states";
 import { Txt } from "../../ui/text";
 import { memberOf, presenceView } from "./cosign-model";
 import type { BoardKey } from "./messages";
-import { Gloss, SignedAmount, useCompact, useGloss } from "./parts";
+import { Gloss, ShortHash, SignedAmount, useCompact, useGloss } from "./parts";
 import { amountStateFor, SIGN_SCREEN_STATE, type SignPhase, sealKeys, slabLive } from "./sign-flow";
 import { useSign } from "./use-sign";
 import { useT } from "./use-t";
@@ -74,6 +85,7 @@ export function SignScreen() {
   const { t } = useFs();
   const tr = useT();
   const insets = useSafeAreaInsets();
+  const footerEnd = useFooterEnd();
   const { width, height } = useWindowDimensions();
   const compact = useCompact();
   const gloss = useGloss();
@@ -95,10 +107,11 @@ export function SignScreen() {
   const ownHash = c.check?.recomputed?.batchSha256 ?? null;
   const done = phase === "signed" || phase === "sealed" || phase === "inked";
   const keys = sealKeys(phase, c.key1);
-  // The amount, the seal and the slab share one screen: the seal gives way on short phones (never below 132 dp).
+  // The amount, the seal and the slab share one screen: the seal is the console's 180 (round 3), and gives way on
+  // short phones (never below 132 dp).
   const sealSize = Math.max(
     132,
-    Math.min(232, width - 4 * space.s16, compact ? Number.POSITIVE_INFINITY : height - RESERVED_DP),
+    Math.min(layout.seal, width - 4 * space.s16, compact ? Number.POSITIVE_INFINITY : height - RESERVED_DP),
   );
   const demoKey = (key?.biometricClass ?? presence) === "none";
   const amount = dto ? format.usd(dto.totalCents) : "";
@@ -119,7 +132,11 @@ export function SignScreen() {
         <Txt kind="title2" accessibilityRole="header">
           {tr("M-BD-02.title")}
         </Txt>
-        <Gloss text={gloss("M-BD-02.title")} />
+        {dto ? (
+          <Txt kind="micro" color="ink2">
+            {tr("M-BD-02.meta", { season: seasonLabel(dto.seasonCode), name: people.chair.first })}
+          </Txt>
+        ) : null}
       </View>
     </View>
   );
@@ -173,22 +190,28 @@ export function SignScreen() {
       style={[
         styles.thumb,
         {
-          paddingBottom: compact ? 0 : insets.bottom + space.s16,
+          // Round 5: the thumb zone's last line ends 24 px above the bezel (useFooterEnd).
+          paddingBottom: compact ? 0 : footerEnd,
           backgroundColor: t.color.ground,
           borderTopColor: t.color.rule,
         },
         compact ? styles.thumbInline : null,
       ]}
     >
+      {compact ? null : <EdgeFade color={t.color.ground} />}
       {done ? (
         <View style={styles.doneZone} testID="M-BD-02.signed" accessibilityLiveRegion="polite">
-          <Txt kind="bodyStrong">{tr("M-BD-02.signed", { key: key?.keyId ?? nextKeyId })}</Txt>
-          <Gloss text={gloss("M-BD-02.signed", { key: key?.keyId ?? nextKeyId })} />
-          {demoKey ? (
-            <Txt kind="caption" color="ink2" testID="M-BD-02.demo-key">
-              {tr("common.demoKey")}
+          {/* Round 5 (no ids on screen): the words say it is signed and matches; the key's id is in the spoken line
+              and behind the demo key's mark. */}
+          <KeyNote line={demoKey ? keyLine : null} testID="M-BD-02.demo-key" align="left">
+            <Txt
+              kind="bodyStrong"
+              style={styles.flexShrink}
+              accessibilityLabel={tr("M-BD-02.signed", { key: key?.keyId ?? nextKeyId })}
+            >
+              {tr("M-BD-02.signedShort")}
             </Txt>
-          ) : null}
+          </KeyNote>
           <Button tall variant="quiet" label={tr("M-BD-02.done")} onPress={back} testID="M-BD-02.done" />
         </View>
       ) : (
@@ -203,19 +226,28 @@ export function SignScreen() {
               <Gloss text={gloss(note)} />
             </Banner>
           ) : null}
-          {!blocked ? (
-            <Txt
-              kind="body"
-              color="ink2"
-              align="center"
-              testID="M-BD-02.caption"
-              accessibilityLiveRegion={phase === "biometric" ? "polite" : "none"}
-            >
-              {caption}
-            </Txt>
-          ) : null}
-          {!blocked ? <Gloss text={gloss(captionKey)} align="center" /> : null}
           <Slab
+            // Round 4 (the console's Approve): the slab, then how to use it right under it, then the one other way.
+            // Round 5 (one language a line): a demo key's note ("Demo key (this browser) …", English) is behind its
+            // dashed mark at the caption's end, opened by a tap, never a line of its own under the Cebuano.
+            below={
+              blocked ? undefined : (
+                // Round 8: no lone dashed mark trails the caption (it read as a stray "simulated" glyph with no word; the
+                // sandbox is said in words under the amount). The demo key's label keeps its hook and its words for
+                // assistive technology, drawn at 1 px like the stage frames' other marks.
+                <KeyNote line={demoKey ? keyLine : null} testID="M-BD-02.key" quiet>
+                  <Txt
+                    kind="caption"
+                    color="ink2"
+                    align="center"
+                    testID="M-BD-02.caption"
+                    accessibilityLiveRegion={phase === "biometric" ? "polite" : "none"}
+                  >
+                    {caption}
+                  </Txt>
+                </KeyNote>
+              )
+            }
             // A slab that goes flush (the batch changed, the request closed) is a new slab: the shared Slab would
             // otherwise keep its dialog open and act on an armed release (I4; the shell is asked to stop that too).
             key={`${attempt}${blocked ? ".flush" : ""}`}
@@ -282,9 +314,17 @@ export function SignScreen() {
               testID="M-BD-02.retry"
             />
           ) : null}
-          <Txt kind="caption" color="ink3" align="center" testID="M-BD-02.key" selectable>
-            {keyLine}
-          </Txt>
+          {/* The key: a phone key says where it lives, in his language. A demo key's words are behind its mark on
+              the caption's row (round 5), or here when the slab is blocked and has no caption. */}
+          {!demoKey ? (
+            <View style={styles.keyRow} testID="M-BD-02.key" accessible accessibilityLabel={keyLine}>
+              <Txt kind="micro" color="ink2" selectable>
+                {keyLine}
+              </Txt>
+            </View>
+          ) : blocked ? (
+            <KeyNote line={keyLine} testID="M-BD-02.key" />
+          ) : null}
         </>
       )}
     </View>
@@ -297,9 +337,6 @@ export function SignScreen() {
       footer={compact ? undefined : thumb}
       contentStyle={[styles.content, compact ? { paddingBottom: insets.bottom + space.s24 } : null]}
     >
-      {dto.rail === "simulated" ? (
-        <HonestyPill testID="M-BD-02.rail">{railLabel(dto.rail, "simulated_rail", lang).chip}</HonestyPill>
-      ) : null}
       <View {...mm5.rootProps} style={styles.moment} collapsable={false}>
         <MomentMarker id="MM-5" phase={mm5.phase} />
         {header}
@@ -312,17 +349,8 @@ export function SignScreen() {
             testID="M-BD-02.seal"
           />
           <View style={styles.hash}>
-            <Txt
-              kind="hash"
-              color="ink2"
-              align="center"
-              testID="M-BD-02.hash"
-              dataSet={{ hash: ownHash }}
-              accessibilityLabel={tr("seal.hash", { hash: format.hash(ownHash) })}
-            >
-              {`${format.hash(ownHash, 2)} … ${format.hash(ownHash.slice(-8))}`}
-            </Txt>
-            <Txt kind="caption" color="ink3" align="center">
+            <ShortHash hex={ownHash} testID="M-BD-02.hash" />
+            <Txt kind="caption" color="ink2" align="center">
               {tr("M-BD-02.compare")}
             </Txt>
           </View>
@@ -338,6 +366,16 @@ export function SignScreen() {
             <Txt kind="body" color="ink2" align="center">
               {tr("M-BD-01.count", { n: dto.itemCount })}
             </Txt>
+            {/* Round 3: the one micro-tag, under the PayPal amount it covers. */}
+            {dto.rail === "simulated" ? (
+              <View style={styles.tagRow}>
+                <MicroTag
+                  testID="M-BD-02.rail"
+                  full
+                  label={railLabel(dto.rail, "simulated_rail", lang).chip}
+                />
+              </View>
+            ) : null}
           </View>
         </View>
         {phase === "sealed" || phase === "inked" ? (
@@ -346,7 +384,6 @@ export function SignScreen() {
             <InkStamp initials={people.chair.initials} label={people.chair.name} />
             <View style={styles.flex}>
               <Txt kind="bodyStrong">{tr("M-BD-02.sealed", { a: treasurer, b: people.chair.first })}</Txt>
-              <Gloss text={gloss("M-BD-02.sealed", { a: treasurer, b: people.chair.first })} />
             </View>
           </View>
         ) : null}
@@ -355,7 +392,6 @@ export function SignScreen() {
             <Txt kind="body" color="ink2">
               {tr("M-BD-02.next", { n: dto.itemCount })}
             </Txt>
-            <Gloss text={gloss("M-BD-02.next", { n: dto.itemCount })} />
           </View>
         ) : null}
         {compact ? thumb : null}
@@ -364,12 +400,79 @@ export function SignScreen() {
   );
 }
 
-/** Everything on the sign sheet except the seal, in dp (header, amount, hash, thumb zone, insets). */
-const RESERVED_DP = 620;
+/**
+ * A line with the demo key's dashed mark at its end (UI gate round 5): the key's note ("Demo key (this browser), …",
+ * the I8 label, in English) is the mark's name and opens under the line on a tap, a phone's tooltip, so no English
+ * line stands under the Chair's Cebuano. Without a demo key it is the line alone.
+ */
+function KeyNote({
+  line,
+  testID,
+  align = "center",
+  quiet = false,
+  children,
+}: {
+  line: string | null;
+  testID: string;
+  align?: "center" | "left";
+  /** Round 8: draw no mark; keep the note's hook and its words for assistive technology only. */
+  quiet?: boolean;
+  children?: ReactNode;
+}) {
+  const { t } = useFs();
+  const [open, setOpen] = useState(false);
+  return (
+    <View style={[styles.keyNote, align === "left" ? styles.keyNoteLeft : null]}>
+      <View style={[styles.captionRow, align === "left" ? styles.captionRowLeft : null]}>
+        {children}
+        {line && quiet ? (
+          <View
+            testID={testID}
+            accessible
+            accessibilityRole="text"
+            accessibilityLabel={line}
+            dataSet={{ quiet: "" }}
+            pointerEvents="none"
+            style={styles.keyQuiet}
+          />
+        ) : null}
+        {line && !quiet ? (
+          <Pressable
+            testID={testID}
+            accessibilityRole="button"
+            accessibilityLabel={line}
+            aria-expanded={open}
+            dataSet={{ state: open ? "open" : "closed" }}
+            hitSlop={14}
+            onPress={() => setOpen((o) => !o)}
+            style={({ pressed }) => [styles.keyMark, pressed && { backgroundColor: t.color.pencilWash }]}
+          >
+            <LegendGlyph kind={MARK_KIND.demoKey} label={line} />
+          </Pressable>
+        ) : null}
+      </View>
+      {line && open && !quiet ? (
+        <Txt kind="micro" color="ink2" align={align} lang="en" selectable aria-hidden>
+          {line}
+        </Txt>
+      ) : null}
+    </View>
+  );
+}
+
+/**
+ * Everything on the sign sheet except the seal, in dp (header, amount, hash, thumb zone, insets). Round 5: measured
+ * again with the one-line caption and its key mark, so the stage's 778 px frame draws the console's 180 px seal
+ * instead of leaving a band above the thumb zone.
+ */
+const RESERVED_DP = 580;
 
 const styles = StyleSheet.create({
-  content: { maxWidth: 560, width: "100%", alignSelf: "center", paddingBottom: space.s24 },
-  moment: { gap: space.s24 },
+  keyQuiet: { position: "absolute", width: 1, height: 1, overflow: "hidden", opacity: 0 },
+  // Round 6: the seal's card takes the height the sheet has left above the pinned slab (the seal centred in it), so
+  // no band stands empty between the card and the thumb zone.
+  content: { maxWidth: 560, width: "100%", alignSelf: "center", paddingBottom: space.s24, flexGrow: 1 },
+  moment: { gap: space.s24, flexGrow: 1 },
   flex: { flex: 1 },
   header: { flexDirection: "row", alignItems: "center", gap: space.s8, marginLeft: -space.s12 },
   backButton: {
@@ -379,18 +482,41 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderRadius: target.min / 2,
   },
-  // The seal's card (radius 22, ADR-0016), with room at its foot so the slab in the thumb zone never clips it.
+  // The seal's card (round 4: the card radius and even padding; the thumb zone is its own footer, so the card needs no
+  // extra room at its foot).
   plate: {
+    flexGrow: 1,
+    justifyContent: "center",
     alignItems: "center",
     gap: space.s12,
-    paddingTop: space.s24,
-    paddingBottom: space.s24 + space.s16,
+    paddingVertical: space.s24,
     paddingHorizontal: space.s16,
-    borderRadius: radius.panel,
+    borderRadius: radius.card,
   },
   hash: { gap: space.s2, alignItems: "center" },
   amount: { gap: space.s4, alignItems: "center", alignSelf: "stretch" },
+  tagRow: { flexDirection: "row", justifyContent: "center", marginTop: space.s4 },
+  keyRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: space.s8,
+  },
   approved: { flexDirection: "row", alignItems: "center", gap: space.s8 },
+  flexShrink: { flexShrink: 1 },
+  keyNote: { gap: space.s4, alignItems: "center", marginTop: space.s4 },
+  keyNoteLeft: { alignItems: "flex-start", marginTop: 0 },
+  // The caption and the demo key's mark on one line, 8 px apart, centred under the slab.
+  captionRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: space.s8,
+  },
+  captionRowLeft: { justifyContent: "flex-start" },
+  keyMark: { borderRadius: radius.pill, padding: space.s2 },
   thumb: {
     gap: space.s8,
     paddingHorizontal: space.s16,

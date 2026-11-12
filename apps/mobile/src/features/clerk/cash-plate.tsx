@@ -14,10 +14,11 @@ import { radius, space, target } from "../../_shims/tokens.native";
 import { STATUS_GLYPH, type StatusTone } from "../../lib/item-status";
 import { payoutStatus } from "../../lib/payout-status";
 import { useApp } from "../../state/app";
-import { useFs } from "../../theme/theme";
+import { typeScale, useFs } from "../../theme/theme";
 import { AmountDisplay } from "../../ui/amount";
+import { SnapRow } from "../../ui/chrome";
 import { Glyph } from "../../ui/glyph";
-import { Banner, Button, Hatch, InkStamp, Rule } from "../../ui/primitives";
+import { Banner, Button, Hatch, InkStamp, Rule, StatusDot } from "../../ui/primitives";
 import { Txt } from "../../ui/text";
 import { type LocalReceipt, memberStatusOf, type RosterEntry, rosterCounts, searchRoster } from "./cash-day";
 import type { CashHandle } from "./cash-provider";
@@ -134,10 +135,11 @@ export function CashPlate({ cash, onOpen }: { cash: CashHandle; onOpen(entry: Ro
       ) : null}
 
       {shown.map((e, i) => (
-        <View key={e.line.lineId}>
+        // Round 4: a cash line is one snap row, whole above the scan button or not at all.
+        <SnapRow key={e.line.lineId}>
           {i > 0 ? <Rule /> : null}
           <CashRow entry={e} phpPerUsd={day?.phpPerUsd ?? "0"} onPress={() => onOpen(e)} />
-        </View>
+        </SnapRow>
       ))}
     </View>
   );
@@ -228,7 +230,8 @@ function CashRow({ entry, phpPerUsd, onPress }: { entry: RosterEntry; phpPerUsd:
               {stamp}
             </View>
             <View style={styles.rowBottom}>
-              <Txt kind="caption" style={{ flex: 1, color: subColour }}>
+              {/* Round 4: the words keep a readable column; the chip wraps under them rather than squeeze them. */}
+              <Txt kind="caption" style={[styles.sub, { color: subColour }]}>
                 {sub}
               </Txt>
               {chip}
@@ -242,8 +245,9 @@ function CashRow({ entry, phpPerUsd, onPress }: { entry: RosterEntry; phpPerUsd:
 }
 
 /**
- * The member's status word as the shared chip draws it (hatch for cash, a glyph, never colour alone), except that
- * the word wraps: at 2× text "Handa na po sa bodega" must never be clipped.
+ * The member's status word as the shared chip draws it (UI gate round 2: a white pill whose colour lives only in its
+ * dot, a hatch swatch for cash; never colour alone), except that the word wraps: at 2× text "Handa na po sa bodega"
+ * must never be clipped.
  */
 function CashChip({
   status,
@@ -257,24 +261,18 @@ function CashChip({
   testID: string;
 }) {
   const { t } = useFs();
-  const look =
-    tone === "decide"
-      ? { bg: t.color.canary, fg: t.color.onCanary, border: t.color.canaryBorder }
-      : tone === "cash"
-        ? { bg: t.color.plate, fg: t.color.ink, border: t.color.rule }
-        : { bg: t.color.plate2, fg: t.color.ink2, border: t.color.rule };
+  const fg = tone === "decide" || tone === "cash" ? t.color.ink : t.color.ink2;
   return (
     <View
       testID={testID}
-      dataSet={{ state: status, tone }}
+      dataSet={{ state: status, tone, glyph: STATUS_GLYPH[status] }}
       accessible
       accessibilityRole="text"
       accessibilityLabel={word}
-      style={[styles.chip, { backgroundColor: look.bg, borderColor: look.border }]}
+      style={[styles.chip, { backgroundColor: t.color.plate, borderColor: t.color.ruleStrong }]}
     >
-      {tone === "cash" ? <Hatch /> : null}
-      <Glyph name={STATUS_GLYPH[status]} size={16} color={look.fg} />
-      <Txt kind="label" style={{ color: look.fg, flexShrink: 1 }}>
+      <StatusDot tone={tone === "decide" || tone === "cash" ? tone : "neutral"} />
+      <Txt kind="label" style={{ color: fg, flexShrink: 1 }}>
         {word}
       </Txt>
     </View>
@@ -288,9 +286,10 @@ const styles = StyleSheet.create({
     alignSelf: "flex-start",
     flexShrink: 1,
     maxWidth: "100%",
-    gap: space.s4,
+    gap: space.s8,
     minHeight: 28,
-    paddingHorizontal: space.s8,
+    paddingLeft: space.s8 + 2,
+    paddingRight: space.s12,
     paddingVertical: space.s2,
     borderWidth: 1,
     borderRadius: radius.pill,
@@ -314,7 +313,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: radius.control,
   },
-  input: { flex: 1, minHeight: target.min, fontSize: 16 },
+  input: { flex: 1, minHeight: target.min, ...typeScale.body },
   row: {
     flexDirection: "row",
     alignItems: "center",
@@ -327,4 +326,5 @@ const styles = StyleSheet.create({
   amountLine: { flexDirection: "row", alignItems: "center", gap: space.s8 },
   chipLine: { flexDirection: "row", maxWidth: "100%" },
   rowBottom: { flexDirection: "row", alignItems: "center", gap: space.s8, flexWrap: "wrap" },
+  sub: { flexGrow: 1, flexShrink: 1, flexBasis: 176 },
 });

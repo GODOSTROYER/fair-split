@@ -3,7 +3,7 @@
  * the design's own materials (design §1 signatures 1 and 7, §2.5):
  * - the desk: a band of tablea lacquer, the colour of a roasted cacao tablet, whatever the app's theme;
  * - paper on it: the white original, square-cornered, casting the product's only shadow;
- * - the stencilled season and lot marks of the jute sacks;
+ * - the season and lot marks, as ids;
  * - the ink stamp of a person's decision, from the box stamped on a choice to the initials that land when a phone
  *   is paired.
  * Plus the choice plate that can speak itself in the phone's own voice (labelled, I8), the six-box pairing code and
@@ -13,18 +13,18 @@ import * as Speech from "expo-speech";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Pressable, StyleSheet, TextInput, View, type ViewStyle } from "react-native";
 import Animated, { useAnimatedStyle, useSharedValue, withSpring, withTiming } from "react-native-reanimated";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Path } from "react-native-svg";
 import type { Lang } from "../../_shims/contracts";
 import { fontFamily } from "../../_shims/fonts";
 import { radius, space, target, themes } from "../../_shims/tokens.native";
 import { CODE_LENGTH, normalizeCode } from "../../lib/pairing";
 import { pickVoiceLanguage } from "../../services/voice";
-import { useFs } from "../../theme/theme";
+import { TYPE_STEPS, useFs } from "../../theme/theme";
+import { useFooterEnd } from "../../ui/chrome";
 import { Glyph } from "../../ui/glyph";
 import { reducedFade, spring, tween } from "../../ui/motion";
 import { Txt } from "../../ui/text";
-import { qrFacsimileCells, stencilGlyphs } from "./flow";
+import { qrFacsimileCells } from "./flow";
 
 /** The desk is always tablea lacquer: paper glows on it in either theme (design §1, signature 1). */
 const DESK = themes.tablea;
@@ -109,28 +109,23 @@ export function Paper({
   );
 }
 
-/* ------------------------------------------------------------------ stencilled marks, as on the jute sacks */
+/* ------------------------------------------------------------------ the season and lot marks */
 
 /**
- * "2026-A", "LB-PH-2026-03" stencilled the way the sacks are: heavy figures, each counter held by a bridge cut
- * through it in the colour of what is underneath (`ground`). Read as one label by a screen reader.
+ * "2026-A", "LB-PH-2026-03": the season and the lot as ids. UI gate round 3 (docs/DESIGN.md §1): a mark is the id role, the one mono at 13 sp, like every
+ * other id on the phone. Read as one label by a screen reader.
  */
-export function StencilMark({
+export function IdMark({
   text,
   label,
-  size = 20,
   color,
-  ground,
   testID,
 }: {
   text: string;
   label: string;
-  size?: number;
   color: string;
-  ground: string;
   testID?: string;
 }) {
-  const bridge = Math.max(1.5, Math.round(size * 0.18) / 2);
   return (
     <View
       accessible
@@ -138,29 +133,17 @@ export function StencilMark({
       accessibilityLabel={label}
       testID={testID}
       dataSet={{ mark: text }}
-      style={styles.stencil}
+      style={styles.mark}
     >
-      {stencilGlyphs(text).map((g) => (
-        <View key={g.id} importantForAccessibility="no-hide-descendants" accessibilityElementsHidden>
-          <Txt
-            maxFontSizeMultiplier={1.5}
-            style={{
-              color,
-              fontFamily: fontFamily.amount,
-              fontSize: size,
-              lineHeight: Math.round(size * 1.08),
-              fontVariant: ["tabular-nums"],
-            }}
-          >
-            {g.char}
-          </Txt>
-          {g.bridged ? (
-            <View
-              style={[styles.bridge, { width: bridge, marginLeft: -bridge / 2, backgroundColor: ground }]}
-            />
-          ) : null}
-        </View>
-      ))}
+      <Txt
+        kind="hash"
+        importantForAccessibility="no"
+        aria-hidden
+        maxFontSizeMultiplier={1.5}
+        style={{ color }}
+      >
+        {text}
+      </Txt>
     </View>
   );
 }
@@ -431,13 +414,13 @@ export function CodeInput({
 
 export function StepFooter({ children }: { children: ReactNode }) {
   const { t } = useFs();
-  const insets = useSafeAreaInsets();
+  const footerEnd = useFooterEnd();
   return (
     <View
       style={[
         styles.footer,
         {
-          paddingBottom: insets.bottom + space.s16,
+          paddingBottom: footerEnd,
           backgroundColor: t.color.ground,
           borderTopColor: t.color.rule,
         },
@@ -459,8 +442,7 @@ const styles = StyleSheet.create({
     gap: space.s16,
   },
   paper: { borderRadius: radius.none },
-  stencil: { flexDirection: "row", alignItems: "flex-end", alignSelf: "flex-start" },
-  bridge: { position: "absolute", top: 0, bottom: 0, left: "50%" },
+  mark: { flexDirection: "row", alignItems: "flex-end", alignSelf: "flex-start" },
   plate: {
     flexDirection: "row",
     alignItems: "stretch",
@@ -491,7 +473,8 @@ const styles = StyleSheet.create({
     borderRadius: radius.plate,
   },
   bigStampRim: { position: "absolute", top: 6, left: 6, right: 6, bottom: 6, borderWidth: 1.5 },
-  bigStampText: { fontFamily: fontFamily.strong, fontSize: 36, lineHeight: 40, letterSpacing: 1 },
+  // A person's initials on the pairing stamp: the strong face on the hero step (round 3: five steps, no tracking).
+  bigStampText: { fontFamily: fontFamily.strong, fontSize: TYPE_STEPS.hero, lineHeight: 52 },
   // The six boxes share the row they are given (a card on a 320 dp phone is 256 dp inside), up to 48 dp each.
   codeRow: { flexDirection: "row", alignItems: "center", gap: space.s8, alignSelf: "stretch" },
   box: {

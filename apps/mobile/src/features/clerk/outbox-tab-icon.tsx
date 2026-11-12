@@ -4,7 +4,6 @@
  * the count through the tab's `tabBarAccessibilityLabel` ("Outbox, 3 on this phone", set by the clerk layout).
  */
 import { type ColorValue, StyleSheet, View } from "react-native";
-import { fontFamily } from "../../_shims/fonts";
 import { summarise } from "../../lib/outbox";
 import { useFs } from "../../theme/theme";
 import { Glyph } from "../../ui/glyph";
@@ -32,9 +31,9 @@ export function OutboxTabIcon({ color }: { color: ColorValue }) {
           ]}
         >
           <Txt
-            kind="caption"
+            kind="stamp"
             maxFontSizeMultiplier={1}
-            style={[styles.count, { color: decide ? t.color.onCanary : t.color.plate }]}
+            style={{ color: decide ? t.color.onCanary : t.color.plate }}
           >
             {s.onPhone > 99 ? "99+" : String(s.onPhone)}
           </Txt>
@@ -45,17 +44,17 @@ export function OutboxTabIcon({ color }: { color: ColorValue }) {
 }
 
 const styles = StyleSheet.create({
+  // The count at the phone's smallest step (13 sp, round 3), in a 20 px badge.
   badge: {
     position: "absolute",
-    top: -6,
-    right: -12,
-    minWidth: 18,
-    height: 18,
+    top: -7,
+    right: -13,
+    minWidth: 20,
+    height: 20,
     paddingHorizontal: 4,
-    borderRadius: 9,
+    borderRadius: 10,
     borderWidth: 1.5,
     alignItems: "center",
     justifyContent: "center",
   },
-  count: { fontSize: 11, lineHeight: 13, fontFamily: fontFamily.strong },
 });

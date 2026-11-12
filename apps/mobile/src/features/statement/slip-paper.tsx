@@ -6,6 +6,10 @@
  * form in grey with the serial in red, and the clerk's entries in blue ballpoint capitals, each field set at its own
  * slight angle as a hand would. Every value comes from the statement: the date, her member number and name, the net
  * kilos, and Grade 1 when all her kilos were.
+ *
+ * UI gate round 3: no printed "Synthetic sample" caption (7 px on a thumbnail, illegible). Every sample carries the
+ * synthetic legend glyph, a hatched square, on a white chip at 90% in its bottom-left corner, as the console's papers
+ * do; its words stay in the paper's accessible name.
  */
 import { Image } from "expo-image";
 import { StyleSheet, View } from "react-native";
@@ -13,15 +17,16 @@ import type { StatementSlip } from "../../_shims/api-client";
 import { fontFamily } from "../../_shims/fonts";
 import { radius, space } from "../../_shims/tokens.native";
 import { handwrittenDate, slipFigures } from "../../lib/figures";
+import { MARK_KIND } from "../../lib/honesty";
 import { useFs } from "../../theme/theme";
+import { MarkShape, useMarkColor } from "../../ui/honesty";
 import { Txt } from "../../ui/text";
 import { useT } from "./use-t";
 
 /** The paper's aspect (A6 slip, landscape crop of the white original). */
 export const SLIP_ASPECT = 0.64;
-/** Below this width a slip is a thumbnail: serial and kilos only, the sample tag as a strip. */
+/** Below this width a slip is a thumbnail: serial and kilos only. */
 const THUMB_MAX_W = 140;
-const STRIP_H = 12;
 
 /** A small, fixed tilt per field, so the entries sit as a hand set them (deterministic from the serial). */
 function tilt(serial: string, field: number): string {
@@ -61,6 +66,7 @@ export function SlipPaper({
   };
   const printed = t.color.ink3;
   const label = `${tr("M-MB-02.slipLabel", { serial: slip.serial, date: f.date, kg: f.kg })}. ${tr("common.syntheticSample")}`;
+  const mark = useMarkColor(MARK_KIND.syntheticSample);
 
   return (
     <View
@@ -82,10 +88,11 @@ export function SlipPaper({
           accessible={false}
         />
       ) : thumb ? (
-        <View style={[styles.thumb, { paddingBottom: STRIP_H + 2 }]}>
+        <View style={styles.thumb}>
           <Txt
             maxFontSizeMultiplier={1}
-            style={{ color: t.color.red, fontFamily: fontFamily.figure, fontSize: 9, lineHeight: 11 }}
+            // The printed serial at the id floor (12 px; round 3: no caption under 12 on the phone).
+            style={{ color: t.color.red, fontFamily: fontFamily.figure, fontSize: 12, lineHeight: 14 }}
           >
             {tr("M-MB-02.formNo", { serial: slip.serial })}
           </Txt>
@@ -189,23 +196,10 @@ export function SlipPaper({
           })}
         </View>
       )}
-      {/* Every sample says so, in its corner; a thumbnail is too small for a corner tag that leaves the kilos
-          readable, so there it is a strip along the bottom edge. */}
-      <View
-        style={[
-          thumb ? styles.strip : styles.tag,
-          { backgroundColor: t.color.plate2, borderColor: t.color.rule },
-        ]}
-      >
-        <Txt
-          kind="caption"
-          color="ink2"
-          maxFontSizeMultiplier={1}
-          numberOfLines={1}
-          style={thumb ? styles.stripText : undefined}
-        >
-          {tr("common.syntheticSample")}
-        </Txt>
+      {/* Every sample says so, in its corner: the synthetic glyph on a white chip (its words are the label). */}
+      <View style={thumb ? styles.markThumb : styles.mark} pointerEvents="none">
+        <View style={[styles.chip, { backgroundColor: t.color.plate }]} />
+        <MarkShape kind={MARK_KIND.syntheticSample} size={thumb ? 10 : 12} color={mark} />
       </View>
     </View>
   );
@@ -224,24 +218,11 @@ const styles = StyleSheet.create({
     paddingBottom: 1,
     paddingHorizontal: 2,
   },
-  tag: {
-    position: "absolute",
-    right: space.s8,
-    bottom: space.s8,
-    paddingHorizontal: space.s4,
-    borderWidth: 1,
-    borderRadius: radius.plate,
-  },
-  // Separate objects rather than overriding `top` with undefined: react-native-web drops undefined values.
-  strip: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: STRIP_H,
-    alignItems: "center",
-    justifyContent: "center",
-    borderTopWidth: 1,
-  },
-  stripText: { fontSize: 8, lineHeight: 10 },
+  /** The synthetic glyph's chip: white at 90%, in the paper's empty bottom-right corner. */
+  // Separate objects rather than overriding a side with undefined: react-native-web drops undefined values.
+  // Round 6: bottom right, where the form prints nothing (bottom left it sat on the word "Grade").
+  mark: { position: "absolute", right: space.s8, bottom: space.s8, padding: 3 },
+  chip: { ...StyleSheet.absoluteFill, borderRadius: radius.cell, opacity: 0.9 },
+  // A thumbnail's kilos fill its lower half: its mark takes the empty top-right corner instead.
+  markThumb: { position: "absolute", right: space.s4, top: space.s4, padding: 2 },
 });

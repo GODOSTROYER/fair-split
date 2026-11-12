@@ -300,6 +300,15 @@ const HISTORY_ORDER: Readonly<Record<StatementHistoryEntry["kind"], number>> = {
 };
 
 /**
+ * The approval in her words: "Giaprobahan ni AS ug EC" when the history names both officers, else plain "Giaprobahan
+ * na" (a live run's history may not carry their initials, and a sentence never prints with its names missing).
+ */
+function approvedCopy(by: readonly string[] | undefined): Copy {
+  const [a, b] = by ?? [];
+  return a && b ? { key: HISTORY_KEY.approved, args: { a, b } } : { key: "M-MB-01.historyApprovedPlain" };
+}
+
+/**
  * Her line's history in the order it happened, in her words. A PayPal confirmation that arrived by event before the
  * server's history caught up is shown too, at the event's time.
  */
@@ -335,7 +344,7 @@ export function historyRows(dto: StatementDTO, track: ItemTrack): HistoryRow[] {
         replayed && (h.kind === "paid" || h.kind === "sent")
           ? { key: "M-MB-01.replayed" }
           : h.kind === "approved"
-            ? { key: HISTORY_KEY.approved, args: { a: h.by?.[0] ?? "", b: h.by?.[1] ?? "" } }
+            ? approvedCopy(h.by)
             : { key: HISTORY_KEY[h.kind] },
       mark:
         replayed && h.kind === "paid"

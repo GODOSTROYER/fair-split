@@ -84,7 +84,7 @@ export function PangutanaScreen() {
         <Glyph name="people" size={24} color={t.color.ink2} />
         <View style={styles.flex}>
           <Txt kind="statementBody">{tr("M-MB-04.rights")}</Txt>
-          <Txt kind="caption" color="ink3">
+          <Txt kind="caption" color="statementInk2">
             {tr("M-MB-04.rightsCite")}
           </Txt>
         </View>
@@ -130,7 +130,7 @@ export function PangutanaScreen() {
 }
 
 const styles = StyleSheet.create({
-  card: { padding: space.s16, gap: space.s12, borderRadius: radius.none },
+  card: { padding: space.s16, gap: space.s12, borderRadius: radius.card },
   who: { flexDirection: "row", alignItems: "center", gap: space.s12 },
   flex: { flex: 1 },
   rights: { flexDirection: "row", alignItems: "flex-start", gap: space.s12 },

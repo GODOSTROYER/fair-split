@@ -22,6 +22,7 @@ import { Linking, Platform, StyleSheet, useWindowDimensions, View } from "react-
 import type { AppRole } from "../../_shims/contracts";
 import { season } from "../../_shims/seed";
 import { space } from "../../_shims/tokens.native";
+import { seasonLabel } from "../../lib/display";
 import { claimPairing, type PairingOutcome, parsePairingInput } from "../../lib/pairing";
 import { feedback } from "../../platform/feedback";
 import { keyVault } from "../../platform/key-vault";
@@ -49,7 +50,7 @@ import {
 } from "./flow";
 import { ListenChoice } from "./listen-choice";
 import type { OnboardingKey } from "./messages";
-import { COLUMN, CodeInput, Desk, FinderGuide, PairStamp, Paper, QrFacsimile, StencilMark } from "./parts";
+import { COLUMN, CodeInput, Desk, FinderGuide, IdMark, PairStamp, Paper, QrFacsimile } from "./parts";
 import { useT } from "./use-t";
 
 const MESSAGE: Partial<Record<PairState, OnboardingKey>> = {
@@ -244,12 +245,10 @@ export function PairScreen({ initialToken }: { initialToken?: string }) {
             <Txt kind="bodyStrong" style={styles.flex}>
               {tr("app.name")}
             </Txt>
-            <StencilMark
-              text={season.code}
-              label={tr("M-ON-01.size.season", { season: season.code })}
-              size={16}
+            <IdMark
+              text={seasonLabel(season.code)}
+              label={tr("M-ON-01.size.season", { season: seasonLabel(season.code) })}
               color={t.color.ink2}
-              ground={t.color.copyWhite}
             />
           </View>
           <Rule />

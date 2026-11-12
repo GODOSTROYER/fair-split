@@ -15,7 +15,6 @@ import {
   scanRefused,
   shouldClaimScan,
   stampInitials,
-  stencilGlyphs,
   textSizePct,
 } from "./flow";
 
@@ -106,20 +105,6 @@ describe("M-ON-01 flow", () => {
     expect(shouldClaimScan(null, "fairsplit://pair?t=abc", "offline")).toBe(true);
     expect(shouldClaimScan(null, "fairsplit://pair?t=abc", "paired")).toBe(false);
     expect(shouldClaimScan(null, "  ", "idle")).toBe(false);
-  });
-
-  it("stencils the season and lot marks with bridges only where a counter would fall out", () => {
-    const cut = (s: string) =>
-      stencilGlyphs(s)
-        .map((g) => (g.bridged ? g.char : "."))
-        .join("");
-    expect(cut("2026-A")).toBe(".0.6.A");
-    expect(cut("LB-PH-2026-03")).toBe(".B.P...0.6.0.");
-    expect(
-      stencilGlyphs("2026-a")
-        .map((g) => g.char)
-        .join(""),
-    ).toBe("2026-A");
   });
 
   it("draws the same facsimile QR every time, clear of its three finder squares", () => {

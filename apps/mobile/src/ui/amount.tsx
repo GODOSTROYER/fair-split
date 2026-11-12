@@ -3,10 +3,10 @@
  *
  * | state    | large (≥28 px, member surface)                 | inline (<28 px)                                   |
  * | -------- | ---------------------------------------------- | ------------------------------------------------- |
- * | pencil   | solid pencil (read or computed, nobody signed) | pencil                                            |
+ * | pencil   | solid ink (round 2: one hero numeral)          | pencil                                            |
  * | you      | –                                              | pencil-faint in a 1.5 px canary cell, "You" tag  |
  * | ink      | solid ink (a person entered or approved it)    | ink                                               |
- * | hollow   | hollow-fill with a 2 px ink stroke (in flight) | ink-2 with a 1.5 px dashed underline              |
+ * | hollow   | solid ink (round 2: no outline; the capsule)   | statement ink 2 beside a hollow dot (round 3)     |
  * | landed   | solid ink; its capsule is jade flush           | ink                                               |
  * | attested | solid ink, beside the clerk's stamp            | ink                                               |
  *
@@ -20,9 +20,8 @@
 import { useState } from "react";
 import { StyleSheet, useWindowDimensions, View } from "react-native";
 import Animated, { type SharedValue, useAnimatedStyle } from "react-native-reanimated";
-import Svg, { Line, Text as SvgText, TSpan } from "react-native-svg";
+import Svg, { Text as SvgText, TSpan } from "react-native-svg";
 import type { AmountState } from "../_shims/contracts";
-import { fontFamily } from "../_shims/fonts";
 import { radius, space } from "../_shims/tokens.native";
 import { typeScale, useFs } from "../theme/theme";
 import {
@@ -36,7 +35,7 @@ import {
 } from "./amount-fit";
 import { Txt, useT } from "./text";
 
-/** `hero` 48 sp and `l` 32 are large (one SVG figure); `m` 22 (a receipt's total) and `figure` 16 are inline. */
+/** `hero` 48 sp and `l` 24 are large (one SVG figure); `m` 24 (a receipt's total) and `figure` 15 are inline. */
 export type AmountSize = "hero" | "l" | "m" | "figure";
 
 export interface AmountDisplayProps {
@@ -73,8 +72,11 @@ function spoken(srLabel: string | undefined) {
       } as const);
 }
 
-/** The hero amount's "US$" at half size, raised (ADR-0016); the text and its spoken label stay whole. */
-const CUR = { size: 0.5, rise: 0.36 } as const;
+/**
+ * The hero amount's "US$" small and raised, as the console's `.fs-cur` (0.42 em, docs/DESIGN.md §1); the text and its
+ * spoken label stay whole.
+ */
+const CUR = { size: 0.42, rise: 0.38 } as const;
 
 /** "US$64.45" → ["US$", "64.45"]; text with no dollar prefix comes back whole. */
 export function currencyParts(text: string): readonly [prefix: string, figure: string] {
@@ -83,13 +85,24 @@ export function currencyParts(text: string): readonly [prefix: string, figure: s
 }
 
 /** The figure as SVG spans: the prefix small and raised on the hero, the digits at full size. */
-function FigureSpans({ text, fontSize, raise }: { text: string; fontSize: number; raise: boolean }) {
+function FigureSpans({
+  text,
+  fontSize,
+  raise,
+  prefixFill,
+}: {
+  text: string;
+  fontSize: number;
+  raise: boolean;
+  /** Round 2: the "US$" is quieter than the digits (statement ink 2, 9.8:1), as on the console. */
+  prefixFill?: string;
+}) {
   const [prefix, figure] = currencyParts(text);
   if (!raise || !prefix) return <>{text}</>;
   const rise = fontSize * CUR.rise;
   return (
     <>
-      <TSpan fontSize={fontSize * CUR.size} dy={-rise}>
+      <TSpan fontSize={fontSize * CUR.size} dy={-rise} fill={prefixFill}>
         {prefix}
       </TSpan>
       <TSpan fontSize={fontSize} dy={rise} dx={fontSize * 0.04}>
@@ -119,7 +132,8 @@ function LargeAmount({
   const box = fitAmount(type, natural, roomFrom(last, full));
 
   const hollowLook = state === "hollow";
-  const solidColour = state === "pencil" || state === "you" ? t.color.pencil : t.color.ink;
+  // One hero numeral (UI gate round 2): every large amount is solid ink, whatever its state.
+  const solidColour = t.color.ink;
   // MM-1 cross-fades the two looks: the outline fades out exactly as the landed ink fades in.
   const solidOpacity = useAnimatedStyle(() => ({ opacity: fill ? fill.get() : hollowLook ? 0 : 1 }));
   const hollowOpacity = useAnimatedStyle(() => ({ opacity: fill ? 1 - fill.get() : hollowLook ? 1 : 0 }));
@@ -128,9 +142,10 @@ function LargeAmount({
     x: AMOUNT_PAD / 2,
     y: box.lineHeight / 2 + box.fontSize * CAP_HALF,
     fontSize: box.fontSize,
-    fontFamily: fontFamily.amount,
-    // Amounts read as money: proportional lining figures (ADR-0016).
-    fontFeatureSettings: "'pnum' 1, 'lnum' 1",
+    // The role's face (round 2: the figure cut, 87.5/500), so the drawn figure is the measured one.
+    fontFamily: typeScale[role].fontFamily,
+    // Round 3: one money style, tabular lining figures everywhere (docs/DESIGN.md §1).
+    fontFeatureSettings: "'tnum' 1, 'lnum' 1",
   } as const;
   const raise = size === "hero";
   const layer = { width: box.width, height: box.height };
@@ -169,14 +184,16 @@ function LargeAmount({
               style={[styles.layer, layer, hollowOpacity]}
               importantForAccessibility="no-hide-descendants"
             >
-              {/* Stroke under fill (paint-order: stroke): a 4 px stroke shows 2 px outside each glyph, and the
-                  fill covers the strokes of overlapping contours, so "$", "4" and "8" draw no inner lines. */}
+              {/* UI gate round 2: no outline face. The in-flight layer is the same solid ink figure, so MM-1's
+                  cross-fade changes nothing a member reads; the capsule beside it says where the money is. */}
               <Svg width={box.width} height={box.height}>
-                <SvgText {...common} fill="none" stroke={t.color.ink} strokeWidth={4} strokeLinejoin="round">
-                  <FigureSpans text={text} fontSize={box.fontSize} raise={raise} />
-                </SvgText>
-                <SvgText {...common} fill={t.color.hollowFill}>
-                  <FigureSpans text={text} fontSize={box.fontSize} raise={raise} />
+                <SvgText {...common} fill={t.color.ink}>
+                  <FigureSpans
+                    text={text}
+                    fontSize={box.fontSize}
+                    raise={raise}
+                    prefixFill={t.color.statementInk2}
+                  />
                 </SvgText>
               </Svg>
             </Animated.View>
@@ -188,7 +205,12 @@ function LargeAmount({
           >
             <Svg width={box.width} height={box.height}>
               <SvgText {...common} fill={solidColour}>
-                <FigureSpans text={text} fontSize={box.fontSize} raise={raise} />
+                <FigureSpans
+                  text={text}
+                  fontSize={box.fontSize}
+                  raise={raise}
+                  prefixFill={t.color.statementInk2}
+                />
               </SvgText>
             </Svg>
           </Animated.View>
@@ -213,7 +235,7 @@ function InlineAmount({
       : state === "you"
         ? t.color.pencilFaint
         : state === "hollow"
-          ? t.color.ink2
+          ? t.color.statementInk2
           : t.color.ink;
   return (
     <View
@@ -222,12 +244,11 @@ function InlineAmount({
       style={state === "you" ? [styles.you, { borderColor: t.color.canaryBorder }] : styles.inline}
       {...spoken(srLabel)}
     >
-      <View>
-        <Txt kind={size === "m" ? "amountM" : "figure"} style={{ color: colour }}>
-          {text}
-        </Txt>
-        {state === "hollow" ? <DashRule color={t.color.ink2} /> : null}
-      </View>
+      {/* Round 3: a pending amount is a neutral figure beside a hollow dot; dashed lines mean simulated only. */}
+      {state === "hollow" ? <View style={[styles.pendingDot, { borderColor: colour }]} /> : null}
+      <Txt kind={size === "m" ? "amountM" : "figure"} style={{ color: colour }}>
+        {text}
+      </Txt>
       {state === "you" ? (
         <Txt kind="caption" color="canaryText">
           {tr("amount.you")}
@@ -237,24 +258,13 @@ function InlineAmount({
   );
 }
 
-/** Inline hollow's 1.5 px dashed underline (S2.2.1), drawn: Android cannot dash a text underline. */
-function DashRule({ color }: { color: string }) {
-  return (
-    <View style={styles.dash} pointerEvents="none">
-      <Svg width="100%" height={2}>
-        <Line x1="0" y1="1" x2="100%" y2="1" stroke={color} strokeWidth={1.5} strokeDasharray="4 3" />
-      </Svg>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   large: { maxWidth: "100%", overflow: "hidden" },
   measure: { position: "absolute", left: 0, top: 0, width: 0, height: 0, overflow: "hidden" },
   measureLine: { width: 1024, alignItems: "flex-start" },
   layer: { position: "absolute", left: 0, top: 0 },
-  inline: { flexDirection: "row", alignItems: "center" },
-  dash: { position: "absolute", left: 0, right: 0, bottom: 1, height: 2 },
+  inline: { flexDirection: "row", alignItems: "center", gap: space.s8 },
+  pendingDot: { width: 8, height: 8, borderRadius: 4, borderWidth: 1.5 },
   you: {
     flexDirection: "row",
     alignItems: "center",

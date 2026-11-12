@@ -1,7 +1,7 @@
 /**
  * MM-7's zoom (design §7 M7, S2.9 "Tap a peso"): from the slip she tapped, the view zooms about the tap point into
  * the slip where her kilos are written in the clerk's hand, with the figure she traced framed in 1 px ink; the
- * statement dims to 20%; a Rigid / Segment_Tick haptic fires two-thirds of the way in. Then her other slips tile
+ * statement steps behind an opaque sheet (round 6); a Rigid / Segment_Tick haptic fires two-thirds of the way in. Then her other slips tile
  * beneath, 60 ms apart, with their sum printed flat ("Tanan: 148.0 kg"), and Paminawa can read the sentence that
  * names them, lifting each slip as it is named. Back plays the zoom in reverse.
  *
@@ -50,7 +50,8 @@ import { usePaminawa } from "./use-paminawa";
 import { useT } from "./use-t";
 
 /** The statement shows at 20% under the zoom (design §7 M7). */
-const DIM = 0.8;
+// Round 6: the slip's sheet is opaque. The statement behind it never ghosts through the veil.
+const DIM = 1;
 /** How long the `glide` spring takes to come to rest: twice its perceptual duration (critically damped). */
 const SETTLE_MS = SPRING_SOURCE.glide.d * 2000;
 

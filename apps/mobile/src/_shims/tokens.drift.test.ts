@@ -6,7 +6,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { radius, type ThemeName, themes } from "./tokens.native";
+import { layout, radius, type ThemeName, themes, typeSteps } from "./tokens.native";
 
 const GENERATED = fileURLToPath(
   new URL("../../../../packages/tokens/src/generated/tokens.native.ts", import.meta.url),
@@ -72,5 +72,31 @@ describe("tokens shim against @fairsplit/tokens' generated native module", () =>
     expect(themes.adlaw.display).toBe("Hayag (day)");
     expect(themes.tablea.display).toBe("Gabii (night)");
     expect(themes.adlaw.dark).toBe(false);
+  });
+
+  it("draws the seal at the generated layout's size (round 3: 180 on the Chair's phone and on Approve)", () => {
+    const generated = Number(/export const layout = \{[^}]*\bseal: (\d+)/.exec(source)?.[1]);
+    expect(layout.seal).toBe(generated);
+    expect(layout.seal).toBe(180);
+  });
+
+  it("round 4: the co-sign seal, the status pill and the fades are the generated layout's", () => {
+    const block = /export const layout = \{([^}]+)\}/.exec(source)?.[1] ?? "";
+    const value = (key: string) => Number(new RegExp(`\\b${key}: (\\d+)`).exec(block)?.[1]);
+    expect(layout.cosignSeal).toBe(value("cosignSeal"));
+    expect(layout.statusChip).toBe(value("statusChip"));
+    expect(layout.fade).toBe(value("fade"));
+    expect(layout).toMatchObject({ cosignSeal: 140, statusChip: 32, fade: 24 });
+    // Round 5: a screen's last line, a sticky footer's included, ends 24 px above the bezel.
+    expect(layout.end).toBe(value("end"));
+    expect(layout.end).toBe(24);
+  });
+
+  it("sets type on the generated five steps (round 3: id 13, label 15, body 17, title 24, hero 48)", () => {
+    const block = /export const typeSteps = \{([^}]+)\}/.exec(source)?.[1] ?? "";
+    const generated = Object.fromEntries(
+      [...block.matchAll(/(\w+): (\d+)/g)].map((m) => [m[1], Number(m[2])]),
+    );
+    expect(typeSteps).toEqual(generated);
   });
 });

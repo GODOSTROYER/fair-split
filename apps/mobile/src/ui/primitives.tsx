@@ -15,13 +15,15 @@ import {
 } from "react-native";
 import Svg, { Path } from "react-native-svg";
 import type { MemberStatus } from "../_shims/contracts";
-import { fontFamily } from "../_shims/fonts";
 import { pendingReview } from "../_shims/i18n";
-import { radius, slabDepth, space, target } from "../_shims/tokens.native";
+import { layout, radius, space, target } from "../_shims/tokens.native";
+import { MARK_KIND } from "../lib/honesty";
 import { STATUS_GLYPH, STATUS_TONE, type StatusTone } from "../lib/item-status";
+import { inFrame } from "../services/frame-bridge";
 import { useApp } from "../state/app";
 import { useFs } from "../theme/theme";
 import { Glyph, type GlyphName } from "./glyph";
+import { LegendGlyph, type LegendGlyphProps, MarkRow, QuietMarks } from "./honesty";
 import { Txt, useT } from "./text";
 
 /* ------------------------------------------------------------------ Button */
@@ -29,8 +31,9 @@ import { Txt, useT } from "./text";
 export interface ButtonProps extends Omit<PressableProps, "children" | "style"> {
   label: string;
   /**
-   * "hand": a person's decision, the indigo slab face on its d2 lip (ADR-0016). "quiet": a reversible step (d1),
-   * a plate face with a steel-line edge on its 3 px lip ("Human na" after signing).
+   * UI gate round 2: one flat primary and one outline secondary, as on the console. "hand" and "filled" are the
+   * primary (the indigo face, radius 12, no lip, no glow); "quiet" and "tonal" are the secondary (white, a 1 px
+   * outline); "text" is a quiet underlined link.
    */
   variant?: "filled" | "hand" | "quiet" | "tonal" | "text";
   icon?: GlyphName;
@@ -41,58 +44,40 @@ export interface ButtonProps extends Omit<PressableProps, "children" | "style"> 
 
 export function Button({ label, variant = "filled", icon, tall, style, disabled, ...rest }: ButtonProps) {
   const { t } = useFs();
-  const hand = variant === "hand";
-  const quiet = variant === "quiet";
-  const face = hand
-    ? t.slab.chalk.face
-    : quiet
-      ? t.color.plate
-      : variant === "filled"
-        ? t.color.ink
-        : variant === "tonal"
-          ? t.color.plate2
-          : "transparent";
-  const fg = hand ? t.slab.chalk.label : variant === "filled" ? t.color.plate : t.color.ink;
+  const primary = variant === "hand" || variant === "filled";
+  const outline = variant === "quiet" || variant === "tonal";
+  const text = variant === "text";
+  const face = primary ? t.slab.chalk.face : outline ? t.color.plate : "transparent";
+  const fg = primary ? t.slab.chalk.label : t.color.ink;
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityState={{ disabled: !!disabled }}
       disabled={disabled}
-      hitSlop={variant === "text" ? 8 : 0}
+      hitSlop={text ? 8 : 0}
       {...rest}
       style={({ pressed }) => [
         styles.button,
         {
           minHeight: tall ? target.primary : target.min,
           backgroundColor: face,
-          borderColor: variant === "tonal" ? t.color.rule : quiet ? t.color.steelLine : "transparent",
-          paddingHorizontal: variant === "text" ? space.s8 : space.s16,
+          borderColor: outline ? t.color.ruleStrong : "transparent",
+          paddingHorizontal: text ? space.s4 : space.s16,
           opacity: disabled ? 0.55 : 1,
         },
-        hand
+        text ? styles.textButton : null,
+        // The press moves a quarter of the old lip and darkens the face a step; no shadow, no glow.
+        pressed && !disabled
           ? {
-              borderRadius: radius.card,
-              marginBottom: slabDepth.d2,
-              boxShadow: `0px ${slabDepth.d2}px 0px ${t.slab.chalk.edgeRight}, 0px ${slabDepth.d2}px 0px 1px ${t.slab.chalk.edgeBottom}`,
+              transform: [{ translateY: 1 }],
+              backgroundColor: primary ? t.slab.chalk.edgeRight : t.color.pencilWash,
             }
           : null,
-        quiet
-          ? {
-              borderRadius: radius.card,
-              marginBottom: slabDepth.d1,
-              boxShadow: `0px ${slabDepth.d1}px 0px ${t.color.ruleStrong}`,
-            }
-          : null,
-        pressed && hand ? { transform: [{ translateY: slabDepth.d2 }], boxShadow: "none" } : null,
-        pressed && quiet ? { transform: [{ translateY: slabDepth.d1 }], boxShadow: "none" } : null,
-        pressed &&
-          !hand &&
-          !quiet && { backgroundColor: variant === "filled" ? t.color.ink2 : t.color.pencilWash },
         style,
       ]}
     >
-      {icon ? <Glyph name={icon} size={20} color={fg} /> : null}
-      <Txt kind={variant === "text" ? "bodyStrong" : "slab"} style={{ color: fg }}>
+      {icon ? <Glyph name={icon} size={text ? 18 : 20} color={fg} /> : null}
+      <Txt kind={text ? "label" : "slab"} style={[{ color: fg }, text ? styles.link : null]}>
         {label}
       </Txt>
     </Pressable>
@@ -159,16 +144,19 @@ export function Chip({
 
 /* ------------------------------------------------------------------ Ink stamp */
 
-/** A 20 px indigo stamp (radius 6) with a person's initials in white: every human decision carries one (ADR-0016). */
+/**
+ * A person's initials at the id step (13 sp, never the old 9): every human decision carries one (ADR-0016). UI gate
+ * round 4: the console's avatar, white with a 1 px ink-2 ring and ink initials; indigo is for action only.
+ */
 export function InkStamp({ initials, label }: { initials: string; label?: string }) {
   const { t } = useFs();
   return (
     <View
       accessible
       accessibilityLabel={label ?? initials}
-      style={[styles.stamp, { backgroundColor: t.slab.chalk.face }]}
+      style={[styles.stamp, { backgroundColor: t.color.plate, borderColor: t.color.ink2 }]}
     >
-      <Txt kind="caption" style={[styles.stampText, { color: t.slab.chalk.label }]} maxFontSizeMultiplier={1}>
+      <Txt kind="stamp" style={{ color: t.color.ink }} maxFontSizeMultiplier={1}>
         {initials}
       </Txt>
     </View>
@@ -236,89 +224,55 @@ export function Banner({
 
 /* ------------------------------------------------------------------ labels */
 
-/**
- * The honesty chip, "Simulated PayPal sandbox" and its kin (I8, ADR-0016): the dashed steel pill, an ink-3 glyph,
- * ink-2 words. The same mark on the Member, Chair and Clerk screens.
+/*
+ * UI gate round 3 retires the honesty pill: the rail is one "Sandbox" micro-tag beside the PayPal value it covers
+ * (`ui/honesty.tsx` MicroTag) and every other provenance is a bare legend glyph whose words are its name.
  */
-export function HonestyPill({
-  children,
-  testID,
-  glyph = "info",
-}: {
-  children: ReactNode;
-  testID?: string;
-  glyph?: GlyphName;
-}) {
-  const fs = useFs();
-  return (
-    <View testID={testID} style={[styles.demoLabel, styles.honest, { borderColor: fs.t.color.steelLine }]}>
-      <Glyph name={glyph} size={14} color={fs.t.color.ink3} />
-      <Txt kind="caption" color="ink2">
-        {children}
-      </Txt>
-    </View>
-  );
-}
 
-/** I8: anything not live says so. Shown on every screen while the app runs on local demo data. */
+/**
+ * I8: anything not live says so. Shown on every screen while the app runs on local demo data. UI gate round 3: the
+ * synthetic legend glyph (a hatched square), its words its accessible name; no pill.
+ */
 export function DemoLabel() {
   const { demo } = useApp();
   const t = useT();
-  const fs = useFs();
   if (!demo) return null;
-  return (
-    <View
-      testID="demo-label"
-      style={[styles.demoLabel, styles.honest, { borderColor: fs.t.color.steelLine }]}
-    >
-      <Glyph name="info" size={14} color={fs.t.color.ink3} />
-      <Txt kind="caption" color="ink2">
-        {t("common.demoData")}
-      </Txt>
-    </View>
-  );
+  return <LegendGlyph testID="demo-label" kind={MARK_KIND.demoData} label={t("common.demoData")} />;
 }
 
 /**
  * OD-2 (S1.6): "Machine-translated, pending native review" while the language is Cebuano or Filipino
- * (`pendingReview`). Machine output is pencil (design §1): the translate glyph and the words in pencil, on a dashed
- * edge, beside the demo label.
+ * (`pendingReview`). UI gate round 3: the simulated legend glyph (a dashed circle), its words its accessible name.
  */
 export function MachineTranslatedNote({ testID }: { testID?: string }) {
   const { lang } = useApp();
   const t = useT();
-  const fs = useFs();
   if (!pendingReview(lang)) return null;
   return (
-    <View
-      testID={testID}
-      accessible
-      accessibilityRole="text"
-      accessibilityLabel={t("common.machineTranslated")}
-      style={[styles.demoLabel, styles.machine, styles.honest, { borderColor: fs.t.color.steelLine }]}
-    >
-      <Glyph name="translate" size={14} color={fs.t.color.pencil} />
-      <Txt kind="caption" style={{ color: fs.t.color.pencil, flexShrink: 1 }}>
-        {t("common.machineTranslated")}
-      </Txt>
-    </View>
+    <LegendGlyph testID={testID} kind={MARK_KIND.machineTranslated} label={t("common.machineTranslated")} />
   );
 }
 
 /**
- * The labels that open every surface, on one row that wraps on a narrow phone: demo data (I8) and the review chip
- * (OD-2). The chrome draws them on every `<Screen>`; the one surface that is not a screen, the Paminawa sheet, draws
- * them itself. `screen` is the register ID: the chip's test hook is `{screen}.machine`.
+ * The marks that open every surface: demo data (I8) and the review mark (OD-2), as bare glyphs on one row; a tap
+ * shows their words. The chrome draws them on every `<Screen>`; the one surface that is not a screen, the Paminawa
+ * sheet, draws them itself. `screen` is the register ID: the review mark's test hook is `{screen}.machine`.
+ * Round 5 (provenance once): inside the judge stage's frames nothing is drawn in the corner (the stage's indicator
+ * and What's real say it); the marks keep their hooks and their words for assistive technology (`QuietMarks`).
  */
 export function SurfaceLabels({ screen }: { screen: string }) {
   const { demo, lang } = useApp();
-  if (!demo && !pendingReview(lang)) return null;
-  return (
-    <View style={styles.labels}>
-      <DemoLabel />
-      <MachineTranslatedNote testID={`${screen}.machine`} />
-    </View>
-  );
+  const t = useT();
+  const marks: LegendGlyphProps[] = [];
+  if (demo) marks.push({ testID: "demo-label", kind: MARK_KIND.demoData, label: t("common.demoData") });
+  if (pendingReview(lang)) {
+    marks.push({
+      testID: `${screen}.machine`,
+      kind: MARK_KIND.machineTranslated,
+      label: t("common.machineTranslated"),
+    });
+  }
+  return inFrame ? <QuietMarks marks={marks} /> : <MarkRow marks={marks} />;
 }
 
 export function SectionTitle({ children }: { children: ReactNode }) {
@@ -339,24 +293,28 @@ export function SectionTitle({ children }: { children: ReactNode }) {
 export function StatusChip({
   label,
   tone,
-  glyph,
   testID,
   state,
 }: {
   label: string;
   tone: StatusTone;
+  /** Kept for callers; round 2 draws the state as a dot (✓ only on confirmed money). */
   glyph?: GlyphName;
   testID?: string;
   state?: string;
 }) {
   const { t } = useFs();
+  // UI gate round 2 (the console's pill): white with a 1 px rule, and the colour lives only in the dot. Confirmed
+  // money is the one filled pill (jade, ✓). Round 3 (docs/DESIGN.md §2, §4): jade is only money the simulated PayPal
+  // confirmed and dashed means simulated only, so money in flight is the neutral pill: a solid ring, the hollow
+  // pending dot and its word in ink.
   const look = {
     landed: { bg: t.color.jade, fg: t.color.onJade, border: t.color.jadeFlushBorder },
-    decide: { bg: t.color.canaryWash, fg: t.color.ink, border: t.color.canaryBorder },
-    failure: { bg: t.color.redWash, fg: t.color.red, border: t.color.red },
-    cash: { bg: t.color.plate, fg: t.color.ink, border: t.color.rule },
-    pending: { bg: "transparent", fg: t.color.ink, border: t.color.jadeFlushBorder },
-    neutral: { bg: t.color.plate2, fg: t.color.ink2, border: t.color.rule },
+    pending: { bg: t.color.plate, fg: t.color.ink, border: t.color.ruleStrong },
+    decide: { bg: t.color.plate, fg: t.color.ink, border: t.color.ruleStrong },
+    failure: { bg: t.color.plate, fg: t.color.red, border: t.color.ruleStrong },
+    cash: { bg: t.color.plate, fg: t.color.ink, border: t.color.ruleStrong },
+    neutral: { bg: t.color.plate, fg: t.color.ink2, border: t.color.ruleStrong },
   }[tone];
   return (
     <View
@@ -365,19 +323,59 @@ export function StatusChip({
       accessible
       accessibilityRole="text"
       accessibilityLabel={label}
-      style={[
-        styles.status,
-        { backgroundColor: look.bg, borderColor: look.border },
-        tone === "pending" ? styles.inFlight : null,
-      ]}
+      style={[styles.status, { backgroundColor: look.bg, borderColor: look.border }]}
     >
-      {tone === "cash" ? <Hatch /> : null}
-      {glyph ? <Glyph name={glyph} size={16} color={look.fg} /> : null}
+      {tone === "landed" ? <Glyph name="check" size={14} color={look.fg} /> : <StatusDot tone={tone} />}
       {/* The words wrap inside the chip (long Cebuano status words, 200% text); they are never cut off. */}
       <Txt kind="label" style={[styles.statusWords, { color: look.fg }]}>
         {label}
       </Txt>
     </View>
+  );
+}
+
+/**
+ * A status as a dot (the console's `StateDot`, docs/DESIGN.md §4): amber when a person decides, red only when PayPal
+ * failed, jade only when PayPal confirmed, a hatch swatch for cash, a hollow ink-3 ring while the money is with
+ * PayPal (pending), a hollow steel ring otherwise (waiting). Always beside its word.
+ */
+export function StatusDot({ tone, size = 8 }: { tone: StatusTone; size?: number }) {
+  const { t } = useFs();
+  if (tone === "cash") {
+    return (
+      <View
+        style={[
+          styles.dot,
+          { width: size + 2, height: size + 2, borderRadius: 2, borderColor: t.color.hatch },
+        ]}
+      >
+        <Hatch />
+      </View>
+    );
+  }
+  const fill =
+    tone === "decide"
+      ? t.color.canary
+      : tone === "failure"
+        ? t.color.red
+        : tone === "landed"
+          ? t.color.jade
+          : "transparent";
+  const ring =
+    tone === "landed"
+      ? t.color.jadeFlushBorder
+      : tone === "pending"
+        ? t.color.ink3
+        : tone === "neutral"
+          ? t.color.steelLine
+          : fill;
+  return (
+    <View
+      style={[
+        styles.dot,
+        { width: size, height: size, borderRadius: size / 2, backgroundColor: fill, borderColor: ring },
+      ]}
+    />
   );
 }
 
@@ -403,20 +401,22 @@ export function MemberStatusChip({
   );
 }
 
-/** A ruled deduction (design §2.2): plate-2 with the rule ID in text, no hue of its own. "CBU −1.09 R1". */
+/**
+ * A ruled deduction (design §2.2): plate-2, no hue of its own. Round 5 (no ids for people): it reads its words alone
+ * ("CBU −1.09"); the rule's id is part of its accessible name only. A chip with no words of its own draws nothing:
+ * its row already says the deduction, and speaks the rule.
+ */
 export function RuleChip({ ruleId, label, testID }: { ruleId: string; label?: string; testID?: string }) {
   const { t } = useFs();
+  if (!label) return null;
   return (
     <View
       testID={testID}
       accessible
-      accessibilityLabel={label ? `${label}, ${ruleId}` : ruleId}
+      accessibilityLabel={ruleId ? `${label}, rule ${ruleId}` : label}
       style={[styles.rule, { backgroundColor: t.color.plate2, borderColor: t.color.rule }]}
     >
-      {label ? <Txt kind="label">{label}</Txt> : null}
-      <Txt kind="label" color="ink2">
-        {ruleId}
-      </Txt>
+      <Txt kind="label">{label}</Txt>
     </View>
   );
 }
@@ -483,8 +483,14 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     borderWidth: 1,
   },
-  stamp: { width: 20, height: 20, borderRadius: radius.cell, alignItems: "center", justifyContent: "center" },
-  stampText: { fontSize: 9, lineHeight: 11, fontFamily: fontFamily.strong },
+  stamp: {
+    width: 24,
+    height: 24,
+    borderRadius: radius.pill,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   banner: {
     flexDirection: "row",
     alignItems: "flex-start",
@@ -498,16 +504,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
     alignSelf: "flex-start",
     maxWidth: "100%",
-    gap: space.s4,
-    minHeight: 28,
-    paddingHorizontal: space.s12,
+    gap: space.s8,
+    // Round 4: the phone's scale of the console's pill (32 px, the label step's 15/520), the same for every status.
+    minHeight: layout.statusChip,
+    paddingLeft: space.s8 + 2,
+    paddingRight: space.s12,
     paddingVertical: space.s4,
     borderWidth: 1,
     borderRadius: radius.pill,
     overflow: "hidden",
   },
-  /** Money on its way: a 1.5 px dashed jade outline on a transparent face (not yet money anyone holds). */
-  inFlight: { borderStyle: "dashed", borderWidth: 1.5 },
+  dot: { borderWidth: 1, overflow: "hidden" },
   statusWords: { flexShrink: 1 },
   rule: {
     flexDirection: "row",
@@ -518,18 +525,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderRadius: radius.cell,
   },
-  demoLabel: {
-    flexDirection: "row",
-    alignItems: "center",
-    alignSelf: "flex-start",
-    gap: space.s4,
-    paddingHorizontal: space.s8,
-    paddingVertical: 2,
-    borderWidth: 1,
-    borderRadius: radius.pill,
-  },
-  machine: { flexShrink: 1, maxWidth: "100%" },
-  /** Not real, or not yet: the dashed steel honesty outline on a transparent face (ADR-0016). */
-  honest: { borderStyle: "dashed", backgroundColor: "transparent" },
-  labels: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: space.s8 },
+  textButton: { alignSelf: "flex-start" },
+  link: { textDecorationLine: "underline" },
 });

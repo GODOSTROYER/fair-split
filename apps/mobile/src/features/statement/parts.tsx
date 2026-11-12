@@ -3,17 +3,17 @@
  * - `LangBar`: Cebuano, Filipino, English one tap away on every member surface (design §8), and the English gloss
  *   switch (the "machine-translated, pending native review" chip is the chrome's, on every screen: `SurfaceLabels`);
  * - `GlossedSentence`: a statement sentence with its English gloss underneath when the gloss is on (IC-12 `gloss`);
- * - `HistoryMark`: the mark beside a history row (initials in ink for people, jade only for PayPal's confirmation).
+ * - `HistoryMark`: the 8 px state dot beside a history row (ink for people's steps, jade only for PayPal's
+ *   confirmation).
  */
 import { Pressable, StyleSheet, View } from "react-native";
 import type { Lang } from "../../_shims/contracts";
-import { fontFamily } from "../../_shims/fonts";
 import { radius, space, target } from "../../_shims/tokens.native";
 import type { GlossPair } from "../../lib/statement";
 import { useApp } from "../../state/app";
 import { type TypeRole, useFs } from "../../theme/theme";
 import { LanguagePicker } from "../../ui/language-picker";
-import { Hatch, InkStamp } from "../../ui/primitives";
+import { StatusDot } from "../../ui/primitives";
 import { Sentence } from "../../ui/sentence";
 import { Txt } from "../../ui/text";
 import type { HistoryMark as Mark } from "./line-view";
@@ -28,7 +28,8 @@ export const COLUMN = { width: "100%", maxWidth: 640, alignSelf: "center" } as c
 
 /**
  * The member's language row, and the English gloss switch on the screens that show statement sentences
- * (`glossable`) when the language is not English.
+ * (`glossable`) when the language is not English. Round 2: one row that wraps, the switch a pill the height of the
+ * language control beside it.
  */
 export function LangBar({ testID, glossable = true }: { testID: string; glossable?: boolean }) {
   const { lang } = useApp();
@@ -55,12 +56,12 @@ export function LangBar({ testID, glossable = true }: { testID: string; glossabl
               style={[
                 styles.gloss,
                 {
-                  borderColor: gloss ? t.color.ink : t.color.rule,
+                  borderColor: gloss ? t.color.ink : t.color.ruleStrong,
                   backgroundColor: gloss ? t.color.ink : t.color.plate,
                 },
               ]}
             >
-              <Txt kind="label" style={{ color: gloss ? t.color.plate : t.color.ink }}>
+              <Txt kind="label" style={{ color: gloss ? t.color.plate : t.color.ink2 }}>
                 {tr("M-MB-01.glossOn")}
               </Txt>
             </View>
@@ -99,13 +100,7 @@ export function GlossedSentence({
         underline={underline}
       />
       {gloss && pair.gloss ? (
-        <Txt
-          kind="body"
-          color="ink2"
-          lang="en"
-          style={styles.glossText}
-          testID={testID ? `${testID}.gloss` : undefined}
-        >
+        <Txt kind="body" color="ink2" lang="en" testID={testID ? `${testID}.gloss` : undefined}>
           {pair.gloss.display}
         </Txt>
       ) : null}
@@ -113,53 +108,48 @@ export function GlossedSentence({
   );
 }
 
-/** The mark that leads a history row; every row also has its words, so no state is told by colour alone. */
-export function HistoryMark({ mark, by }: { mark: Mark; by: readonly string[] }) {
+/**
+ * The mark that leads a history row; every row also has its words, so no state is told by colour alone. UI gate
+ * round 5 (one marker vocabulary, docs/DESIGN.md §4): the console's 8 px round state dot, 8 px from its words, with no
+ * indent: a step people took (approved, sent, received) is the done dot in ink, PayPal's confirmation the jade dot, a
+ * person's decision the amber dot, cash at the bodega its hatch swatch (the status pill's cash mark). Who approved is
+ * in the row's words, so no initials stand in the margin.
+ */
+export function HistoryMark({ mark }: { mark: Mark; by?: readonly string[] }) {
   const { t } = useFs();
-  if (mark === "stamps" && by.length) {
+  if (mark === "hatch") {
     return (
-      <View style={styles.stamps}>
-        {by.map((i) => (
-          <InkStamp key={i} initials={i} />
-        ))}
+      <View style={styles.markSlot} importantForAccessibility="no-hide-descendants" aria-hidden>
+        <StatusDot tone="cash" />
       </View>
     );
   }
-  const fill =
+  const look =
     mark === "jade"
-      ? t.color.jade
+      ? { fill: t.color.jade, ring: t.color.jadeFlushBorder }
       : mark === "canary"
-        ? t.color.canary
-        : mark === "hatch"
-          ? t.color.plate
-          : t.color.pencil;
+        ? { fill: t.color.canary, ring: t.color.canary }
+        : { fill: t.color.ink, ring: t.color.ink };
   return (
-    <View style={styles.stamps}>
-      <View
-        style={[
-          styles.square,
-          { backgroundColor: fill, borderColor: mark === "jade" ? t.color.jadeFlushBorder : t.color.rule },
-        ]}
-      >
-        {mark === "hatch" ? <Hatch /> : null}
-      </View>
+    <View style={styles.markSlot} importantForAccessibility="no-hide-descendants" aria-hidden>
+      <View dataSet={{ mark }} style={[styles.dot, { backgroundColor: look.fill, borderColor: look.ring }]} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  bar: { gap: space.s8 },
+  bar: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: space.s8 },
   row: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: space.s8 },
   glossTap: { minHeight: target.min, justifyContent: "center" },
   gloss: {
-    minHeight: 32,
+    minHeight: 36,
     justifyContent: "center",
-    paddingHorizontal: space.s12,
+    paddingHorizontal: space.s16,
     borderWidth: 1,
-    borderRadius: radius.plate,
+    borderRadius: radius.pill,
   },
   glossed: { gap: space.s4 },
-  glossText: { fontFamily: fontFamily.statement },
-  stamps: { flexDirection: "row", gap: space.s4, width: 40, alignItems: "center" },
-  square: { width: 12, height: 12, borderWidth: 1, overflow: "hidden", marginLeft: 3 },
+  // One 10 px slot (the cash swatch's width), so every row's words start at the same x, 8 px after its mark.
+  markSlot: { width: 10, alignItems: "center", justifyContent: "center" },
+  dot: { width: 8, height: 8, borderRadius: 4, borderWidth: 1 },
 });

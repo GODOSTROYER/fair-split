@@ -3,7 +3,7 @@ import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import appConfig from "../../app.config";
-import { FIGURE_VARIANT, fontFamily, pesoFace } from "./fonts";
+import { FIGURE_VARIANT, fontFamily, MONO_IOS, MONO_NATIVE, MONO_WEB, pesoFace } from "./fonts";
 
 const app = fileURLToPath(new URL("../../", import.meta.url));
 const nativeDir = resolve(app, "../../assets/fonts/native");
@@ -16,19 +16,20 @@ const report = JSON.parse(readFileSync(resolve(app, "../../assets/fonts/fonts.re
 };
 const checkOf = (family: string) => report.checks[`native/${family}.ttf`];
 
-const FS_SANS = [fontFamily.amount, fontFamily.figure, fontFamily.ui, fontFamily.strong];
-const ATKINSON = [fontFamily.statement, fontFamily.statementBold];
+const FS_SANS = [fontFamily.figure, fontFamily.ui, fontFamily.strong];
+const MONO = [MONO_NATIVE, MONO_WEB, MONO_IOS];
 
 describe("the app sets type in WS-DS's cuts (design §2.3, S2.3), not stand-ins", () => {
-  it("gives each role its FS Sans cut: amounts 75/800, figures 87.5/500, UI 100/400, slabs and titles 112.5/700", () => {
+  it("sets everything in FS Sans and one mono (round 3): figures 87.5/500, UI 100/400, titles 112.5/700", () => {
     expect(fontFamily).toEqual({
-      amount: "FSSans-CondXBold",
       figure: "FSSans-SemiCondMedium",
       ui: "FSSans-Regular",
       strong: "FSSans-SemiExpBold",
-      statement: "AtkinsonNext-Regular",
-      statementBold: "AtkinsonNext-Bold",
     });
+    // Round 3 retires the statement face and the heavy condensed cut; the mono is the platform's own (no file).
+    expect(JSON.stringify(fontFamily)).not.toMatch(/Atkinson|CondXBold/);
+    expect(MONO_NATIVE).toBe("monospace");
+    expect(MONO_WEB).toMatch(/^ui-monospace, .*monospace$/);
   });
 
   it("names every family after a file in assets/fonts/native that is the file WS-DS built and checked", () => {
@@ -61,15 +62,12 @@ describe("the app sets type in WS-DS's cuts (design §2.3, S2.3), not stand-ins"
     for (const e of entries) expect(e.file, e.family).toBe(fileOf(e.family));
   });
 
-  it("uses the cuts' own peso (the grafted Noto ₱); only Atkinson prose borrows it from the figure face", () => {
+  it("uses the cuts' own peso (the grafted Noto ₱); only the mono borrows it from the figure face", () => {
     for (const family of FS_SANS) {
       expect(checkOf(family)?.peso, family).toBe(true);
       expect(pesoFace(family), family).toBeNull();
     }
-    for (const family of ATKINSON) {
-      expect(checkOf(family)?.peso, family).toBe(false);
-      expect(pesoFace(family), family).toBe(fontFamily.figure);
-    }
+    for (const family of MONO) expect(pesoFace(family), family).toBe(fontFamily.figure);
   });
 
   it("keeps the slashed zero: tabular figures only, never ss08 (Mona's straight-bar zero)", () => {

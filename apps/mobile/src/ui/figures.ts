@@ -1,6 +1,6 @@
 /**
  * Splits plain UI copy into words and figures so `<Sentence>` can set figures in the figure face, tabular, with the
- * slashed zero, inside Atkinson prose (design §2.3: "Money is always set in FS Sans, even inside Atkinson prose"). A figure is taken whole, unit and all: "US$300", "₱4,028", "30 Okt 2026", "148.0 kg", "1.62%", "09:12",
+ * slashed zero, inside the prose (docs/DESIGN.md §1). A figure is taken whole, unit and all: "US$300", "₱4,028", "30 Okt 2026", "148.0 kg", "1.62%", "09:12",
  * "2026-A", "M-014", "R1", so a date or a weight never changes face halfway through.
  */
 export interface Segment {
@@ -43,7 +43,7 @@ export function figures(text: string): Segment[] {
 
 /**
  * Splits engine values (from `fillSentence`) down to their figures, so only figures change face: in
- * "0403, 0419, 0436 ug 0467" the "ug" stays prose, and "Lantern Bay" or "Nang Celing" never leave Atkinson.
+ * "0403, 0419, 0436 ug 0467" the "ug" stays prose, and "Lantern Bay" or "Nang Celing" never leave the prose.
  */
 export function figureRuns(segments: readonly Segment[]): Segment[] {
   return segments.flatMap((s) => (s.value ? figures(s.text) : [s]));
@@ -56,7 +56,7 @@ export function isFigure(s: Segment): boolean {
 
 export interface PesoRun {
   text: string;
-  /** True for a ₱ sign, which text in a face without one (Atkinson, S2.3) sets in the figure face. */
+  /** True for a ₱ sign, which text in a face without one sets in the figure face. */
   peso: boolean;
 }
 

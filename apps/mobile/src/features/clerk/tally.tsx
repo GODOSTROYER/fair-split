@@ -71,7 +71,7 @@ export function TodayTally({
 }
 
 const styles = StyleSheet.create({
-  plate: { padding: space.s16, gap: space.s12, borderRadius: radius.plate },
+  plate: { padding: space.s16, gap: space.s12, borderRadius: radius.card },
   rings: { flexDirection: "row", flexWrap: "wrap", gap: space.s8, alignItems: "center" },
   more: {
     minWidth: RING,

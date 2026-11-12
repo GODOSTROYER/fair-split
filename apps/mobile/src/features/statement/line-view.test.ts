@@ -147,8 +147,9 @@ describe("the statement for each demo stage (S1.9 states)", () => {
     const v = view(previewLine(at("checking"), "HELD"), "en");
     expect(v.capsule).toBe("held-line");
     expect(v.showAmount).toBe(false);
+    // Round 3: the demo's expected date follows the clock (the day after NOW in Calinan), never a past seed date.
     expect(t("en", v.detail?.key ?? "M-MB-01.held", v.detail?.args)).toBe(
-      "One line is still being checked. Treasurer Analyn decides by 30 Oct 2026.",
+      "One line is still being checked. Treasurer Analyn decides by 31 Oct 2026.",
     );
   });
 
@@ -318,6 +319,15 @@ describe("history in her words", () => {
       ["paid", "jade"],
     ]);
     expect(rows[0]?.copy).toEqual({ key: "M-MB-01.historyApproved", args: { a: "AS", b: "EC" } });
+  });
+
+  it("says a plain 'Giaprobahan na' when the history does not name the officers (never 'ni ug')", () => {
+    const dto: StatementDTO = {
+      ...at("paid"),
+      history: at("paid").history.map((h) => (h.kind === "approved" ? { kind: h.kind, at: h.at } : h)),
+    };
+    const approved = historyRows(dto, trackOf(dto)).find((r) => r.kind === "approved");
+    expect(approved?.copy).toEqual({ key: "M-MB-01.historyApprovedPlain" });
   });
 
   it("shows a confirmation that arrived by event before the server's history caught up", () => {

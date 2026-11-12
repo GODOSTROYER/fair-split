@@ -9,10 +9,11 @@ import { defineMessages, type MessageArgs, type MessageKey, same, translateIn } 
 
 export const messages = defineMessages({
   /* M-BD-01 co-sign request */
+  /** Round 4: the season is "2026-A" (docs/DESIGN.md §6), so the heading fits one line on the stage's phone. */
   "M-BD-01.heading": {
-    ceb: "Pirmahan sa Season {season}",
-    fil: "Pipirmahan sa Season {season}",
-    en: "Co-sign Season {season}",
+    ceb: "Pirmahan sa {season}",
+    fil: "Pipirmahan sa {season}",
+    en: "Co-sign {season}",
   },
   "M-BD-01.count": {
     ceb: "{n} ka bayad pinaagi sa PayPal",
@@ -201,10 +202,11 @@ export const messages = defineMessages({
   "M-BD-01.push.label": same("Simulated push"),
   "M-BD-01.push.app": same("Fair Split"),
   "M-BD-01.push.now": { ceb: "karon", fil: "ngayon", en: "now" },
+  /** Round 4: one line, the season and the amount (the screen under it says the count). */
   "M-BD-01.push.title": {
-    ceb: "Co-sign sa Season {season}: {n} ka bayad, {amount}",
-    fil: "Co-sign sa Season {season}: {n} bayad, {amount}",
-    en: "Co-sign Season {season}: {n} payouts, {amount}",
+    ceb: "Co-sign sa {season}: {amount}",
+    fil: "Co-sign sa {season}: {amount}",
+    en: "Co-sign {season}: {amount}",
   },
   "M-BD-01.push.unconfigured": {
     ceb: "Wala pa ma-set ang mga pahibalo niini nga telepono. Ablihi ang Fair Split aron makita ang mga pirmahan.",
@@ -253,6 +255,8 @@ export const messages = defineMessages({
 
   /* M-BD-02 sign */
   "M-BD-02.title": { ceb: "Pirmahi ang batch", fil: "Pirmahan ang batch", en: "Sign the batch" },
+  /** Round 2: the sign sheet's one mono line under its header, data joined by " · ". */
+  "M-BD-02.meta": same("{season} · {name}"),
   "M-BD-02.slab": { ceb: "Pirmahi", fil: "Pirmahan", en: "Sign" },
   "M-BD-02.caption.biometric": {
     ceb: "Kupti, dayon gamita ang inyong fingerprint.",
@@ -264,15 +268,18 @@ export const messages = defineMessages({
     fil: "Pindutin nang matagal, saka gamitin ang fingerprint o PIN ng telepono.",
     en: "Hold, then use your fingerprint or the phone's PIN.",
   },
+  // Round 2: shortened by deleting its second sentence; the "Demo key (this browser)" tag under the slab says it.
+  /** Round 4: a caption under the slab, like the console's "Hold to sign" (no full stop). */
   "M-BD-02.caption.demo": {
-    ceb: "Kupti aron mopirma. Kini nga browser mopirma gamit ang demo key.",
-    fil: "Pindutin nang matagal para pumirma. Pipirma ang browser na ito gamit ang demo key.",
-    en: "Hold to sign. This browser signs with a demo key.",
+    ceb: "Kupti aron mopirma",
+    fil: "Pindutin nang matagal para pumirma",
+    en: "Hold to sign",
   },
+  // Round 5: the console's words, "Other ways to sign", in each language.
   "M-BD-02.another": {
-    ceb: "Dili makakupti? Pirmahi sa laing paagi",
-    fil: "Hindi makapindot nang matagal? Pumirma sa ibang paraan",
-    en: "Can't hold? Sign another way",
+    ceb: "Ubang paagi sa pagpirma",
+    fil: "Ibang paraan ng pagpirma",
+    en: "Other ways to sign",
   },
   "M-BD-02.prompt": {
     ceb: "Pirmahi ang batch sa Season {season}",
@@ -298,6 +305,12 @@ export const messages = defineMessages({
     ceb: "Napirmahan. Key {key}. Parehas ang batch hash sa console.",
     fil: "Napirmahan. Key {key}. Pareho ang batch hash sa console.",
     en: "Signed. Key {key}. The batch hash matches the console.",
+  },
+  /** Round 5: the signed line on screen, with no key id (the id is spoken, `M-BD-02.signed`, and behind the mark). */
+  "M-BD-02.signedShort": {
+    ceb: "Napirmahan. Parehas ang batch hash sa console.",
+    fil: "Napirmahan. Pareho ang batch hash sa console.",
+    en: "Signed. The batch hash matches the console.",
   },
   "M-BD-02.sealed": {
     ceb: "Giaprobahan ni {a} ug {b}",

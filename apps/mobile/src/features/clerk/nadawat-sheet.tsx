@@ -507,7 +507,7 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderWidth: 1.5,
-    borderRadius: radius.plate,
+    borderRadius: radius.cell,
     alignItems: "center",
     justifyContent: "center",
     marginTop: 2,
@@ -523,6 +523,6 @@ const styles = StyleSheet.create({
     gap: space.s12,
     padding: space.s12,
     borderWidth: 1,
-    borderRadius: radius.plate,
+    borderRadius: radius.card,
   },
 });

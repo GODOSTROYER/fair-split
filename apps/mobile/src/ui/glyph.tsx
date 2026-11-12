@@ -73,9 +73,10 @@ export function Glyph({ name, size = 24, color }: { name: GlyphName; size?: numb
         d={STROKE[name]}
         fill="none"
         stroke={color}
-        strokeWidth={2}
-        strokeLinecap="square"
-        strokeLinejoin="miter"
+        // UI gate round 2: the reels' line icon, 1.6 px at 20 dp (1.9 in the 24 box), round caps and joins.
+        strokeWidth={1.9}
+        strokeLinecap="round"
+        strokeLinejoin="round"
       />
       {name === "contrast" ? <Path d={FILLED.contrastHalf} fill={color} /> : null}
     </Svg>
